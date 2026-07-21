@@ -110,6 +110,7 @@
   const km = $derived(settings.keymap);
   const mac = settings.isMac;
   function openSheet(sheetId: string) {
+    hoveredIdx = null;
     store.activeSheetId = sheetId;
     const target = round?.sheets.find((s) => s.id === sheetId);
     store.cursor = { row: 0, col: target?.startCol ?? 0 };
@@ -139,6 +140,53 @@
     }
   }
 
+  // Keyboard hover: a highlighted tab you can move without switching to it.
+  let hoveredIdx = $state<number | null>(null);
+
+  /** Move to the sheet left (-1) or right (+1) of the current one; wraps.
+   *  Works in normal view and in spread (moves the focused flow). */
+  function moveToSheet(delta: number) {
+    hoveredIdx = null;
+    const sheets = round?.sheets ?? [];
+    if (sheets.length === 0) return;
+    if (spread) {
+      // Cycle the active flow through the ones on the desk.
+      const visible = sheets.filter((s) => !hiddenInSpread.includes(s.id));
+      if (visible.length === 0) return;
+      let vi = visible.findIndex((s) => s.id === store.activeSheetId);
+      if (vi < 0) vi = 0;
+      const nv = visible.length;
+      const target = visible[(((vi + delta) % nv) + nv) % nv];
+      store.activeSheetId = target.id;
+      store.cursor = { row: 0, col: target.startCol };
+      return;
+    }
+    let idx = sheets.findIndex((s) => s.id === store.activeSheetId);
+    if (atHome || idx < 0) idx = delta > 0 ? -1 : 0;
+    const n = sheets.length;
+    openSheet(sheets[(((idx + delta) % n) + n) % n].id);
+  }
+
+  /** Reorder the current sheet one position left/right (keyboard, no drag). */
+  function reorderCurrent(delta: number) {
+    if (!round || !store.activeSheetId) return;
+    const idx = round.sheets.findIndex((s) => s.id === store.activeSheetId);
+    if (idx < 0) return;
+    store.reorderSheet(store.activeSheetId, idx + delta);
+  }
+
+  /** Move the keyboard hover-highlight without switching sheets. */
+  function moveHover(delta: number) {
+    const sheets = round?.sheets ?? [];
+    if (sheets.length === 0) return;
+    let base = hoveredIdx ?? sheets.findIndex((s) => s.id === store.activeSheetId);
+    if (base < 0) base = 0;
+    const n = sheets.length;
+    hoveredIdx = (((base + delta) % n) + n) % n;
+    // Blur the cell so Enter opens the hovered sheet instead of typing.
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }
+
   function onkeydown(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key === "z" && !e.shiftKey) {
@@ -150,6 +198,32 @@
     } else if (matchesAny(e, km.newSheet)) {
       e.preventDefault();
       addingSheet = true;
+    } else if (hoveredIdx !== null && e.key === "Enter") {
+      e.preventDefault();
+      const s = round?.sheets[hoveredIdx];
+      if (s) openSheet(s.id);
+      hoveredIdx = null;
+    } else if (hoveredIdx !== null && e.key === "Escape") {
+      e.preventDefault();
+      hoveredIdx = null;
+    } else if (matchesAny(e, km.prevSheet)) {
+      e.preventDefault();
+      moveToSheet(-1);
+    } else if (matchesAny(e, km.nextSheet)) {
+      e.preventDefault();
+      moveToSheet(1);
+    } else if (matchesAny(e, km.moveSheetLeft)) {
+      e.preventDefault();
+      reorderCurrent(-1);
+    } else if (matchesAny(e, km.moveSheetRight)) {
+      e.preventDefault();
+      reorderCurrent(1);
+    } else if (matchesAny(e, km.hoverPrevSheet)) {
+      e.preventDefault();
+      moveHover(-1);
+    } else if (matchesAny(e, km.hoverNextSheet)) {
+      e.preventDefault();
+      moveHover(1);
     } else if (matchesAny(e, km.toggleSpread)) {
       e.preventDefault();
       setSpread(lastSpread);
@@ -198,6 +272,7 @@
           ? !hiddenInSpread.includes(s.id)
           : !atHome && s.id === store.activeSheetId}
         class:spread-hidden={spread && hiddenInSpread.includes(s.id)}
+        class:kbd-hover={hoveredIdx === i}
         class:dragging={draggingTab === s.id}
         class:drag-before={dragOverIdx === i && dragBefore && draggingTab !== s.id}
         class:drag-after={dragOverIdx === i && !dragBefore && draggingTab !== s.id}
@@ -342,7 +417,11 @@
             <tr><td><kbd>{combosLabel(km.markStarred, mac)}</kbd></td><td>Star (must answer)</td></tr>
             <tr><td><kbd>{combosLabel(km.markAnalytic, mac)}</kbd></td><td>Mark analytic (ink color)</td></tr>
             <tr><td><kbd>{combosLabel(km.markCard, mac)}</kbd></td><td>Mark card (ink color)</td></tr>
-            <tr><td><kbd>{mac ? "⌘" : "Ctrl"}1–9</kbd></td><td>Switch sheet</td></tr>
+            <tr><td><kbd>{mac ? "⌘" : "Ctrl"}1–9</kbd></td><td>Jump to sheet</td></tr>
+            <tr><td><kbd>{combosLabel(km.prevSheet, mac)}</kbd> / <kbd>{combosLabel(km.nextSheet, mac)}</kbd></td><td>Previous / next sheet</td></tr>
+            <tr><td><kbd>{combosLabel(km.moveSheetLeft, mac)}</kbd> / <kbd>{combosLabel(km.moveSheetRight, mac)}</kbd></td><td>Move sheet left / right</td></tr>
+            <tr><td><kbd>{combosLabel(km.hoverPrevSheet, mac)}</kbd> / <kbd>{combosLabel(km.hoverNextSheet, mac)}</kbd></td><td>Hover sheets (Enter opens)</td></tr>
+            <tr><td><kbd>{mac ? "⌘" : "Ctrl"}C</kbd> / <kbd>{mac ? "⌘" : "Ctrl"}V</kbd></td><td>Copy / paste cells (Excel-style)</td></tr>
             <tr><td><kbd>{combosLabel(km.toggleSpread, mac)}</kbd></td><td>Spread view (tabs toggle sheets)</td></tr>
             <tr><td><kbd>{combosLabel(km.goHome, mac)}</kbd></td><td>Round home</td></tr>
             <tr><td><kbd>{combosLabel(km.newSheet, mac)}</kbd></td><td>New sheet</td></tr>
@@ -447,6 +526,11 @@
   }
   .tab.spread-hidden {
     opacity: 0.4;
+  }
+  .tab.kbd-hover {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    opacity: 1;
   }
   .tab-rename {
     background: var(--bg);

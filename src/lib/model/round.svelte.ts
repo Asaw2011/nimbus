@@ -382,6 +382,40 @@ class RoundStore {
     });
   }
 
+  /**
+   * Paste a 2D block of text starting at (startRow, startCol), spreading into
+   * cells to the right and down like Excel. Grows rows as needed; never spills
+   * past the last speech column. One undo step. Returns the block's extent.
+   */
+  pasteBlock(startRow: number, startCol: number, rows: string[][]): void {
+    const sheet = this.activeSheet;
+    if (!sheet || rows.length === 0) return;
+    const nCols = this.nCols;
+    this.runBatch(() => {
+      rows.forEach((cols, r) => {
+        const tr = startRow + r;
+        this.ensureRows(tr, sheet);
+        cols.forEach((text, c) => {
+          const tc = startCol + c;
+          if (tc >= nCols) return; // don't overflow past the last speech column
+          const cell = sheet.rows[tr]?.cells[tc];
+          if (cell) cell.text = text;
+        });
+      });
+    });
+    // Select the pasted block so it reads like Excel.
+    const lastRow = startRow + rows.length - 1;
+    const lastCol = Math.min(
+      nCols - 1,
+      startCol + Math.max(...rows.map((r) => r.length)) - 1,
+    );
+    this.selection = {
+      anchor: { row: startRow, col: startCol },
+      focus: { row: lastRow, col: lastCol },
+    };
+    this.cursor = { row: startRow, col: startCol };
+  }
+
   /** Selected block as TSV for the clipboard. */
   selectionTsv(): string {
     const sheet = this.activeSheet;

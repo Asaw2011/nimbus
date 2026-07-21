@@ -85,7 +85,9 @@
     const win = getCurrentWindow();
     await win.onCloseRequested((event) => {
       if (closing) return;
-      if (store.round && isDirty(store.round)) {
+      // Only prompt when actively in a flow with unsaved file changes.
+      // On the dashboard, just close normally.
+      if (view === "flow" && store.round && isDirty(store.round)) {
         event.preventDefault();
         closePrompt = true;
       }

@@ -21,6 +21,12 @@ export type ActionId =
   | "markAnalytic"
   | "markCard"
   | "newSheet"
+  | "prevSheet"
+  | "nextSheet"
+  | "moveSheetLeft"
+  | "moveSheetRight"
+  | "hoverPrevSheet"
+  | "hoverNextSheet"
   | "toggleSpread"
   | "goHome"
   | "toggleHelp"
@@ -38,6 +44,12 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   markAnalytic: "Mark as analytic (colors ink)",
   markCard: "Mark as card (colors ink)",
   newSheet: "New sheet",
+  prevSheet: "Previous sheet (left)",
+  nextSheet: "Next sheet (right)",
+  moveSheetLeft: "Move sheet left (reorder)",
+  moveSheetRight: "Move sheet right (reorder)",
+  hoverPrevSheet: "Hover left sheet (don't switch)",
+  hoverNextSheet: "Hover right sheet (don't switch)",
   toggleSpread: "Spread view (multiple sheets at once)",
   goHome: "Round home",
   toggleHelp: "Show keybinds",
@@ -57,6 +69,12 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   markAnalytic: [{ key: "a", mod: true, shift: true }],
   markCard: [{ key: "c", mod: true, shift: true }],
   newSheet: [{ key: "t", mod: true }],
+  prevSheet: [{ key: "[", mod: true }],
+  nextSheet: [{ key: "]", mod: true }],
+  moveSheetLeft: [{ key: "arrowleft", mod: true, shift: true }],
+  moveSheetRight: [{ key: "arrowright", mod: true, shift: true }],
+  hoverPrevSheet: [{ key: "arrowleft", mod: true, alt: true }],
+  hoverNextSheet: [{ key: "arrowright", mod: true, alt: true }],
   toggleSpread: [{ key: "b", mod: true }],
   goHome: [{ key: "0", mod: true }],
   toggleHelp: [{ key: "/", mod: true }],

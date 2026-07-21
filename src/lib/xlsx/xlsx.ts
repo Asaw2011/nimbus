@@ -151,32 +151,78 @@ export function xlsxToRound(bytes: Uint8Array): Round {
     }
   }
 
-  // Verbatim-style grid parse.
-  const sheets: Sheet[] = [];
-  let speeches: Speech[] | null = null;
-  for (const name of wb.SheetNames) {
-    if (name === META_SHEET) continue;
-    const aoa = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[name], {
-      header: 1,
-      blankrows: true,
-    });
-    if (aoa.length === 0) continue;
-    const headers = (aoa[0] ?? []).map((h) => String(h ?? "").trim());
-    if (!speeches) speeches = headers.map(headerToSpeech);
-    const nCols = speeches.length;
-    const rows = [];
-    for (let r = 1; r < aoa.length; r++) {
-      const row = makeRow(nCols);
-      for (let c = 0; c < nCols; c++) {
-        row.cells[c].text = String(aoa[r]?.[c] ?? "");
+  // Grid parse for any Excel flow. The speech-name header isn't always row 1
+  // (Verbatim templates leave row 1 blank), so we detect it and keep ALL the
+  // cell content below it.
+  const raw = wb.SheetNames.filter((n) => n !== META_SHEET)
+    .map((name) => {
+      const aoa = (
+        XLSX.utils.sheet_to_json(wb.Sheets[name], {
+          header: 1,
+          blankrows: true,
+          defval: "",
+        }) as unknown[][]
+      ).map((row) => row.map((c) => (c == null ? "" : String(c))));
+      return { name, aoa };
+    })
+    .filter((s) => s.aoa.length > 0);
+
+  // Column count = widest used column anywhere (capped so a stray far cell
+  // can't blow it up).
+  let nCols = 1;
+  for (const s of raw) for (const r of s.aoa) nCols = Math.max(nCols, r.length);
+  nCols = Math.min(nCols, 30);
+
+  // Header = first row anywhere with 2+ non-empty cells (the speech names).
+  let headerVals: string[] = [];
+  for (const s of raw) {
+    for (let r = 0; r < Math.min(s.aoa.length, 6); r++) {
+      if (s.aoa[r].filter((c) => c.trim() !== "").length >= 2) {
+        headerVals = s.aoa[r];
+        break;
       }
+    }
+    if (headerVals.length) break;
+  }
+
+  const speeches: Speech[] = [];
+  for (let c = 0; c < nCols; c++) {
+    const abbr = (headerVals[c] ?? "").trim() || `Col ${c + 1}`;
+    speeches.push({ id: uid(), abbr, label: abbr, side: sideOf(abbr) });
+  }
+
+  const headerKey = headerVals
+    .map((c) => c.trim().toLowerCase())
+    .join("");
+  const looksLikeHeader = (row: string[]): boolean => {
+    const key = row
+      .slice(0, headerVals.length)
+      .map((c) => c.trim().toLowerCase())
+      .join("");
+    if (headerKey && key === headerKey) return true;
+    const cells = row.filter((c) => c.trim() !== "");
+    return (
+      cells.length >= 2 &&
+      cells.every((c) => c.trim().length <= 12 && sideOf(c) !== "neutral")
+    );
+  };
+
+  const sheets: Sheet[] = raw.map(({ name, aoa }) => {
+    const rows = [];
+    let skippedHeader = false;
+    for (const rowVals of aoa) {
+      if (!skippedHeader && looksLikeHeader(rowVals)) {
+        skippedHeader = true;
+        continue;
+      }
+      const row = makeRow(nCols);
+      for (let c = 0; c < nCols; c++) row.cells[c].text = rowVals[c] ?? "";
       rows.push(row);
     }
     while (rows.length < INITIAL_ROWS) rows.push(makeRow(nCols));
-    sheets.push({ id: uid(), title: name, kind: guessKind(name), startCol: 0, rows });
-  }
+    return { id: uid(), title: name, kind: guessKind(name), startCol: 0, rows };
+  });
 
-  const template = { id: uid(), name: "Imported", speeches: speeches ?? [] };
   const now = Date.now();
   return {
     id: uid(),
@@ -186,19 +232,18 @@ export function xlsxToRound(bytes: Uint8Array): Round {
     judges: "",
     affTeam: "",
     negTeam: "",
-    template,
-    sheets: sheets.length ? sheets : [],
+    template: { id: uid(), name: "Imported", speeches },
+    sheets,
     createdAt: now,
     updatedAt: now,
   };
 }
 
-function headerToSpeech(abbr: string): Speech {
+function sideOf(abbr: string): "aff" | "neg" | "neutral" {
   const a = abbr.toLowerCase();
-  const aff = /\b(1ac|2ac|1ar|2ar|ac|ar|aff|pro)\b/.test(a) || /^a/.test(a);
   const neg = /\b(1nc|2nc|1nr|2nr|nc|nr|neg|con|block)\b/.test(a);
-  const side = neg ? "neg" : aff ? "aff" : "neutral";
-  return { id: uid(), abbr: abbr || "?", label: abbr, side };
+  const aff = /\b(1ac|2ac|1ar|2ar|ac|ar|aff|pro)\b/.test(a);
+  return neg ? "neg" : aff ? "aff" : "neutral";
 }
 
 function guessKind(name: string): SheetKind {

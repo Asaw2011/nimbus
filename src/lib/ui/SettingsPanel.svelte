@@ -161,7 +161,12 @@
   <div
     class="panel"
     onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => e.stopPropagation()}
+    onkeydown={(e) => {
+      // While assigning a bind, capture the keys here (the panel would
+      // otherwise swallow them before the window handler sees them).
+      if (rebinding || rebindingMacro) onRebindKey(e);
+      else e.stopPropagation();
+    }}
     role="dialog"
     tabindex="-1"
   >

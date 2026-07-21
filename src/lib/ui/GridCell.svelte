@@ -177,16 +177,16 @@
     } else if (e.key === "Tab") {
       e.preventDefault();
       store.moveCursor(0, e.shiftKey ? -1 : 1);
-    } else if (e.key === "ArrowDown" && !e.shiftKey) {
+    } else if (e.key === "ArrowDown" && !e.shiftKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       store.moveCursor(1, 0);
-    } else if (e.key === "ArrowUp" && !e.shiftKey) {
+    } else if (e.key === "ArrowUp" && !e.shiftKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       store.moveCursor(-1, 0);
-    } else if (e.key === "ArrowLeft" && !e.shiftKey && caretAt("start")) {
+    } else if (e.key === "ArrowLeft" && !e.shiftKey && !e.metaKey && !e.altKey && caretAt("start")) {
       e.preventDefault();
       store.moveCursor(0, -1);
-    } else if (e.key === "ArrowRight" && !e.shiftKey && caretAt("end")) {
+    } else if (e.key === "ArrowRight" && !e.shiftKey && !e.metaKey && !e.altKey && caretAt("end")) {
       e.preventDefault();
       store.moveCursor(0, 1);
     } else if (e.key === "Escape") {
@@ -201,6 +201,24 @@
     // (insert row, extend, marks) target the sheet you're actually in.
     store.activeSheetId = sheetId;
     store.cursor = { row, col };
+  }
+
+  function onpaste(e: ClipboardEvent) {
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    // Multi-cell clipboard (tabs = columns, newlines = rows) → spread like Excel.
+    if (!text.includes("\t") && !text.includes("\n")) return; // single value: normal paste
+    e.preventDefault();
+    const grid = text
+      .replace(/\r\n/g, "\n")
+      .replace(/\n+$/, "")
+      .split("\n")
+      .map((line) => line.split("\t"));
+    store.pasteBlock(row, col, grid);
+    // Paint this (top-left) cell now; the rest sync as they're unfocused.
+    if (editor) {
+      editor.textContent = grid[0]?.[0] ?? "";
+      editor.blur();
+    }
   }
 </script>
 
@@ -235,6 +253,7 @@
     {oninput}
     {onkeydown}
     {onfocus}
+    {onpaste}
     onblur={() => store.endTextSession()}
   ></div>
 </div>
