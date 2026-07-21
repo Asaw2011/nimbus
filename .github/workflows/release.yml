@@ -8,6 +8,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Allow the workflow's token to create the GitHub Release + upload installers.
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
