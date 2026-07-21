@@ -2,11 +2,14 @@
   import { onMount } from "svelte";
   import type { RoundMeta, SpeechTemplate } from "../model/types";
   import { builtinTemplates } from "../model/templates";
-  import { listRounds, loadRound, deleteRound } from "../model/persist";
+  import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
+  // SCOUTING feature — to remove: delete this import + the marked card + view
+  // block below, and the src/lib/scouting folder.
+  import ScoutingView from "../scouting/ScoutingView.svelte";
 
   let { onopen }: { onopen: () => void } = $props();
 
@@ -15,6 +18,7 @@
   let rounds: RoundMeta[] = $state([]); // app-data flows not yet in a folder
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
   let showSettings = $state(false);
+  let showScouting = $state(false);
   let converting = $state(false);
   let status = $state("");
 
@@ -37,6 +41,35 @@
   let dragOver = $state<string | null>(null);
   // Two-step delete confirms
   let confirmDelete = $state<string | null>(null);
+  // Inline rename (keyed by file path or round id)
+  let renamingKey = $state<string | null>(null);
+  let renameText = $state("");
+
+  function startRename(key: string, current: string) {
+    renamingKey = key;
+    renameText = current;
+  }
+
+  async function commitRenameFlow(file: FlowFile) {
+    const name = renameText.trim();
+    renamingKey = null;
+    if (name && name !== file.name) {
+      await tournaments.renameFlow(file, name);
+      await reloadFlows();
+    }
+  }
+
+  async function commitRenameRound(id: string) {
+    const name = renameText.trim();
+    renamingKey = null;
+    if (!name) return;
+    const round = await loadRound(id);
+    if (round) {
+      round.name = name;
+      await saveRound(round);
+      rounds = await listRounds();
+    }
+  }
 
   onMount(async () => {
     rounds = await listRounds();
@@ -208,6 +241,11 @@
         <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
         <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
       </button>
+      <!-- SCOUTING card (removable) -->
+      <button class="action-card" onclick={() => (showScouting = true)}>
+        <div class="ac-title">🔎 Scouting</div>
+        <div class="ac-desc">Opponent position &amp; card bank — upload their docs, browse by school.</div>
+      </button>
     </div>
 
     {#if status}<p class="status">{status}</p>{/if}
@@ -270,7 +308,19 @@
               <button class="x" class:confirming={confirmDelete === file.path}
                 onclick={(e) => { e.stopPropagation(); removeFlow(file); }}
                 title="Delete flow">{confirmDelete === file.path ? 'Delete?' : '×'}</button>
-              <div class="fname">{file.name}</div>
+              {#if renamingKey === file.path}
+                <!-- svelte-ignore a11y_autofocus -->
+                <input class="rename-input" bind:value={renameText} autofocus
+                  onclick={(e) => e.stopPropagation()}
+                  onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitRenameFlow(file); if (e.key === 'Escape') renamingKey = null; }}
+                  onblur={() => commitRenameFlow(file)} />
+              {:else}
+                <div class="fname">
+                  {file.name}
+                  <button class="rename-btn" title="Rename flow"
+                    onclick={(e) => { e.stopPropagation(); startRename(file.path, file.name); }}>✎</button>
+                </div>
+              {/if}
               <span class="ext-badge {file.ext}">{file.ext === 'xlsx' ? 'Excel' : 'Nimbus'}</span>
               <div class="date">{fmtDate(file.modified)}</div>
             </div>
@@ -306,7 +356,19 @@
             <button class="x" class:confirming={confirmDelete === r.id}
               onclick={(e) => { e.stopPropagation(); removeRound(r.id); }}
               title="Delete round">{confirmDelete === r.id ? 'Delete?' : '×'}</button>
-            <div class="fname">{r.name}</div>
+            {#if renamingKey === r.id}
+              <!-- svelte-ignore a11y_autofocus -->
+              <input class="rename-input" bind:value={renameText} autofocus
+                onclick={(e) => e.stopPropagation()}
+                onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitRenameRound(r.id); if (e.key === 'Escape') renamingKey = null; }}
+                onblur={() => commitRenameRound(r.id)} />
+            {:else}
+              <div class="fname">
+                {r.name}
+                <button class="rename-btn" title="Rename flow"
+                  onclick={(e) => { e.stopPropagation(); startRename(r.id, r.name); }}>✎</button>
+              </div>
+            {/if}
             <div class="chips">
               {#each r.sheets.slice(0, 6) as s, i (i)}
                 <span class="chip-tag">{s.title || '(untitled)'}</span>
@@ -324,7 +386,21 @@
   <SettingsPanel onclose={() => (showSettings = false)} />
 {/if}
 
+<!-- SCOUTING view (removable) -->
+{#if showScouting}
+  <div class="scout-overlay">
+    <ScoutingView
+      onexit={() => (showScouting = false)}
+      onopenflow={async (path) => {
+        const round = await openPath(path);
+        if (round) { store.loadRound(round); showScouting = false; onopen(); }
+      }}
+    />
+  </div>
+{/if}
+
 <style>
+  .scout-overlay { position: fixed; inset: 0; z-index: 40; background: var(--bg); }
   .dashboard { height: 100vh; display: flex; flex-direction: column; }
   .topbar {
     display: flex; justify-content: space-between; align-items: center;
@@ -400,7 +476,18 @@
   .card-dragging { opacity: 0.4; }
   .flow-card { cursor: grab; }
   .round-card { cursor: grab; }
-  .fname { font-size: 15px; font-weight: 700; padding-right: 34px; }
+  .fname { font-size: 15px; font-weight: 700; padding-right: 34px; display: flex; align-items: center; gap: 6px; }
+  .rename-btn {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 12px; opacity: 0; padding: 0 2px;
+  }
+  .card:hover .rename-btn { opacity: 1; }
+  .rename-btn:hover { color: var(--accent); }
+  .rename-input {
+    background: var(--bg); border: 1px solid var(--accent); color: var(--text);
+    border-radius: 4px; padding: 4px 8px; font-size: 14px; font-weight: 700;
+    margin-right: 30px; width: calc(100% - 40px);
+  }
   .x {
     position: absolute; top: 8px; right: 8px; background: none; border: none;
     color: var(--text-dim); font-size: 15px; cursor: pointer; border-radius: 4px; padding: 1px 6px;

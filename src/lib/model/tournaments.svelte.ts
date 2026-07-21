@@ -19,6 +19,17 @@ export interface FlowFile {
   modified: number;
 }
 
+/** A flow discovered on disk, with opponent metadata for scouting auto-match. */
+export interface ScannedFlow {
+  name: string;
+  path: string;
+  ext: string;
+  tournament: string;
+  modified: number;
+  /** Lowercased "name opponent affTeam negTeam" for matching. */
+  haystack: string;
+}
+
 const BLOB = "tournaments";
 
 function inTauri(): boolean {
@@ -116,6 +127,45 @@ class TournamentStore {
     }
   }
 
+  /**
+   * Every flow across all tournament folders, with the opponent metadata read
+   * from the file (for auto-matching to scouting teams). Reads .nimbus files;
+   * .xlsx uses the filename only.
+   */
+  async scanAllFlows(): Promise<ScannedFlow[]> {
+    if (!inTauri()) return [];
+    const out: ScannedFlow[] = [];
+    for (const t of this.list) {
+      const files = await this.flows(t);
+      for (const f of files) {
+        let opponent = "";
+        let affTeam = "";
+        let negTeam = "";
+        let name = f.name;
+        if (f.ext === "nimbus") {
+          try {
+            const r = JSON.parse(await invoke<string>("read_text_file", { path: f.path }));
+            opponent = r.opponent ?? "";
+            affTeam = r.affTeam ?? "";
+            negTeam = r.negTeam ?? "";
+            name = r.name || f.name;
+          } catch {
+            /* keep filename-only */
+          }
+        }
+        out.push({
+          name,
+          path: f.path,
+          ext: f.ext,
+          tournament: t.name,
+          modified: f.modified,
+          haystack: `${name} ${opponent} ${affTeam} ${negTeam}`.toLowerCase(),
+        });
+      }
+    }
+    return out;
+  }
+
   /** Save a round into a tournament folder, using the default save format. */
   async saveRoundInto(t: Tournament, round: Round): Promise<string> {
     const excel = settings.defaultSaveFormat === "xlsx";
@@ -143,6 +193,39 @@ class TournamentStore {
 
   async deleteFlow(file: FlowFile): Promise<void> {
     await invoke("delete_path", { path: file.path });
+  }
+
+  /** Rename a flow: renames the file on disk and the name stored inside it. */
+  async renameFlow(file: FlowFile, newName: string): Promise<void> {
+    const safe = safeFileName(newName);
+    if (!safe) return;
+    const sep = file.path.includes("\\") ? "\\" : "/";
+    const dir = file.path.slice(0, file.path.lastIndexOf(sep));
+    const newPath = join(dir, `${safe}.${file.ext}`);
+
+    // Load, update the internal name, write to the new path.
+    let round: Round;
+    if (file.ext === "xlsx") {
+      const arr = await invoke<number[]>("read_binary_file", { path: file.path });
+      const { xlsxToRound } = await import("../xlsx/xlsx");
+      round = xlsxToRound(new Uint8Array(arr));
+    } else {
+      round = JSON.parse(
+        await invoke<string>("read_text_file", { path: file.path }),
+      ) as Round;
+    }
+    round.name = newName.trim();
+    round.filePath = newPath;
+    if (file.ext === "xlsx") {
+      const { roundToXlsx } = await import("../xlsx/xlsx");
+      await invoke("write_binary_file", { path: newPath, bytes: Array.from(roundToXlsx(round)) });
+    } else {
+      await invoke("write_text_file", {
+        path: newPath,
+        contents: JSON.stringify(round, null, 2),
+      });
+    }
+    if (newPath !== file.path) await invoke("delete_path", { path: file.path });
   }
 }
 

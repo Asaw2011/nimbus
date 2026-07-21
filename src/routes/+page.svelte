@@ -19,6 +19,12 @@
   let closePrompt = $state(false);
   let closeError = $state("");
   let closing = false;
+  // Plain mirror of `view` — read from the close callback where a $state
+  // reference could be stale. Kept in sync by the effect below.
+  let inFlowView = false;
+  $effect(() => {
+    inFlowView = view === "flow";
+  });
   // Brief "Saved ✓" / error toast.
   let toast = $state("");
   function flashToast(msg: string) {
@@ -85,11 +91,21 @@
     const win = getCurrentWindow();
     await win.onCloseRequested((event) => {
       if (closing) return;
-      // Only prompt when actively in a flow with unsaved file changes.
-      // On the dashboard, just close normally.
-      if (view === "flow" && store.round && isDirty(store.round)) {
-        event.preventDefault();
+      // Always take control of the close, then either prompt or quit the
+      // process ourselves — don't rely on Tauri's default close (unreliable
+      // here). Only prompt for a flow linked to a file with unsaved changes.
+      let shouldPrompt = false;
+      try {
+        shouldPrompt =
+          inFlowView && !!store.round?.filePath && isDirty(store.round);
+      } catch {
+        shouldPrompt = false;
+      }
+      event.preventDefault();
+      if (shouldPrompt) {
         closePrompt = true;
+      } else {
+        void forceClose();
       }
     });
   }
@@ -98,15 +114,25 @@
     closing = true;
     closePrompt = false;
     if (!("__TAURI_INTERNALS__" in window)) return;
-    // Flush the round to disk, then quit the process directly — this can't be
-    // blocked by the window close-request guard.
+    // Flush the round to disk, then quit the process directly.
     try {
       await store.saveNow();
     } catch {
       /* app-data save failed; quitting anyway */
     }
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("force_quit");
+    // Try several ways to actually exit — whichever the platform honors.
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("force_quit");
+    } catch {
+      /* fall through */
+    }
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().destroy();
+    } catch {
+      /* nothing more we can do */
+    }
   }
 
   async function onSave() {
