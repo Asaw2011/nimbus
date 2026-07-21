@@ -57,6 +57,53 @@
   let showSettings = $state(false);
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
+  // Tab right-click menu + inline rename.
+  let tabMenu = $state<{ id: string; x: number; y: number } | null>(null);
+  let menuEl = $state<HTMLElement>();
+  let menuReady = $state(false);
+  let renamingTab = $state<string | null>(null);
+  let renameValue = $state("");
+
+  // Clamp the context menu into the viewport (tabs sit at the bottom, so it
+  // must open upward/inward instead of falling off the edge).
+  $effect(() => {
+    if (tabMenu && menuEl) {
+      const r = menuEl.getBoundingClientRect();
+      const m = 8;
+      let x = tabMenu.x;
+      let y = tabMenu.y;
+      if (x + r.width + m > window.innerWidth) x = window.innerWidth - r.width - m;
+      if (y + r.height + m > window.innerHeight) y = tabMenu.y - r.height;
+      if (y < m) y = m;
+      if (x < m) x = m;
+      menuEl.style.left = `${x}px`;
+      menuEl.style.top = `${y}px`;
+      menuReady = true;
+    } else {
+      menuReady = false;
+    }
+  });
+
+  function openTabMenu(e: MouseEvent, id: string) {
+    e.preventDefault();
+    tabMenu = { id, x: e.clientX, y: e.clientY };
+  }
+  function startRenameTab(id: string) {
+    const s = store.round?.sheets.find((s) => s.id === id);
+    renamingTab = id;
+    renameValue = s?.title ?? "";
+    tabMenu = null;
+  }
+  function commitRenameTab() {
+    if (renamingTab && renameValue.trim()) {
+      store.renameSheet(renamingTab, renameValue.trim());
+    }
+    renamingTab = null;
+  }
+  function deleteTab(id: string) {
+    tabMenu = null;
+    store.deleteSheet(id);
+  }
 
   const round = $derived(store.round);
   const sheet = $derived(store.activeSheet);
@@ -170,9 +217,26 @@
         }}
         onclick={() => tabClick(s.id)}
         onkeydown={(e) => e.key === "Enter" && tabClick(s.id)}
+        oncontextmenu={(e) => openTabMenu(e, s.id)}
       >
-        <span class="tab-num">{i + 1}</span>
-        {s.title || "(untitled)"}
+        {#if renamingTab === s.id}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="tab-rename"
+            bind:value={renameValue}
+            autofocus
+            onclick={(e) => e.stopPropagation()}
+            onkeydown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") commitRenameTab();
+              if (e.key === "Escape") renamingTab = null;
+            }}
+            onblur={commitRenameTab}
+          />
+        {:else}
+          <span class="tab-num">{i + 1}</span>
+          {s.title || "(untitled)"}
+        {/if}
       </div>
     {/each}
     <button class="tab new" onclick={() => (addingSheet = true)} title="New sheet ({combosLabel(km.newSheet, mac)})">+</button>
@@ -220,6 +284,16 @@
     {/if}
 
     {#if settings.tabsPosition === "bottom"}{@render tabs()}{/if}
+
+    {#if tabMenu}
+      <div class="ctx-backdrop" role="presentation"
+        onclick={() => (tabMenu = null)} oncontextmenu={(e) => { e.preventDefault(); tabMenu = null; }}></div>
+      {@const menuId = tabMenu.id}
+      <div class="ctx-menu" class:ready={menuReady} bind:this={menuEl}>
+        <button onclick={() => startRenameTab(menuId)}>Rename</button>
+        <button class="danger" onclick={() => deleteTab(menuId)}>Delete flow</button>
+      </div>
+    {/if}
 
     {#if addingSheet}
       <div
@@ -374,6 +448,54 @@
   .tab.spread-hidden {
     opacity: 0.4;
   }
+  .tab-rename {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 12px;
+    width: 110px;
+  }
+  .ctx-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+  .ctx-menu {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 31;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    min-width: 130px;
+    opacity: 0; /* hidden until clamped into the viewport */
+  }
+  .ctx-menu.ready {
+    opacity: 1;
+  }
+  .ctx-menu button {
+    background: none;
+    border: none;
+    color: var(--text);
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .ctx-menu button:hover {
+    background: color-mix(in srgb, var(--accent) 15%, var(--panel));
+  }
+  .ctx-menu .danger {
+    color: var(--mark-dropped);
+  }
   .tab.drag-before {
     box-shadow:
       inset 3px 0 0 var(--accent),
@@ -444,6 +566,8 @@
     padding: 14px 18px;
     z-index: 10;
     font-size: 12px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
   }
   .help h3 {
     margin: 0 0 8px;

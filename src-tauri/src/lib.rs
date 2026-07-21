@@ -87,6 +87,18 @@ fn delete_round(app: tauri::AppHandle, id: String) -> Result<(), String> {
     fs::remove_file(path).map_err(|e| e.to_string())
 }
 
+/// Write text to any path the user chose in a save dialog (save-to-location).
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    fs::write(path, contents).map_err(|e| e.to_string())
+}
+
+/// Read text from a user-chosen path (open a flow file).
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 /// Returns the raw JSON of every saved round; the frontend derives metadata.
 #[tauri::command]
 fn list_rounds(app: tauri::AppHandle) -> Result<Vec<String>, String> {
@@ -161,6 +173,7 @@ fn export_to_downloads(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             migrate_old_data(app.handle());
             Ok(())
@@ -172,7 +185,9 @@ pub fn run() {
             list_rounds,
             save_blob,
             load_blob,
-            export_to_downloads
+            export_to_downloads,
+            write_text_file,
+            read_text_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

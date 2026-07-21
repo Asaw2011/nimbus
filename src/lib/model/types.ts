@@ -89,6 +89,8 @@ export interface Round {
   sheets: Sheet[];
   createdAt: number;
   updatedAt: number;
+  /** Where this flow is saved on disk, if the user chose a location (Save As). */
+  filePath?: string;
 }
 
 /** Lightweight listing for the dashboard (no sheet contents). */

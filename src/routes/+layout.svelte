@@ -35,7 +35,7 @@
 </script>
 
 <svelte:head>
-  <title>Flow</title>
+  <title>Nimbus</title>
 </svelte:head>
 
 {@render children()}
@@ -62,6 +62,7 @@
     --kbd-border: #444;
     color-scheme: dark;
   }
+  /* ---- light themes (shared ink defaults, distinct backgrounds) ---- */
   :global(:root[data-theme="light"]) {
     --bg: #f6f5f1; /* legal-pad paper */
     --panel: #ffffff;
@@ -81,6 +82,90 @@
     --mark-star: #b8860b;
     --kbd-bg: #eceae4;
     --kbd-border: #c9c7c0;
+    color-scheme: light;
+  }
+  :global(:root[data-theme="snow"]) {
+    --bg: #fbfcfd;
+    --panel: #ffffff;
+    --cell-bg: #ffffff;
+    --border: #dde1e6;
+    --grid-line: #eceff2;
+    --text: #1a1d21;
+    --text-dim: #6b7280;
+    --accent: #2563eb;
+    --aff: #2563eb;
+    --neg: #d63d3d;
+    --analytic: #1e8e4a;
+    --card: #7c4dbe;
+    --active-cell-bg: #e8f0fe;
+    --dropped-bg: #fdeaea;
+    --mark-dropped: #d63d3d;
+    --mark-star: #b8860b;
+    --kbd-bg: #eef1f4;
+    --kbd-border: #dde1e6;
+    color-scheme: light;
+  }
+  :global(:root[data-theme="cream"]) {
+    --bg: #f7f2e9;
+    --panel: #fffdf8;
+    --cell-bg: #fffefb;
+    --border: #e3d9c6;
+    --grid-line: #efe7d6;
+    --text: #2a2620;
+    --text-dim: #7a715f;
+    --accent: #2f6bd0;
+    --aff: #2f6bd0;
+    --neg: #c8442a;
+    --analytic: #1e8e4a;
+    --card: #7c4dbe;
+    --active-cell-bg: #eef3fb;
+    --dropped-bg: #f7e7e0;
+    --mark-dropped: #c8442a;
+    --mark-star: #a9791a;
+    --kbd-bg: #efe7d6;
+    --kbd-border: #e3d9c6;
+    color-scheme: light;
+  }
+  :global(:root[data-theme="sky"]) {
+    --bg: #eef4fb;
+    --panel: #ffffff;
+    --cell-bg: #f9fbfe;
+    --border: #cfdff0;
+    --grid-line: #e1ecf8;
+    --text: #16202e;
+    --text-dim: #5c6b7d;
+    --accent: #1a6fd4;
+    --aff: #1a6fd4;
+    --neg: #d1442c;
+    --analytic: #1e8e4a;
+    --card: #7c4dbe;
+    --active-cell-bg: #dceaf8;
+    --dropped-bg: #f8e5e0;
+    --mark-dropped: #d1442c;
+    --mark-star: #b3801c;
+    --kbd-bg: #e1ecf8;
+    --kbd-border: #cfdff0;
+    color-scheme: light;
+  }
+  :global(:root[data-theme="mist"]) {
+    --bg: #f4f5f6;
+    --panel: #ffffff;
+    --cell-bg: #fcfcfd;
+    --border: #d9dce0;
+    --grid-line: #eaecee;
+    --text: #1e2227;
+    --text-dim: #6a7078;
+    --accent: #3b6cc9;
+    --aff: #2c62c4;
+    --neg: #cf3f38;
+    --analytic: #1e8e4a;
+    --card: #7c4dbe;
+    --active-cell-bg: #e9eef7;
+    --dropped-bg: #f8e9e8;
+    --mark-dropped: #cf3f38;
+    --mark-star: #ab7d1a;
+    --kbd-bg: #eaecee;
+    --kbd-border: #d9dce0;
     color-scheme: light;
   }
   :global(body) {

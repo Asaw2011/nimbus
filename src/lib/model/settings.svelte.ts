@@ -9,8 +9,24 @@ import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
 const LS_KEY = "debate-flow:settings"; // legacy pre-disk location
 const BLOB = "settings";
 
-export type Theme = "dark" | "light";
+export type Theme =
+  | "dark"
+  | "light"
+  | "snow"
+  | "cream"
+  | "sky"
+  | "mist";
 export type TabsPosition = "top" | "bottom";
+
+/** Theme picker options: id, label, and the swatch bg to preview. */
+export const THEMES: { id: Theme; label: string; bg: string }[] = [
+  { id: "snow", label: "Snow", bg: "#fbfcfd" },
+  { id: "light", label: "Paper", bg: "#f6f5f1" },
+  { id: "cream", label: "Cream", bg: "#f7f2e9" },
+  { id: "sky", label: "Sky", bg: "#eef4fb" },
+  { id: "mist", label: "Mist", bg: "#f4f5f6" },
+  { id: "dark", label: "Dark", bg: "#141414" },
+];
 
 export interface Persisted {
   /** Bumped when a default change should override stale saved values. */
@@ -28,13 +44,16 @@ export interface Persisted {
   fontFamily: string;
   fontSize: number;
   rowHeight: number;
+  /** Show the welcome tutorial on app open until dismissed. */
+  showTutorial: boolean;
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
   keymap: Partial<Record<ActionId, Combo | Combo[]>>;
   macros: Macro[];
 }
 
 class Settings {
-  theme = $state<Theme>("dark");
+  theme = $state<Theme>("snow");
+  showTutorial = $state(true);
   /** Bottom by default — the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
   /** Columns stretch to fill the window but never shrink below this.
@@ -94,6 +113,7 @@ class Settings {
     if (p.fontFamily !== undefined) this.fontFamily = p.fontFamily;
     if (p.fontSize) this.fontSize = p.fontSize;
     if (p.rowHeight) this.rowHeight = p.rowHeight;
+    if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -124,6 +144,7 @@ class Settings {
       fontFamily: this.fontFamily,
       fontSize: this.fontSize,
       rowHeight: this.rowHeight,
+      showTutorial: this.showTutorial,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
     };

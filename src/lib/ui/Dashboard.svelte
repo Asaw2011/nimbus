@@ -4,6 +4,7 @@
   import { builtinTemplates } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { loadBlob, loadBlobCached, saveBlob } from "../model/blobs";
+  import { openFromFile } from "../model/filedoc.svelte";
   import { store, migrateLegacyRound } from "../model/round.svelte";
   import { uid } from "../model/types";
   import SettingsPanel from "./SettingsPanel.svelte";
@@ -31,6 +32,16 @@
   );
   let addingFolder = $state(false);
   let folderInput = $state("");
+  // Drag a round card into a folder section to move it there.
+  let draggingRoundId = $state<string | null>(null);
+  let dragOverFolder = $state<string | null>(null);
+
+  async function dropOnFolder(tournament: string) {
+    const id = draggingRoundId;
+    draggingRoundId = null;
+    dragOverFolder = null;
+    if (id) await setFolder(id, tournament);
+  }
 
   function saveFolders() {
     saveBlob("folders", $state.snapshot(customFolders));
@@ -60,22 +71,25 @@
     savedIdx >= 0 && savedIdx < templates.length ? savedIdx : 0,
   );
 
-  // Tournament folders, most recently active first; empty custom folders last.
+  // Sections: Unfiled always first (holds the New Round card), then named
+  // tournament folders (most recent first), then any empty custom folders.
   const groups = $derived.by(() => {
     const map = new Map<string, RoundMeta[]>();
+    map.set("", []); // Unfiled always present so folders show even with 0 rounds
     for (const r of rounds) {
       const key = r.tournament.trim() || "";
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
     }
-    const filled = [...map.entries()].sort(
-      (a, b) => b[1][0].updatedAt - a[1][0].updatedAt,
-    );
+    const unfiled: [string, RoundMeta[]] = ["", map.get("") ?? []];
+    const named = [...map.entries()]
+      .filter(([k]) => k !== "")
+      .sort((a, b) => (b[1][0]?.updatedAt ?? 0) - (a[1][0]?.updatedAt ?? 0));
     const empty: Array<[string, RoundMeta[]]> = customFolders
       .filter((f) => !map.has(f))
       .map((f) => [f, []]);
-    return [...filled, ...empty];
+    return [unfiled, ...named, ...empty];
   });
   const folderNames = $derived(
     [
@@ -191,6 +205,14 @@
     input.value = "";
   }
 
+  async function openFlowFile() {
+    const round = await openFromFile();
+    if (round) {
+      store.loadRound(round);
+      onopen();
+    }
+  }
+
   function chipSide(kind: RoundMeta["sheets"][number]["kind"]): string {
     if (kind === "case") return "aff";
     if (kind === "offcase" || kind === "overview") return "neg";
@@ -233,10 +255,17 @@
 {#snippet roundCard(r: RoundMeta)}
   <div
     class="card round-card"
+    class:card-dragging={draggingRoundId === r.id}
     role="button"
     tabindex="0"
+    draggable="true"
     onclick={() => open(r.id)}
     onkeydown={(e) => e.key === "Enter" && open(r.id)}
+    ondragstart={(e) => {
+      draggingRoundId = r.id;
+      e.dataTransfer?.setData("text/plain", r.id);
+    }}
+    ondragend={() => { draggingRoundId = null; dragOverFolder = null; }}
   >
     <button
       class="x"
@@ -322,8 +351,8 @@
 <div class="dashboard">
   <div class="topbar">
     <div class="brand">
-      <span class="logo">FL</span>
-      Flow
+      <img class="logo" src="/logo.png" alt="Nimbus" />
+      Nimbus
     </div>
     <div class="top-actions">
       {#if addingFolder}
@@ -345,9 +374,10 @@
       {:else}
         <button class="top-btn" onclick={() => (addingFolder = true)}>+ Folder</button>
       {/if}
+      <button class="top-btn" onclick={openFlowFile}>Open flow…</button>
       <label class="top-btn file-btn">
         Import Round
-        <input type="file" accept=".json,application/json" onchange={doImportRound} />
+        <input type="file" accept=".json,.nimbus,application/json" onchange={doImportRound} />
       </label>
       <button class="top-btn" onclick={() => (showSettings = true)}>Settings</button>
       <button class="top-btn primary" onclick={createRound}>+ New Round</button>
@@ -358,17 +388,23 @@
     {#if importStatus}
       <p class="import-status">{importStatus}</p>
     {/if}
-    {#if rounds.length === 0}
-      <h2 class="section">ALL ROUNDS (0)</h2>
-      <div class="cards">
-        {@render newRoundCard()}
-      </div>
-    {:else}
-      {#each groups as [tournament, group], gi (tournament)}
+    {#each groups as [tournament, group], gi (tournament)}
+      <section
+        class="folder-section"
+        class:dragging-active={!!draggingRoundId}
+        class:drop-target={draggingRoundId && dragOverFolder === tournament}
+        role="group"
+        ondragover={(e) => { if (draggingRoundId) { e.preventDefault(); dragOverFolder = tournament; } }}
+        ondragleave={() => { if (dragOverFolder === tournament) dragOverFolder = null; }}
+        ondrop={(e) => { e.preventDefault(); dropOnFolder(tournament); }}
+      >
         <h2 class="section">
           {(tournament || "UNFILED").toUpperCase()} ({group.length})
           {#if group.length === 0 && customFolders.includes(tournament)}
             <button class="folder-x" title="Remove empty folder" onclick={() => deleteFolder(tournament)}>×</button>
+          {/if}
+          {#if draggingRoundId}
+            <span class="drop-hint">drop here to move</span>
           {/if}
         </h2>
         <div class="cards">
@@ -378,12 +414,14 @@
           {#if gi === 0}
             {@render newRoundCard()}
           {/if}
-          {#if group.length === 0}
-            <p class="empty-folder">Empty — assign a round with the folder dropdown on its card.</p>
+          {#if draggingRoundId && group.length === 0}
+            <div class="drop-placeholder">Drop here to move to {tournament || "Unfiled"}</div>
+          {:else if group.length === 0 && tournament !== ""}
+            <p class="empty-folder">Empty — drag a round here, or use the folder menu on a round card.</p>
           {/if}
         </div>
-      {/each}
-    {/if}
+      </section>
+    {/each}
   </div>
 </div>
 
@@ -413,17 +451,9 @@
     font-weight: 700;
   }
   .logo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: 8px;
-    background: var(--text);
-    color: var(--bg);
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    object-fit: contain;
   }
   .top-actions {
     display: flex;
@@ -542,6 +572,52 @@
     font-size: 12px;
     font-style: italic;
     margin: 4px 0;
+  }
+  .folder-section {
+    border-radius: 10px;
+    padding: 2px 6px 6px;
+    margin: 0 -6px;
+    border: 2px dashed transparent;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  /* While dragging, every folder becomes a generous target you can't miss. */
+  .folder-section.dragging-active {
+    border-color: var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 8px;
+  }
+  .folder-section.dragging-active .cards {
+    min-height: 96px;
+  }
+  .folder-section.drop-target {
+    border-color: var(--accent);
+    border-style: solid;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .drop-placeholder {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 90px;
+    border: 2px dashed var(--accent);
+    border-radius: 10px;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .drop-hint {
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .card-dragging {
+    opacity: 0.4;
+  }
+  .round-card {
+    cursor: grab;
   }
   .file-btn {
     position: relative;

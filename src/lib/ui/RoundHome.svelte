@@ -2,6 +2,7 @@
   import { store } from "../model/round.svelte";
   import { sheetAccent } from "../model/types";
   import { exportRoundFile, exportRoundHtml } from "../model/export";
+  import { saveToFile, saveAs } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature — to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
@@ -189,11 +190,20 @@
     <!-- /DOCX-IMPORT -->
 
     <section>
-      <h2>Export</h2>
+      <h2>Save &amp; export</h2>
       <div class="setup-row">
+        <button class="chip" onclick={async () => { if (round && await saveToFile(round)) exportStatus = round.filePath ? `Saved to ${round.filePath}` : "Saved"; }}>
+          Save
+        </button>
+        <button class="chip" onclick={async () => { if (round && await saveAs(round)) exportStatus = round.filePath ? `Saved to ${round.filePath}` : "Saved"; }}>
+          Save As…
+        </button>
         <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
-        <button class="chip" onclick={() => doExport("file")}>Round file (share with Flow users)</button>
+        <button class="chip" onclick={() => doExport("file")}>Share file (.nimbus)</button>
       </div>
+      {#if round?.filePath}
+        <p class="export-status">File: {round.filePath}</p>
+      {/if}
       {#if exportStatus}
         <p class="export-status">{exportStatus}</p>
       {/if}

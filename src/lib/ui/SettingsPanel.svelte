@@ -2,6 +2,7 @@
   import { settings } from "../model/settings.svelte";
   import type { ActionId, Combo } from "../model/keymap";
   import { ACTION_LABELS, comboFromEvent, comboLabel } from "../model/keymap";
+  import { THEMES } from "../model/settings.svelte";
   import { loadSnippets, saveSnippets } from "../model/snippets";
   import { validateMacroCode } from "../model/macros";
   import { exportSettings, importSettings } from "../model/backup";
@@ -171,19 +172,22 @@
 
     <section>
       <h3>Appearance</h3>
-      <label class="row">
+      <div class="row theme-row">
         Theme
-        <div class="seg">
-          <button
-            class:on={settings.theme === "light"}
-            onclick={() => { settings.theme = "light"; settings.save(); }}
-          >Light</button>
-          <button
-            class:on={settings.theme === "dark"}
-            onclick={() => { settings.theme = "dark"; settings.save(); }}
-          >Dark</button>
+        <div class="swatches">
+          {#each THEMES as t (t.id)}
+            <button
+              class="theme-swatch"
+              class:on={settings.theme === t.id}
+              style="background: {t.bg}"
+              title={t.label}
+              onclick={() => { settings.theme = t.id; settings.save(); }}
+            >
+              <span class="theme-name" class:dark={t.id === 'dark'}>{t.label}</span>
+            </button>
+          {/each}
         </div>
-      </label>
+      </div>
       <label class="row">
         Sheet tabs
         <div class="seg">
@@ -304,6 +308,14 @@
           <option value="'Times New Roman', serif">Times</option>
           <option value="ui-monospace, Menlo, monospace">Mono</option>
         </select>
+      </label>
+      <label class="row">
+        Show welcome tutorial on open
+        <input
+          type="checkbox"
+          checked={settings.showTutorial}
+          onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
+        />
       </label>
     </section>
 
@@ -558,6 +570,44 @@
     gap: 8px;
     font-size: 12px;
     color: var(--text-dim);
+  }
+  .theme-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .swatches {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .theme-swatch {
+    width: 74px;
+    height: 46px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 4px;
+    position: relative;
+  }
+  .theme-swatch.on {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .theme-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: #333;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 3px;
+    padding: 0 4px;
+  }
+  .theme-name.dark {
+    color: #eee;
+    background: rgba(0, 0, 0, 0.5);
   }
   .seg {
     display: flex;
