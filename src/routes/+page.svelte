@@ -181,7 +181,7 @@
       {#if closeError}
         <p class="close-err">{closeError}</p>
       {/if}
-      <p class="note">Your work is always auto-kept in Nimbus either way — this saves a copy to your Mac.</p>
+      <p class="note">Your work is always auto-kept in Nimbus either way — this saves a copy to your computer.</p>
     </div>
   </div>
 {/if}
