@@ -5,7 +5,13 @@
   import Tutorial from "$lib/ui/Tutorial.svelte";
   import { store } from "$lib/model/round.svelte";
   import { settings } from "$lib/model/settings.svelte";
-  import { isDirty, markOpened, saveToFile, saveAs } from "$lib/model/filedoc.svelte";
+  import {
+    isDirty,
+    markOpened,
+    saveToFile,
+    saveAs,
+    openPath,
+  } from "$lib/model/filedoc.svelte";
 
   let view: "dashboard" | "flow" = $state("dashboard");
   let showTutorial = $state(false);
@@ -17,7 +23,39 @@
     // First-open (or re-enabled) welcome tutorial.
     if (settings.showTutorial) showTutorial = true;
     setupCloseGuard();
+    setupFileOpen();
   });
+
+  async function openFileIntoApp(path: string) {
+    const round = await openPath(path);
+    if (round) {
+      store.loadRound(round);
+      view = "flow";
+    }
+  }
+
+  async function setupFileOpen() {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const { invoke } = await import("@tauri-apps/api/core");
+    // A file the app was launched with (double-clicked in Finder/Explorer).
+    const pending = await invoke<string | null>("take_pending_file");
+    if (pending) await openFileIntoApp(pending);
+    // A file opened while the app is already running.
+    const { listen } = await import("@tauri-apps/api/event");
+    await listen<string>("open-file", (e) => {
+      if (e.payload) void openFileIntoApp(e.payload);
+    });
+  }
+
+  async function onGlobalKey(e: KeyboardEvent) {
+    // ⌘S / Ctrl+S — save the open flow to its file (prompts if none yet).
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && !e.shiftKey) {
+      if (store.round) {
+        e.preventDefault();
+        await saveToFile(store.round);
+      }
+    }
+  }
 
   // Reset file dirty-tracking whenever the open round changes.
   let lastRoundId = "";
@@ -58,6 +96,8 @@
     if (store.round && (await saveAs(store.round))) forceClose();
   }
 </script>
+
+<svelte:window onkeydown={onGlobalKey} />
 
 {#if view === "flow" && store.round}
   <FlowView onexit={() => (view = "dashboard")} />

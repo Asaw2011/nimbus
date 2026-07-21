@@ -107,11 +107,22 @@ export async function openFromFile(): Promise<Round | null> {
     filters: [{ name: "Nimbus flow", extensions: ["nimbus", "json"] }],
   });
   if (typeof path !== "string") return null;
-  const text = await invoke<string>("read_text_file", { path });
-  const round = JSON.parse(text) as Round;
-  round.filePath = path;
-  await saveRound(round); // also mirror into app-data
-  return round;
+  return openPath(path);
+}
+
+/** Load a .nimbus file at a known path (double-click / "open with"). */
+export async function openPath(path: string): Promise<Round | null> {
+  if (!inTauri()) return null;
+  try {
+    const text = await invoke<string>("read_text_file", { path });
+    const round = JSON.parse(text) as Round;
+    round.filePath = path;
+    await saveRound(round); // mirror into app-data so it appears on the dashboard
+    return round;
+  } catch (e) {
+    console.error("open failed:", e);
+    return null;
+  }
 }
 
 function triggerDownload(name: string, text: string): void {

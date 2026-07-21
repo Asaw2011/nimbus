@@ -3,7 +3,24 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+
+/// Holds a `.nimbus` file the app was launched with (or asked to open) until
+/// the frontend is ready to load it.
+struct PendingFile(Mutex<Option<String>>);
+
+#[tauri::command]
+fn take_pending_file(state: tauri::State<PendingFile>) -> Option<String> {
+    state.0.lock().unwrap().take()
+}
+
+/// Windows/Linux pass the opened file as a CLI argument.
+fn file_from_args() -> Option<String> {
+    std::env::args()
+        .skip(1)
+        .find(|a| a.to_lowercase().ends_with(".nimbus"))
+}
 
 /// Renaming the app changes its data dir. On first launch under a new
 /// identifier, carry over rounds/config from a previous install so users never
@@ -174,6 +191,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // Remember a .nimbus file passed on the command line (Windows/Linux).
+        .manage(PendingFile(Mutex::new(file_from_args())))
         .setup(|app| {
             migrate_old_data(app.handle());
             Ok(())
@@ -187,8 +206,24 @@ pub fn run() {
             load_blob,
             export_to_downloads,
             write_text_file,
-            read_text_file
+            read_text_file,
+            take_pending_file
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // macOS delivers "open with" as an Opened event (app cold or warm).
+            if let tauri::RunEvent::Opened { urls } = event {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        let p = path.to_string_lossy().to_string();
+                        if let Some(state) = app_handle.try_state::<PendingFile>() {
+                            *state.0.lock().unwrap() = Some(p.clone());
+                        }
+                        // If the webview is already up, tell it to load now.
+                        let _ = app_handle.emit("open-file", p);
+                    }
+                }
+            }
+        });
 }
