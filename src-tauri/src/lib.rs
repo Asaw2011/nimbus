@@ -308,6 +308,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             // macOS delivers "open with" as an Opened event (app cold or warm).
+            #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = event {
                 for url in urls {
                     if let Ok(path) = url.to_file_path() {
