@@ -2,7 +2,7 @@
   import { store } from "../model/round.svelte";
   import { sheetAccent } from "../model/types";
   import { exportRoundFile, exportRoundHtml } from "../model/export";
-  import { saveToFile, saveAs } from "../model/filedoc.svelte";
+  import { saveToFile, saveAs, exportExcel, exportNimbus } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature — to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
@@ -15,6 +15,8 @@
   const round = $derived(store.round);
   let renamingId = $state<string | null>(null);
   let renameText = $state("");
+  /** How many pages a single "Add" click creates. */
+  let addCount = $state(1);
   // window.confirm() is a no-op inside the Tauri webview — two-step confirm.
   let confirmingId = $state<string | null>(null);
   // Drag & drop reordering
@@ -111,106 +113,47 @@
 
 {#if round}
   <div class="home">
-    <section class="info">
+    <header class="home-head">
       <input
         class="round-name"
         value={round.name}
         oninput={(e) => setField("name", e.currentTarget.value)}
         placeholder="Round name"
       />
-      <div class="fields">
-        <input
-          value={round.tournament}
-          oninput={(e) => setField("tournament", e.currentTarget.value)}
-          placeholder="Tournament"
-        />
-        <input
-          value={round.judges}
-          oninput={(e) => setField("judges", e.currentTarget.value)}
-          placeholder="Judges"
-        />
+      <div class="head-actions">
+        <button class="btn primary" onclick={async () => { if (round && await saveToFile(round)) exportStatus = "Saved ✓"; }}>Save</button>
+        <button class="btn" onclick={async () => { if (round && await saveAs(round)) exportStatus = "Saved ✓"; }}>Save As…</button>
       </div>
-      <div class="fields">
-        <input
-          class="team aff-team"
-          value={round.affTeam}
-          oninput={(e) => setField("affTeam", e.currentTarget.value)}
-          placeholder="AFF — school & code"
-        />
-        <input
-          class="team neg-team"
-          value={round.negTeam}
-          oninput={(e) => setField("negTeam", e.currentTarget.value)}
-          placeholder="NEG — school & code"
-        />
-      </div>
-    </section>
+    </header>
+
+    <div class="meta-grid">
+      <input value={round.tournament} oninput={(e) => setField("tournament", e.currentTarget.value)} placeholder="Tournament" />
+      <input value={round.judges} oninput={(e) => setField("judges", e.currentTarget.value)} placeholder="Judge(s)" />
+      <input class="aff-team" value={round.affTeam} oninput={(e) => setField("affTeam", e.currentTarget.value)} placeholder="AFF — school & code" />
+      <input class="neg-team" value={round.negTeam} oninput={(e) => setField("negTeam", e.currentTarget.value)} placeholder="NEG — school & code" />
+    </div>
+    {#if exportStatus}<p class="export-status">{exportStatus}</p>{/if}
+    {#if round.filePath}<p class="export-status">Saved to {round.filePath}</p>{/if}
 
     <section>
-      <h2>Create pages</h2>
-      <div class="setup-row">
-        <span class="setup-label">Advantages</span>
-        {#each [1, 2, 3, 4] as n (n)}
-          <button class="chip" onclick={() => addAdvantages(n)}>+{n}</button>
-        {/each}
+      <div class="sheets-head">
+        <h2>Sheets</h2>
+        <div class="add-menu">
+          <span class="add-label">Add</span>
+          <select class="count-input" bind:value={addCount} title="How many to add at once">
+            {#each Array.from({ length: 12 }, (_, i) => i + 1) as n (n)}
+              <option value={n}>{n}</option>
+            {/each}
+          </select>
+          <button class="chip" onclick={() => addAdvantages(Math.max(1, addCount))}>Advantage</button>
+          <button class="chip" onclick={() => addOffcase(Math.max(1, addCount))}>Off-case</button>
+          <button class="chip" onclick={addOverview}>Overview</button>
+          <button class="chip" onclick={addCx}>CX</button>
+        </div>
       </div>
-      <div class="setup-row">
-        <span class="setup-label">Off-case</span>
-        {#each [1, 2, 3, 4, 5, 6, 7, 8] as n (n)}
-          <button class="chip" onclick={() => addOffcase(n)}>+{n}</button>
-        {/each}
-      </div>
-      <div class="setup-row">
-        <span class="setup-label">Other</span>
-        <button class="chip" onclick={addOverview}>+ overview page</button>
-        <button class="chip" onclick={addCx}>+ CX page</button>
-      </div>
-    </section>
-
-    <!-- COLLAB feature (removable — see import comment above) -->
-    <section>
-      <h2>Partner flowing</h2>
-      <p class="hint-line">
-        Flow the same round live with your partner — exchange codes once,
-        then everything syncs in real time.
-      </p>
-      <CollabPanel />
-    </section>
-    <!-- /COLLAB -->
-
-    <!-- DOCX-IMPORT feature (removable — see import comment above) -->
-    <section>
-      <h2>Import speech doc</h2>
-      <p class="hint-line">
-        Drop in their .docx (email chain / SpeechDrop) — each position becomes
-        a sheet, card tags become rows.
-      </p>
-      <DocImport />
-    </section>
-    <!-- /DOCX-IMPORT -->
-
-    <section>
-      <h2>Save &amp; export</h2>
-      <div class="setup-row">
-        <button class="chip" onclick={async () => { if (round && await saveToFile(round)) exportStatus = round.filePath ? `Saved to ${round.filePath}` : "Saved"; }}>
-          Save
-        </button>
-        <button class="chip" onclick={async () => { if (round && await saveAs(round)) exportStatus = round.filePath ? `Saved to ${round.filePath}` : "Saved"; }}>
-          Save As…
-        </button>
-        <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
-        <button class="chip" onclick={() => doExport("file")}>Share file (.nimbus)</button>
-      </div>
-      {#if round?.filePath}
-        <p class="export-status">File: {round.filePath}</p>
+      {#if round.sheets.length === 0}
+        <p class="hint-line">No pages yet — add one above, or import a speech doc below.</p>
       {/if}
-      {#if exportStatus}
-        <p class="export-status">{exportStatus}</p>
-      {/if}
-    </section>
-
-    <section>
-      <h2>Sheets</h2>
       <div class="sheet-list">
         {#each round.sheets as s, i (s.id)}
           <div
@@ -275,6 +218,39 @@
         {/each}
       </div>
     </section>
+
+    <div class="tools">
+      <!-- COLLAB feature (removable — see import comment above) -->
+      <details class="tool">
+        <summary>🔗 Partner flowing</summary>
+        <div class="tool-body">
+          <p class="hint-line">Flow the same round live with your partner — exchange one code, then it syncs both ways.</p>
+          <CollabPanel />
+        </div>
+      </details>
+      <!-- /COLLAB -->
+
+      <!-- DOCX-IMPORT feature (removable — see import comment above) -->
+      <details class="tool">
+        <summary>📄 Import speech doc (.docx)</summary>
+        <div class="tool-body">
+          <p class="hint-line">Drop in their .docx — each position becomes a sheet, card tags become rows.</p>
+          <DocImport />
+        </div>
+      </details>
+      <!-- /DOCX-IMPORT -->
+
+      <details class="tool">
+        <summary>📤 Export &amp; convert</summary>
+        <div class="tool-body">
+          <div class="setup-row">
+            <button class="chip" onclick={async () => { if (round && await exportExcel(round)) exportStatus = "Saved as Excel (.xlsx)"; }}>⊞ Excel (.xlsx)</button>
+            <button class="chip" onclick={async () => { if (round && await exportNimbus(round)) exportStatus = "Saved as Nimbus (.nimbus)"; }}>☁ Nimbus (.nimbus)</button>
+            <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
+          </div>
+        </div>
+      </details>
+    </div>
   </div>
 {/if}
 
@@ -287,27 +263,59 @@
     flex-direction: column;
     gap: 28px;
   }
+  .home {
+    max-width: 760px;
+  }
+  .home-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
   .round-name {
-    font-size: 22px;
+    flex: 1;
+    font-size: 24px;
     font-weight: 700;
     background: none;
     border: none;
     color: var(--text);
-    width: 100%;
     outline: none;
-    padding: 0 0 6px;
+    padding: 0;
   }
-  .fields {
+  .head-actions {
     display: flex;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-shrink: 0;
   }
-  .fields {
-    margin-top: 8px;
+  .btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 7px 16px;
+    font-size: 13px;
+    cursor: pointer;
   }
-  .team {
-    flex: 1;
-    min-width: 200px;
+  .btn:hover {
+    border-color: var(--accent);
+  }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .meta-grid input {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
   }
   .aff-team {
     box-shadow: inset 3px 0 0 var(--aff);
@@ -315,32 +323,71 @@
   .neg-team {
     box-shadow: inset 3px 0 0 var(--neg);
   }
-  .fields input {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 13px;
-  }
   h2 {
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-dim);
-    margin: 0 0 10px;
+    margin: 0;
+  }
+  .sheets-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .add-menu {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .add-label {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .count-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 13px;
+    cursor: pointer;
   }
   .setup-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 8px;
     flex-wrap: wrap;
   }
-  .setup-label {
+  .tools {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tool {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  .tool > summary {
+    cursor: pointer;
+    padding: 10px 14px;
     font-size: 13px;
-    color: var(--text-dim);
-    width: 70px;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+  }
+  .tool > summary::-webkit-details-marker {
+    display: none;
+  }
+  .tool[open] > summary {
+    border-bottom: 1px solid var(--border);
+  }
+  .tool-body {
+    padding: 14px;
   }
   .chip {
     background: var(--panel);

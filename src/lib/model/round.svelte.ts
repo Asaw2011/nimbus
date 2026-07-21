@@ -146,6 +146,12 @@ class RoundStore {
     }, SAVE_DEBOUNCE_MS);
   }
 
+  /** Write the current round to app-data immediately (e.g. before quitting). */
+  async saveNow(): Promise<void> {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    if (this.round) await saveRound($state.snapshot(this.round) as Round);
+  }
+
   // ---- lookup -------------------------------------------------------------
 
   get activeSheet(): Sheet | null {

@@ -317,6 +317,19 @@
           onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
         />
       </label>
+      <label class="row">
+        Default save format
+        <div class="seg">
+          <button
+            class:on={settings.defaultSaveFormat === "nimbus"}
+            onclick={() => { settings.defaultSaveFormat = "nimbus"; settings.save(); }}
+          >Nimbus</button>
+          <button
+            class:on={settings.defaultSaveFormat === "xlsx"}
+            onclick={() => { settings.defaultSaveFormat = "xlsx"; settings.save(); }}
+          >Excel</button>
+        </div>
+      </label>
     </section>
 
     <section>

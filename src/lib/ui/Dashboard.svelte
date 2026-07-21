@@ -2,207 +2,60 @@
   import { onMount } from "svelte";
   import type { RoundMeta, SpeechTemplate } from "../model/types";
   import { builtinTemplates } from "../model/templates";
-  import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
-  import { loadBlob, loadBlobCached, saveBlob } from "../model/blobs";
-  import { openFromFile } from "../model/filedoc.svelte";
-  import { store, migrateLegacyRound } from "../model/round.svelte";
-  import { uid } from "../model/types";
+  import { listRounds, loadRound, deleteRound } from "../model/persist";
+  import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
+  import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
+  import { store } from "../model/round.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
 
   let { onopen }: { onopen: () => void } = $props();
 
   const LS_TEMPLATE = "debate-flow:last-template";
-  const LS_FOLDERS = "debate-flow:folders";
 
-  let rounds: RoundMeta[] = $state([]);
+  let rounds: RoundMeta[] = $state([]); // app-data flows not yet in a folder
+  let flowsByTourney = $state<Record<string, FlowFile[]>>({});
   let showSettings = $state(false);
-  let confirmingId = $state<string | null>(null);
-  /** Round card currently typing a new folder name. */
-  let newFolderFor = $state<string | null>(null);
-  let newFolderName = $state("");
-  /** Inline round renaming on cards. */
-  let renamingRound = $state<string | null>(null);
-  let renameText = $state("");
-  /** Folders exist independently of rounds so you can make them first. */
-  let customFolders = $state<string[]>(
-    loadBlobCached<string[]>("folders") ??
-      JSON.parse(
-        (typeof localStorage !== "undefined" && localStorage.getItem(LS_FOLDERS)) || "[]",
-      ),
-  );
-  let addingFolder = $state(false);
-  let folderInput = $state("");
-  // Drag a round card into a folder section to move it there.
-  let draggingRoundId = $state<string | null>(null);
-  let dragOverFolder = $state<string | null>(null);
-
-  async function dropOnFolder(tournament: string) {
-    const id = draggingRoundId;
-    draggingRoundId = null;
-    dragOverFolder = null;
-    if (id) await setFolder(id, tournament);
-  }
-
-  function saveFolders() {
-    saveBlob("folders", $state.snapshot(customFolders));
-  }
-
-  function createFolder() {
-    const n = folderInput.trim();
-    if (n && !customFolders.includes(n)) {
-      customFolders = [...customFolders, n];
-      saveFolders();
-    }
-    addingFolder = false;
-    folderInput = "";
-  }
-
-  function deleteFolder(name: string) {
-    customFolders = customFolders.filter((f) => f !== name);
-    saveFolders();
-  }
+  let converting = $state(false);
+  let status = $state("");
 
   const templates = builtinTemplates();
-  const savedIdx =
-    Number(
-      typeof localStorage !== "undefined" && localStorage.getItem(LS_TEMPLATE),
-    ) || 0;
-  let templateIdx = $state(
-    savedIdx >= 0 && savedIdx < templates.length ? savedIdx : 0,
-  );
+  const savedIdx = Number(
+    typeof localStorage !== "undefined" && localStorage.getItem(LS_TEMPLATE),
+  ) || 0;
+  let templateIdx = $state(savedIdx >= 0 && savedIdx < templates.length ? savedIdx : 0);
 
-  // Sections: Unfiled always first (holds the New Round card), then named
-  // tournament folders (most recent first), then any empty custom folders.
-  const groups = $derived.by(() => {
-    const map = new Map<string, RoundMeta[]>();
-    map.set("", []); // Unfiled always present so folders show even with 0 rounds
-    for (const r of rounds) {
-      const key = r.tournament.trim() || "";
-      const list = map.get(key) ?? [];
-      list.push(r);
-      map.set(key, list);
-    }
-    const unfiled: [string, RoundMeta[]] = ["", map.get("") ?? []];
-    const named = [...map.entries()]
-      .filter(([k]) => k !== "")
-      .sort((a, b) => (b[1][0]?.updatedAt ?? 0) - (a[1][0]?.updatedAt ?? 0));
-    const empty: Array<[string, RoundMeta[]]> = customFolders
-      .filter((f) => !map.has(f))
-      .map((f) => [f, []]);
-    return [unfiled, ...named, ...empty];
-  });
-  const folderNames = $derived(
-    [
-      ...new Set([
-        ...customFolders,
-        ...rounds.map((r) => r.tournament.trim()).filter(Boolean),
-      ]),
-    ],
-  );
+  // New-tournament inline input
+  let creatingTourney = $state(false);
+  let tourneyName = $state("");
+  // Rename tournament inline
+  let renamingTourney = $state<string | null>(null);
+  let renameTourneyText = $state("");
 
-  async function commitRoundRename(id: string) {
-    const name = renameText.trim();
-    renamingRound = null;
-    if (!name) return;
-    const round = await loadRound(id);
-    if (!round) return;
-    round.name = name;
-    await saveRound(round);
-    await refresh();
-  }
+  // Drag state — move a flow file (or an unfiled round) into a tournament
+  let draggingFlow = $state<FlowFile | null>(null);
+  let draggingRoundId = $state<string | null>(null);
+  let dragOver = $state<string | null>(null);
+  // Two-step delete confirms
+  let confirmDelete = $state<string | null>(null);
 
-  onMount(() => {
-    void refresh();
-    // Pull the authoritative on-disk folder list.
-    void loadBlob<string[]>("folders").then((disk) => {
-      if (disk) customFolders = disk;
-      else if (customFolders.length) saveFolders();
-    });
-  });
-
-  async function refresh() {
+  onMount(async () => {
     rounds = await listRounds();
+    await tournaments.init();
+    await reloadFlows();
+  });
+
+  async function reloadFlows() {
+    const map: Record<string, FlowFile[]> = {};
+    for (const t of tournaments.list) map[t.id] = await tournaments.flows(t);
+    flowsByTourney = map;
   }
+
+  // ---- create / open flows -------------------------------------------------
 
   function createRound() {
     localStorage.setItem(LS_TEMPLATE, String(templateIdx));
-    const template: SpeechTemplate = structuredClone(templates[templateIdx]);
-    store.newRound(template, "New Round");
+    store.newRound(structuredClone(templates[templateIdx]) as SpeechTemplate, "New Round");
     onopen();
-  }
-
-  async function open(id: string) {
-    const round = await loadRound(id);
-    if (round) {
-      store.loadRound(round);
-      onopen();
-    }
-  }
-
-  // window.confirm() is a no-op inside the Tauri webview — two-step confirm.
-  async function remove(id: string) {
-    if (confirmingId !== id) {
-      confirmingId = id;
-      setTimeout(() => {
-        if (confirmingId === id) confirmingId = null;
-      }, 3000);
-      return;
-    }
-    confirmingId = null;
-    await deleteRound(id);
-    await refresh();
-  }
-
-  async function setFolder(id: string, value: string) {
-    if (value === "__new__") {
-      newFolderFor = id;
-      newFolderName = "";
-      return;
-    }
-    const round = await loadRound(id);
-    if (!round) return;
-    round.tournament = value;
-    await saveRound(round);
-    await refresh();
-  }
-
-  async function commitNewFolder(id: string) {
-    const name = newFolderName.trim();
-    newFolderFor = null;
-    if (name) await setFolder(id, name);
-  }
-
-  let importStatus = $state("");
-
-  /** Import a .flowround.json shared by another Flow user. */
-  function doImportRound(e: Event) {
-    const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const raw = JSON.parse(String(reader.result ?? ""));
-        if (!raw?.template?.speeches || !Array.isArray(raw.sheets)) {
-          importStatus = "That doesn't look like a Flow round file.";
-          return;
-        }
-        const round = migrateLegacyRound(raw);
-        if (rounds.some((r) => r.id === round.id)) {
-          // Already have a round with this id — import as a copy.
-          round.id = uid();
-          round.name = `${round.name} (imported)`;
-        }
-        round.updatedAt = Date.now();
-        await saveRound(round);
-        await refresh();
-        importStatus = `Imported "${round.name}" ✓`;
-      } catch {
-        importStatus = "That file isn't valid JSON.";
-      }
-    };
-    reader.readAsText(file);
-    input.value = "";
   }
 
   async function openFlowFile() {
@@ -213,140 +66,112 @@
     }
   }
 
-  function chipSide(kind: RoundMeta["sheets"][number]["kind"]): string {
-    if (kind === "case") return "aff";
-    if (kind === "offcase" || kind === "overview") return "neg";
-    return "";
+  async function openAppRound(id: string) {
+    const round = await loadRound(id);
+    if (round) {
+      store.loadRound(round);
+      onopen();
+    }
+  }
+
+  async function openFlow(file: FlowFile) {
+    const round = await openPath(file.path);
+    if (round) {
+      store.loadRound(round);
+      onopen();
+    }
+  }
+
+  async function convert() {
+    converting = true;
+    try {
+      const msg = await convertFlowFile();
+      if (msg) status = msg;
+    } finally {
+      converting = false;
+    }
+  }
+
+  // ---- tournaments ---------------------------------------------------------
+
+  async function newTournament() {
+    const name = tourneyName.trim();
+    creatingTourney = false;
+    tourneyName = "";
+    if (!name) return;
+    const t = await tournaments.createInPicked(name);
+    if (t) await reloadFlows();
+  }
+
+  async function linkFolder() {
+    const t = await tournaments.linkExisting();
+    if (t) await reloadFlows();
+  }
+
+  async function newFlowInTournament(t: Tournament) {
+    store.newRound(structuredClone(templates[templateIdx]) as SpeechTemplate, "New Flow");
+    if (store.round) {
+      const path = await tournaments.saveRoundInto(t, store.round);
+      store.mutate((r) => (r.filePath = path));
+    }
+    onopen();
+  }
+
+  function commitRenameTourney() {
+    if (renamingTourney && renameTourneyText.trim()) {
+      tournaments.rename(renamingTourney, renameTourneyText.trim());
+    }
+    renamingTourney = null;
+  }
+
+  // ---- drag & drop ---------------------------------------------------------
+
+  async function dropOn(t: Tournament) {
+    const flow = draggingFlow;
+    const roundId = draggingRoundId;
+    draggingFlow = null;
+    draggingRoundId = null;
+    dragOver = null;
+    if (flow) {
+      await tournaments.moveFlow(flow, t);
+    } else if (roundId) {
+      // Move an unfiled app-data round into the folder as a real file.
+      const round = await loadRound(roundId);
+      if (round) {
+        await tournaments.saveRoundInto(t, round);
+        await deleteRound(roundId);
+        rounds = await listRounds();
+      }
+    }
+    await reloadFlows();
+  }
+
+  async function removeFlow(file: FlowFile) {
+    if (confirmDelete !== file.path) {
+      confirmDelete = file.path;
+      setTimeout(() => confirmDelete === file.path && (confirmDelete = null), 3000);
+      return;
+    }
+    confirmDelete = null;
+    await tournaments.deleteFlow(file);
+    await reloadFlows();
+  }
+
+  async function removeRound(id: string) {
+    if (confirmDelete !== id) {
+      confirmDelete = id;
+      setTimeout(() => confirmDelete === id && (confirmDelete = null), 3000);
+      return;
+    }
+    confirmDelete = null;
+    await deleteRound(id);
+    rounds = await listRounds();
   }
 
   function fmtDate(t: number): string {
-    return new Date(t).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 </script>
-
-{#snippet newRoundCard()}
-  <div
-    class="card new-card"
-    role="button"
-    tabindex="0"
-    onclick={createRound}
-    onkeydown={(e) => e.key === "Enter" && createRound()}
-  >
-    <span class="plus">+</span>
-    <span>New Round</span>
-    <select
-      class="tmpl"
-      bind:value={templateIdx}
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-      onchange={() => localStorage.setItem(LS_TEMPLATE, String(templateIdx))}
-    >
-      {#each templates as t, i (t.id)}
-        <option value={i}>{t.name}</option>
-      {/each}
-    </select>
-  </div>
-{/snippet}
-
-{#snippet roundCard(r: RoundMeta)}
-  <div
-    class="card round-card"
-    class:card-dragging={draggingRoundId === r.id}
-    role="button"
-    tabindex="0"
-    draggable="true"
-    onclick={() => open(r.id)}
-    onkeydown={(e) => e.key === "Enter" && open(r.id)}
-    ondragstart={(e) => {
-      draggingRoundId = r.id;
-      e.dataTransfer?.setData("text/plain", r.id);
-    }}
-    ondragend={() => { draggingRoundId = null; dragOverFolder = null; }}
-  >
-    <button
-      class="x"
-      class:confirming={confirmingId === r.id}
-      title="Delete round"
-      onclick={(e) => {
-        e.stopPropagation();
-        remove(r.id);
-      }}
-    >{confirmingId === r.id ? "Delete?" : "×"}</button>
-    {#if renamingRound === r.id}
-      <!-- svelte-ignore a11y_autofocus -->
-      <input
-        class="rename-input"
-        bind:value={renameText}
-        autofocus
-        onclick={(e) => e.stopPropagation()}
-        onkeydown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter") commitRoundRename(r.id);
-          if (e.key === "Escape") renamingRound = null;
-        }}
-        onblur={() => commitRoundRename(r.id)}
-      />
-    {:else}
-      <div class="rname">
-        {r.name}
-        <button
-          class="rename-btn"
-          title="Rename flow"
-          onclick={(e) => {
-            e.stopPropagation();
-            renamingRound = r.id;
-            renameText = r.name;
-          }}
-        >✎</button>
-      </div>
-    {/if}
-    {#if newFolderFor === r.id}
-      <!-- svelte-ignore a11y_autofocus -->
-      <input
-        class="folder-input"
-        placeholder="Folder name"
-        bind:value={newFolderName}
-        autofocus
-        onclick={(e) => e.stopPropagation()}
-        onkeydown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter") commitNewFolder(r.id);
-          if (e.key === "Escape") newFolderFor = null;
-        }}
-        onblur={() => commitNewFolder(r.id)}
-      />
-    {:else}
-      <select
-        class="folder"
-        value={r.tournament.trim()}
-        onclick={(e) => e.stopPropagation()}
-        onkeydown={(e) => e.stopPropagation()}
-        onchange={(e) => setFolder(r.id, e.currentTarget.value)}
-      >
-        <option value="">Unfiled</option>
-        {#each folderNames as f (f)}
-          <option value={f}>{f}</option>
-        {/each}
-        <option value="__new__">+ New folder…</option>
-      </select>
-    {/if}
-    <div class="chips">
-      {#each r.sheets as s, i (i)}
-        <span
-          class="chip-tag {s.color ? '' : chipSide(s.kind)}"
-          style={s.color ? `color: ${s.color}; border-color: ${s.color}` : ""}
-        >{s.title || "(untitled)"}</span>
-      {:else}
-        <span class="chip-tag empty">no sheets yet</span>
-      {/each}
-    </div>
-    <div class="date">{fmtDate(r.updatedAt)}</div>
-  </div>
-{/snippet}
 
 <div class="dashboard">
   <div class="topbar">
@@ -354,74 +179,144 @@
       <img class="logo" src="/logo.png" alt="Nimbus" />
       Nimbus
     </div>
-    <div class="top-actions">
-      {#if addingFolder}
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          class="folder-new"
-          placeholder="Folder name (e.g. Berkeley)"
-          bind:value={folderInput}
-          autofocus
-          onkeydown={(e) => {
-            if (e.key === "Enter") createFolder();
-            if (e.key === "Escape") {
-              addingFolder = false;
-              folderInput = "";
-            }
-          }}
-          onblur={createFolder}
-        />
-      {:else}
-        <button class="top-btn" onclick={() => (addingFolder = true)}>+ Folder</button>
-      {/if}
-      <button class="top-btn" onclick={openFlowFile}>Open flow…</button>
-      <label class="top-btn file-btn">
-        Import Round
-        <input type="file" accept=".json,.nimbus,application/json" onchange={doImportRound} />
-      </label>
-      <button class="top-btn" onclick={() => (showSettings = true)}>Settings</button>
-      <button class="top-btn primary" onclick={createRound}>+ New Round</button>
-    </div>
+    <button class="top-btn" onclick={() => (showSettings = true)}>Settings</button>
   </div>
 
   <div class="content">
-    {#if importStatus}
-      <p class="import-status">{importStatus}</p>
-    {/if}
-    {#each groups as [tournament, group], gi (tournament)}
-      <section
-        class="folder-section"
-        class:dragging-active={!!draggingRoundId}
-        class:drop-target={draggingRoundId && dragOverFolder === tournament}
-        role="group"
-        ondragover={(e) => { if (draggingRoundId) { e.preventDefault(); dragOverFolder = tournament; } }}
-        ondragleave={() => { if (dragOverFolder === tournament) dragOverFolder = null; }}
-        ondrop={(e) => { e.preventDefault(); dropOnFolder(tournament); }}
-      >
-        <h2 class="section">
-          {(tournament || "UNFILED").toUpperCase()} ({group.length})
-          {#if group.length === 0 && customFolders.includes(tournament)}
-            <button class="folder-x" title="Remove empty folder" onclick={() => deleteFolder(tournament)}>×</button>
-          {/if}
-          {#if draggingRoundId}
-            <span class="drop-hint">drop here to move</span>
-          {/if}
-        </h2>
-        <div class="cards">
-          {#each group as r (r.id)}
-            {@render roundCard(r)}
+    <!-- action cards -->
+    <div class="actions">
+      <button class="action-card" onclick={createRound}>
+        <div class="ac-title">New flow</div>
+        <div class="ac-desc">Start flowing a fresh round.</div>
+        <select
+          class="ac-select"
+          bind:value={templateIdx}
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          onchange={() => localStorage.setItem(LS_TEMPLATE, String(templateIdx))}
+        >
+          {#each templates as t, i (t.id)}
+            <option value={i}>{t.name}</option>
           {/each}
-          {#if gi === 0}
-            {@render newRoundCard()}
+        </select>
+      </button>
+      <button class="action-card" onclick={openFlowFile}>
+        <div class="ac-title">Open…</div>
+        <div class="ac-desc">Open a saved .nimbus or Excel flow from your Mac.</div>
+      </button>
+      <button class="action-card" onclick={convert} disabled={converting}>
+        <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
+        <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
+      </button>
+    </div>
+
+    {#if status}<p class="status">{status}</p>{/if}
+
+    <!-- tournaments -->
+    <div class="tourney-head">
+      <h2 class="section">TOURNAMENTS</h2>
+      {#if creatingTourney}
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="tourney-input"
+          placeholder="Tournament name (a folder is made on your Mac)"
+          bind:value={tourneyName}
+          autofocus
+          onkeydown={(e) => { if (e.key === 'Enter') newTournament(); if (e.key === 'Escape') { creatingTourney = false; tourneyName = ''; } }}
+          onblur={newTournament}
+        />
+      {:else}
+        <button class="mini-btn" onclick={() => (creatingTourney = true)}>+ New tournament</button>
+        <button class="mini-btn" onclick={linkFolder}>Link a folder…</button>
+      {/if}
+    </div>
+
+    {#each tournaments.list as t (t.id)}
+      <section
+        class="tourney"
+        class:drop-target={(draggingFlow || draggingRoundId) && dragOver === t.id}
+        class:drag-live={!!(draggingFlow || draggingRoundId)}
+        role="group"
+        ondragover={(e) => { if (draggingFlow || draggingRoundId) { e.preventDefault(); dragOver = t.id; } }}
+        ondragleave={() => dragOver === t.id && (dragOver = null)}
+        ondrop={(e) => { e.preventDefault(); dropOn(t); }}
+      >
+        <div class="tourney-title">
+          <span class="folder-icon">📁</span>
+          {#if renamingTourney === t.id}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input class="rename" bind:value={renameTourneyText} autofocus
+              onblur={commitRenameTourney}
+              onkeydown={(e) => { if (e.key==='Enter') commitRenameTourney(); if (e.key==='Escape') renamingTourney=null; }} />
+          {:else}
+            <span class="tname">{t.name}</span>
+            <button class="icon" title="Rename" onclick={() => { renamingTourney = t.id; renameTourneyText = t.name; }}>✎</button>
+            <button class="icon" title="Remove from Nimbus (keeps the folder)" onclick={() => tournaments.unlink(t.id)}>unlink</button>
           {/if}
-          {#if draggingRoundId && group.length === 0}
-            <div class="drop-placeholder">Drop here to move to {tournament || "Unfiled"}</div>
-          {:else if group.length === 0 && tournament !== ""}
-            <p class="empty-folder">Empty — drag a round here, or use the folder menu on a round card.</p>
-          {/if}
+        </div>
+        <div class="cards">
+          {#each flowsByTourney[t.id] ?? [] as file (file.path)}
+            <div
+              class="card flow-card"
+              class:card-dragging={draggingFlow?.path === file.path}
+              role="button"
+              tabindex="0"
+              draggable="true"
+              onclick={() => openFlow(file)}
+              onkeydown={(e) => e.key === 'Enter' && openFlow(file)}
+              ondragstart={(e) => { draggingFlow = file; e.dataTransfer?.setData('text/plain', file.path); }}
+              ondragend={() => { draggingFlow = null; dragOver = null; }}
+            >
+              <button class="x" class:confirming={confirmDelete === file.path}
+                onclick={(e) => { e.stopPropagation(); removeFlow(file); }}
+                title="Delete flow">{confirmDelete === file.path ? 'Delete?' : '×'}</button>
+              <div class="fname">{file.name}</div>
+              <span class="ext-badge {file.ext}">{file.ext === 'xlsx' ? 'Excel' : 'Nimbus'}</span>
+              <div class="date">{fmtDate(file.modified)}</div>
+            </div>
+          {/each}
+          <button class="card add-flow" onclick={() => newFlowInTournament(t)}>
+            <span class="plus">+</span> New flow here
+          </button>
         </div>
       </section>
     {/each}
+
+    {#if tournaments.list.length === 0 && !creatingTourney}
+      <p class="empty-hint">No tournaments yet — click <b>+ New tournament</b> to make a folder on your Mac, then add flows into it.</p>
+    {/if}
+
+    <!-- unfiled app-data flows -->
+    {#if rounds.length > 0}
+      <h2 class="section">NOT IN A TOURNAMENT</h2>
+      <p class="empty-hint">Drag any of these onto a tournament above to file it there.</p>
+      <div class="cards">
+        {#each rounds as r (r.id)}
+          <div
+            class="card round-card"
+            class:card-dragging={draggingRoundId === r.id}
+            role="button"
+            tabindex="0"
+            draggable="true"
+            onclick={() => openAppRound(r.id)}
+            onkeydown={(e) => e.key === 'Enter' && openAppRound(r.id)}
+            ondragstart={(e) => { draggingRoundId = r.id; e.dataTransfer?.setData('text/plain', r.id); }}
+            ondragend={() => { draggingRoundId = null; dragOver = null; }}
+          >
+            <button class="x" class:confirming={confirmDelete === r.id}
+              onclick={(e) => { e.stopPropagation(); removeRound(r.id); }}
+              title="Delete round">{confirmDelete === r.id ? 'Delete?' : '×'}</button>
+            <div class="fname">{r.name}</div>
+            <div class="chips">
+              {#each r.sheets.slice(0, 6) as s, i (i)}
+                <span class="chip-tag">{s.title || '(untitled)'}</span>
+              {/each}
+            </div>
+            <div class="date">{fmtDate(r.updatedAt)}</div>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -430,297 +325,106 @@
 {/if}
 
 <style>
-  .dashboard {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
+  .dashboard { height: 100vh; display: flex; flex-direction: column; }
   .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--panel);
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 18px;
-    font-weight: 700;
-  }
-  .logo {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
-  }
-  .top-actions {
-    display: flex;
-    gap: 8px;
-  }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+  .logo { width: 30px; height: 30px; object-fit: contain; }
   .top-btn {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 7px 14px;
-    font-size: 13px;
-    cursor: pointer;
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
   }
-  .top-btn:hover {
-    border-color: var(--accent);
+  .top-btn:hover { border-color: var(--accent); }
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+  .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .action-card {
+    text-align: left; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px; width: 260px; min-height: 108px;
+    cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+    transition: border-color 0.1s, box-shadow 0.1s;
   }
-  .top-btn.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-    font-weight: 600;
+  .action-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .action-card:disabled { opacity: 0.55; cursor: default; }
+  .ac-title { font-size: 18px; font-weight: 700; color: var(--text); }
+  .ac-desc { font-size: 13px; color: var(--text-dim); line-height: 1.35; }
+  .ac-select {
+    margin-top: 8px; align-self: flex-start; background: var(--bg);
+    border: 1px solid var(--border); color: var(--text); border-radius: 6px;
+    padding: 3px 8px; font-size: 12px;
   }
-  .content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-  }
+
   .section {
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
-    font-weight: 600;
-    margin: 18px 0 10px;
+    font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);
+    font-weight: 600; margin: 18px 0 10px;
   }
-  .section:first-child {
-    margin-top: 0;
+  .tourney-head { display: flex; align-items: center; gap: 10px; }
+  .mini-btn {
+    background: var(--panel); border: 1px solid var(--border); color: var(--accent);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
   }
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 14px;
+  .mini-btn:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+  .tourney-input, .tourney-input:focus {
+    background: var(--bg); border: 1px solid var(--accent); color: var(--text);
+    border-radius: 6px; padding: 5px 10px; font-size: 13px; min-width: 320px;
   }
+
+  .tourney {
+    border: 2px dashed transparent; border-radius: 12px; padding: 4px 8px 8px;
+    margin: 0 -8px 8px;
+  }
+  .tourney.drag-live { border-color: var(--border); }
+  .tourney.drop-target { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .tourney-title { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-weight: 700; }
+  .folder-icon { font-size: 15px; }
+  .tname { font-size: 15px; }
+  .icon {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 4px; font-size: 11px; padding: 1px 6px; cursor: pointer;
+  }
+  .icon:hover { color: var(--text); border-color: var(--accent); }
+  .rename, .rename:focus {
+    background: var(--bg); border: 1px solid var(--accent); color: var(--text);
+    border-radius: 4px; padding: 3px 8px; font-size: 14px;
+  }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .card {
-    position: relative;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    padding: 16px;
-    min-height: 120px;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    box-sizing: border-box;
-    text-align: left;
+    position: relative; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); padding: 14px 16px; min-height: 96px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; text-align: left;
   }
-  .card:hover {
-    border-color: var(--accent);
-  }
-  .rname {
-    font-size: 15px;
-    font-weight: 700;
-    padding-right: 40px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .rename-btn {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 12px;
-    opacity: 0;
-    padding: 0 2px;
-  }
-  .card:hover .rename-btn {
-    opacity: 1;
-  }
-  .rename-btn:hover {
-    color: var(--accent);
-  }
-  .rename-input {
-    background: var(--bg);
-    border: 1px solid var(--accent);
-    color: var(--text);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 14px;
-    font-weight: 700;
-    margin-right: 32px;
-  }
-  .folder-new {
-    background: var(--bg);
-    border: 1px solid var(--accent);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 13px;
-    min-width: 200px;
-  }
-  .folder-x {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0 4px;
-  }
-  .folder-x:hover {
-    color: var(--mark-dropped);
-  }
-  .empty-folder {
-    color: var(--text-dim);
-    font-size: 12px;
-    font-style: italic;
-    margin: 4px 0;
-  }
-  .folder-section {
-    border-radius: 10px;
-    padding: 2px 6px 6px;
-    margin: 0 -6px;
-    border: 2px dashed transparent;
-    transition: border-color 0.1s, background 0.1s;
-  }
-  /* While dragging, every folder becomes a generous target you can't miss. */
-  .folder-section.dragging-active {
-    border-color: var(--border);
-    padding-bottom: 16px;
-    margin-bottom: 8px;
-  }
-  .folder-section.dragging-active .cards {
-    min-height: 96px;
-  }
-  .folder-section.drop-target {
-    border-color: var(--accent);
-    border-style: solid;
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-  }
-  .drop-placeholder {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 90px;
-    border: 2px dashed var(--accent);
-    border-radius: 10px;
-    color: var(--accent);
-    font-size: 13px;
-    font-weight: 600;
-    background: color-mix(in srgb, var(--accent) 6%, transparent);
-  }
-  .drop-hint {
-    font-size: 10px;
-    color: var(--accent);
-    font-weight: 600;
-    margin-left: 8px;
-  }
-  .card-dragging {
-    opacity: 0.4;
-  }
-  .round-card {
-    cursor: grab;
-  }
-  .file-btn {
-    position: relative;
-    overflow: hidden;
-    display: inline-flex;
-    align-items: center;
-    cursor: pointer;
-  }
-  .file-btn input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-  .import-status {
-    font-size: 12px;
-    color: var(--text-dim);
-    margin: 0 0 10px;
-  }
+  .card:hover { border-color: var(--accent); }
+  .card-dragging { opacity: 0.4; }
+  .flow-card { cursor: grab; }
+  .round-card { cursor: grab; }
+  .fname { font-size: 15px; font-weight: 700; padding-right: 34px; }
   .x {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    font-size: 15px;
-    cursor: pointer;
-    border-radius: 4px;
-    padding: 1px 6px;
+    position: absolute; top: 8px; right: 8px; background: none; border: none;
+    color: var(--text-dim); font-size: 15px; cursor: pointer; border-radius: 4px; padding: 1px 6px;
   }
-  .x:hover {
-    color: var(--mark-dropped);
+  .x:hover { color: var(--mark-dropped); }
+  .x.confirming { background: var(--mark-dropped); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 8px; }
+  .ext-badge {
+    align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
+    padding: 1px 7px; border: 1px solid var(--border); color: var(--text-dim);
   }
-  .x.confirming {
-    background: var(--mark-dropped);
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 3px 8px;
-  }
-  .folder,
-  .folder-input {
-    align-self: flex-start;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 12px;
-    max-width: 60%;
-  }
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
+  .ext-badge.nimbus { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .ext-badge.xlsx { color: #1e8e4a; border-color: color-mix(in srgb, #1e8e4a 40%, transparent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip-tag {
-    font-size: 11px;
-    border-radius: 5px;
-    padding: 2px 8px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
+    font-size: 11px; border-radius: 5px; padding: 2px 8px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
   }
-  .chip-tag.aff {
-    color: var(--aff);
-    border-color: color-mix(in srgb, var(--aff) 40%, transparent);
+  .date { margin-top: auto; font-size: 12px; color: var(--text-dim); }
+  .add-flow {
+    border-style: dashed; align-items: center; justify-content: center;
+    color: var(--text-dim); flex-direction: row; gap: 6px; font-size: 13px;
   }
-  .chip-tag.neg {
-    color: var(--neg);
-    border-color: color-mix(in srgb, var(--neg) 40%, transparent);
-  }
-  .chip-tag.empty {
-    opacity: 0.6;
-    font-style: italic;
-  }
-  .date {
-    margin-top: auto;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .new-card {
-    border-style: dashed;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-dim);
-    gap: 6px;
-  }
-  .new-card:hover {
-    color: var(--text);
-  }
-  .plus {
-    font-size: 22px;
-    line-height: 1;
-  }
-  .tmpl {
-    margin-top: 4px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 12px;
-  }
+  .add-flow:hover { color: var(--text); }
+  .plus { font-size: 18px; }
+  .empty-hint { color: var(--text-dim); font-size: 12px; font-style: italic; margin: 4px 0 10px; }
+  .status { font-size: 12px; color: var(--text-dim); margin: 0 0 10px; }
 </style>

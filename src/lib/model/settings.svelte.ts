@@ -46,6 +46,8 @@ export interface Persisted {
   rowHeight: number;
   /** Show the welcome tutorial on app open until dismissed. */
   showTutorial: boolean;
+  /** Default file format when you Save (⌘S / on close). */
+  defaultSaveFormat: "nimbus" | "xlsx";
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
   keymap: Partial<Record<ActionId, Combo | Combo[]>>;
   macros: Macro[];
@@ -54,6 +56,7 @@ export interface Persisted {
 class Settings {
   theme = $state<Theme>("snow");
   showTutorial = $state(true);
+  defaultSaveFormat = $state<"nimbus" | "xlsx">("nimbus");
   /** Bottom by default — the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
   /** Columns stretch to fill the window but never shrink below this.
@@ -114,6 +117,7 @@ class Settings {
     if (p.fontSize) this.fontSize = p.fontSize;
     if (p.rowHeight) this.rowHeight = p.rowHeight;
     if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
+    if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -145,6 +149,7 @@ class Settings {
       fontSize: this.fontSize,
       rowHeight: this.rowHeight,
       showTutorial: this.showTutorial,
+      defaultSaveFormat: this.defaultSaveFormat,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
     };

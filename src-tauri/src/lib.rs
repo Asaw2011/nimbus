@@ -15,6 +15,13 @@ fn take_pending_file(state: tauri::State<PendingFile>) -> Option<String> {
     state.0.lock().unwrap().take()
 }
 
+/// Quit the whole app — reliable close that can't be blocked by the window's
+/// close-request guard.
+#[tauri::command]
+fn force_quit(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// Windows/Linux pass the opened file as a CLI argument.
 fn file_from_args() -> Option<String> {
     std::env::args()
@@ -116,6 +123,86 @@ fn read_text_file(path: String) -> Result<String, String> {
     fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
+/// Binary read/write for .xlsx flow files.
+#[tauri::command]
+fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    fs::write(path, bytes).map_err(|e| e.to_string())
+}
+
+// ---- tournament folders (real directories of flow files) ------------------
+
+#[derive(serde::Serialize)]
+struct FlowFile {
+    name: String,
+    path: String,
+    ext: String,
+    modified: u64,
+}
+
+#[tauri::command]
+fn create_dir(path: String) -> Result<(), String> {
+    fs::create_dir_all(path).map_err(|e| e.to_string())
+}
+
+/// List the .nimbus/.xlsx flows inside a folder (newest first).
+#[tauri::command]
+fn list_flows(path: String) -> Result<Vec<FlowFile>, String> {
+    let mut out = Vec::new();
+    let entries = fs::read_dir(&path).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        if ext == "nimbus" || ext == "xlsx" {
+            let name = p
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let modified = entry
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            out.push(FlowFile {
+                name,
+                path: p.to_string_lossy().to_string(),
+                ext,
+                modified,
+            });
+        }
+    }
+    out.sort_by(|a, b| b.modified.cmp(&a.modified));
+    Ok(out)
+}
+
+/// Move (or rename) a file — used to move a flow between tournament folders.
+#[tauri::command]
+fn move_path(from: String, to: String) -> Result<(), String> {
+    fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_path(path: String) -> Result<(), String> {
+    fs::remove_file(path).map_err(|e| e.to_string())
+}
+
+/// Whether a folder still exists (a linked tournament may have been deleted).
+#[tauri::command]
+fn dir_exists(path: String) -> bool {
+    Path::new(&path).is_dir()
+}
+
+#[tauri::command]
+fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|e| e.to_string())
+}
+
 /// Returns the raw JSON of every saved round; the frontend derives metadata.
 #[tauri::command]
 fn list_rounds(app: tauri::AppHandle) -> Result<Vec<String>, String> {
@@ -207,7 +294,15 @@ pub fn run() {
             export_to_downloads,
             write_text_file,
             read_text_file,
-            take_pending_file
+            write_binary_file,
+            read_binary_file,
+            take_pending_file,
+            force_quit,
+            create_dir,
+            list_flows,
+            move_path,
+            delete_path,
+            dir_exists
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

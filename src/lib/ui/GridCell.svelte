@@ -45,11 +45,16 @@
     }
   });
 
-  // Set text imperatively; never re-render text while focused (avoids caret
-  // jumps). The store stays authoritative via oninput.
+  // Set text imperatively. We skip re-painting a focused, non-empty editor to
+  // avoid caret jumps mid-typing — BUT a focused-yet-empty editor means the
+  // cursor just landed here on load (e.g. the LABEL cell), so we must paint it
+  // or the value shows blank even though the data has it.
   $effect(() => {
-    if (editor && editor.textContent !== cell.text && document.activeElement !== editor) {
+    if (!editor || editor.textContent === cell.text) return;
+    const focused = document.activeElement === editor;
+    if (!focused || editor.textContent === "") {
       editor.textContent = cell.text;
+      if (focused) placeCaretAtEnd();
     }
   });
 

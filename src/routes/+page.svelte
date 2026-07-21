@@ -17,7 +17,14 @@
   let showTutorial = $state(false);
   // Close-prompt state.
   let closePrompt = $state(false);
+  let closeError = $state("");
   let closing = false;
+  // Brief "Saved ✓" / error toast.
+  let toast = $state("");
+  function flashToast(msg: string) {
+    toast = msg;
+    setTimeout(() => (toast = ""), 2200);
+  }
 
   onMount(() => {
     // First-open (or re-enabled) welcome tutorial.
@@ -52,7 +59,12 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && !e.shiftKey) {
       if (store.round) {
         e.preventDefault();
-        await saveToFile(store.round);
+        try {
+          const ok = await saveToFile(store.round);
+          if (ok) flashToast("Saved ✓");
+        } catch (err) {
+          flashToast("Save failed: " + (err instanceof Error ? err.message : err));
+        }
       }
     }
   }
@@ -83,17 +95,35 @@
   async function forceClose() {
     closing = true;
     closePrompt = false;
-    if ("__TAURI_INTERNALS__" in window) {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await getCurrentWindow().destroy();
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    // Flush the round to disk, then quit the process directly — this can't be
+    // blocked by the window close-request guard.
+    try {
+      await store.saveNow();
+    } catch {
+      /* app-data save failed; quitting anyway */
     }
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("force_quit");
   }
 
   async function onSave() {
-    if (store.round && (await saveToFile(store.round))) forceClose();
+    if (!store.round) return forceClose();
+    try {
+      if (await saveToFile(store.round)) forceClose();
+      else closeError = "Couldn't save (no location chosen). Try Save As, or Don't Save.";
+    } catch (err) {
+      closeError = "Save failed: " + (err instanceof Error ? err.message : err);
+    }
   }
   async function onSaveAs() {
-    if (store.round && (await saveAs(store.round))) forceClose();
+    if (!store.round) return forceClose();
+    try {
+      if (await saveAs(store.round)) forceClose();
+      else closeError = "Save cancelled.";
+    } catch (err) {
+      closeError = "Save failed: " + (err instanceof Error ? err.message : err);
+    }
   }
 </script>
 
@@ -118,14 +148,40 @@
         <button class="primary" onclick={onSave}>Save</button>
         <button onclick={onSaveAs}>Save As…</button>
         <button class="danger" onclick={forceClose}>Don't Save</button>
-        <button class="ghost" onclick={() => (closePrompt = false)}>Cancel</button>
+        <button class="ghost" onclick={() => { closePrompt = false; closeError = ''; }}>Cancel</button>
       </div>
+      {#if closeError}
+        <p class="close-err">{closeError}</p>
+      {/if}
       <p class="note">Your work is always auto-kept in Nimbus either way — this saves a copy to your Mac.</p>
     </div>
   </div>
 {/if}
 
+{#if toast}
+  <div class="toast">{toast}</div>
+{/if}
+
 <style>
+  .toast {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    z-index: 70;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+  .close-err {
+    color: var(--mark-dropped) !important;
+    font-size: 12px !important;
+    margin: 10px 0 0 !important;
+  }
   .close-backdrop {
     position: fixed;
     inset: 0;
