@@ -58,17 +58,28 @@ Builds are currently unsigned, so first launch shows a security warning:
   "AT:" answer block); runs as a single undo step
 - Range selection (drag-select, copy as TSV, bulk-mark, drag-move blocks)
 
+**Files & formats**
+- Two formats: **`.nimbus`** (native, full fidelity) and **`.xlsx`** (Excel).
+  Convert between them either way, losslessly — flow in Excel or in Nimbus.
+- **Double-click** a `.nimbus` or `.xlsx` file to open it straight into Nimbus;
+  `⌘S` to save; pick your default save format in Settings
+- **Save/Open** flows anywhere on your Mac; export an HTML round report
+
+**Tournaments = real folders**
+- A tournament is an actual folder on your Mac. Create one and Nimbus makes the
+  folder; **link** any existing folder to use it as a tournament
+- Flows live inside as files; **drag a flow between tournaments** to move the
+  file on disk — organize in Nimbus or in Finder, it's the same files
+
 **Docs & sharing**
 - **Import `.docx` speech docs** — a 1NC creates off-case sheets; answer docs
   (AT:/A2…) match your existing flows; target column is guessed from the round
 - **Partner flowing** — real-time co-flowing over one room code, no account and
   no server to run (peer-to-peer, encrypted)
-- **Save/Open** `.nimbus` files anywhere on disk; export an HTML round report
 
 **Make it yours**
 - 6 themes (five light options + dark), custom aff/neg/analytic/card colors,
   adjustable font, size, and row height
-- Tournament folders on the dashboard (drag a round into a folder)
 - Everything auto-saves to disk and survives updates; export/import your full
   settings bundle
 
