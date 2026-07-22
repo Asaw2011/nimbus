@@ -173,6 +173,13 @@
   content: " ";
   white-space: pre;
 }
+/* Hide the trailing/hard breaks ProseMirror adds — they cause a stray line
+ * break mid-sentence in read mode. The card should flow as one sentence. */
+.pmd-document.pmd-read-mode .pmd-card-body br,
+.pmd-document.pmd-read-mode .pmd-cite-para br,
+.pmd-document.pmd-read-mode .ProseMirror-trailingBreak {
+  display: none;
+}
 /* Cite line stays on its own line, bold — hide the non-cite bracket detail. */
 .pmd-document.pmd-read-mode .pmd-cite-para .pmd-condensed { display: none; }
 /* Drop emphasis boxes in read mode — you're reading, not marking. */
