@@ -154,8 +154,10 @@
  * band), underlined (the cut), emphasis-boxed, and the bold cite — flowing
  * inline. This matches how the cut reads in the round. */
 
-/* Hide unread context (small condensed runs) and non-card paragraphs. */
-.pmd-document.pmd-read-mode .pmd-condensed { display: none; }
+/* Runs with no read marker (highlight/underline/emphasis/cite) get this class
+ * from the read-mode plugin — that's the unread text, hidden. */
+.pmd-document.pmd-read-mode .pmd-rm-hide { display: none; }
+/* Also hide undertags and stray non-card paragraphs. */
 .pmd-document.pmd-read-mode .pmd-undertag { display: none; }
 .pmd-document.pmd-read-mode .ProseMirror > p { display: none; }
 

@@ -7,6 +7,7 @@
   import { history, undo, redo } from "prosemirror-history";
   import type { DocNode } from "$lib/docx/parse";
   import { cardmirrorSchema as schema, nodesFromDocNode } from "$lib/cardmirror/adapter";
+  import { readModePlugin, readModeKey } from "./readMode";
   import "$lib/cardmirror/cardmirror.css";
 
   let {
@@ -117,6 +118,7 @@
       schema,
       doc,
       plugins: [
+        readModePlugin(),
         history(),
         keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
         keymap(baseKeymap),
@@ -267,6 +269,13 @@
   let readMode = $state(false);
   let sendStatus = $state("");
 
+  function toggleReadMode() {
+    readMode = !readMode;
+    if (view) {
+      view.dispatch(view.state.tr.setMeta(readModeKey, { on: readMode }));
+    }
+  }
+
   async function sendDoc() {
     if (!view) return;
     try {
@@ -305,7 +314,7 @@
     {/each}
     <button class="hl-swatch clear" onclick={() => setHighlight("none")} title="Clear highlight">⌀</button>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn read" class:active={readMode} onclick={() => (readMode = !readMode)} title="Read mode — show only spoken text">Read</button>
+    <button class="tb-btn read" class:active={readMode} onclick={toggleReadMode} title="Read mode — show only the read-aloud text">Read</button>
     <button class="tb-btn send" onclick={sendDoc} title="Export / send as .docx">Send</button>
     {#if sendStatus}<span class="send-status">{sendStatus}</span>{/if}
     <div class="toolbar-sep"></div>
