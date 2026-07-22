@@ -107,9 +107,10 @@
 .pmd-document .pmd-undertag-mark { color: var(--pmd-color-undertag); }
 .pmd-document .pmd-analytic-mark { font-weight: bold; color: var(--pmd-color-analytic); }
 
-/* Emphasis = boxed power words (CardMirror's signature look) */
+/* Emphasis = boxed power words, bold AND underlined (part of the cut). */
 .pmd-document .pmd-emphasis {
   font-weight: bold;
+  text-decoration: underline;
   border: var(--pmd-emphasis-box-size) solid currentColor;
   padding: 0 0.1em;
   border-radius: 1px;
@@ -154,9 +155,12 @@
  * band), underlined (the cut), emphasis-boxed, and the bold cite — flowing
  * inline. This matches how the cut reads in the round. */
 
-/* Runs with no read marker (highlight/underline/emphasis/cite) get this class
- * from the read-mode plugin — that's the unread text, hidden. */
-.pmd-document.pmd-read-mode .pmd-rm-hide { display: none; }
+/* Runs with no read marker get this class from the read-mode plugin — that's
+ * the unread text. Collapse each to a single space (not display:none) so the
+ * surrounding read words don't jam together into "failedsystem". */
+.pmd-document.pmd-read-mode .pmd-rm-hide,
+.pmd-document.pmd-read-mode .pmd-rm-hide * { font-size: 0 !important; }
+.pmd-document.pmd-read-mode .pmd-rm-hide::after { content: " "; font-size: 12pt; }
 /* Also hide undertags and stray non-card paragraphs. */
 .pmd-document.pmd-read-mode .pmd-undertag { display: none; }
 .pmd-document.pmd-read-mode .ProseMirror > p { display: none; }

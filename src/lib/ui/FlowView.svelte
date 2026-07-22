@@ -111,16 +111,33 @@
     return () => un?.();
   });
 
+  // Build a stub card node from plain cell text (when no full card is stored).
+  function cellNode(cell: { text: string; card?: unknown } | undefined) {
+    if (!cell?.text.trim()) return null;
+    return cell.card ?? { level: 4, text: cell.text.trim(), runs: [], children: [], body: [], bodyRuns: [] };
+  }
+
+  // "Cell → Doc": send just the current cell's card at the cursor.
   function sendCellToDoc() {
     if (!store.cursor || !store.activeSheetId) return;
     const { row, col } = store.cursor;
     const sheet = store.round?.sheets.find(s => s.id === store.activeSheetId);
-    const cell = sheet?.rows[row]?.cells[col];
-    const text = cell?.text.trim();
-    if (!text) return;
-    // Prefer the full stored card (real substance); fall back to just the name.
-    const node = cell?.card ?? { level: 4, text, runs: [], children: [], body: [], bodyRuns: [] };
-    appendToDoc(node);
+    const node = cellNode(sheet?.rows[row]?.cells[col]);
+    if (node) appendToDoc(node);
+  }
+
+  // "Send to Doc": build the whole speech — every card in the current column,
+  // top to bottom, appended to the doc in order.
+  function sendSpeechToDoc() {
+    if (!store.cursor || !store.activeSheetId) return;
+    const col = store.cursor.col;
+    const sheet = store.round?.sheets.find(s => s.id === store.activeSheetId);
+    if (!sheet) return;
+    docOpen = true;
+    for (const row of sheet.rows) {
+      const node = cellNode(row.cells[col]);
+      if (node) appendToDoc(node);
+    }
   }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
@@ -435,7 +452,7 @@
     </div>
 
     {#if !atHome}
-      <Ribbon {spreadMode} onspread={setSpread} onsendtodoc={docOpen ? sendCellToDoc : null} />
+      <Ribbon {spreadMode} onspread={setSpread} onsendspeech={sendSpeechToDoc} onsendcell={sendCellToDoc} />
     {/if}
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
