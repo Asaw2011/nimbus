@@ -57,18 +57,23 @@
   const rows = $derived.by<Row[]>(() => {
     if (mode !== "within") return [];
     const matchSet = computeMatchSet();
+    // A numeric chip caps the depth: "HAT" shows Pockets + Hats only, not the
+    // Blocks/Tags beneath them (collapse to that level).
+    const capLevel = typeof chip === "number" ? chip : Infinity;
     const out: Row[] = [];
     const walk = (nodes: DocNode[], depth: number, prefix: string) => {
       nodes.forEach((n, i) => {
         const key = prefix + i;
-        // chip filter (when not searching): only show nodes of the chosen level
-        const chipOk = chip === "all" || chip === "body" || n.level === chip || n.children.length > 0;
-        if (!chipOk && !matchSet) return;
-        if (matchSet && !matchSet.has(key)) return;
+        if (matchSet) {
+          if (!matchSet.has(key)) return;
+        } else if (n.level > capLevel) {
+          return; // deeper than the chosen level — hidden
+        }
+        const capReached = !matchSet && n.level >= capLevel;
         const hasKids = n.children.length > 0;
-        out.push({ node: n, depth, key, hasKids });
+        out.push({ node: n, depth, key, hasKids: hasKids && !capReached });
         const isCollapsed = collapsed.has(key) && !matchSet;
-        if (hasKids && !isCollapsed) walk(n.children, depth + 1, key + ".");
+        if (hasKids && !isCollapsed && !capReached) walk(n.children, depth + 1, key + ".");
       });
     };
     walk(divedNodes, 0, "");
@@ -250,7 +255,7 @@
     bind:this={inputEl}
     bind:value={query}
     class="ds-input"
-    placeholder={mode === "files" ? "Search files…" : "Type to filter blocks / cards / tags…"}
+    placeholder={mode === "files" ? "🔍  Find a file by name…" : "🔍  Filter blocks / cards / tags…"}
     spellcheck="false"
     autocomplete="off"
   />
