@@ -141,35 +141,24 @@
 .pmd-document .pmd-highlight[data-highlight="black"]       { background: #000000; color: #fff; }
 .pmd-document .pmd-highlight[data-highlight="none"]        { background: transparent; }
 
-/* Any bold word inside evidence = the emphasis look (boxed + underlined),
- * regardless of whether it carries emphasis_mark or a plain bold mark (older or
- * hand-edited content). This is CardMirror's model: bold in a card = emphasis. */
-.pmd-document .pmd-card-body strong,
-.pmd-document .pmd-analytic-unit strong,
+/* Emphasis (a distinct character style) = bold + underline + box + 11pt.
+ * Plain bold (<strong>) stays just bold — no underline, no box, no size change. */
 .pmd-document .pmd-emphasis {
-  font-weight: bold !important;
-  text-decoration: underline !important;
-  border: 1px solid currentColor !important;
-  padding: 0 2px !important;
-  border-radius: 2px !important;
+  font-weight: bold;
+  text-decoration: underline;
+  font-size: 11pt;
+  border: 1px solid currentColor;
+  padding: 0 2px;
+  border-radius: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-/* Cite line: bold author stays 13pt, no box. */
-.pmd-document .pmd-cite-para strong,
-.pmd-document .pmd-cite-para .pmd-cite {
-  font-weight: bold !important;
-  font-size: 13pt !important;
-  text-decoration: none !important;
-  border: none !important;
-  padding: 0 !important;
-}
-/* Read mode drops the box (you're reading, not marking). */
-.pmd-document.pmd-read-mode .pmd-card-body strong,
-.pmd-document.pmd-read-mode .pmd-analytic-unit strong {
-  border: none !important;
-  padding: 0 !important;
-}
+.pmd-document .pmd-card-body strong,
+.pmd-document .pmd-analytic-unit strong { font-weight: bold; }
+/* Cite line: bold author at 13pt, no box/underline. */
+.pmd-document .pmd-cite { font-weight: bold; font-size: 13pt; }
+/* Read mode drops the emphasis box (you're reading, not marking). */
+.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
 
 /* Ligatures must not span a formatting boundary */
 .pmd-document .pmd-highlight,

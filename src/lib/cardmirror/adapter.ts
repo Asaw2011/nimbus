@@ -17,9 +17,12 @@ const DEFAULT_BODY_HALFPOINTS = 22; // 11pt
 function bodyMarks(run: DocRun): Mark[] {
   const marks: Mark[] = [];
   if (run.hl) marks.push(schema.marks.highlight.create({ color: run.hl }));
-  if (run.cite) marks.push(schema.marks.cite_mark.create());
-  else if (run.b) marks.push(schema.marks.emphasis_mark.create());
+  // Named-style marks are mutually exclusive (emphasis / cite / underline).
+  if (run.emph) marks.push(schema.marks.emphasis_mark.create());
+  else if (run.cite) marks.push(schema.marks.cite_mark.create());
   else if (run.u) marks.push(schema.marks.underline_mark.create());
+  // Direct formatting — separate, can coexist. Plain bold ≠ emphasis.
+  if (run.b) marks.push(schema.marks.bold.create());
   if (run.i) marks.push(schema.marks.italic.create());
   // Shrink explicitly-small (unread) runs via a font_size mark.
   if (run.sm && run.sz && run.sz < DEFAULT_BODY_HALFPOINTS) {

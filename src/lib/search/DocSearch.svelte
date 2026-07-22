@@ -4,11 +4,64 @@
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
-  let { onclose, onappenddoc = null, docOnly = false }: {
+  let { onclose, onappenddoc = null, onappendcm = null, docOnly = false }: {
     onclose: () => void;
     onappenddoc?: ((node: DocNode) => void) | null;
+    onappendcm?: ((jsonNodes: unknown[]) => void) | null;
     docOnly?: boolean;
   } = $props();
+
+  // CardMirror doc per file (fromDocx) — the exact card structure to insert.
+  const cmDocCache = new Map<string, unknown>();
+
+  /** Parse a file with CardMirror's own fromDocx and cache the PM doc JSON. */
+  async function getCMDocJSON(file: LibFile): Promise<{ type: string; content?: unknown[] } | null> {
+    if (cmDocCache.has(file.path)) return cmDocCache.get(file.path) as never;
+    try {
+      const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
+      const { fromDocx } = await import("$lib/cardmirror");
+      const doc = await fromDocx(new Uint8Array(bytes));
+      const json = doc.toJSON();
+      cmDocCache.set(file.path, json);
+      return json as never;
+    } catch (err) {
+      console.error("fromDocx failed", err);
+      return null;
+    }
+  }
+
+  // Level of a CardMirror top-level node (pocket=1 … card/analytic=4).
+  function cmLevel(n: { type: string }): number {
+    return { pocket: 1, hat: 2, block: 3, card: 4, analytic_unit: 4, tag: 4 }[n.type] ?? 5;
+  }
+  function cmLabel(n: { type: string; content?: { textContent?: string } }): string {
+    // For a card/analytic_unit the label is the first child's text; else the node's text.
+    const flat = (node: unknown): string => {
+      const o = node as { text?: string; content?: unknown[] };
+      if (o.text) return o.text;
+      return (o.content ?? []).map(flat).join("");
+    };
+    const o = n as { type: string; content?: unknown[] };
+    if ((n.type === "card" || n.type === "analytic_unit") && o.content?.length) return flat(o.content[0]);
+    return flat(n);
+  }
+
+  /** Extract the JSON node range for the selected heading label from a CM doc. */
+  function extractCMNodes(cmJson: { content?: unknown[] }, label: string, level: number): unknown[] {
+    const tops = (cmJson.content ?? []) as { type: string }[];
+    const target = label.trim();
+    let start = -1;
+    for (let i = 0; i < tops.length; i++) {
+      if (cmLevel(tops[i]) === level && cmLabel(tops[i]).trim() === target) { start = i; break; }
+    }
+    if (start < 0) return [];
+    // A card/analytic (level 4) is a single node; a heading owns following
+    // deeper nodes until the next same-or-higher heading.
+    if (level >= 4) return [tops[start]];
+    let end = start + 1;
+    while (end < tops.length && cmLevel(tops[end]) > level) end++;
+    return tops.slice(start, end);
+  }
 
   // ── state ──────────────────────────────────────────────────────
   let mode = $state<"files" | "within">("files");
@@ -113,7 +166,8 @@
   }
 
   // ── insert ────────────────────────────────────────────────────
-  function insertNode(node: DocNode) {
+  async function insertNode(node: DocNode) {
+    // Flow cell gets the header text (fast, from the lightweight parse).
     if (!docOnly && store.round && store.cursor && store.activeSheetId) {
       const { row, col } = store.cursor;
       store.mutate((r) => {
@@ -126,10 +180,18 @@
         const cell = sheet.rows[row].cells[col];
         cell.text = node.text;
         cell.chip = nodeChip(node);
-        cell.card = node; // keep the full card so "Send to Doc" has the substance
+        cell.card = node;
       });
     }
-    onappenddoc?.(node);
+    // Speech doc gets the EXACT CardMirror card via fromDocx.
+    if (divedFile && onappendcm) {
+      const cm = await getCMDocJSON(divedFile);
+      if (cm) {
+        const nodes = extractCMNodes(cm as never, node.text, node.level);
+        if (nodes.length) { onappendcm(nodes); return; }
+      }
+    }
+    onappenddoc?.(node); // fallback to the approximate adapter
   }
 
   function activateSelected() {

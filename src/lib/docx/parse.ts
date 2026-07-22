@@ -31,6 +31,8 @@ export interface DocRun {
   cite?: boolean;
   /** Italic (journal names, emphasis). */
   i?: boolean;
+  /** Emphasis character style — boxed + underlined + 11pt (distinct from plain bold). */
+  emph?: boolean;
 }
 
 export interface DocNode {
@@ -95,12 +97,15 @@ function extractRuns(p: Element): DocRun[] {
       // Cite: Style13ptBold / Cite / OldCite character style (author + year).
       const isCite = rStyle.includes("cite") || rStyle.includes("13ptbold");
 
-      // Bold / emphasis: direct w:b (not off) or the Emphasis character style.
+      // Emphasis is a SEPARATE character style (boxed + underlined + 11pt),
+      // distinct from plain bold. CardMirror: rStyle="Emphasis" → emphasis_mark.
+      const isEmphasis = !isCite && rStyle.includes("emphasis");
+
+      // Plain bold: direct w:b (not off), and NOT the emphasis/cite styles.
       const bEl = firstChild(rPr, "b");
       const bVal = attrVal(bEl, "val");
       const hasB =
-        !isCite &&
-        ((!!bEl && bVal !== "0" && bVal !== "false") || rStyle === "emphasis");
+        !isCite && !isEmphasis && !!bEl && bVal !== "0" && bVal !== "false";
 
       // Italic: direct w:i (not off).
       const iEl = firstChild(rPr, "i");
@@ -120,9 +125,10 @@ function extractRuns(p: Element): DocRun[] {
       if (hasB) run.b = true;
       if (hasI) run.i = true;
       if (isCite) run.cite = true;
+      if (isEmphasis) run.emph = true;
       if (hl) run.hl = hl;
       if (sz !== undefined) run.sz = sz;
-      if (sz !== undefined && sz <= 16 && !hasU && !hl && !isCite) run.sm = true;
+      if (sz !== undefined && sz <= 16 && !hasU && !hl && !isCite && !isEmphasis) run.sm = true;
     }
     runs.push(run);
   }

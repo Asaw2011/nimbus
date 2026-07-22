@@ -10,6 +10,7 @@
     appendNode(n: DocNode): void;
     getDocJSON(): unknown;
     setDocJSON(j: unknown): void;
+    appendCMNodes(nodes: unknown[]): void;
   } | null>(null);
   let initial = $state<unknown>(null);
   let ready = $state(false);
@@ -22,6 +23,7 @@
     ready = true;
     // Receive cards inserted from the main window (⌘K / drag).
     await docBridge.listenForAppends((node) => docRef?.appendNode(node));
+    await docBridge.listenForCMAppends((nodes) => docRef?.appendCMNodes(nodes));
   });
 
   function onkeydown(e: KeyboardEvent) {
@@ -64,6 +66,7 @@
       docOnly
       onclose={() => (showSearch = false)}
       onappenddoc={(node) => docRef?.appendNode(node)}
+      onappendcm={(nodes) => docRef?.appendCMNodes(nodes)}
     />
   {/if}
 </div>

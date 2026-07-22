@@ -161,7 +161,7 @@ export const marks: { [name: string]: MarkSpec } = {
     // underline.
     excludes: 'cite_mark underline_mark emphasis_mark',
     parseDOM: [{ tag: 'span.pmd-cite' }],
-    toDOM: () => ['span', { class: 'pmd-cite', style: 'font-weight:bold;font-size:13pt' }, 0],
+    toDOM: () => ['span', { class: 'pmd-cite' }, 0],
   },
 
   underline_mark: {
@@ -190,7 +190,7 @@ export const marks: { [name: string]: MarkSpec } = {
     ...namedStyleMark(),
     excludes: 'cite_mark underline_mark emphasis_mark',
     parseDOM: [{ tag: 'span.pmd-emphasis' }],
-    toDOM: () => ['span', { class: 'pmd-emphasis', style: 'font-weight:bold;text-decoration:underline;border:1px solid currentColor;padding:0 2px;border-radius:2px' }, 0],
+    toDOM: () => ['span', { class: 'pmd-emphasis' }, 0],
   },
 
   undertag_mark: {

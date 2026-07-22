@@ -70,6 +70,7 @@
     getDocJSON(): unknown;
     setDocJSON(j: unknown): void;
     removeByText(t: string): void;
+    appendCMNodes(nodes: unknown[]): void;
   }
   let docRef = $state<DocAPI | null>(null);
   let resizingDoc = $state(false);
@@ -569,7 +570,11 @@
     {/if}
 
     {#if showDocSearch}
-      <DocSearch onclose={() => (showDocSearch = false)} onappenddoc={(node) => { docOpen = true; appendToDoc(node); }} />
+      <DocSearch
+        onclose={() => (showDocSearch = false)}
+        onappenddoc={(node) => { docOpen = true; appendToDoc(node); }}
+        onappendcm={(nodes) => { docOpen = true; if (poppedOut) void docBridge.appendCMRemote(nodes); else docRef?.appendCMNodes(nodes); }}
+      />
     {/if}
 
     {#if showHelp}

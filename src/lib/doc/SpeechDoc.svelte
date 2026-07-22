@@ -358,14 +358,45 @@
   async function sendDoc() {
     if (!view) return;
     try {
-      const { exportSpeechDocx } = await import("./exportDocx");
-      await exportSpeechDocx(view.state.doc, "Speech");
+      // Export with CardMirror's own toDocx so the file round-trips into
+      // CardMirror perfectly (people read the sent doc there).
+      const { toDocx } = await import("$lib/cardmirror");
+      const bytes = await toDocx(view.state.doc);
+      if ("__TAURI_INTERNALS__" in window) {
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        const path = await save({
+          defaultPath: "Speech.docx",
+          filters: [{ name: "Word Document", extensions: ["docx"] }],
+        });
+        if (!path) return;
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("write_binary_file", { path, bytes: Array.from(bytes) });
+      } else {
+        const blob = new Blob([bytes as BlobPart], {
+          type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "Speech.docx"; a.click();
+        URL.revokeObjectURL(url);
+      }
       sendStatus = "Saved ✓";
     } catch (err) {
       sendStatus = "Export failed";
       console.error(err);
     }
     setTimeout(() => (sendStatus = ""), 2500);
+  }
+
+  /** Insert CardMirror-schema nodes (from fromDocx) directly at the doc end. */
+  export function appendCMNodes(jsonNodes: unknown[]) {
+    if (!view || jsonNodes.length === 0) return;
+    try {
+      const nodes = jsonNodes.map((j) => schema.nodeFromJSON(j));
+      view.dispatch(view.state.tr.insert(view.state.doc.content.size, nodes).scrollIntoView());
+    } catch (err) {
+      console.error("appendCMNodes failed", err);
+    }
   }
 </script>
 

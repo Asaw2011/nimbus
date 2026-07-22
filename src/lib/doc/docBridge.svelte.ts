@@ -28,6 +28,19 @@ class DocBridge {
     await emit("speech-doc-append", node);
   }
 
+  /** Append exact CardMirror nodes into the popped-out doc. */
+  async appendCMRemote(nodes: unknown[]) {
+    if (!inTauri) return;
+    const { emit } = await import("@tauri-apps/api/event");
+    await emit("speech-doc-append-cm", nodes);
+  }
+
+  async listenForCMAppends(fn: (nodes: unknown[]) => void): Promise<() => void> {
+    if (!inTauri) return () => {};
+    const { listen } = await import("@tauri-apps/api/event");
+    return await listen<unknown[]>("speech-doc-append-cm", (e) => { if (e.payload) fn(e.payload); });
+  }
+
   /** The popped-out window subscribes to appends coming from the main window. */
   async listenForAppends(fn: (node: DocNode) => void): Promise<() => void> {
     this.appendListeners.add(fn);
