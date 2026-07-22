@@ -141,24 +141,33 @@
 .pmd-document .pmd-highlight[data-highlight="black"]       { background: #000000; color: #fff; }
 .pmd-document .pmd-highlight[data-highlight="none"]        { background: transparent; }
 
-/* Emphasis (a distinct character style) = bold + underline + box + 11pt.
- * Plain bold (<strong>) stays just bold — no underline, no box, no size change. */
-.pmd-document .pmd-emphasis {
+/* Emphasis (character style) AND any bold power word in a card = boxed +
+ * underlined (you asked for ALL bold boxed, not just the Emphasis style).
+ * The cite is excluded (it's bold but a separate style). */
+.pmd-document .pmd-emphasis,
+.pmd-document .pmd-card-body strong,
+.pmd-document .pmd-analytic-unit strong {
   font-weight: bold;
   text-decoration: underline;
-  font-size: 11pt;
   border: 1px solid currentColor;
   padding: 0 2px;
   border-radius: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-.pmd-document .pmd-card-body strong,
-.pmd-document .pmd-analytic-unit strong { font-weight: bold; }
+.pmd-document .pmd-emphasis { font-size: 11pt; }
 /* Cite line: bold author at 13pt, no box/underline. */
-.pmd-document .pmd-cite { font-weight: bold; font-size: 13pt; }
-/* Read mode drops the emphasis box (you're reading, not marking). */
-.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
+.pmd-document .pmd-cite {
+  font-weight: bold;
+  font-size: 13pt;
+  text-decoration: none;
+  border: none;
+  padding: 0;
+}
+/* Read mode drops the box (you're reading, not marking). */
+.pmd-document.pmd-read-mode .pmd-emphasis,
+.pmd-document.pmd-read-mode .pmd-card-body strong,
+.pmd-document.pmd-read-mode .pmd-analytic-unit strong { border: none; padding: 0; }
 
 /* Ligatures must not span a formatting boundary */
 .pmd-document .pmd-highlight,
