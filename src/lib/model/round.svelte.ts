@@ -219,7 +219,13 @@ class RoundStore {
     if (!sheet?.rows[row]?.cells[col]) return;
     this.mutate(
       () => {
-        sheet.rows[row].cells[col].text = text;
+        const cell = sheet.rows[row].cells[col];
+        cell.text = text;
+        // Typing over an inserted card drops its source-type chip + stored card.
+        if (!text.trim()) {
+          delete cell.chip;
+          delete cell.card;
+        }
         // LABEL cell: the first cell of the sheet's start column names the
         // sheet, so offs auto-label as you flow the 1NC. The title tracks the
         // cell exactly — clearing the cell clears the name too.
@@ -379,6 +385,8 @@ class RoundStore {
       cell.text = "";
       delete cell.marks;
       delete cell.ext;
+      delete cell.chip;
+      delete cell.card;
     });
   }
 

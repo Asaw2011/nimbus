@@ -121,6 +121,17 @@
         readModePlugin(),
         history(),
         keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
+        // Style shortcuts: ⌘1 Pocket, ⌘2 Hat, ⌘3 Block, ⌘4 Tag, ⌘5 Analytic,
+        // ⌘6 Undertag, ⌘0 Body.
+        keymap({
+          "Mod-1": () => (setBlock("pocket"), true),
+          "Mod-2": () => (setBlock("hat"), true),
+          "Mod-3": () => (setBlock("block"), true),
+          "Mod-4": () => (setBlock("tag"), true),
+          "Mod-5": () => (setBlock("analytic"), true),
+          "Mod-6": () => (setBlock("undertag"), true),
+          "Mod-0": () => (setBlock("paragraph"), true),
+        }),
         keymap(baseKeymap),
       ],
     });
@@ -229,8 +240,51 @@
 
   function setBlock(type: string) {
     if (!view) return;
+    if (type === "analytic") { makeAnalytic(); return; }
+    if (type === "tag") { makeCard(); return; }
     const nt = schema.nodes[type];
     if (nt) setBlockType(nt)(view.state, view.dispatch);
+    view.focus();
+  }
+
+  // Tag lives inside a card — wrap the current line in a card > tag.
+  function makeCard() {
+    if (!view) return;
+    const { state } = view;
+    const pos = state.selection.$from;
+    const text = pos.parent.textContent;
+    const tag = schema.nodes.tag.create(
+      { id: crypto.randomUUID() },
+      text ? [schema.text(text)] : undefined,
+    );
+    const card = schema.nodes.card.create(null, [tag]);
+    const from = pos.before();
+    const to = pos.after();
+    const tr = state.tr.replaceWith(from, to, card);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(from + 2)));
+    view.dispatch(tr.scrollIntoView());
+    view.focus();
+  }
+
+  // Analytic lives inside an analytic_unit — the plain setBlockType can't create
+  // one. Wrap the current line in an analytic_unit > analytic so you can type it.
+  function makeAnalytic() {
+    if (!view) return;
+    const { state } = view;
+    const pos = state.selection.$from;
+    const para = pos.parent;
+    const text = para.textContent;
+    const heading = schema.nodes.analytic.create(
+      { id: crypto.randomUUID() },
+      text ? [schema.text(text)] : undefined,
+    );
+    const unit = schema.nodes.analytic_unit.create(null, [heading]);
+    const from = pos.before();
+    const to = pos.after();
+    const tr = state.tr.replaceWith(from, to, unit);
+    // Put the cursor inside the analytic heading.
+    tr.setSelection(TextSelection.near(tr.doc.resolve(from + 2)));
+    view.dispatch(tr.scrollIntoView());
     view.focus();
   }
 
@@ -293,13 +347,15 @@
 <div class="speech-doc pmd-document" class:pmd-read-mode={readMode}>
   <div class="doc-toolbar">
     <select class="heading-select" onchange={(e) => setBlock((e.currentTarget as HTMLSelectElement).value)}>
-      <option value="paragraph">¶ Body</option>
-      <option value="pocket">Pocket (H1)</option>
-      <option value="hat">Hat (H2)</option>
-      <option value="block">Block (H3)</option>
+      <option value="paragraph">¶ Body · ⌘0</option>
+      <option value="pocket">Pocket · ⌘1</option>
+      <option value="hat">Hat · ⌘2</option>
+      <option value="block">Block · ⌘3</option>
+      <option value="tag">Tag · ⌘4</option>
+      <option value="analytic">Analytic · ⌘5</option>
+      <option value="undertag">Undertag · ⌘6</option>
       <option value="cite_paragraph">Cite</option>
       <option value="card_body">Card Body</option>
-      <option value="undertag">Undertag</option>
     </select>
     <div class="toolbar-sep"></div>
     <button class="tb-btn" class:active={markActive("bold")} onclick={() => mark("bold")} title="Bold (⌘B)"><b>B</b></button>
