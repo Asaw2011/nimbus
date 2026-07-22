@@ -29,6 +29,8 @@ export interface DocRun {
   sz?: number;
   /** Cite text (Style13ptBold / Cite) — author + year. */
   cite?: boolean;
+  /** Italic (journal names, emphasis). */
+  i?: boolean;
 }
 
 export interface DocNode {
@@ -100,6 +102,11 @@ function extractRuns(p: Element): DocRun[] {
         !isCite &&
         ((!!bEl && bVal !== "0" && bVal !== "false") || rStyle === "emphasis");
 
+      // Italic: direct w:i (not off).
+      const iEl = firstChild(rPr, "i");
+      const iVal = attrVal(iEl, "val");
+      const hasI = !!iEl && iVal !== "0" && iVal !== "false";
+
       // Highlight (spoken) — keep the OOXML name so CardMirror's schema/CSS
       // renders the exact highlighter colour via a data-highlight attribute.
       const hlVal = attrVal(firstChild(rPr, "highlight"), "val");
@@ -111,6 +118,7 @@ function extractRuns(p: Element): DocRun[] {
 
       if (hasU) run.u = true;
       if (hasB) run.b = true;
+      if (hasI) run.i = true;
       if (isCite) run.cite = true;
       if (hl) run.hl = hl;
       if (sz !== undefined) run.sz = sz;

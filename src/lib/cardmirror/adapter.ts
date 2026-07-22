@@ -16,6 +16,7 @@ function bodyMarks(run: DocRun): Mark[] {
   if (run.cite) marks.push(schema.marks.cite_mark.create());
   if (run.u) marks.push(schema.marks.underline_mark.create());
   if (run.b) marks.push(schema.marks.emphasis_mark.create());
+  if (run.i) marks.push(schema.marks.italic.create());
   // Shrink explicitly-small (unread) runs via a font_size mark.
   if (run.sm && run.sz && run.sz < DEFAULT_BODY_HALFPOINTS) {
     marks.push(schema.marks.font_size.create({ halfPoints: run.sz }));
