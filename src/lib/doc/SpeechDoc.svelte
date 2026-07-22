@@ -341,6 +341,13 @@
   let readMode = $state(false);
   let sendStatus = $state("");
 
+  /** Empty the whole document (for a clean re-send). */
+  export function clearDoc() {
+    if (!view) return;
+    const empty = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
+    view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, empty.content));
+  }
+
   function toggleReadMode() {
     readMode = !readMode;
     if (view) {
@@ -389,6 +396,7 @@
     <button class="hl-swatch clear" onclick={() => setHighlight("none")} title="Clear highlight">⌀</button>
     <div class="toolbar-sep"></div>
     <button class="tb-btn read" class:active={readMode} onclick={toggleReadMode} title="Read mode — show only the read-aloud text">Read</button>
+    <button class="tb-btn" onclick={clearDoc} title="Clear the whole document">Clear</button>
     <button class="tb-btn send" onclick={sendDoc} title="Export / send as .docx">Send</button>
     {#if sendStatus}<span class="send-status">{sendStatus}</span>{/if}
     <div class="toolbar-sep"></div>
