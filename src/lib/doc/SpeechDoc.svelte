@@ -67,25 +67,35 @@
     const sc = debateSchema;
     const nodes: ReturnType<typeof sc.nodes.block.create>[] = [];
 
-    // Block heading (bold argument label)
+    // ── Block heading (bold argument label) ──────────────────────
     nodes.push(sc.nodes.block.create({ id: crypto.randomUUID() }, makeText(node.text)));
 
-    // Body lines directly under the block (overviews, analytics)
-    for (const line of node.body) {
-      if (line.trim()) nodes.push(sc.nodes.paragraph.create({}, makeText(line)));
-    }
-
-    // Children: H4 tag headings → each becomes tag + its body lines
-    for (const child of node.children) {
-      nodes.push(sc.nodes.tag.create({ id: crypto.randomUUID() }, makeText(child.text)));
-      for (const line of child.body) {
-        if (line.trim()) nodes.push(sc.nodes.card_body.create({}, makeText(line)));
-      }
-      // Deeper nesting (rare, treat as card body)
-      for (const grandchild of child.children) {
-        if (grandchild.text) nodes.push(sc.nodes.card_body.create({}, makeText(grandchild.text)));
-        for (const line of grandchild.body) {
+    if (node.children.length > 0) {
+      // Verbatim structure: H4 children are Tag headings, their body = evidence
+      for (const child of node.children) {
+        nodes.push(sc.nodes.tag.create({ id: crypto.randomUUID() }, makeText(child.text)));
+        for (const line of child.body) {
           if (line.trim()) nodes.push(sc.nodes.card_body.create({}, makeText(line)));
+        }
+        for (const grandchild of child.children) {
+          if (grandchild.text) nodes.push(sc.nodes.card_body.create({}, makeText(grandchild.text)));
+          for (const line of grandchild.body) {
+            if (line.trim()) nodes.push(sc.nodes.card_body.create({}, makeText(line)));
+          }
+        }
+      }
+    } else {
+      // No H4 children — body text IS the evidence.
+      // Heuristic: short first line (<100 chars) = tag/cite; rest = card body.
+      const body = node.body.filter(l => l.trim());
+      if (body.length > 0 && body[0].length < 100) {
+        nodes.push(sc.nodes.tag.create({ id: crypto.randomUUID() }, makeText(body[0])));
+        for (const line of body.slice(1)) {
+          nodes.push(sc.nodes.card_body.create({}, makeText(line)));
+        }
+      } else {
+        for (const line of body) {
+          nodes.push(sc.nodes.card_body.create({}, makeText(line)));
         }
       }
     }
@@ -317,34 +327,42 @@
   :global([data-theme="dark"]) :global(.pm-hat) { color: #7fb5ff; }
 
   :global(.pm-block) {
-    font-size: 11pt;
+    font-size: 11.5pt;
     font-weight: 700;
-    margin: 12px 0 2px;
+    margin: 18px 0 0;
     color: #111;
+    padding-top: 10px;
+    border-top: 1.5px solid #ddd;
   }
-  :global([data-theme="dark"]) :global(.pm-block) { color: #e8e8e8; }
+  :global(.pm-block:first-child) { border-top: none; margin-top: 0; padding-top: 0; }
+  :global([data-theme="dark"]) :global(.pm-block) { color: #e8e8e8; border-top-color: #333; }
 
   :global(.pm-tag) {
     font-size: 10.5pt;
     font-weight: 400;
     text-decoration: underline;
     text-decoration-thickness: 1px;
-    margin: 3px 0 1px;
+    margin: 3px 0 2px;
     color: #1a1a1a;
+    display: block;
   }
   :global([data-theme="dark"]) :global(.pm-tag) { color: #d4d4d4; }
 
+  /* Evidence text — smaller, distinct background strip */
   :global(.pm-card-body) {
-    font-size: 9.5pt;
-    color: #3a3a3a;
+    font-size: 9pt;
+    color: #2a2a2a;
     margin: 0;
-    line-height: 1.35;
-    padding-left: 8px;
+    line-height: 1.3;
+    padding: 0 0 0 10px;
+    border-left: 2px solid #e0e0e0;
   }
-  :global([data-theme="dark"]) :global(.pm-card-body) { color: #aaa; }
+  :global([data-theme="dark"]) :global(.pm-card-body) {
+    color: #b0b0b0;
+    border-left-color: #333;
+  }
 
-  :global(.ProseMirror p) { margin: 2px 0 6px; }
-  :global(.ProseMirror p:empty::before) {
-    content: '\200B'; /* zero-width space keeps empty paragraphs visible */
-  }
+  :global(.ProseMirror p) { margin: 3px 0 6px; }
+  :global(.ProseMirror p:last-child) { margin-bottom: 0; }
+  :global(.ProseMirror p:empty::before) { content: '\200B'; }
 </style>
