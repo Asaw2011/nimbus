@@ -13,6 +13,7 @@
     sheetId,
     side = "neutral",
     isLabel = false,
+    dropTarget = false,
   }: {
     cell: Cell;
     row: number;
@@ -20,6 +21,7 @@
     sheetId: string;
     side?: "aff" | "neg" | "neutral";
     isLabel?: boolean;
+    dropTarget?: boolean;
   } = $props();
 
   // In spread view several sheets are visible at once — a cell is only active
@@ -233,6 +235,7 @@
   class:neg={side === "neg"}
   class:analytic={cell.marks?.evidence === "analytic"}
   class:card={cell.marks?.evidence === "card"}
+  class:drop-target={dropTarget}
   data-r={row}
   data-c={col}
 >
@@ -302,6 +305,11 @@
     outline: 1.5px solid var(--accent);
     outline-offset: -1.5px;
     background: var(--active-cell-bg);
+  }
+  .cell.drop-target {
+    outline: 2px dashed var(--accent);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--cell-bg));
   }
   .cell.in-range {
     background: color-mix(in srgb, var(--accent) 16%, var(--cell-bg));

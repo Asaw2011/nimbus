@@ -5,7 +5,15 @@
   import { matchesAny } from "../model/keymap";
   import GridCell from "./GridCell.svelte";
 
-  let { sheet, spread = false }: { sheet: Sheet; spread?: boolean } = $props();
+  let {
+    sheet,
+    spread = false,
+    onblockdrop = null,
+  }: {
+    sheet: Sheet;
+    spread?: boolean;
+    onblockdrop?: ((header: string, fullCard: string, row: number, col: number) => void) | null;
+  } = $props();
 
   const speeches = $derived(store.round?.template.speeches ?? []);
   // Off-case pages start at the 1NC, overviews at the block — like the
@@ -24,6 +32,54 @@
   );
 
   let scroller: HTMLDivElement | undefined = $state();
+  let dropTargetCell = $state<{ r: number; c: number } | null>(null);
+
+  // ---- Doc Search drag bridge ------------------------------------------
+  // Blocks dragged from DocSearch carry a 'text/nimbus-block' MIME type.
+  // Drop onto any cell: header goes into the cell, full card fires onblockdrop
+  // so FlowView can append it to the speech doc simultaneously.
+
+  function isBlockDrag(e: DragEvent): boolean {
+    return !!e.dataTransfer?.types.includes("text/nimbus-block");
+  }
+
+  function ondragover_grid(e: DragEvent) {
+    if (!isBlockDrag(e)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    const cell = cellAt(e as unknown as MouseEvent);
+    dropTargetCell = cell;
+  }
+
+  function ondragleave_grid(e: DragEvent) {
+    // Only clear if leaving the grid entirely
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+      dropTargetCell = null;
+    }
+  }
+
+  function ondrop_grid(e: DragEvent) {
+    if (!isBlockDrag(e)) return;
+    e.preventDefault();
+    dropTargetCell = null;
+    const raw = e.dataTransfer?.getData("text/nimbus-block");
+    if (!raw) return;
+    let payload: { header: string; fullCard: string };
+    try { payload = JSON.parse(raw); } catch { return; }
+    const cell = cellAt(e as unknown as MouseEvent);
+    if (!cell) return;
+    const { r, c } = cell;
+    // Write header into the cell
+    store.mutate((round) => {
+      const s = round.sheets.find((s) => s.id === sheet.id);
+      if (!s) return;
+      store.ensureRows(r, s);
+      s.rows[r].cells[c].text = payload.header;
+    });
+    store.cursor = { row: r, col: c };
+    // Notify FlowView to also append the full card to the speech doc
+    onblockdrop?.(payload.header, payload.fullCard, r, c);
+  }
 
   // Unlimited paper: keep the sheet at least a viewport tall, keep blank rows
   // below the last used row, and grow further as the user scrolls down.
@@ -164,6 +220,9 @@
   {onmousedown}
   {onmousemove}
   {onmouseup}
+  ondragover={ondragover_grid}
+  ondragleave={ondragleave_grid}
+  ondrop={ondrop_grid}
 >
   <div class="headers" style="grid-template-columns: {colTemplate}">
     {#each visibleSpeeches as speech, i (speech.id)}
@@ -191,6 +250,7 @@
             sheetId={sheet.id}
             side={speeches[colStart + i]?.side ?? "neutral"}
             isLabel={r === 0 && colStart + i === sheet.startCol}
+            dropTarget={dropTargetCell?.r === r && dropTargetCell?.c === colStart + i}
           />
         {/if}
       {/each}

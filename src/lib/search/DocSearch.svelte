@@ -307,6 +307,12 @@
               class="row node-row"
               class:selected={i === selectedIdx}
               style="--indent: {(node.level - 1) * 14}px; --lvl-color: {LEVEL_COLORS[node.level] ?? 'var(--text)'}"
+              draggable="true"
+              ondragstart={(e) => {
+                const full = buildFullCard(node);
+                e.dataTransfer?.setData("text/nimbus-block", JSON.stringify({ header: node.text, fullCard: full }));
+                if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+              }}
               onclick={() => { selectedIdx = i; insertSelected(); }}
               onmouseenter={() => { selectedIdx = i; }}
             >
