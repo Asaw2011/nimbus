@@ -4,9 +4,7 @@
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
-  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; appendNode(n: DocNode): void; }
-
-  let { onclose, docRef = null }: { onclose: () => void; docRef?: DocAPI | null } = $props();
+  let { onclose, onappenddoc = null }: { onclose: () => void; onappenddoc?: ((node: DocNode) => void) | null } = $props();
 
   // ── state machine ──────────────────────────────────────────────
   let mode = $state<"files" | "within">("files");
@@ -125,7 +123,6 @@
     // In within-file mode: insert block header into the active flow cell,
     // and append full card to the speech doc if it's open.
     const node = item as DocNode;
-    const fullCard = buildFullCard(node);
 
     if (store.round && store.cursor && store.activeSheetId) {
       const { row, col } = store.cursor;
@@ -143,9 +140,8 @@
       });
     }
 
-    // Append to speech doc with full Verbatim structure preserved
-    if (docRef?.appendNode) docRef.appendNode(node);
-    else docRef?.appendCard(node.text, fullCard);
+    // Append the rich card to the speech doc (routed to whichever window shows it)
+    onappenddoc?.(node);
 
     onclose();
   }

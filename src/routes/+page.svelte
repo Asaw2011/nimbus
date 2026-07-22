@@ -13,6 +13,11 @@
     openPath,
   } from "$lib/model/filedoc.svelte";
   import { checkForUpdate, type UpdateInfo } from "$lib/updater";
+  import SpeechDocWindow from "$lib/doc/SpeechDocWindow.svelte";
+
+  // Pop-out window mode: render ONLY the speech-doc editor.
+  const isDocWindow =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("docwin");
 
   let view: "dashboard" | "flow" = $state("dashboard");
   let showTutorial = $state(false);
@@ -177,7 +182,9 @@
 
 <svelte:window onkeydown={onGlobalKey} />
 
-{#if view === "flow" && store.round}
+{#if isDocWindow}
+  <SpeechDocWindow />
+{:else if view === "flow" && store.round}
   <FlowView onexit={() => (view = "dashboard")} />
 {:else}
   <Dashboard onopen={() => (view = "flow")} />

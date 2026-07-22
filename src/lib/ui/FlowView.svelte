@@ -10,6 +10,7 @@
   import SettingsPanel from "./SettingsPanel.svelte";
   import DocSearch from "$lib/search/DocSearch.svelte";
   import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
+  import { docBridge } from "$lib/doc/docBridge.svelte";
 
   let { onexit }: { onexit: () => void } = $props();
 
@@ -60,7 +61,15 @@
   let showDocSearch = $state(false);
   let docOpen = $state(false);
   let docWidth = $state(480);
-  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; appendNode(n: unknown): void; }
+  let docExpanded = $state(false);
+  interface DocAPI {
+    appendCard(h: string, c: string): void;
+    appendBlocks(l: string[]): void;
+    insertAtCursor(h: string, c: string): void;
+    appendNode(n: unknown): void;
+    getDocJSON(): unknown;
+    setDocJSON(j: unknown): void;
+  }
   let docRef = $state<DocAPI | null>(null);
   let resizingDoc = $state(false);
 
@@ -75,12 +84,41 @@
   }
   function stopDocResize() { resizingDoc = false; }
 
+  const poppedOut = $derived(docBridge.poppedOut);
+
+  // Route an insert to the doc, wherever it's showing (panel or pop-out window).
+  function appendToDoc(node: unknown) {
+    if (poppedOut) void docBridge.appendRemote(node as never);
+    else docRef?.appendNode(node);
+  }
+
+  async function togglePopout() {
+    if (poppedOut) {
+      // Dock back: pull latest content from the window, restore panel.
+      await docBridge.dockBack();
+      const json = await docBridge.loadDoc();
+      docRef?.setDocJSON(json);
+    } else {
+      docOpen = true;
+      await docBridge.popOut(docRef?.getDocJSON() ?? null);
+    }
+  }
+
+  // When the pop-out window closes on its own, restore its content into the panel.
+  $effect(() => {
+    let un: (() => void) | undefined;
+    docBridge.listenForDockBack((json) => docRef?.setDocJSON(json)).then((u) => (un = u));
+    return () => un?.();
+  });
+
   function sendCellToDoc() {
-    if (!store.cursor || !store.activeSheetId || !docRef) return;
+    if (!store.cursor || !store.activeSheetId) return;
     const { row, col } = store.cursor;
     const sheet = store.round?.sheets.find(s => s.id === store.activeSheetId);
     const text = sheet?.rows[row]?.cells[col]?.text.trim();
-    if (text) docRef.appendCard(text, text);
+    if (!text) return;
+    if (poppedOut) void docBridge.appendRemote({ level: 4, text, runs: [], children: [], body: [], bodyRuns: [] } as never);
+    else docRef?.appendCard(text, text);
   }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
@@ -407,27 +445,48 @@
       onpointermove={onDocResizeMove}
       onpointerup={stopDocResize}
     >
-      <div class="flow-pane">
-        {#if spread && round}
-          <SpreadView
-            sheets={round.sheets}
-            hidden={hiddenInSpread}
-            direction={spreadMode === "horizontal" ? "horizontal" : "vertical"}
-            ontoggle={toggleSheetOnDesk}
-            onset={(h) => (hiddenInSpread = h)}
-          />
-        {:else if atHome || !sheet}
-          <RoundHome onopensheet={openSheet} />
-        {:else}
-          <Grid {sheet} onblockdrop={(node) => docRef?.appendNode(node)} />
-        {/if}
-      </div>
+      {#if !(docExpanded && docOpen && !poppedOut && !spread)}
+        <div class="flow-pane">
+          {#if spread && round}
+            <SpreadView
+              sheets={round.sheets}
+              hidden={hiddenInSpread}
+              direction={spreadMode === "horizontal" ? "horizontal" : "vertical"}
+              ontoggle={toggleSheetOnDesk}
+              onset={(h) => (hiddenInSpread = h)}
+            />
+          {:else if atHome || !sheet}
+            <RoundHome onopensheet={openSheet} />
+          {:else}
+            <Grid {sheet} onblockdrop={(node) => appendToDoc(node)} />
+          {/if}
+        </div>
+      {/if}
 
       {#if docOpen && !spread}
-        <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
-        <div class="doc-pane" style="width: {docWidth}px">
-          <SpeechDoc bind:this={docRef} />
-        </div>
+        {#if poppedOut}
+          <div class="doc-divider"></div>
+          <div class="doc-pane" style="width: {docWidth}px">
+            <div class="doc-poppedout">
+              <p>Speech doc is open in its own window.</p>
+              <button class="dock-back" onclick={togglePopout}>⤓ Dock back into Nimbus</button>
+              <p class="hint">⌘K inserts and → Doc still send cards to that window.</p>
+            </div>
+          </div>
+        {:else}
+          {#if !docExpanded}
+            <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
+          {/if}
+          <div class="doc-pane" style={docExpanded ? "flex:1" : `width: ${docWidth}px`}>
+            <SpeechDoc
+              bind:this={docRef}
+              expanded={docExpanded}
+              {poppedOut}
+              onexpand={() => (docExpanded = !docExpanded)}
+              onpopout={togglePopout}
+            />
+          </div>
+        {/if}
       {/if}
     </div>
 
@@ -473,7 +532,7 @@
     {/if}
 
     {#if showDocSearch}
-      <DocSearch onclose={() => (showDocSearch = false)} {docRef} />
+      <DocSearch onclose={() => (showDocSearch = false)} onappenddoc={(node) => { docOpen = true; appendToDoc(node); }} />
     {/if}
 
     {#if showHelp}
@@ -592,6 +651,31 @@
     overflow: hidden;
     min-width: 320px;
   }
+  .doc-poppedout {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    color: var(--text-dim);
+    border-left: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .doc-poppedout .dock-back {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    border-radius: 7px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .doc-poppedout .hint { font-size: 11px; margin: 0; }
+  .doc-poppedout p { margin: 0; font-size: 13px; }
   /* Excel-style sheet tab strip: flat joined tabs with dividers */
   .tabs {
     display: flex;

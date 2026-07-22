@@ -9,16 +9,40 @@
   import { cardmirrorSchema as schema, nodesFromDocNode } from "$lib/cardmirror/adapter";
   import "$lib/cardmirror/cardmirror.css";
 
+  let {
+    onchange = null,
+    initialDoc = null,
+    onpopout = null,
+    onexpand = null,
+    expanded = false,
+    poppedOut = false,
+  }: {
+    onchange?: ((json: unknown) => void) | null;
+    initialDoc?: unknown;
+    onpopout?: (() => void) | null;
+    onexpand?: (() => void) | null;
+    expanded?: boolean;
+    poppedOut?: boolean;
+  } = $props();
+
   let mountEl = $state<HTMLDivElement>();
   let view: EditorView | null = null;
   let mounted = false;
+  let applyingExternal = false;
 
   $effect(() => {
     if (!mountEl || mounted) return;
     mounted = true;
 
+    const doc = initialDoc
+      ? (() => {
+          try { return schema.nodeFromJSON(initialDoc); } catch { return undefined; }
+        })()
+      : undefined;
+
     const state = EditorState.create({
       schema,
+      doc,
       plugins: [
         history(),
         keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
@@ -31,10 +55,34 @@
       dispatchTransaction(tr: Transaction) {
         if (!view) return;
         view.updateState(view.state.apply(tr));
+        if (tr.docChanged && !applyingExternal) {
+          onchange?.(view.state.doc.toJSON());
+        }
       },
     });
     view.focus();
   });
+
+  /** Serialise the current document to JSON (for pop-out handoff / persistence). */
+  export function getDocJSON(): unknown {
+    return view?.state.doc.toJSON() ?? null;
+  }
+
+  /** Replace the document from external JSON (pop-out sync) without echoing back. */
+  export function setDocJSON(json: unknown) {
+    if (!view || !json) return;
+    try {
+      const doc = schema.nodeFromJSON(json);
+      applyingExternal = true;
+      const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content);
+      tr.setMeta("addToHistory", false);
+      view.updateState(view.state.apply(tr));
+      applyingExternal = false;
+    } catch (err) {
+      console.error("setDocJSON failed", err);
+      applyingExternal = false;
+    }
+  }
 
   onDestroy(() => {
     view?.destroy();
@@ -116,23 +164,61 @@
     if (sel.empty) return !!m.isInSet(view.state.storedMarks ?? sel.$from.marks());
     return view.state.doc.rangeHasMark(sel.from, sel.to, m);
   }
+
+  function setHighlight(color: string) {
+    if (!view) return;
+    const m = schema.marks.highlight;
+    if (color === "none") {
+      // Clear highlight in the selection.
+      const { from, to } = view.state.selection;
+      view.dispatch(view.state.tr.removeMark(from, to, m));
+    } else {
+      // Force-apply the chosen colour (not toggle) so switching colours works.
+      const { from, to } = view.state.selection;
+      view.dispatch(view.state.tr.addMark(from, to, m.create({ color })));
+    }
+    view.focus();
+  }
+
+  const HL_COLORS = [
+    { name: "yellow", css: "#ffff00" },
+    { name: "green", css: "#00ff00" },
+    { name: "cyan", css: "#00ffff" },
+    { name: "magenta", css: "#ff00ff" },
+    { name: "blue", css: "#4d7bff" },
+  ];
 </script>
 
 <div class="speech-doc pmd-document">
   <div class="doc-toolbar">
     <select class="heading-select" onchange={(e) => setBlock((e.currentTarget as HTMLSelectElement).value)}>
       <option value="paragraph">¶ Body</option>
-      <option value="pocket">Pocket</option>
-      <option value="hat">Hat</option>
-      <option value="block">Block</option>
-      <option value="analytic">Analytic</option>
+      <option value="pocket">Pocket (H1)</option>
+      <option value="hat">Hat (H2)</option>
+      <option value="block">Block (H3)</option>
+      <option value="cite_paragraph">Cite</option>
+      <option value="card_body">Card Body</option>
+      <option value="undertag">Undertag</option>
     </select>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn" class:active={markActive("bold")} onclick={() => mark("bold")} title="Bold"><b>B</b></button>
-    <button class="tb-btn" class:active={markActive("italic")} onclick={() => mark("italic")} title="Italic"><i>I</i></button>
-    <button class="tb-btn" class:active={markActive("underline_mark")} onclick={() => mark("underline_mark")} title="Underline (cut)"><u>U</u></button>
-    <button class="tb-btn" class:active={markActive("emphasis_mark")} onclick={() => mark("emphasis_mark")} title="Emphasis (box)"><span class="emph">E</span></button>
-    <button class="tb-btn hl" class:active={markActive("highlight")} onclick={() => mark("highlight", { color: "yellow" })} title="Highlight (spoken)">H</button>
+    <button class="tb-btn" class:active={markActive("bold")} onclick={() => mark("bold")} title="Bold (⌘B)"><b>B</b></button>
+    <button class="tb-btn" class:active={markActive("italic")} onclick={() => mark("italic")} title="Italic (⌘I)"><i>I</i></button>
+    <button class="tb-btn" class:active={markActive("underline_mark")} onclick={() => mark("underline_mark")} title="Underline — the cut"><u>U</u></button>
+    <button class="tb-btn" class:active={markActive("emphasis_mark")} onclick={() => mark("emphasis_mark")} title="Emphasis — boxed power word"><span class="emph">E</span></button>
+    <button class="tb-btn" class:active={markActive("strikethrough")} onclick={() => mark("strikethrough")} title="Strikethrough"><s>S</s></button>
+    <div class="toolbar-sep"></div>
+    <span class="hl-label" title="Highlight (spoken text)">Hl</span>
+    {#each HL_COLORS as c}
+      <button class="hl-swatch" style="background:{c.css}" onclick={() => setHighlight(c.name)} title="Highlight {c.name}"></button>
+    {/each}
+    <button class="hl-swatch clear" onclick={() => setHighlight("none")} title="Clear highlight">⌀</button>
+    <div class="toolbar-sep"></div>
+    {#if onexpand}
+      <button class="tb-btn icon" onclick={onexpand} title={expanded ? "Collapse to side panel" : "Expand to fill"}>{expanded ? "⇥" : "⤢"}</button>
+    {/if}
+    {#if onpopout}
+      <button class="tb-btn icon" onclick={onpopout} title={poppedOut ? "Dock back into app" : "Pop out into its own window"}>{poppedOut ? "⤓" : "⇱"}</button>
+    {/if}
     <span class="doc-label">Speech Doc</span>
   </div>
 
@@ -174,8 +260,25 @@
   .tb-btn:hover { background: var(--bg); border-color: var(--border); }
   .tb-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .tb-btn .emph { border: 1px solid currentColor; border-radius: 2px; padding: 0 2px; font-weight: 700; font-size: 11px; }
-  .tb-btn.hl { background: #ffff66; color: #000; }
-  .tb-btn.hl.active { outline: 2px solid var(--accent); }
+  .tb-btn.icon { min-width: 26px; font-size: 14px; }
+  .hl-label { font-size: 11px; color: var(--text-dim); margin: 0 2px; }
+  .hl-swatch {
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .hl-swatch:hover { outline: 1.5px solid var(--accent); }
+  .hl-swatch.clear {
+    background: var(--bg) !important;
+    color: var(--text-dim);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .heading-select {
     background: var(--bg);
     border: 1px solid var(--border);
