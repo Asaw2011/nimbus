@@ -9,6 +9,7 @@
   import type { DocNode } from "$lib/docx/parse";
   import { cardmirrorSchema as schema, nodesFromDocNode } from "$lib/cardmirror/adapter";
   import { readModePlugin, readModeKey } from "./readMode";
+  import { settings } from "$lib/model/settings.svelte";
   import "$lib/cardmirror/cardmirror.css";
 
   let {
@@ -419,7 +420,14 @@
   }
 </script>
 
-<div class="speech-doc pmd-document" class:pmd-read-mode={readMode}>
+<div
+  class="speech-doc pmd-document"
+  class:pmd-read-mode={readMode}
+  class:pmd-emphasis-box={settings.docTypography.emphasisBox}
+  class:pmd-emphasis-bold={settings.docTypography.emphasisBold}
+  class:pmd-emphasis-italic={settings.docTypography.emphasisItalic}
+  style="--pmd-emphasis-box-size: {settings.docTypography.emphasisBoxSize}pt"
+>
   <div class="doc-toolbar">
     <select class="heading-select" onchange={(e) => setBlock((e.currentTarget as HTMLSelectElement).value)}>
       <option value="paragraph">¶ Body · ⌘0</option>

@@ -61,7 +61,24 @@ export interface Persisted {
   macros: Macro[];
   /** Folders to index for Doc Search (⌘K). */
   libraryRoots: LibraryRoot[];
+  /** Speech-doc display typography (matches CardMirror's per-user settings). */
+  docTypography: DocTypography;
 }
+
+export interface DocTypography {
+  emphasisBox: boolean;
+  emphasisBold: boolean;
+  emphasisItalic: boolean;
+  /** Emphasis box thickness in pt. */
+  emphasisBoxSize: number;
+}
+
+export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
+  emphasisBox: true,
+  emphasisBold: true,
+  emphasisItalic: false,
+  emphasisBoxSize: 1,
+};
 
 class Settings {
   theme = $state<Theme>("snow");
@@ -83,6 +100,7 @@ class Settings {
   keymap = $state<Record<ActionId, Combo[]>>(structuredClone(DEFAULT_KEYMAP));
   macros = $state<Macro[]>(defaultMacros());
   libraryRoots = $state<LibraryRoot[]>([]);
+  docTypography = $state<DocTypography>({ ...DEFAULT_DOC_TYPOGRAPHY });
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -145,6 +163,7 @@ class Settings {
         .filter((m): m is Macro => m !== null);
     }
     if (p.libraryRoots) this.libraryRoots = p.libraryRoots;
+    if (p.docTypography) this.docTypography = { ...DEFAULT_DOC_TYPOGRAPHY, ...p.docTypography };
   }
 
   buildPersisted(): Persisted {
@@ -165,6 +184,7 @@ class Settings {
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
+      docTypography: $state.snapshot(this.docTypography) as DocTypography,
     };
   }
 

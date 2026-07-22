@@ -611,6 +611,28 @@
     </section>
 
     <section>
+      <h3>Speech Doc Style</h3>
+      <p class="hint">
+        Match how your CardMirror displays evidence — everyone's setup is personal.
+      </p>
+      <label class="row" style="gap: 8px; cursor: pointer;">
+        <input type="checkbox" checked={settings.docTypography.emphasisBox}
+          onchange={(e) => { settings.docTypography = { ...settings.docTypography, emphasisBox: (e.currentTarget as HTMLInputElement).checked }; settings.save(); }} />
+        Emphasis: boxed
+      </label>
+      <label class="row" style="gap: 8px; cursor: pointer;">
+        <input type="checkbox" checked={settings.docTypography.emphasisBold}
+          onchange={(e) => { settings.docTypography = { ...settings.docTypography, emphasisBold: (e.currentTarget as HTMLInputElement).checked }; settings.save(); }} />
+        Emphasis: bold
+      </label>
+      <label class="row" style="gap: 8px; cursor: pointer;">
+        <input type="checkbox" checked={settings.docTypography.emphasisItalic}
+          onchange={(e) => { settings.docTypography = { ...settings.docTypography, emphasisItalic: (e.currentTarget as HTMLInputElement).checked }; settings.save(); }} />
+        Emphasis: italic
+      </label>
+    </section>
+
+    <section>
       <h3>Updates</h3>
       <div class="backup-row">
         <button class="chip" onclick={doCheckUpdate} disabled={checkingUpdate}>
