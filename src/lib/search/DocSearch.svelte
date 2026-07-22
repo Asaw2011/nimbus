@@ -22,12 +22,35 @@
       const { fromDocx } = await import("$lib/cardmirror");
       const doc = await fromDocx(new Uint8Array(bytes));
       const json = doc.toJSON();
+      // Treat every bold power word in evidence as Emphasis so it renders boxed
+      // in Nimbus AND exports as rStyle="Emphasis" → boxed when read in CardMirror.
+      boldToEmphasis(json);
       cmDocCache.set(file.path, json);
       return json as never;
     } catch (err) {
       console.error("fromDocx failed", err);
       return null;
     }
+  }
+
+  // In-place: convert `bold` marks inside card bodies to `emphasis_mark`
+  // (dropping the now-redundant underline_mark — emphasis is underlined).
+  function boldToEmphasis(node: unknown): void {
+    const o = node as { type?: string; content?: unknown[] };
+    if (o.type === "card_body" && Array.isArray(o.content)) {
+      for (const child of o.content) {
+        const t = child as { type?: string; marks?: { type: string }[] };
+        if (t.type === "text" && t.marks?.some((m) => m.type === "bold")) {
+          t.marks = t.marks.filter(
+            (m) => m.type !== "bold" && m.type !== "underline_mark",
+          );
+          if (!t.marks.some((m) => m.type === "emphasis_mark")) {
+            t.marks.push({ type: "emphasis_mark" });
+          }
+        }
+      }
+    }
+    if (Array.isArray(o.content)) o.content.forEach(boldToEmphasis);
   }
 
   // Level of a CardMirror top-level node (pocket=1 … card/analytic=4).
