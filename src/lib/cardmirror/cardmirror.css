@@ -1,0 +1,145 @@
+/* Vendored from CardMirror (PolyForm Noncommercial 1.0.0) — the card-content
+ * rendering rules + the theme variables they depend on. This makes the speech
+ * doc render debate cards exactly like CardMirror: highlighted = spoken,
+ * underline = the cut, emphasis = boxed power words, tiny grey = unread. */
+
+.pmd-document {
+  /* Heading sizes (Verbatim canonical) */
+  --pmd-size-pocket: 26pt;
+  --pmd-size-hat: 22pt;
+  --pmd-size-block: 16pt;
+  --pmd-size-tag: 13pt;
+  --pmd-size-cite: 13pt;
+  --pmd-line-height-heading: 1.2;
+  --pmd-line-height-tag: 1.2;
+  --pmd-line-height-cite: 1.2;
+
+  /* Colours */
+  --pmd-c-band-fg-dark: #fff;
+  --pmd-c-band-fg-light: #000;
+  --pmd-c-emphasis-box: #333;
+  --pmd-c-highlight-default: #ffff66;
+  --pmd-color-analytic: #1f3864;
+  --pmd-color-undertag: #385623;
+  --pmd-c-card-hover: #b9c2cf;
+  --pmd-emphasis-box-size: 1px;
+
+  font-family: "Calibri", "Segoe UI", Arial, sans-serif;
+  font-size: 11pt;
+  line-height: 1.35;
+  color: #111;
+}
+:global([data-theme="dark"]) .pmd-document {
+  --pmd-c-emphasis-box: #888;
+  color: #e6e6e6;
+}
+
+/* ── Structural headings ───────────────────────────────────────── */
+.pmd-document .pmd-pocket {
+  font-size: var(--pmd-size-pocket);
+  line-height: var(--pmd-line-height-heading);
+  font-weight: bold;
+  text-align: center;
+  border: 3px solid var(--pmd-c-emphasis-box);
+  padding: 0.4rem 1rem;
+  margin: 1.4rem 0 0.7rem 0;
+}
+.pmd-document .pmd-hat {
+  font-size: var(--pmd-size-hat);
+  line-height: var(--pmd-line-height-heading);
+  font-weight: bold;
+  text-align: center;
+  text-decoration: underline double;
+  margin: 1.2rem 0 0.5rem 0;
+}
+.pmd-document .pmd-block {
+  font-size: var(--pmd-size-block);
+  line-height: var(--pmd-line-height-heading);
+  font-weight: bold;
+  text-align: center;
+  text-decoration: underline;
+  margin: 1rem 0 0.5rem 0;
+}
+.pmd-document .pmd-tag {
+  font-size: var(--pmd-size-tag);
+  line-height: var(--pmd-line-height-tag);
+  font-weight: bold;
+  margin: 0.7rem 0 0.2rem 0;
+}
+.pmd-document .pmd-cite-para {
+  line-height: var(--pmd-line-height-cite);
+  margin: 0.15rem 0;
+}
+.pmd-document .pmd-analytic {
+  font-weight: bold;
+  color: var(--pmd-color-analytic);
+  margin: 0.5rem 0 0.2rem;
+}
+:global([data-theme="dark"]) .pmd-document .pmd-analytic { color: #8aa9d1; }
+
+/* ── Card container (draggable unit) ───────────────────────────── */
+.pmd-document .pmd-card,
+.pmd-document .pmd-analytic-unit {
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+  margin: 0.35rem 0;
+}
+.pmd-document .pmd-card:hover,
+.pmd-document .pmd-analytic-unit:hover {
+  border-left-color: var(--pmd-c-card-hover);
+}
+
+/* ── Card body (evidence) ──────────────────────────────────────── */
+.pmd-document .pmd-card-body {
+  font-size: 11pt;
+  line-height: 1.4;
+  margin: 0.1rem 0;
+}
+.pmd-document .pmd-undertag {
+  color: var(--pmd-color-undertag);
+  font-size: 11pt;
+  margin: 0.1rem 0;
+}
+
+/* ── Character marks ───────────────────────────────────────────── */
+.pmd-document .pmd-cite { font-weight: bold; font-size: var(--pmd-size-cite); }
+.pmd-document .pmd-underline { text-decoration: underline; text-decoration-thickness: 1px; }
+.pmd-document .pmd-undertag-mark { color: var(--pmd-color-undertag); }
+.pmd-document .pmd-analytic-mark { font-weight: bold; color: var(--pmd-color-analytic); }
+
+/* Emphasis = boxed power words (CardMirror's signature look) */
+.pmd-document .pmd-emphasis {
+  font-weight: bold;
+  border: var(--pmd-emphasis-box-size) solid currentColor;
+  padding: 0 0.1em;
+  border-radius: 1px;
+}
+
+/* Highlight = spoken. Word's 15 named colours, OOXML-canonical RGBs. */
+.pmd-document .pmd-highlight { background: var(--pmd-c-highlight-default); }
+.pmd-document .pmd-highlight[data-highlight="yellow"]      { background: #ffff00; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="green"]       { background: #00ff00; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="cyan"]        { background: #00ffff; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="magenta"]     { background: #ff00ff; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="blue"]        { background: #0000ff; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="red"]         { background: #ff0000; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="darkBlue"]    { background: #000080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkCyan"]    { background: #008080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkGreen"]   { background: #008000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkMagenta"] { background: #800080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkRed"]     { background: #800000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkYellow"]  { background: #808000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkGray"]    { background: #808080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="lightGray"]   { background: #c0c0c0; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="black"]       { background: #000000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="none"]        { background: transparent; }
+
+/* Ligatures must not span a formatting boundary */
+.pmd-document .pmd-highlight,
+.pmd-document .pmd-underline,
+.pmd-document .pmd-emphasis { font-variant-ligatures: none; }
+
+/* ProseMirror base */
+.pmd-document .ProseMirror { outline: none; word-break: break-word; }
+.pmd-document .ProseMirror:focus { outline: none; }
+.pmd-document .ProseMirror ::selection { background: rgba(26,111,212,0.25); }

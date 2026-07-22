@@ -20,16 +20,21 @@ export interface DocRun {
   u?: boolean;
   /** Bold / Emphasis (power words) */
   b?: boolean;
-  /** Highlight colour as a CSS value (the spoken/read-aloud portion) */
+  /** OOXML highlight NAME (yellow/cyan/green/…) — the spoken/read-aloud portion.
+   *  CardMirror's schema + CSS colour it via a data-highlight attribute. */
   hl?: string;
   /** Small / condensed unread context (≤8pt, no highlight/underline) */
   sm?: boolean;
+  /** Font size in half-points (OOXML), when explicitly set. */
+  sz?: number;
 }
 
 export interface DocNode {
   /** 1–4 = Heading level (Pocket/Hat/Block/Tag) */
   level: number;
   text: string;
+  /** The heading's own runs (tags have inline underline/emphasis too). */
+  runs: DocRun[];
   children: DocNode[];
   /** Non-heading paragraphs under this heading, as plain text (card body/cite) */
   body: string[];
@@ -42,25 +47,6 @@ export interface ParsedDoc {
   paragraphCount: number;
   headingCount: number;
 }
-
-// Word highlight names → CSS colours (the actual highlighter colours debaters
-// use). Shading fills (w:shd) come through as raw hex.
-const HIGHLIGHT_CSS: Record<string, string> = {
-  yellow: "#fff35c",
-  green: "#7bff7b",
-  cyan: "#68e5ff",
-  magenta: "#ff7bec",
-  blue: "#8ab6ff",
-  red: "#ff8080",
-  darkyellow: "#d8c200",
-  darkgreen: "#57c257",
-  darkcyan: "#4fb8cc",
-  darkblue: "#6f9de0",
-  darkred: "#e06666",
-  darkmagenta: "#d06fbf",
-  lightgray: "#d9d9d9",
-  darkgray: "#b0b0b0",
-};
 
 function firstChild(el: Element | null, local: string): Element | null {
   if (!el) return null;
@@ -109,15 +95,10 @@ function extractRuns(p: Element): DocRun[] {
         rStyle.includes("cite") ||
         rStyle.includes("13ptbold");
 
-      // Highlight (spoken) — w:highlight name or w:shd fill
+      // Highlight (spoken) — keep the OOXML name so CardMirror's schema/CSS
+      // renders the exact highlighter colour via a data-highlight attribute.
       const hlVal = attrVal(firstChild(rPr, "highlight"), "val");
-      const shdFill = attrVal(firstChild(rPr, "shd"), "fill");
-      let hl: string | undefined;
-      if (hlVal && hlVal !== "none") {
-        hl = HIGHLIGHT_CSS[hlVal.toLowerCase()] ?? hlVal;
-      } else if (shdFill && shdFill !== "auto" && shdFill.toUpperCase() !== "FFFFFF") {
-        hl = "#" + shdFill;
-      }
+      const hl = hlVal && hlVal !== "none" ? hlVal : undefined;
 
       // Font size (half-points). ≤16 (8pt) with no highlight/underline = unread.
       const szVal = attrVal(firstChild(rPr, "sz"), "val");
@@ -126,6 +107,7 @@ function extractRuns(p: Element): DocRun[] {
       if (hasU) run.u = true;
       if (hasB) run.b = true;
       if (hl) run.hl = hl;
+      if (sz !== undefined) run.sz = sz;
       if (sz !== undefined && sz <= 16 && !hasU && !hl) run.sm = true;
     }
     runs.push(run);
@@ -186,7 +168,14 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
       continue;
     }
     headingCount++;
-    const node: DocNode = { level, text: text.trim(), children: [], body: [], bodyRuns: [] };
+    const node: DocNode = {
+      level,
+      text: text.trim(),
+      runs: extractRuns(p),
+      children: [],
+      body: [],
+      bodyRuns: [],
+    };
     while (stack.length > 0 && stack[stack.length - 1].level >= level) {
       stack.pop();
     }
