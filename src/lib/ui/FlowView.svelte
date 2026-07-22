@@ -111,9 +111,21 @@
   const mac = settings.isMac;
   function openSheet(sheetId: string) {
     hoveredIdx = null;
+    // Save the current cursor row before leaving the active sheet.
+    if (store.activeSheetId && !atHome && store.cursor) {
+      sheetLastRow.set(store.activeSheetId, store.cursor.row);
+    }
     store.activeSheetId = sheetId;
     const target = round?.sheets.find((s) => s.id === sheetId);
-    store.cursor = { row: 0, col: target?.startCol ?? 0 };
+    const startCol = target?.startCol ?? 0;
+    // Preserve the current speech column across sheets; clamp to the target's
+    // startCol so you never land in a dead (hatched) column.
+    const col = Math.max(store.cursor?.col ?? startCol, startCol);
+    // Restore the last cursor row for this sheet, defaulting to row 1 (row 0
+    // is the LABEL cell, so row 1 is the first real content row).
+    const maxRow = Math.max(0, (target?.rows.length ?? 1) - 1);
+    const row = Math.min(sheetLastRow.get(sheetId) ?? 1, maxRow);
+    store.cursor = { row, col };
     atHome = false;
     spreadMode = "off";
   }
@@ -142,6 +154,9 @@
 
   // Keyboard hover: a highlighted tab you can move without switching to it.
   let hoveredIdx = $state<number | null>(null);
+  // Remember the last cursor row for each sheet so keybind navigation restores
+  // position instead of always jumping to row 0.
+  const sheetLastRow = new Map<string, number>();
 
   /** Move to the sheet left (-1) or right (+1) of the current one; wraps.
    *  Works in normal view and in spread (moves the focused flow). */
@@ -157,8 +172,11 @@
       if (vi < 0) vi = 0;
       const nv = visible.length;
       const target = visible[(((vi + delta) % nv) + nv) % nv];
+      if (store.activeSheetId && store.cursor) sheetLastRow.set(store.activeSheetId, store.cursor.row);
       store.activeSheetId = target.id;
-      store.cursor = { row: 0, col: target.startCol };
+      const sCol = Math.max(store.cursor?.col ?? target.startCol, target.startCol);
+      const sRow = Math.min(sheetLastRow.get(target.id) ?? 1, Math.max(0, target.rows.length - 1));
+      store.cursor = { row: sRow, col: sCol };
       return;
     }
     let idx = sheets.findIndex((s) => s.id === store.activeSheetId);
@@ -229,6 +247,10 @@
       setSpread(lastSpread);
     } else if (matchesAny(e, km.goHome)) {
       e.preventDefault();
+      // Save position so returning to this sheet restores it.
+      if (store.activeSheetId && store.cursor) {
+        sheetLastRow.set(store.activeSheetId, store.cursor.row);
+      }
       atHome = true;
     } else if (matchesAny(e, km.toggleHelp)) {
       e.preventDefault();

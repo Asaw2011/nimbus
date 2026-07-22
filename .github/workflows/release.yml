@@ -1,14 +1,22 @@
 name: Build Nimbus
 
 # Builds installers for macOS + Windows in the cloud.
-# Trigger by pushing a version tag (e.g. `git tag v0.1.0 && git push --tags`)
+# Trigger by pushing a version tag (e.g. `git tag v0.1.4 && git push --tags`)
 # or manually from the Actions tab. Artifacts land in a draft GitHub Release.
+#
+# SETUP REQUIRED before first run with auto-update:
+#   1. Generate a signing keypair:
+#        npx tauri signer generate -w ~/.tauri/nimbus.key
+#   2. Add secrets to your GitHub repo (Settings → Secrets → Actions):
+#        TAURI_SIGNING_PRIVATE_KEY   <- contents of ~/.tauri/nimbus.key
+#        TAURI_SIGNING_PRIVATE_KEY_PASSWORD  <- the password you chose (or "")
+#   3. Copy the public key into src-tauri/tauri.conf.json → plugins.updater.pubkey
+#   4. Make sure GitHub Releases are publicly downloadable
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
 
-# Allow the workflow's token to create the GitHub Release + upload installers.
 permissions:
   contents: write
 
@@ -49,9 +57,71 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
           releaseName: "Nimbus ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}"
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  # After both platform builds finish, generate latest.json and upload it to
+  # the release so the in-app updater knows where to find the new version.
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate update manifest (latest.json)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}"
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Download all .sig files the build jobs uploaded to the release
+          mkdir -p sigs
+          gh release download "$TAG" --repo "$GH_REPO" --pattern "*.sig" -D sigs/ 2>/dev/null || true
+
+          # Signatures — prefer the .app.tar.gz updater bundle over the .dmg installer
+          APP_SIG=$(cat "sigs/Nimbus_${VERSION}_universal.app.tar.gz.sig" 2>/dev/null || echo "")
+          DMG_SIG=$(cat "sigs/Nimbus_${VERSION}_universal.dmg.sig" 2>/dev/null || echo "")
+          MAC_SIG="${APP_SIG:-$DMG_SIG}"
+          if [ -n "$APP_SIG" ]; then
+            MAC_FILE="Nimbus_${VERSION}_universal.app.tar.gz"
+          else
+            MAC_FILE="Nimbus_${VERSION}_universal.dmg"
+          fi
+
+          # Windows — NSIS zip bundle is the updater payload, exe is the installer
+          NSIS_SIG=$(cat "sigs/Nimbus_${VERSION}_x64-setup.nsis.zip.sig" 2>/dev/null || echo "")
+          EXE_SIG=$(cat "sigs/Nimbus_${VERSION}_x64-setup.exe.sig" 2>/dev/null || echo "")
+          WIN_SIG="${NSIS_SIG:-$EXE_SIG}"
+          if [ -n "$NSIS_SIG" ]; then
+            WIN_FILE="Nimbus_${VERSION}_x64-setup.nsis.zip"
+          else
+            WIN_FILE="Nimbus_${VERSION}_x64-setup.exe"
+          fi
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg pub_date "$PUB_DATE" \
+            --arg mac_sig "$MAC_SIG" \
+            --arg mac_url "https://github.com/${GH_REPO}/releases/download/${TAG}/${MAC_FILE}" \
+            --arg win_sig "$WIN_SIG" \
+            --arg win_url "https://github.com/${GH_REPO}/releases/download/${TAG}/${WIN_FILE}" \
+            '{
+              version: $version,
+              notes: "",
+              pub_date: $pub_date,
+              platforms: {
+                "darwin-universal": { signature: $mac_sig, url: $mac_url },
+                "windows-x86_64":   { signature: $win_sig, url: $win_url }
+              }
+            }' > latest.json
+
+          gh release upload "$TAG" latest.json --repo "$GH_REPO" --clobber

@@ -24,6 +24,25 @@ export interface ParsedDoc {
 
 const HEADING_RE = /^Heading([1-6])$/i;
 
+// Verbatim (and most debate-doc templates) use custom paragraph styles instead
+// of Word's built-in Heading1-4. Map style name → hierarchy level so these docs
+// parse the same way standard heading docs do.
+const VERBATIM_STYLE_LEVEL: Record<string, number> = {
+  pocket: 1,
+  hat: 2,
+  block: 3,
+  tag: 4,
+  // common variants found in the wild
+  "pocket heading": 1,
+  "hat heading": 2,
+  "block heading": 3,
+  "tag heading": 4,
+  pocketheading: 1,
+  hatheading: 2,
+  blockheading: 3,
+  tagheading: 4,
+};
+
 export function parseDocx(buf: ArrayBuffer): ParsedDoc {
   const files = unzipSync(new Uint8Array(buf));
   const docXml = files["word/document.xml"];
@@ -67,8 +86,12 @@ function headingLevel(p: Element): number | null {
   for (const s of styles) {
     for (const attr of s.attributes) {
       if (attr.localName === "val") {
+        // Standard Word headings (Heading1–6)
         const m = attr.value.match(HEADING_RE);
         if (m) return Number(m[1]);
+        // Verbatim / debate-doc custom styles (Pocket, Hat, Block, Tag)
+        const verbatim = VERBATIM_STYLE_LEVEL[attr.value.toLowerCase().trim()];
+        if (verbatim) return verbatim;
       }
     }
   }

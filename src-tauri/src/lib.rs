@@ -1,6 +1,9 @@
 // Native persistence: rounds saved as JSON files in the app data dir.
 // Filenames are the round id; contents are the full Round object.
 
+mod file_index;
+use file_index::scan_library_roots;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -278,6 +281,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         // Remember a .nimbus file passed on the command line (Windows/Linux).
         .manage(PendingFile(Mutex::new(file_from_args())))
         .setup(|app| {
@@ -302,7 +307,8 @@ pub fn run() {
             list_flows,
             move_path,
             delete_path,
-            dir_exists
+            dir_exists,
+            scan_library_roots
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

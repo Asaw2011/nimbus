@@ -5,17 +5,60 @@
   // Import an opponent's speech doc: each selected top-level section becomes
   // a sheet, its heading tree becomes rows in the chosen speech column.
 
-  import { parseDocx, flowLines, guessTargetSheet, type ParsedDoc } from "./parse";
+  import { parseDocx, flowLines, guessTargetSheet, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow } from "../model/types";
 
   let parsed = $state<ParsedDoc | null>(null);
+  let rawNodes = $state<DocNode[]>([]); // original tree before level-splitting
   let fileName = $state("");
   let status = $state("");
   let checked = $state<boolean[]>([]);
   /** Per section: "new" = create a sheet, else the id of an existing sheet. */
   let targets = $state<string[]>([]);
   let speechIdx = $state(0);
+  /** "auto" or a heading level 1–4 chosen by the user. */
+  let splitLevel = $state<"auto" | 1 | 2 | 3 | 4>("auto");
+
+  /** Collect every node at exactly `level`, walking into shallower nodes. */
+  function nodesAtLevel(roots: DocNode[], level: number): DocNode[] {
+    const out: DocNode[] = [];
+    const walk = (ns: DocNode[]) => {
+      for (const n of ns) {
+        if (n.level === level) out.push(n);
+        else if (n.level < level) walk(n.children);
+      }
+    };
+    walk(roots);
+    return out;
+  }
+
+  /**
+   * Auto-detect the argument level: find the shallowest heading level that has
+   * 3+ nodes across the whole doc — that's almost always the "one sheet per
+   * argument" level (H1 for a multi-advantage 1AC, H3 for a 1NC where all
+   * off-case positions live under a single H2 "OFF" hat).
+   * Falls back to the single-chain unwrap if no level clears 3 nodes.
+   */
+  function autoSplit(roots: DocNode[]): DocNode[] {
+    for (const level of [1, 2, 3, 4] as const) {
+      const at = nodesAtLevel(roots, level);
+      if (at.length >= 3) return at;
+    }
+    // Fewer than 3 nodes at every level — walk down single-child chains.
+    let unwrapped = roots;
+    while (unwrapped.length === 1 && unwrapped[0].children.length > 0) {
+      unwrapped = unwrapped[0].children;
+    }
+    return unwrapped.length >= 2 ? unwrapped : roots;
+  }
+
+  /** Re-apply the current split level to the raw tree. */
+  function applySplit(roots: DocNode[], level: "auto" | 1 | 2 | 3 | 4): DocNode[] {
+    if (level === "auto") return autoSplit(roots);
+    const at = nodesAtLevel(roots, level);
+    return at.length >= 2 ? at : autoSplit(roots);
+  }
 
   const speeches = $derived(store.round?.template.speeches ?? []);
 
@@ -79,12 +122,16 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        parsed = parseDocx(reader.result as ArrayBuffer);
-        checked = parsed.nodes.map(() => true);
+        const base = parseDocx(reader.result as ArrayBuffer);
+        rawNodes = base.nodes;
+        splitLevel = "auto";
+        const nodes = applySplit(rawNodes, "auto");
+        parsed = { ...base, nodes };
+        checked = nodes.map(() => true);
         // Guess where each section belongs: an answer doc ("AT: Cap K")
         // matches the existing Cap K sheet; unmatched sections make new ones.
         const sheets = store.round?.sheets ?? [];
-        targets = parsed.nodes.map(
+        targets = nodes.map(
           (n) => guessTargetSheet(n.text, sheets) ?? "new",
         );
         // Column guess, strongest signal first. Always overridable.
@@ -101,8 +148,8 @@
           speechIdx = Math.max(0, negIdx);
           guessNote = "default — double-check the column";
         }
-        if (parsed.nodes.length === 0) {
-          status = `Read ${parsed.paragraphCount} paragraphs but found no Heading styles — is this a Verbatim-formatted doc?`;
+        if (nodes.length === 0) {
+          status = `Read ${base.paragraphCount} paragraphs but found no Heading styles — is this a Verbatim-formatted doc?`;
           parsed = null;
         }
       } catch (err) {
@@ -113,6 +160,16 @@
     reader.readAsArrayBuffer(file);
     input.value = "";
   }
+
+  /** When the user changes the split level, re-derive sections from the raw tree. */
+  $effect(() => {
+    if (!parsed || rawNodes.length === 0) return;
+    const nodes = applySplit(rawNodes, splitLevel);
+    const sheets = store.round?.sheets ?? [];
+    parsed = { ...parsed, nodes };
+    checked = nodes.map(() => true);
+    targets = nodes.map((n) => guessTargetSheet(n.text, sheets) ?? "new");
+  });
 
   function apply() {
     if (!parsed || !store.round) return;
@@ -185,6 +242,16 @@
     <div class="preview">
       <div class="preview-head">
         <strong>{fileName}</strong> — {parsed.headingCount} headings.
+        <span class="col-pick">
+          Split at:
+          <select bind:value={splitLevel}>
+            <option value="auto">Auto ({parsed.nodes.length} sections)</option>
+            <option value={1}>Pocket (H1)</option>
+            <option value={2}>Hat (H2)</option>
+            <option value={3}>Block (H3)</option>
+            <option value={4}>Tag (H4)</option>
+          </select>
+        </span>
         <span class="col-pick">
           Fill column:
           <select bind:value={speechIdx}>

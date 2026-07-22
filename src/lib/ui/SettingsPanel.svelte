@@ -7,6 +7,8 @@
   import { validateMacroCode } from "../model/macros";
   import { exportSettings, importSettings } from "../model/backup";
   import { uid } from "../model/types";
+  import { checkForUpdate, type UpdateInfo } from "../updater";
+  import { fileIndex } from "../search/file-index";
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -27,6 +29,15 @@
   let macroName = $state("");
   let macroCode = $state("");
   let editingMacroId = $state<string | null>(null);
+  let updateStatus = $state("");
+  let checkingUpdate = $state(false);
+  async function doCheckUpdate() {
+    checkingUpdate = true;
+    updateStatus = "Checking…";
+    const u = await checkForUpdate();
+    checkingUpdate = false;
+    updateStatus = u ? `Version ${u.version} is available — restart the app to see the install prompt.` : "Nimbus is up to date.";
+  }
   const syntaxError = $derived(
     macroCode.trim() ? validateMacroCode(macroCode) : null,
   );
@@ -519,6 +530,18 @@
       </div>
       {#if backupStatus}
         <p class="backup-status">{backupStatus}</p>
+      {/if}
+    </section>
+
+    <section>
+      <h3>Updates</h3>
+      <div class="backup-row">
+        <button class="chip" onclick={doCheckUpdate} disabled={checkingUpdate}>
+          Check for updates
+        </button>
+      </div>
+      {#if updateStatus}
+        <p class="backup-status">{updateStatus}</p>
       {/if}
     </section>
   </div>

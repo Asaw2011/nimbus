@@ -5,6 +5,14 @@ import { ACTION_LABELS, DEFAULT_KEYMAP, sameCombo } from "./keymap";
 import type { Macro } from "./macros";
 import { defaultMacros, migrateLegacyMacro } from "./macros";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
+import { uid } from "./types";
+
+export interface LibraryRoot {
+  id: string;
+  path: string;
+  label: string;
+  enabled: boolean;
+}
 
 const LS_KEY = "debate-flow:settings"; // legacy pre-disk location
 const BLOB = "settings";
@@ -51,6 +59,8 @@ export interface Persisted {
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
   keymap: Partial<Record<ActionId, Combo | Combo[]>>;
   macros: Macro[];
+  /** Folders to index for Doc Search (⌘K). */
+  libraryRoots: LibraryRoot[];
 }
 
 class Settings {
@@ -72,6 +82,7 @@ class Settings {
   rowHeight = $state(26);
   keymap = $state<Record<ActionId, Combo[]>>(structuredClone(DEFAULT_KEYMAP));
   macros = $state<Macro[]>(defaultMacros());
+  libraryRoots = $state<LibraryRoot[]>([]);
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -133,6 +144,7 @@ class Settings {
         .map(migrateLegacyMacro)
         .filter((m): m is Macro => m !== null);
     }
+    if (p.libraryRoots) this.libraryRoots = p.libraryRoots;
   }
 
   buildPersisted(): Persisted {
@@ -152,6 +164,7 @@ class Settings {
       defaultSaveFormat: this.defaultSaveFormat,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
+      libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
     };
   }
 
@@ -177,6 +190,28 @@ class Settings {
 
   rebindMacro(id: string, combo: Combo | null): void {
     this.macros = this.macros.map((m) => (m.id === id ? { ...m, combo } : m));
+    this.save();
+  }
+
+  addLibraryRoot(path: string, label: string): boolean {
+    if (this.libraryRoots.some((r) => r.path === path)) return false; // duplicate
+    this.libraryRoots = [
+      ...this.libraryRoots,
+      { id: uid(), path, label, enabled: true },
+    ];
+    this.save();
+    return true;
+  }
+
+  removeLibraryRoot(id: string): void {
+    this.libraryRoots = this.libraryRoots.filter((r) => r.id !== id);
+    this.save();
+  }
+
+  updateLibraryRoot(id: string, patch: Partial<Pick<LibraryRoot, "label" | "enabled">>): void {
+    this.libraryRoots = this.libraryRoots.map((r) =>
+      r.id === id ? { ...r, ...patch } : r,
+    );
     this.save();
   }
 

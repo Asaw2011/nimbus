@@ -12,9 +12,13 @@
     saveAs,
     openPath,
   } from "$lib/model/filedoc.svelte";
+  import { checkForUpdate, type UpdateInfo } from "$lib/updater";
 
   let view: "dashboard" | "flow" = $state("dashboard");
   let showTutorial = $state(false);
+  let pendingUpdate = $state<UpdateInfo | null>(null);
+  let updateState = $state<"idle" | "downloading" | "done">("idle");
+  let updatePct = $state(0);
   // Close-prompt state.
   let closePrompt = $state(false);
   let closeError = $state("");
@@ -37,7 +41,23 @@
     if (settings.showTutorial) showTutorial = true;
     setupCloseGuard();
     setupFileOpen();
+    // Check for updates in the background after a short delay so it
+    // doesn't slow down the initial render.
+    setTimeout(() => {
+      checkForUpdate().then((u) => { if (u) pendingUpdate = u; });
+    }, 4000);
   });
+
+  async function installUpdate() {
+    if (!pendingUpdate) return;
+    updateState = "downloading";
+    try {
+      await pendingUpdate.install((pct) => { updatePct = pct; });
+      updateState = "done";
+    } catch {
+      updateState = "idle";
+    }
+  }
 
   async function openFileIntoApp(path: string) {
     const round = await openPath(path);
@@ -190,7 +210,60 @@
   <div class="toast">{toast}</div>
 {/if}
 
+{#if pendingUpdate}
+  <div class="update-banner">
+    {#if updateState === "idle"}
+      <span>Nimbus {pendingUpdate.version} is available</span>
+      <button onclick={installUpdate}>Install</button>
+      <button class="dismiss" onclick={() => (pendingUpdate = null)}>✕</button>
+    {:else if updateState === "downloading"}
+      <span>Downloading… {updatePct}%</span>
+    {:else}
+      <span>Update installed — restart Nimbus to apply</span>
+      <button onclick={() => pendingUpdate?.relaunch()}>Restart now</button>
+      <button class="dismiss" onclick={() => (pendingUpdate = null)}>Later</button>
+    {/if}
+  </div>
+{/if}
+
 <style>
+  .update-banner {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+  }
+  .update-banner button {
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #fff;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .update-banner button:hover {
+    background: rgba(255, 255, 255, 0.38);
+  }
+  .update-banner .dismiss {
+    background: none;
+    border: none;
+    opacity: 0.7;
+    font-size: 14px;
+    padding: 2px 4px;
+  }
   .toast {
     position: fixed;
     bottom: 18px;
