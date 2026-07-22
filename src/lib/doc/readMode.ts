@@ -34,12 +34,11 @@ function buildDecos(doc: PMNode, on: boolean): DecorationSet {
   doc.descendants((node, pos, parent) => {
     if (node.isText && parent && BODY_NODES.has(parent.type.name)) {
       const isRead = node.marks.some((m) => READ_MARKS.has(m.type.name));
-      const isSpace = (node.text ?? "").trim() === "";
-      // Hide unread runs that carry actual text. Whitespace-only runs stay so
-      // the spacing between read words is preserved.
-      if (!isRead && !isSpace) {
+      // Hide every unread run (including underlined whitespace, which otherwise
+      // renders as stray "_ _ _" gaps). Insert one plain space where it was so
+      // the surrounding read words stay separated; adjacent spaces collapse.
+      if (!isRead) {
         decos.push(Decoration.inline(pos, pos + node.nodeSize, { class: "pmd-rm-hide" }));
-        // Insert a real space where the hidden run was so read words never jam.
         decos.push(Decoration.widget(pos + node.nodeSize, spaceWidget, { side: 1, key: "sp" + pos }));
       }
     }

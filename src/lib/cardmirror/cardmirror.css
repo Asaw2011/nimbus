@@ -156,9 +156,10 @@
  * inline. This matches how the cut reads in the round. */
 
 /* Unread runs (no read marker) get this class from the read-mode plugin — the
- * plugin also inserts a real space after each so read words never jam. */
+ * plugin also inserts a plain space after each so read words never jam.
+ * Normal white-space so adjacent separators collapse to a single space. */
 .pmd-document.pmd-read-mode .pmd-rm-hide { display: none; }
-.pmd-document.pmd-read-mode .pmd-rm-sep { white-space: pre; }
+.pmd-document.pmd-read-mode .pmd-rm-sep { text-decoration: none; }
 /* Also hide undertags and stray non-card paragraphs. */
 .pmd-document.pmd-read-mode .pmd-undertag { display: none; }
 .pmd-document.pmd-read-mode .ProseMirror > p { display: none; }
