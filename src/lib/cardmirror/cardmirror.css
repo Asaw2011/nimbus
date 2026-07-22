@@ -111,9 +111,11 @@
 .pmd-document .pmd-emphasis {
   font-weight: bold;
   text-decoration: underline;
-  border: var(--pmd-emphasis-box-size, 1px) solid currentColor;
-  padding: 0 0.1em;
-  border-radius: 1px;
+  border: 1px solid currentColor;
+  padding: 0 2px;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /* Highlight = spoken. Word's 15 named colours, OOXML-canonical RGBs. */

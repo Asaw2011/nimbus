@@ -12,11 +12,13 @@
     onspread,
     onsendspeech = null,
     onsendcell = null,
+    onremove = null,
   }: {
     spreadMode: "off" | "vertical" | "horizontal";
     onspread: (mode: "vertical" | "horizontal") => void;
     onsendspeech?: (() => void) | null;
     onsendcell?: (() => void) | null;
+    onremove?: (() => void) | null;
   } = $props();
 
   const km = $derived(settings.keymap);
@@ -146,6 +148,9 @@
       {#if onsendcell}
         <button class="rb send-cell" title="Send just this cell's card to the doc at the cursor" onclick={onsendcell}>Cell → Doc</button>
       {/if}
+      {#if onremove}
+        <button class="rb remove" title="Clear this cell and remove its card from the doc" onclick={onremove}>✕ Remove</button>
+      {/if}
     </div>
     <div class="caption">Debate</div>
   </div>
@@ -254,6 +259,10 @@
   .rb.send-cell {
     color: var(--accent);
     border-color: var(--accent);
+  }
+  .rb.remove {
+    color: var(--mark-dropped);
+    border-color: var(--mark-dropped);
   }
   .stepper {
     display: inline-flex;

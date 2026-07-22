@@ -156,6 +156,24 @@
     return view?.state.doc.toJSON() ?? null;
   }
 
+  /** Remove the first top-level card/heading whose label matches `text`. */
+  export function removeByText(text: string) {
+    if (!view || !text.trim()) return;
+    const target = text.trim();
+    const { state } = view;
+    let foundPos = -1;
+    let foundSize = 0;
+    state.doc.forEach((node, offset) => {
+      if (foundPos >= 0) return;
+      const label =
+        node.type.name === "card" || node.type.name === "analytic_unit"
+          ? node.firstChild?.textContent ?? ""
+          : node.textContent;
+      if (label.trim() === target) { foundPos = offset; foundSize = node.nodeSize; }
+    });
+    if (foundPos >= 0) view.dispatch(state.tr.delete(foundPos, foundPos + foundSize));
+  }
+
   /** Replace the document from external JSON (pop-out sync) without echoing back. */
   export function setDocJSON(json: unknown) {
     if (!view || !json) return;

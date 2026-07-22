@@ -69,6 +69,7 @@
     appendNode(n: unknown): void;
     getDocJSON(): unknown;
     setDocJSON(j: unknown): void;
+    removeByText(t: string): void;
   }
   let docRef = $state<DocAPI | null>(null);
   let resizingDoc = $state(false);
@@ -115,6 +116,23 @@
   function cellNode(cell: { text: string; card?: unknown } | undefined) {
     if (!cell?.text.trim()) return null;
     return cell.card ?? { level: 4, text: cell.text.trim(), runs: [], children: [], body: [], bodyRuns: [] };
+  }
+
+  // "Remove": clear the current cell (text/chip/card) AND delete its matching
+  // card from the speech doc.
+  function removeCellAndDoc() {
+    if (!store.cursor || !store.activeSheetId) return;
+    const { row, col } = store.cursor;
+    const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
+    const cell = sheet?.rows[row]?.cells[col];
+    if (!cell) return;
+    const text = cell.text.trim();
+    if (text && !poppedOut) docRef?.removeByText(text);
+    store.mutate((r) => {
+      const s = r.sheets.find((x) => x.id === store.activeSheetId);
+      const c = s?.rows[row]?.cells[col];
+      if (c) { c.text = ""; delete c.chip; delete c.card; delete c.marks; }
+    });
   }
 
   // "Cell → Doc": send just the current cell's card at the cursor.
@@ -452,7 +470,7 @@
     </div>
 
     {#if !atHome}
-      <Ribbon {spreadMode} onspread={setSpread} onsendspeech={sendSpeechToDoc} onsendcell={sendCellToDoc} />
+      <Ribbon {spreadMode} onspread={setSpread} onsendspeech={sendSpeechToDoc} onsendcell={sendCellToDoc} onremove={removeCellAndDoc} />
     {/if}
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
