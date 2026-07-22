@@ -4,7 +4,7 @@
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
-  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; }
+  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; appendNode(n: DocNode): void; }
 
   let { onclose, docRef = null }: { onclose: () => void; docRef?: DocAPI | null } = $props();
 
@@ -143,8 +143,9 @@
       });
     }
 
-    // Also append to speech doc if open
-    docRef?.appendCard(node.text, fullCard);
+    // Append to speech doc with full Verbatim structure preserved
+    if (docRef?.appendNode) docRef.appendNode(node);
+    else docRef?.appendCard(node.text, fullCard);
 
     onclose();
   }

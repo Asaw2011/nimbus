@@ -10,9 +10,11 @@
   let {
     spreadMode,
     onspread,
+    onsendtodoc = null,
   }: {
     spreadMode: "off" | "vertical" | "horizontal";
     onspread: (mode: "vertical" | "horizontal") => void;
+    onsendtodoc?: (() => void) | null;
   } = $props();
 
   const km = $derived(settings.keymap);
@@ -136,6 +138,9 @@
       <button class="rb analytic" title="This is an analytic — no card ({combosLabel(km.markAnalytic, mac)})" onclick={() => evidence("analytic")}>Analytic</button>
       <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onclick={() => evidence("card")}>Card</button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}>➜ Extend</button>
+      {#if onsendtodoc}
+        <button class="rb send-doc" title="Send this cell's text to the Speech Doc" onclick={onsendtodoc}>→ Doc</button>
+      {/if}
     </div>
     <div class="caption">Debate</div>
   </div>
@@ -236,6 +241,10 @@
   }
   .rb.extend {
     color: var(--accent);
+  }
+  .rb.send-doc {
+    color: var(--analytic);
+    border-color: var(--analytic);
   }
   .stepper {
     display: inline-flex;

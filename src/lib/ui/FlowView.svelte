@@ -60,7 +60,7 @@
   let showDocSearch = $state(false);
   let docOpen = $state(false);
   let docWidth = $state(480);
-  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; }
+  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; appendNode(n: unknown): void; }
   let docRef = $state<DocAPI | null>(null);
   let resizingDoc = $state(false);
 
@@ -74,6 +74,14 @@
     docWidth = Math.min(window.innerWidth * 0.65, Math.max(320, newWidth));
   }
   function stopDocResize() { resizingDoc = false; }
+
+  function sendCellToDoc() {
+    if (!store.cursor || !store.activeSheetId || !docRef) return;
+    const { row, col } = store.cursor;
+    const sheet = store.round?.sheets.find(s => s.id === store.activeSheetId);
+    const text = sheet?.rows[row]?.cells[col]?.text.trim();
+    if (text) docRef.appendCard(text, text);
+  }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
   // Tab right-click menu + inline rename.
@@ -387,7 +395,7 @@
     </div>
 
     {#if !atHome}
-      <Ribbon {spreadMode} onspread={setSpread} />
+      <Ribbon {spreadMode} onspread={setSpread} onsendtodoc={docOpen ? sendCellToDoc : null} />
     {/if}
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
