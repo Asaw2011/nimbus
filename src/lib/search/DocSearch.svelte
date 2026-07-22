@@ -39,14 +39,16 @@
     const o = node as { type?: string; content?: unknown[] };
     if (o.type === "card_body" && Array.isArray(o.content)) {
       for (const child of o.content) {
-        const t = child as { type?: string; marks?: { type: string }[] };
-        if (t.type === "text" && t.marks?.some((m) => m.type === "bold")) {
-          t.marks = t.marks.filter(
-            (m) => m.type !== "bold" && m.type !== "underline_mark",
-          );
-          if (!t.marks.some((m) => m.type === "emphasis_mark")) {
-            t.marks.push({ type: "emphasis_mark" });
-          }
+        const t = child as { type?: string; text?: string; marks?: { type: string }[] };
+        if (t.type !== "text" || !t.marks) continue;
+        const isWhitespace = !(t.text ?? "").trim();
+        if (isWhitespace) {
+          // An emphasised/boxed space renders as an empty box — strip those marks.
+          t.marks = t.marks.filter((m) => m.type !== "emphasis_mark" && m.type !== "bold");
+        } else if (t.marks.some((m) => m.type === "bold")) {
+          // Real bold power word → Emphasis (boxed) so it matches everywhere.
+          t.marks = t.marks.filter((m) => m.type !== "bold" && m.type !== "underline_mark");
+          if (!t.marks.some((m) => m.type === "emphasis_mark")) t.marks.push({ type: "emphasis_mark" });
         }
       }
     }

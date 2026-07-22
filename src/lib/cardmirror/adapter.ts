@@ -18,9 +18,10 @@ function bodyMarks(run: DocRun): Mark[] {
   const marks: Mark[] = [];
   if (run.hl) marks.push(schema.marks.highlight.create({ color: run.hl }));
   // ALL bold power words render as Emphasis (boxed + underlined) so they box in
-  // Nimbus AND export as rStyle="Emphasis" → boxed when read in CardMirror.
-  // Named-style marks are mutually exclusive (emphasis / cite / underline).
-  if (run.emph || run.b) marks.push(schema.marks.emphasis_mark.create());
+  // Nimbus AND export as rStyle="Emphasis". Skip whitespace-only runs — an
+  // emphasised space renders as an empty box.
+  const boldable = (run.emph || run.b) && run.text.trim() !== "";
+  if (boldable) marks.push(schema.marks.emphasis_mark.create());
   else if (run.cite) marks.push(schema.marks.cite_mark.create());
   else if (run.u) marks.push(schema.marks.underline_mark.create());
   if (run.i) marks.push(schema.marks.italic.create());

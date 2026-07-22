@@ -5,6 +5,7 @@
   import { toggleMark, setBlockType, baseKeymap } from "prosemirror-commands";
   import { keymap } from "prosemirror-keymap";
   import { history, undo, redo } from "prosemirror-history";
+  import { Fragment, type Node as PMNode } from "prosemirror-model";
   import type { DocNode } from "$lib/docx/parse";
   import { cardmirrorSchema as schema, nodesFromDocNode } from "$lib/cardmirror/adapter";
   import { readModePlugin, readModeKey } from "./readMode";
@@ -341,6 +342,23 @@
   let readMode = $state(false);
   let sendStatus = $state("");
 
+  // Drop analytics (own analysis) before export: whole analytic_units, and
+  // any analytic heading inside a card. Mirrors CardMirror's stripAnalytics.
+  function stripAnalytics(doc: PMNode): PMNode {
+    const out: PMNode[] = [];
+    doc.forEach((child) => {
+      if (child.type.name === "analytic_unit") return;
+      if (child.type.name === "card") {
+        const kids: PMNode[] = [];
+        child.forEach((c) => { if (c.type.name !== "analytic") kids.push(c); });
+        out.push(child.copy(Fragment.fromArray(kids)));
+      } else {
+        out.push(child);
+      }
+    });
+    return schema.node("doc", null, Fragment.fromArray(out));
+  }
+
   /** Empty the whole document (for a clean re-send). */
   export function clearDoc() {
     if (!view) return;
@@ -359,9 +377,10 @@
     if (!view) return;
     try {
       // Export with CardMirror's own toDocx so the file round-trips into
-      // CardMirror perfectly (people read the sent doc there).
+      // CardMirror perfectly. Analytics are the flow-er's own analysis —
+      // stripped from the sent doc (like CardMirror's includeAnalytics:false).
       const { toDocx } = await import("$lib/cardmirror");
-      const bytes = await toDocx(view.state.doc);
+      const bytes = await toDocx(stripAnalytics(view.state.doc));
       if ("__TAURI_INTERNALS__" in window) {
         const { save } = await import("@tauri-apps/plugin-dialog");
         const path = await save({
