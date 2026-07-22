@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { EditorState, type Transaction } from "prosemirror-state";
+  import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
   import { EditorView } from "prosemirror-view";
   import { toggleMark, setBlockType, baseKeymap } from "prosemirror-commands";
   import { keymap } from "prosemirror-keymap";
@@ -28,6 +28,48 @@
   let mountEl = $state<HTMLDivElement>();
   let view: EditorView | null = null;
   let mounted = false;
+
+  // ── Heading outline (collapsible nav tree, like CardMirror) ──────
+  interface OutlineItem { pos: number; level: number; text: string; }
+  let outline = $state<OutlineItem[]>([]);
+  let showOutline = $state(true);
+  const HEADING_LEVEL: Record<string, number> = {
+    pocket: 1, hat: 2, block: 3, card: 4, tag: 4, analytic: 4, analytic_unit: 4,
+  };
+
+  function rebuildOutline() {
+    if (!view) return;
+    const items: OutlineItem[] = [];
+    view.state.doc.descendants((node, pos) => {
+      const lvl = HEADING_LEVEL[node.type.name];
+      if (lvl !== undefined) {
+        // For a card, use its tag child's text as the label.
+        let text = node.textContent.trim();
+        if (node.type.name === "card") {
+          const tag = node.firstChild;
+          text = tag ? tag.textContent.trim() : "(card)";
+        }
+        if (node.type.name === "card") {
+          items.push({ pos, level: lvl, text: text || "(card)" });
+          return false; // don't descend into the card's tag again
+        }
+        items.push({ pos, level: lvl, text: text || "(untitled)" });
+      }
+      return undefined;
+    });
+    outline = items;
+  }
+
+  function scrollToPos(pos: number) {
+    if (!view) return;
+    const { state } = view;
+    const clamped = Math.min(pos + 1, state.doc.content.size);
+    try {
+      const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(clamped)));
+      view.dispatch(tr.scrollIntoView());
+      view.focus();
+    } catch { /* position no longer valid */ }
+  }
   let applyingExternal = false;
 
   $effect(() => {
@@ -55,11 +97,13 @@
       dispatchTransaction(tr: Transaction) {
         if (!view) return;
         view.updateState(view.state.apply(tr));
-        if (tr.docChanged && !applyingExternal) {
-          onchange?.(view.state.doc.toJSON());
+        if (tr.docChanged) {
+          rebuildOutline();
+          if (!applyingExternal) onchange?.(view.state.doc.toJSON());
         }
       },
     });
+    rebuildOutline();
     view.focus();
   });
 
@@ -78,6 +122,7 @@
       tr.setMeta("addToHistory", false);
       view.updateState(view.state.apply(tr));
       applyingExternal = false;
+      rebuildOutline();
     } catch (err) {
       console.error("setDocJSON failed", err);
       applyingExternal = false;
@@ -219,11 +264,30 @@
     {#if onpopout}
       <button class="tb-btn icon" onclick={onpopout} title={poppedOut ? "Dock back into app" : "Pop out into its own window"}>{poppedOut ? "⤓" : "⇱"}</button>
     {/if}
+    <button class="tb-btn icon" class:active={showOutline} onclick={() => (showOutline = !showOutline)} title="Toggle outline">☰</button>
     <span class="doc-label">Speech Doc</span>
   </div>
 
-  <div class="doc-scroll">
-    <div class="doc-page" bind:this={mountEl}></div>
+  <div class="doc-body">
+    {#if showOutline}
+      <aside class="outline">
+        <div class="outline-head">Outline</div>
+        {#if outline.length === 0}
+          <div class="outline-empty">No headings yet.</div>
+        {:else}
+          {#each outline as item (item.pos)}
+            <button
+              class="outline-item lvl{item.level}"
+              onclick={() => scrollToPos(item.pos)}
+              title={item.text}
+            >{item.text}</button>
+          {/each}
+        {/if}
+      </aside>
+    {/if}
+    <div class="doc-scroll">
+      <div class="doc-page" bind:this={mountEl}></div>
+    </div>
   </div>
 </div>
 
@@ -296,6 +360,49 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
+  .doc-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .outline {
+    width: 200px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+    padding: 6px 0;
+  }
+  .outline-head {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    font-weight: 700;
+    padding: 4px 12px 6px;
+  }
+  .outline-empty { font-size: 12px; color: var(--text-dim); padding: 4px 12px; }
+  .outline-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 12px;
+    padding: 3px 12px 3px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-left: 2px solid transparent;
+  }
+  .outline-item:hover { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+  .outline-item.lvl1 { font-weight: 700; padding-left: 12px; }
+  .outline-item.lvl2 { font-weight: 600; padding-left: 22px; }
+  .outline-item.lvl3 { padding-left: 32px; }
+  .outline-item.lvl4 { padding-left: 42px; color: var(--text-dim); }
   .doc-scroll {
     flex: 1;
     overflow-y: auto;

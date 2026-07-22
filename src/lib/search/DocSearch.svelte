@@ -4,7 +4,11 @@
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
-  let { onclose, onappenddoc = null }: { onclose: () => void; onappenddoc?: ((node: DocNode) => void) | null } = $props();
+  let { onclose, onappenddoc = null, docOnly = false }: {
+    onclose: () => void;
+    onappenddoc?: ((node: DocNode) => void) | null;
+    docOnly?: boolean;
+  } = $props();
 
   // ── state machine ──────────────────────────────────────────────
   let mode = $state<"files" | "within">("files");
@@ -124,7 +128,8 @@
     // and append full card to the speech doc if it's open.
     const node = item as DocNode;
 
-    if (store.round && store.cursor && store.activeSheetId) {
+    // In the pop-out doc window there's no flow grid — insert only into the doc.
+    if (!docOnly && store.round && store.cursor && store.activeSheetId) {
       const { row, col } = store.cursor;
       store.mutate((r) => {
         const sheet = r.sheets.find((s) => s.id === store.activeSheetId);
