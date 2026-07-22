@@ -9,13 +9,17 @@ import type { DocNode, DocRun } from "$lib/docx/parse";
 
 const DEFAULT_BODY_HALFPOINTS = 22; // 11pt
 
-/** Marks for a card-body run: full formatting incl. condensed font size. */
+/** Marks for a card-body run: full formatting incl. condensed font size.
+ *  cite / emphasis / underline are MUTUALLY EXCLUSIVE in CardMirror's schema
+ *  (a character has one named style), so pick one by precedence — otherwise the
+ *  schema silently drops the excluded mark and styling comes out inconsistent.
+ *  Emphasis renders bold + underline + box via CSS, so it subsumes underline. */
 function bodyMarks(run: DocRun): Mark[] {
   const marks: Mark[] = [];
   if (run.hl) marks.push(schema.marks.highlight.create({ color: run.hl }));
   if (run.cite) marks.push(schema.marks.cite_mark.create());
-  if (run.u) marks.push(schema.marks.underline_mark.create());
-  if (run.b) marks.push(schema.marks.emphasis_mark.create());
+  else if (run.b) marks.push(schema.marks.emphasis_mark.create());
+  else if (run.u) marks.push(schema.marks.underline_mark.create());
   if (run.i) marks.push(schema.marks.italic.create());
   // Shrink explicitly-small (unread) runs via a font_size mark.
   if (run.sm && run.sz && run.sz < DEFAULT_BODY_HALFPOINTS) {
