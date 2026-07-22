@@ -13,6 +13,7 @@ const DEFAULT_BODY_HALFPOINTS = 22; // 11pt
 function bodyMarks(run: DocRun): Mark[] {
   const marks: Mark[] = [];
   if (run.hl) marks.push(schema.marks.highlight.create({ color: run.hl }));
+  if (run.cite) marks.push(schema.marks.cite_mark.create());
   if (run.u) marks.push(schema.marks.underline_mark.create());
   if (run.b) marks.push(schema.marks.emphasis_mark.create());
   // Shrink explicitly-small (unread) runs via a font_size mark.
@@ -46,12 +47,16 @@ function headingInline(node: DocNode): PMNode[] {
   return inline.length ? inline : node.text ? [schema.text(node.text)] : [];
 }
 
-/** Each body paragraph → a card_body node with rich runs. */
+/** Each body paragraph → a card_body node (or cite_paragraph if it's the cite). */
 function bodyNodes(node: DocNode): PMNode[] {
   const out: PMNode[] = [];
   for (const runs of node.bodyRuns ?? []) {
     const inline = inlineFrom(runs, bodyMarks);
-    if (inline.length) out.push(schema.nodes.card_body.create(null, inline));
+    if (!inline.length) continue;
+    // A paragraph whose runs carry the cite style is the cite line.
+    const isCite = runs.some((r) => r.cite && r.text.trim());
+    const type = isCite ? schema.nodes.cite_paragraph : schema.nodes.card_body;
+    out.push(type.create(null, inline));
   }
   return out;
 }

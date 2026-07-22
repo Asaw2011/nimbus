@@ -80,6 +80,7 @@
       const dc = s.rows[r].cells[c];
       dc.text = payload.header;
       if (chip) dc.chip = chip;
+      if (payload.node) dc.card = payload.node;
     });
     store.cursor = { row: r, col: c };
     // Notify FlowView to append the rich card to the speech doc

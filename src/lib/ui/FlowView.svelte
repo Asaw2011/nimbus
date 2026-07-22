@@ -115,10 +115,12 @@
     if (!store.cursor || !store.activeSheetId) return;
     const { row, col } = store.cursor;
     const sheet = store.round?.sheets.find(s => s.id === store.activeSheetId);
-    const text = sheet?.rows[row]?.cells[col]?.text.trim();
+    const cell = sheet?.rows[row]?.cells[col];
+    const text = cell?.text.trim();
     if (!text) return;
-    if (poppedOut) void docBridge.appendRemote({ level: 4, text, runs: [], children: [], body: [], bodyRuns: [] } as never);
-    else docRef?.appendCard(text, text);
+    // Prefer the full stored card (real substance); fall back to just the name.
+    const node = cell?.card ?? { level: 4, text, runs: [], children: [], body: [], bodyRuns: [] };
+    appendToDoc(node);
   }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");

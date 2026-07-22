@@ -149,33 +149,25 @@
  * Pure-CSS approach (CardMirror's documented fallback): shrink card
  * body / cite text to zero, then restore size on highlighted runs and
  * cite marks. Headings stay visible. */
-.pmd-document.pmd-read-mode .pmd-undertag,
+/* Read mode = hide the UNREAD (condensed / small) text and stray paragraphs,
+ * keep the read-aloud text exactly as it looks — highlighted (with its colour
+ * band), underlined (the cut), emphasis-boxed, and the bold cite — flowing
+ * inline. This matches how the cut reads in the round. */
+
+/* Hide unread context (small condensed runs) and non-card paragraphs. */
+.pmd-document.pmd-read-mode .pmd-condensed { display: none; }
+.pmd-document.pmd-read-mode .pmd-undertag { display: none; }
 .pmd-document.pmd-read-mode .ProseMirror > p { display: none; }
 
-/* Zero out ALL card-body / cite text (including the inline font-size that the
- * condensed/unread runs carry), then restore only the spoken text. */
-.pmd-document.pmd-read-mode .pmd-card-body,
-.pmd-document.pmd-read-mode .pmd-card-body *,
-.pmd-document.pmd-read-mode .pmd-cite-para,
-.pmd-document.pmd-read-mode .pmd-cite-para * {
-  font-size: 0 !important;
-  line-height: 1.5;
+/* Card body paragraphs flow together inline (no per-paragraph breaks). */
+.pmd-document.pmd-read-mode .pmd-card-body {
+  display: inline;
+  margin: 0;
 }
-/* Restore the spoken (highlighted) text and the cite line. */
-.pmd-document.pmd-read-mode .pmd-card-body .pmd-highlight,
-.pmd-document.pmd-read-mode .pmd-card-body .pmd-highlight *,
-.pmd-document.pmd-read-mode .pmd-cite-para .pmd-cite,
-.pmd-document.pmd-read-mode .pmd-cite-para .pmd-cite * {
-  font-size: 12pt !important;
+.pmd-document.pmd-read-mode .pmd-card-body::after {
+  content: " ";
+  white-space: pre;
 }
-/* Read-mode highlighted text: no background band, just plain black —
- * you're reading it, not marking it. */
-.pmd-document.pmd-read-mode .pmd-highlight {
-  background: transparent !important;
-  color: inherit !important;
-}
-/* Emphasis inside read-aloud text stays bold but drops the box. */
-.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
-/* Multiple card-body paragraphs flow together in read mode. */
-.pmd-document.pmd-read-mode .pmd-card-body { display: inline; margin: 0; }
-.pmd-document.pmd-read-mode .pmd-card-body::after { content: " "; font-size: 11pt; }
+/* Cite line stays on its own line, bold — hide the non-cite bracket detail. */
+.pmd-document.pmd-read-mode .pmd-cite-para .pmd-condensed { display: none; }
+/* Keep highlight bands, underline, emphasis boxes, and cite exactly as normal. */

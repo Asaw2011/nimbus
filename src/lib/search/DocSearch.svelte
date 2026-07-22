@@ -126,6 +126,7 @@
         const cell = sheet.rows[row].cells[col];
         cell.text = node.text;
         cell.chip = nodeChip(node);
+        cell.card = node; // keep the full card so "Send to Doc" has the substance
       });
     }
     onappenddoc?.(node);

@@ -27,6 +27,8 @@ export interface DocRun {
   sm?: boolean;
   /** Font size in half-points (OOXML), when explicitly set. */
   sz?: number;
+  /** Cite text (Style13ptBold / Cite) — author + year. */
+  cite?: boolean;
 }
 
 export interface DocNode {
@@ -88,14 +90,15 @@ function extractRuns(p: Element): DocRun[] {
       const uVal = attrVal(uEl, "val");
       const hasU = (!!uEl && uVal !== "none") || rStyle.includes("underline");
 
-      // Bold / emphasis: direct w:b (not off) or emphasis/cite character styles
+      // Cite: Style13ptBold / Cite / OldCite character style (author + year).
+      const isCite = rStyle.includes("cite") || rStyle.includes("13ptbold");
+
+      // Bold / emphasis: direct w:b (not off) or the Emphasis character style.
       const bEl = firstChild(rPr, "b");
       const bVal = attrVal(bEl, "val");
       const hasB =
-        (!!bEl && bVal !== "0" && bVal !== "false") ||
-        rStyle === "emphasis" ||
-        rStyle.includes("cite") ||
-        rStyle.includes("13ptbold");
+        !isCite &&
+        ((!!bEl && bVal !== "0" && bVal !== "false") || rStyle === "emphasis");
 
       // Highlight (spoken) — keep the OOXML name so CardMirror's schema/CSS
       // renders the exact highlighter colour via a data-highlight attribute.
@@ -108,9 +111,10 @@ function extractRuns(p: Element): DocRun[] {
 
       if (hasU) run.u = true;
       if (hasB) run.b = true;
+      if (isCite) run.cite = true;
       if (hl) run.hl = hl;
       if (sz !== undefined) run.sz = sz;
-      if (sz !== undefined && sz <= 16 && !hasU && !hl) run.sm = true;
+      if (sz !== undefined && sz <= 16 && !hasU && !hl && !isCite) run.sm = true;
     }
     runs.push(run);
   }

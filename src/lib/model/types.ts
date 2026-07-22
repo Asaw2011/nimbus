@@ -46,6 +46,9 @@ export interface Cell {
   ext?: boolean;
   /** Source type chip (POC/HAT/BLK/TAG/ANL) when dragged in from Doc Search. */
   chip?: string;
+  /** The full card (DocNode) this cell was filled from, so "Send to Doc"
+   *  can re-send the real substance — not just the block name. */
+  card?: unknown;
 }
 
 export interface Row {
