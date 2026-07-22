@@ -10,125 +10,105 @@
     docOnly?: boolean;
   } = $props();
 
-  // ── state machine ──────────────────────────────────────────────
+  // ── state ──────────────────────────────────────────────────────
   let mode = $state<"files" | "within">("files");
   let query = $state("");
-  let prevQuery = $state(""); // restored when pressing Esc from within-file
+  let prevQuery = $state("");
   let selectedIdx = $state(0);
-  let chip = $state<"all" | 1 | 2 | 3 | 4>("all");
+  let chip = $state<"all" | 1 | 2 | 3 | 4 | "body">("all");
 
-  // Within-file state
   let divedFile = $state<LibFile | null>(null);
   let divedNodes = $state<DocNode[]>([]);
   let parsing = $state(false);
   let parseError = $state("");
-
-  // Parse cache: avoid re-parsing the same file during a session
   const parseCache = new Map<string, DocNode[]>();
 
+  // Collapsed node keys (path-based) in the tree.
+  let collapsed = $state<Set<string>>(new Set());
+
   let inputEl = $state<HTMLInputElement>();
+  $effect(() => { inputEl?.focus(); });
 
-  $effect(() => {
-    // Focus input whenever we open or switch modes
-    inputEl?.focus();
-  });
-
-  // ── file list results ──────────────────────────────────────────
+  // ── file list ──────────────────────────────────────────────────
   const fileResults = $derived(fileIndex.search(query, 200));
 
-  // ── within-file results ────────────────────────────────────────
-  const withinResults = $derived.by(() => {
-    if (mode !== "within") return [];
-    const flat = flattenNodes(divedNodes, chip);
-    if (!query.trim()) return flat.slice(0, 200);
-    return flat
-      .map((n) => ({ n, s: fileIndex.score(query, n.text) }))
-      .filter(({ s }) => s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 200)
-      .map(({ n }) => n);
-  });
+  // ── tree rows (within-file) ────────────────────────────────────
+  interface Row { node: DocNode; depth: number; key: string; hasKids: boolean; }
 
-  // Reset selection when results change
-  $effect(() => {
-    fileResults; withinResults; // track
-    selectedIdx = 0;
-  });
-
-  const activeResults = $derived(mode === "files" ? fileResults : withinResults);
-
-  // ── flatten nodes by chip filter ───────────────────────────────
-  function flattenNodes(roots: DocNode[], filter: "all" | 1 | 2 | 3 | 4): DocNode[] {
-    const out: DocNode[] = [];
-    function walk(nodes: DocNode[]) {
-      for (const n of nodes) {
-        if (filter === "all" || n.level === filter) out.push(n);
-        walk(n.children);
-      }
-    }
-    walk(roots);
-    return out;
+  // The set of node keys that match the query (plus their ancestors), so the
+  // tree filters like Halcyon: matching branches stay, everything else hides.
+  function computeMatchSet(): Set<string> | null {
+    if (!query.trim()) return null;
+    const q = query.toLowerCase();
+    const keep = new Set<string>();
+    const walk = (nodes: DocNode[], prefix: string, ancestors: string[]) => {
+      nodes.forEach((n, i) => {
+        const key = prefix + i;
+        const chipOk = chip === "all" || chip === "body" || n.level === chip;
+        const hit = chipOk && n.text.toLowerCase().includes(q);
+        if (hit) { keep.add(key); ancestors.forEach((a) => keep.add(a)); }
+        walk(n.children, key + ".", [...ancestors, key]);
+      });
+    };
+    walk(divedNodes, "", []);
+    return keep;
   }
+
+  const rows = $derived.by<Row[]>(() => {
+    if (mode !== "within") return [];
+    const matchSet = computeMatchSet();
+    const out: Row[] = [];
+    const walk = (nodes: DocNode[], depth: number, prefix: string) => {
+      nodes.forEach((n, i) => {
+        const key = prefix + i;
+        // chip filter (when not searching): only show nodes of the chosen level
+        const chipOk = chip === "all" || chip === "body" || n.level === chip || n.children.length > 0;
+        if (!chipOk && !matchSet) return;
+        if (matchSet && !matchSet.has(key)) return;
+        const hasKids = n.children.length > 0;
+        out.push({ node: n, depth, key, hasKids });
+        const isCollapsed = collapsed.has(key) && !matchSet;
+        if (hasKids && !isCollapsed) walk(n.children, depth + 1, key + ".");
+      });
+    };
+    walk(divedNodes, 0, "");
+    return out.slice(0, 400);
+  });
+
+  $effect(() => { rows; fileResults; if (selectedIdx >= activeLen()) selectedIdx = 0; });
+  function activeLen() { return mode === "files" ? fileResults.length : rows.length; }
 
   // ── dive into a file ──────────────────────────────────────────
   async function diveInto(file: LibFile) {
     if (parseCache.has(file.path)) {
-      divedFile = file;
-      divedNodes = parseCache.get(file.path)!;
-      prevQuery = query;
-      query = "";
-      mode = "within";
-      selectedIdx = 0;
+      setDived(file, parseCache.get(file.path)!);
       return;
     }
-
-    parsing = true;
-    parseError = "";
+    parsing = true; parseError = "";
     try {
-      // Skip Word lock files defensively
       if (file.name.startsWith("~$")) throw new Error("Word lock file");
       const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
-      const buf = new Uint8Array(bytes).buffer;
-      const parsed = parseDocx(buf);
+      const parsed = parseDocx(new Uint8Array(bytes).buffer);
       parseCache.set(file.path, parsed.nodes);
-      divedFile = file;
-      divedNodes = parsed.nodes;
-      prevQuery = query;
-      query = "";
-      mode = "within";
-      selectedIdx = 0;
+      setDived(file, parsed.nodes);
     } catch (err) {
       parseError = `Could not read "${file.name}": ${err instanceof Error ? err.message : err}`;
     } finally {
       parsing = false;
     }
   }
-
+  function setDived(file: LibFile, nodes: DocNode[]) {
+    divedFile = file; divedNodes = nodes;
+    prevQuery = query; query = ""; mode = "within"; selectedIdx = 0;
+    collapsed = new Set();
+  }
   function backToFiles() {
-    mode = "files";
-    query = prevQuery;
-    divedFile = null;
-    divedNodes = [];
-    parseError = "";
-    selectedIdx = 0;
+    mode = "files"; query = prevQuery; divedFile = null; divedNodes = [];
+    parseError = ""; selectedIdx = 0;
   }
 
-  // ── insert into focused flow cell ─────────────────────────────
-  function insertSelected() {
-    const item = activeResults[selectedIdx];
-    if (!item) return;
-
-    if (mode === "files") {
-      // On a file: dive in instead of inserting
-      void diveInto(item as LibFile);
-      return;
-    }
-
-    // In within-file mode: insert block header into the active flow cell,
-    // and append full card to the speech doc if it's open.
-    const node = item as DocNode;
-
-    // In the pop-out doc window there's no flow grid — insert only into the doc.
+  // ── insert ────────────────────────────────────────────────────
+  function insertNode(node: DocNode) {
     if (!docOnly && store.round && store.cursor && store.activeSheetId) {
       const { row, col } = store.cursor;
       store.mutate((r) => {
@@ -136,384 +116,297 @@
         if (!sheet) return;
         while (sheet.rows.length <= row) {
           const nCols = r.template.speeches.length;
-          sheet.rows.push({
-            id: crypto.randomUUID(),
-            cells: Array.from({ length: nCols }, () => ({ text: "" })),
-          });
+          sheet.rows.push({ id: crypto.randomUUID(), cells: Array.from({ length: nCols }, () => ({ text: "" })) });
         }
         sheet.rows[row].cells[col].text = node.text;
       });
     }
-
-    // Append the rich card to the speech doc (routed to whichever window shows it)
     onappenddoc?.(node);
-
-    onclose();
   }
+
+  function activateSelected() {
+    if (mode === "files") {
+      const f = fileResults[selectedIdx];
+      if (f) void diveInto(f);
+    } else {
+      const r = rows[selectedIdx];
+      if (r) { insertNode(r.node); onclose(); }
+    }
+  }
+
+  // ── collapse helpers ──────────────────────────────────────────
+  function toggle(key: string) {
+    const next = new Set(collapsed);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    collapsed = next;
+  }
+  function collapseAll() {
+    // Collapse every node that has children.
+    const next = new Set<string>();
+    const walk = (nodes: DocNode[], prefix: string) => {
+      nodes.forEach((n, i) => {
+        const key = prefix + i;
+        if (n.children.length) { next.add(key); walk(n.children, key + "."); }
+      });
+    };
+    walk(divedNodes, "");
+    collapsed = next;
+  }
+  function expandAll() { collapsed = new Set(); }
 
   // ── keyboard ──────────────────────────────────────────────────
   function onkeydown(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
-
-    if (e.key === "Escape") {
+    if (e.key === "Escape") { e.preventDefault(); if (mode === "within") backToFiles(); else onclose(); return; }
+    if (mod && e.key === "k") { e.preventDefault(); onclose(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); selectedIdx = Math.min(selectedIdx + 1, activeLen() - 1); scrollSel(); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); selectedIdx = Math.max(selectedIdx - 1, 0); scrollSel(); return; }
+    if (mode === "within" && e.key === "ArrowRight") {
       e.preventDefault();
-      if (mode === "within") backToFiles();
-      else onclose();
+      const r = rows[selectedIdx];
+      if (r?.hasKids && collapsed.has(r.key)) toggle(r.key);
       return;
     }
-    if (mod && e.key === "k") {
+    if (mode === "within" && e.key === "ArrowLeft") {
       e.preventDefault();
-      onclose();
+      const r = rows[selectedIdx];
+      if (r?.hasKids && !collapsed.has(r.key)) toggle(r.key);
       return;
     }
-    if (e.key === "ArrowDown") {
+    if (e.key === "Tab" && mode === "files") {
       e.preventDefault();
-      selectedIdx = Math.min(selectedIdx + 1, activeResults.length - 1);
-      scrollSelectedIntoView();
+      const f = fileResults[selectedIdx]; if (f) void diveInto(f);
       return;
     }
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      selectedIdx = Math.max(selectedIdx - 1, 0);
-      scrollSelectedIntoView();
-      return;
-    }
-    if (e.key === "Tab") {
-      e.preventDefault();
-      if (mode === "files") {
-        const file = fileResults[selectedIdx] as LibFile | undefined;
-        if (file) void diveInto(file);
-      }
-      return;
-    }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      insertSelected();
-      return;
-    }
+    if (e.key === "Enter") { e.preventDefault(); activateSelected(); return; }
   }
 
   let listEl = $state<HTMLElement>();
-
-  function scrollSelectedIntoView() {
-    // Let DOM update first
-    requestAnimationFrame(() => {
-      listEl?.children[selectedIdx]?.scrollIntoView({ block: "nearest" });
-    });
+  function scrollSel() {
+    requestAnimationFrame(() => listEl?.children[selectedIdx]?.scrollIntoView({ block: "nearest" }));
   }
 
-  // ── chip helpers ──────────────────────────────────────────────
-  const CHIP_LABELS: Record<string, string> = {
-    all: "ALL", "1": "POC", "2": "HAT", "3": "BLK", "4": "CARD",
-  };
-  const LEVEL_COLORS: Record<number, string> = {
-    1: "var(--accent)", 2: "#e09b3d", 3: "var(--neg)", 4: "var(--text-dim)",
-  };
-
-  function nodeChipLabel(level: number): string {
-    return ["", "POC", "HAT", "BLK", "CARD"][level] ?? "";
+  // ── chips ─────────────────────────────────────────────────────
+  const CHIPS: { id: "all" | 1 | 2 | 3 | 4 | "body"; label: string }[] = [
+    { id: "all", label: "ALL" }, { id: 1, label: "POC" }, { id: 2, label: "HAT" },
+    { id: 3, label: "BLK" }, { id: 4, label: "TAG" }, { id: "body", label: "BODY" },
+  ];
+  function chipFor(level: number): { label: string; cls: string } {
+    return [
+      { label: "", cls: "" },
+      { label: "POC", cls: "c-poc" },
+      { label: "HAT", cls: "c-hat" },
+      { label: "BLK", cls: "c-blk" },
+      { label: "TAG", cls: "c-tag" },
+    ][level] ?? { label: "TAG", cls: "c-tag" };
   }
 
-  /** Flatten a node's text + body + children into a full card string for the doc. */
+  // ── panel drag (move the whole panel) ─────────────────────────
+  let px = $state(0), py = $state(0), dragging = false, dx = 0, dy = 0;
+  function startDrag(e: PointerEvent) {
+    dragging = true; dx = e.clientX - px; dy = e.clientY - py;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function moveDrag(e: PointerEvent) { if (dragging) { px = e.clientX - dx; py = e.clientY - dy; } }
+  function endDrag() { dragging = false; }
+
+  // ── build full card for drag payload ──────────────────────────
   function buildFullCard(node: DocNode): string {
     const lines: string[] = [node.text, ...node.body];
-    function walk(ns: DocNode[]) {
-      for (const n of ns) {
-        lines.push(n.text);
-        lines.push(...n.body);
-        walk(n.children);
-      }
-    }
+    const walk = (ns: DocNode[]) => { for (const n of ns) { lines.push(n.text); lines.push(...n.body); walk(n.children); } };
     walk(node.children);
     return lines.filter(Boolean).join("\n");
   }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="backdrop" onmousedown={(e) => { if (e.target === e.currentTarget) onclose(); }} onkeydown={onkeydown} role="presentation">
-  <div class="panel" role="dialog" aria-label="Doc Search">
-
-    <!-- Header -->
-    <div class="search-bar">
-      <span class="icon">🔍</span>
-      <input
-        bind:this={inputEl}
-        bind:value={query}
-        placeholder={mode === "files" ? "Search files…" : "Filter blocks…"}
-        class="search-input"
-        spellcheck="false"
-        autocomplete="off"
-      />
-      {#if mode === "within" && divedFile}
-        <button class="back-btn" onclick={backToFiles} title="Back to files (Esc)">
-          ← {divedFile.name}
-        </button>
-      {/if}
-      <button class="close-btn" onclick={onclose}>✕</button>
+<div class="ds-panel" style="transform: translate({px}px, {py}px)" onkeydown={onkeydown} onpointermove={moveDrag} onpointerup={endDrag} role="dialog" aria-label="Doc Search" tabindex="-1">
+  <!-- Header (drag handle) -->
+  <div class="ds-header" onpointerdown={startDrag}>
+    <div class="ds-title">
+      <span class="ds-name">Doc Search</span>
+      <span class="ds-hint">· drag to move</span>
     </div>
+    <button class="ds-x" onpointerdown={(e) => e.stopPropagation()} onclick={onclose}>✕</button>
+  </div>
+  {#if mode === "within" && divedFile}
+    <div class="ds-sub">In: {divedFile.name}</div>
+  {/if}
 
-    <!-- Chip filter (within-file only) -->
-    {#if mode === "within"}
-      <div class="chips">
-        {#each (["all", 1, 2, 3, 4] as const) as c}
-          <button
-            class="chip"
-            class:active={chip === c}
-            onclick={() => { chip = c; selectedIdx = 0; }}
-          >{CHIP_LABELS[String(c)]}</button>
-        {/each}
-      </div>
-    {/if}
+  <!-- Chips (within-file) -->
+  {#if mode === "within"}
+    <div class="ds-chips">
+      {#each CHIPS as c}
+        <button class="ds-chip" class:on={chip === c.id} onclick={() => { chip = c.id; selectedIdx = 0; }}>{c.label}</button>
+      {/each}
+      <span class="ds-spacer"></span>
+      <button class="ds-mini" onclick={collapseAll} title="Collapse all">⊟</button>
+      <button class="ds-mini" onclick={expandAll} title="Expand all">⊞</button>
+    </div>
+  {/if}
 
-    <!-- Results -->
-    <div class="results" bind:this={listEl}>
-      {#if parseError}
-        <div class="parse-error">{parseError}</div>
-      {:else if parsing}
-        <div class="empty">Parsing file…</div>
-      {:else if mode === "files"}
-        {#if fileIndex.files.length === 0}
-          <div class="empty">
-            {#if fileIndex.scanning}
-              Scanning library…
-            {:else}
-              No files indexed. Add a folder in Settings → Search Library.
-            {/if}
+  <!-- Search input -->
+  <input
+    bind:this={inputEl}
+    bind:value={query}
+    class="ds-input"
+    placeholder={mode === "files" ? "Search files…" : "Type to filter blocks / cards / tags…"}
+    spellcheck="false"
+    autocomplete="off"
+  />
+
+  <!-- Results -->
+  <div class="ds-list" bind:this={listEl}>
+    {#if parseError}
+      <div class="ds-msg err">{parseError}</div>
+    {:else if parsing}
+      <div class="ds-msg">Parsing…</div>
+    {:else if mode === "files"}
+      {#if fileIndex.files.length === 0}
+        <div class="ds-msg">{fileIndex.scanning ? "Scanning library…" : "No files. Add a folder in Settings → Search Library."}</div>
+      {:else if fileResults.length === 0}
+        <div class="ds-msg">No files match "{query}"</div>
+      {:else}
+        {#each fileResults as file, i (file.path)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <div class="ds-file" class:sel={i === selectedIdx}
+            onclick={() => { selectedIdx = i; void diveInto(file); }}
+            onmouseenter={() => (selectedIdx = i)}>
+            <span class="ds-fileicon">📄</span>
+            <span class="ds-filename">{file.name}</span>
+            <span class="ds-filemeta">{relativeTime(file.mtime)}</span>
+            <span class="ds-tab">Tab ›</span>
           </div>
-        {:else if fileResults.length === 0}
-          <div class="empty">No files match "{query}"</div>
-        {:else}
-          {#each fileResults as file, i (file.path)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <div
-              class="row file-row"
-              class:selected={i === selectedIdx}
-              onclick={() => { selectedIdx = i; void diveInto(file); }}
-              onmouseenter={() => { selectedIdx = i; }}
-            >
-              <span class="file-icon">📄</span>
-              <span class="file-name">{file.name}</span>
-              <span class="file-meta">{relativeTime(file.mtime)}</span>
-              <span class="tab-hint">Tab →</span>
-            </div>
-          {/each}
-        {/if}
-      {:else}
-        <!-- Within-file results -->
-        {#if withinResults.length === 0}
-          <div class="empty">{query ? `No blocks match "${query}"` : "No blocks found."}</div>
-        {:else}
-          {#each withinResults as node, i (i)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <div
-              class="row node-row"
-              class:selected={i === selectedIdx}
-              style="--indent: {(node.level - 1) * 14}px; --lvl-color: {LEVEL_COLORS[node.level] ?? 'var(--text)'}"
-              draggable="true"
-              ondragstart={(e) => {
-                const full = buildFullCard(node);
-                // Include the full node so the drop can render the rich card
-                // (highlighting/underline/emphasis) in the speech doc.
-                e.dataTransfer?.setData(
-                  "text/nimbus-block",
-                  JSON.stringify({ header: node.text, fullCard: full, node }),
-                );
-                if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
-              }}
-              onclick={() => { selectedIdx = i; insertSelected(); }}
-              onmouseenter={() => { selectedIdx = i; }}
-            >
-              <span class="node-chip">{nodeChipLabel(node.level)}</span>
-              <span class="node-text">{node.text}</span>
-            </div>
-          {/each}
-        {/if}
+        {/each}
       {/if}
-    </div>
+    {:else}
+      {#if rows.length === 0}
+        <div class="ds-msg">{query ? `No matches for "${query}"` : "No headings found."}</div>
+      {:else}
+        {#each rows as r, i (r.key)}
+          {@const ci = chipFor(r.node.level)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <div class="ds-row" class:sel={i === selectedIdx}
+            style="padding-left: {8 + r.depth * 16}px"
+            draggable="true"
+            ondragstart={(e) => {
+              e.dataTransfer?.setData("text/nimbus-block", JSON.stringify({ header: r.node.text, fullCard: buildFullCard(r.node), node: r.node }));
+              if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+            }}
+            onclick={() => { selectedIdx = i; insertNode(r.node); onclose(); }}
+            onmouseenter={() => (selectedIdx = i)}>
+            {#if r.hasKids}
+              <button class="ds-arrow" onclick={(e) => { e.stopPropagation(); toggle(r.key); }}>{collapsed.has(r.key) ? "▸" : "▾"}</button>
+            {:else}
+              <span class="ds-arrow ghost"></span>
+            {/if}
+            <span class="ds-typechip {ci.cls}">{ci.label}</span>
+            <span class="ds-rowtext">{r.node.text}</span>
+          </div>
+        {/each}
+      {/if}
+    {/if}
+  </div>
 
-    <!-- Footer -->
-    <div class="footer">
-      {#if mode === "files"}
-        <span>{fileResults.length} of {fileIndex.files.length} files</span>
-      {:else}
-        <span>{withinResults.length} result{withinResults.length === 1 ? "" : "s"}</span>
-        <span class="footer-sep">·</span>
-        <span>↑↓ navigate</span>
-        <span class="footer-sep">·</span>
-        <span>↵ insert into cell</span>
-        <span class="footer-sep">·</span>
-        <span>Esc back</span>
-      {/if}
-      {#if fileIndex.scanning}
-        <span class="scanning-dot">⟳</span>
-      {/if}
-    </div>
+  <!-- Footer -->
+  <div class="ds-footer">
+    {#if mode === "within"}
+      <button class="ds-back" onclick={backToFiles}>‹ Back to files</button>
+    {:else}
+      <span class="ds-count">{fileResults.length} of {fileIndex.files.length}</span>
+    {/if}
+    <span class="ds-keys">↑↓ nav · →← expand · ↵ insert</span>
+    {#if mode === "within"}
+      <button class="ds-insert" onclick={activateSelected}>Insert</button>
+    {/if}
   </div>
 </div>
 
 <style>
-  .backdrop {
+  .ds-panel {
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 200;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 12vh;
-  }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    width: min(640px, 92vw);
-    max-height: 68vh;
+    top: 64px;
+    right: 20px;
+    width: 440px;
+    max-height: 78vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-    overflow: hidden;
-  }
-  .search-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .icon {
-    font-size: 14px;
-    opacity: 0.6;
-    flex-shrink: 0;
-  }
-  .search-input {
-    flex: 1;
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 14px;
-    outline: none;
-    min-width: 0;
-  }
-  .search-input::placeholder {
-    color: var(--text-dim);
-  }
-  .back-btn {
-    background: var(--bg);
+    background: var(--panel);
     border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 5px;
-    padding: 3px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    white-space: nowrap;
-    max-width: 200px;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    z-index: 200;
     overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .back-btn:hover { color: var(--text); }
-  .close-btn {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    font-size: 14px;
-    cursor: pointer;
-    padding: 2px 4px;
-    flex-shrink: 0;
-  }
-  .close-btn:hover { color: var(--text); }
-
-  .chips {
-    display: flex;
-    gap: 4px;
-    padding: 6px 12px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .chip {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 0.04em;
-  }
-  .chip.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-  }
-  .chip:hover:not(.active) { color: var(--text); }
-
-  .results {
-    overflow-y: auto;
-    flex: 1;
-    padding: 4px 0;
-  }
-  .empty {
-    padding: 20px 16px;
-    color: var(--text-dim);
-    font-size: 13px;
-    text-align: center;
-  }
-  .parse-error {
-    padding: 12px 16px;
-    color: var(--mark-dropped);
-    font-size: 12px;
-  }
-
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    cursor: pointer;
     font-size: 13px;
   }
-  .row.selected {
-    background: color-mix(in srgb, var(--accent) 15%, var(--panel));
-  }
-  .row:hover:not(.selected) {
-    background: color-mix(in srgb, var(--text) 5%, var(--panel));
-  }
-
-  /* File rows */
-  .file-icon { font-size: 13px; flex-shrink: 0; }
-  .file-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .file-meta { color: var(--text-dim); font-size: 11px; flex-shrink: 0; }
-  .tab-hint { color: var(--text-dim); font-size: 11px; flex-shrink: 0; }
-  .row.selected .tab-hint { color: var(--accent); }
-
-  /* Node rows */
-  .node-row { padding-left: calc(12px + var(--indent)); }
-  .node-chip {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    color: var(--lvl-color);
-    flex-shrink: 0;
-    width: 30px;
-    opacity: 0.85;
-  }
-  .node-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  .footer {
+  .ds-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--text-dim);
-    flex-shrink: 0;
+    justify-content: space-between;
+    padding: 10px 12px 4px;
+    cursor: grab;
   }
-  .footer-sep { opacity: 0.4; }
-  .scanning-dot {
-    margin-left: auto;
-    animation: spin 1s linear infinite;
+  .ds-header:active { cursor: grabbing; }
+  .ds-title { display: flex; align-items: baseline; gap: 6px; }
+  .ds-name { font-weight: 700; font-size: 14px; }
+  .ds-hint { font-size: 11px; color: var(--text-dim); }
+  .ds-x { background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; }
+  .ds-x:hover { color: var(--text); }
+  .ds-sub { font-size: 11px; color: var(--text-dim); padding: 0 12px 6px; }
+
+  .ds-chips { display: flex; align-items: center; gap: 3px; padding: 4px 12px; flex-wrap: wrap; }
+  .ds-chip {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 5px; padding: 2px 8px; font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: 0.03em;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .ds-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ds-spacer { flex: 1; }
+  .ds-mini { background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); border-radius: 5px; padding: 1px 6px; cursor: pointer; font-size: 12px; }
+  .ds-mini:hover { color: var(--text); }
+
+  .ds-input {
+    margin: 4px 12px 8px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; outline: none;
+  }
+  .ds-input:focus { border-color: var(--accent); }
+
+  .ds-list { overflow-y: auto; flex: 1; padding: 2px 0; }
+  .ds-msg { padding: 16px; color: var(--text-dim); text-align: center; }
+  .ds-msg.err { color: var(--mark-dropped); }
+
+  .ds-file { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; }
+  .ds-file.sel { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+  .ds-file:hover:not(.sel) { background: color-mix(in srgb, var(--text) 5%, var(--panel)); }
+  .ds-filename { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ds-filemeta { font-size: 11px; color: var(--text-dim); }
+  .ds-tab { font-size: 11px; color: var(--text-dim); }
+  .ds-file.sel .ds-tab { color: var(--accent); }
+
+  .ds-row { display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; cursor: pointer; }
+  .ds-row.sel { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+  .ds-row:hover:not(.sel) { background: color-mix(in srgb, var(--text) 5%, var(--panel)); }
+  .ds-arrow { background: none; border: none; color: var(--text-dim); cursor: pointer; width: 14px; font-size: 10px; padding: 0; flex-shrink: 0; }
+  .ds-arrow.ghost { cursor: default; }
+  .ds-typechip {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.04em; color: #fff;
+    border-radius: 4px; padding: 1px 5px; flex-shrink: 0; min-width: 30px; text-align: center;
+  }
+  .c-poc { background: #6b52d1; }
+  .c-hat { background: #8a63d2; }
+  .c-blk { background: #c0392b; }
+  .c-tag { background: #2e8b57; }
+  .ds-rowtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .ds-footer {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim);
+  }
+  .ds-back { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 0; }
+  .ds-back:hover { color: var(--text); }
+  .ds-keys { flex: 1; text-align: center; }
+  .ds-insert {
+    background: var(--accent); border: none; color: #fff; border-radius: 6px;
+    padding: 4px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
 </style>

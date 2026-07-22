@@ -143,3 +143,35 @@
 .pmd-document .ProseMirror { outline: none; word-break: break-word; }
 .pmd-document .ProseMirror:focus { outline: none; }
 .pmd-document .ProseMirror ::selection { background: rgba(26,111,212,0.25); }
+
+/* ── Read mode ──────────────────────────────────────────────────
+ * Shows only the read-aloud (highlighted/spoken) text + structure.
+ * Pure-CSS approach (CardMirror's documented fallback): shrink card
+ * body / cite text to zero, then restore size on highlighted runs and
+ * cite marks. Headings stay visible. */
+.pmd-document.pmd-read-mode .pmd-undertag,
+.pmd-document.pmd-read-mode .ProseMirror > p { display: none; }
+
+.pmd-document.pmd-read-mode .pmd-card-body,
+.pmd-document.pmd-read-mode .pmd-cite-para {
+  font-size: 0 !important;
+  line-height: 1.5;
+}
+/* Restore the spoken (highlighted) text and cite text. */
+.pmd-document.pmd-read-mode .pmd-card-body .pmd-highlight,
+.pmd-document.pmd-read-mode .pmd-card-body .pmd-highlight *,
+.pmd-document.pmd-read-mode .pmd-cite-para .pmd-cite,
+.pmd-document.pmd-read-mode .pmd-cite-para .pmd-cite * {
+  font-size: 11pt !important;
+}
+/* Read-mode highlighted text: no background band, just plain black —
+ * you're reading it, not marking it. */
+.pmd-document.pmd-read-mode .pmd-highlight {
+  background: transparent !important;
+  color: inherit !important;
+}
+/* Emphasis inside read-aloud text stays bold but drops the box. */
+.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
+/* Multiple card-body paragraphs flow together in read mode. */
+.pmd-document.pmd-read-mode .pmd-card-body { display: inline; margin: 0; }
+.pmd-document.pmd-read-mode .pmd-card-body::after { content: " "; font-size: 11pt; }

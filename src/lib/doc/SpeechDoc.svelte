@@ -33,6 +33,37 @@
   interface OutlineItem { pos: number; level: number; text: string; }
   let outline = $state<OutlineItem[]>([]);
   let showOutline = $state(true);
+  let collapsedOutline = $state<Set<number>>(new Set());
+
+  // Visible outline honouring collapsed ancestors, with a hasKids flag.
+  const visibleOutline = $derived.by(() => {
+    const res: (OutlineItem & { hasKids: boolean })[] = [];
+    let hideLevel = Infinity;
+    outline.forEach((it, i) => {
+      if (it.level > hideLevel) return; // hidden under a collapsed ancestor
+      hideLevel = Infinity;
+      const next = outline[i + 1];
+      const hasKids = !!next && next.level > it.level;
+      res.push({ ...it, hasKids });
+      if (collapsedOutline.has(it.pos)) hideLevel = it.level;
+    });
+    return res;
+  });
+
+  function toggleOutline(pos: number) {
+    const next = new Set(collapsedOutline);
+    if (next.has(pos)) next.delete(pos); else next.add(pos);
+    collapsedOutline = next;
+  }
+  // Collapse the whole outline to a given level (Pocket=1 / Hat=2 / Block=3).
+  function collapseOutlineTo(level: number) {
+    const next = new Set<number>();
+    outline.forEach((it, i) => {
+      const child = outline[i + 1];
+      if (it.level >= level && child && child.level > it.level) next.add(it.pos);
+    });
+    collapsedOutline = next;
+  }
   const HEADING_LEVEL: Record<string, number> = {
     pocket: 1, hat: 2, block: 3, card: 4, tag: 4, analytic: 4, analytic_unit: 4,
   };
@@ -232,9 +263,25 @@
     { name: "magenta", css: "#ff00ff" },
     { name: "blue", css: "#4d7bff" },
   ];
+
+  let readMode = $state(false);
+  let sendStatus = $state("");
+
+  async function sendDoc() {
+    if (!view) return;
+    try {
+      const { exportSpeechDocx } = await import("./exportDocx");
+      await exportSpeechDocx(view.state.doc, "Speech");
+      sendStatus = "Saved ✓";
+    } catch (err) {
+      sendStatus = "Export failed";
+      console.error(err);
+    }
+    setTimeout(() => (sendStatus = ""), 2500);
+  }
 </script>
 
-<div class="speech-doc pmd-document">
+<div class="speech-doc pmd-document" class:pmd-read-mode={readMode}>
   <div class="doc-toolbar">
     <select class="heading-select" onchange={(e) => setBlock((e.currentTarget as HTMLSelectElement).value)}>
       <option value="paragraph">¶ Body</option>
@@ -258,6 +305,10 @@
     {/each}
     <button class="hl-swatch clear" onclick={() => setHighlight("none")} title="Clear highlight">⌀</button>
     <div class="toolbar-sep"></div>
+    <button class="tb-btn read" class:active={readMode} onclick={() => (readMode = !readMode)} title="Read mode — show only spoken text">Read</button>
+    <button class="tb-btn send" onclick={sendDoc} title="Export / send as .docx">Send</button>
+    {#if sendStatus}<span class="send-status">{sendStatus}</span>{/if}
+    <div class="toolbar-sep"></div>
     {#if onexpand}
       <button class="tb-btn icon" onclick={onexpand} title={expanded ? "Collapse to side panel" : "Expand to fill"}>{expanded ? "⇥" : "⤢"}</button>
     {/if}
@@ -271,16 +322,27 @@
   <div class="doc-body">
     {#if showOutline}
       <aside class="outline">
-        <div class="outline-head">Outline</div>
+        <div class="outline-head">
+          <span>Outline</span>
+          <span class="outline-levels">
+            <button title="Collapse to Pocket" onclick={() => collapseOutlineTo(1)}>P</button>
+            <button title="Collapse to Hat" onclick={() => collapseOutlineTo(2)}>H</button>
+            <button title="Collapse to Block" onclick={() => collapseOutlineTo(3)}>B</button>
+            <button title="Expand all" onclick={() => (collapsedOutline = new Set())}>⊞</button>
+          </span>
+        </div>
         {#if outline.length === 0}
           <div class="outline-empty">No headings yet.</div>
         {:else}
-          {#each outline as item (item.pos)}
-            <button
-              class="outline-item lvl{item.level}"
-              onclick={() => scrollToPos(item.pos)}
-              title={item.text}
-            >{item.text}</button>
+          {#each visibleOutline as item (item.pos)}
+            <div class="outline-row lvl{item.level}">
+              {#if item.hasKids}
+                <button class="outline-arrow" onclick={() => toggleOutline(item.pos)}>{collapsedOutline.has(item.pos) ? "▸" : "▾"}</button>
+              {:else}
+                <span class="outline-arrow ghost"></span>
+              {/if}
+              <button class="outline-item" onclick={() => scrollToPos(item.pos)} title={item.text}>{item.text}</button>
+            </div>
           {/each}
         {/if}
       </aside>
@@ -325,6 +387,10 @@
   .tb-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .tb-btn .emph { border: 1px solid currentColor; border-radius: 2px; padding: 0 2px; font-weight: 700; font-size: 11px; }
   .tb-btn.icon { min-width: 26px; font-size: 14px; }
+  .tb-btn.read, .tb-btn.send { font-size: 12px; min-width: auto; padding: 3px 10px; }
+  .tb-btn.read.active { background: #2e8b57; border-color: #2e8b57; color: #fff; }
+  .tb-btn.send { color: var(--accent); border-color: var(--accent); }
+  .send-status { font-size: 11px; color: var(--text-dim); }
   .hl-label { font-size: 11px; color: var(--text-dim); margin: 0 2px; }
   .hl-swatch {
     width: 18px;
@@ -375,34 +441,50 @@
     padding: 6px 0;
   }
   .outline-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-dim);
     font-weight: 700;
-    padding: 4px 12px 6px;
+    padding: 4px 8px 6px 12px;
   }
+  .outline-levels { display: flex; gap: 2px; }
+  .outline-levels button {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 4px; width: 18px; height: 18px; font-size: 10px; cursor: pointer; padding: 0;
+  }
+  .outline-levels button:hover { color: var(--text); border-color: var(--accent); }
   .outline-empty { font-size: 12px; color: var(--text-dim); padding: 4px 12px; }
+  .outline-row { display: flex; align-items: center; }
+  .outline-row.lvl1 { padding-left: 4px; }
+  .outline-row.lvl2 { padding-left: 14px; }
+  .outline-row.lvl3 { padding-left: 24px; }
+  .outline-row.lvl4 { padding-left: 34px; }
+  .outline-arrow {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    width: 14px; font-size: 9px; padding: 0; flex-shrink: 0;
+  }
+  .outline-arrow.ghost { cursor: default; }
   .outline-item {
-    display: block;
-    width: 100%;
+    flex: 1;
     text-align: left;
     background: none;
     border: none;
     color: var(--text);
     font-size: 12px;
-    padding: 3px 12px 3px 12px;
+    padding: 3px 8px 3px 2px;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    border-left: 2px solid transparent;
   }
   .outline-item:hover { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
-  .outline-item.lvl1 { font-weight: 700; padding-left: 12px; }
-  .outline-item.lvl2 { font-weight: 600; padding-left: 22px; }
-  .outline-item.lvl3 { padding-left: 32px; }
-  .outline-item.lvl4 { padding-left: 42px; color: var(--text-dim); }
+  .outline-row.lvl1 .outline-item { font-weight: 700; }
+  .outline-row.lvl2 .outline-item { font-weight: 600; }
+  .outline-row.lvl4 .outline-item { color: var(--text-dim); }
   .doc-scroll {
     flex: 1;
     overflow-y: auto;
