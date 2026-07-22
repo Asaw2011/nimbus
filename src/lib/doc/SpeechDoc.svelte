@@ -5,7 +5,7 @@
   import { toggleMark, setBlockType, baseKeymap } from "prosemirror-commands";
   import { keymap } from "prosemirror-keymap";
   import { history, undo, redo } from "prosemirror-history";
-  import type { DocNode } from "$lib/docx/parse";
+  import type { DocNode, DocRun } from "$lib/docx/parse";
   import { debateSchema } from "./schema";
 
   let mountEl = $state<HTMLDivElement>();
@@ -56,6 +56,29 @@
     view.dispatch(state.tr.insert(end, nodes).scrollIntoView());
   }
 
+  // Build a ProseMirror text node from a styled run, applying the right marks.
+  function runToText(run: DocRun) {
+    if (!run.text) return null;
+    const marks = [];
+    if (run.hl) marks.push(debateSchema.marks.highlight.create({ color: run.hl }));
+    if (run.b) marks.push(debateSchema.marks.bold.create());
+    if (run.u) marks.push(debateSchema.marks.underline.create());
+    if (run.sm) marks.push(debateSchema.marks.condensed.create());
+    return debateSchema.text(run.text, marks);
+  }
+
+  // Turn each body paragraph's runs into a card_body node with rich formatting.
+  function bodyParasToNodes(runsList: DocRun[][]): ReturnType<typeof debateSchema.nodes.card_body.create>[] {
+    const out: ReturnType<typeof debateSchema.nodes.card_body.create>[] = [];
+    for (const runs of runsList) {
+      const textNodes = runs.map(runToText).filter((n) => n !== null);
+      if (textNodes.length > 0) {
+        out.push(debateSchema.nodes.card_body.create({}, textNodes));
+      }
+    }
+    return out;
+  }
+
   // ── public API ────────────────────────────────────────────────
 
   /**
@@ -67,39 +90,20 @@
     const sc = debateSchema;
     const nodes: ReturnType<typeof sc.nodes.block.create>[] = [];
 
-    // ── Block heading (bold argument label) ──────────────────────
-    nodes.push(sc.nodes.block.create({ id: crypto.randomUUID() }, makeText(node.text)));
+    const headingType = (level: number) =>
+      level <= 1 ? sc.nodes.pocket : level === 2 ? sc.nodes.hat : level === 3 ? sc.nodes.block : sc.nodes.tag;
 
-    if (node.children.length > 0) {
-      // Verbatim structure: H4 children are Tag headings, their body = evidence
-      for (const child of node.children) {
-        nodes.push(sc.nodes.tag.create({ id: crypto.randomUUID() }, makeText(child.text)));
-        for (const line of child.body) {
-          if (line.trim()) nodes.push(sc.nodes.card_body.create({}, makeText(line)));
-        }
-        for (const grandchild of child.children) {
-          if (grandchild.text) nodes.push(sc.nodes.card_body.create({}, makeText(grandchild.text)));
-          for (const line of grandchild.body) {
-            if (line.trim()) nodes.push(sc.nodes.card_body.create({}, makeText(line)));
-          }
-        }
-      }
-    } else {
-      // No H4 children — body text IS the evidence.
-      // Heuristic: short first line (<100 chars) = tag/cite; rest = card body.
-      const body = node.body.filter(l => l.trim());
-      if (body.length > 0 && body[0].length < 100) {
-        nodes.push(sc.nodes.tag.create({ id: crypto.randomUUID() }, makeText(body[0])));
-        for (const line of body.slice(1)) {
-          nodes.push(sc.nodes.card_body.create({}, makeText(line)));
-        }
-      } else {
-        for (const line of body) {
-          nodes.push(sc.nodes.card_body.create({}, makeText(line)));
-        }
-      }
-    }
+    // Recursively emit heading + its rich body + descendants, preserving the
+    // Pocket/Hat/Block/Tag hierarchy and all card formatting.
+    const emit = (n: DocNode) => {
+      const ht = headingType(n.level);
+      nodes.push(ht.create({ id: crypto.randomUUID() }, makeText(n.text)));
+      // This heading's own body paragraphs (cite + evidence), richly styled
+      nodes.push(...bodyParasToNodes(n.bodyRuns ?? []));
+      for (const child of n.children) emit(child);
+    };
 
+    emit(node);
     insertNodes(nodes);
   }
 
@@ -348,19 +352,35 @@
   }
   :global([data-theme="dark"]) :global(.pm-tag) { color: #d4d4d4; }
 
-  /* Evidence text — smaller, distinct background strip */
+  /* Evidence text — the card body. Read (highlighted/underlined) text is
+     full-size black; unread context shrinks to small grey (Condensed). */
   :global(.pm-card-body) {
-    font-size: 9pt;
-    color: #2a2a2a;
-    margin: 0;
-    line-height: 1.3;
-    padding: 0 0 0 10px;
-    border-left: 2px solid #e0e0e0;
+    font-size: 11pt;
+    color: #111;
+    margin: 0 0 3px;
+    line-height: 1.4;
   }
-  :global([data-theme="dark"]) :global(.pm-card-body) {
-    color: #b0b0b0;
-    border-left-color: #333;
+  :global([data-theme="dark"]) :global(.pm-card-body) { color: #e0e0e0; }
+
+  /* Highlight = spoken/read-aloud — real highlighter colour behind black text */
+  :global(.pm-hl) {
+    color: #000;
+    border-radius: 1px;
+    padding: 0 0.5px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
+
+  /* Condensed = unread context — tiny grey */
+  :global(.pm-condensed) {
+    font-size: 7.5pt;
+    color: #999;
+  }
+  :global([data-theme="dark"]) :global(.pm-condensed) { color: #777; }
+
+  /* Underline (the cut) + bold (emphasis power words) */
+  :global(.pm-card-body u) { text-decoration: underline; text-decoration-thickness: 1px; }
+  :global(.pm-card-body strong) { font-weight: 700; }
 
   :global(.ProseMirror p) { margin: 3px 0 6px; }
   :global(.ProseMirror p:last-child) { margin-bottom: 0; }

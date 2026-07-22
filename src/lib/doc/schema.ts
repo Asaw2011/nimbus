@@ -60,6 +60,29 @@ export const debateSchema = new Schema({
   },
 
   marks: {
+    // Highlight = the spoken/read-aloud portion of a card. Carries the actual
+    // highlighter colour so the doc looks exactly like the debater's file.
+    highlight: {
+      attrs: { color: { default: "#fff35c" } },
+      parseDOM: [
+        {
+          tag: "span.pm-hl",
+          getAttrs: (dom: HTMLElement) => ({
+            color: dom.style.backgroundColor || "#fff35c",
+          }),
+        },
+      ],
+      toDOM: (mark) => [
+        "span",
+        { class: "pm-hl", style: `background-color:${mark.attrs.color};` },
+        0,
+      ],
+    },
+    // Condensed = tiny unread context (≤8pt in the source).
+    condensed: {
+      parseDOM: [{ tag: "span.pm-condensed" }],
+      toDOM: () => ["span", { class: "pm-condensed" }, 0],
+    },
     bold: {
       parseDOM: [{ tag: "strong" }, { tag: "b" }, { style: "font-weight=bold" }],
       toDOM: () => ["strong", 0],

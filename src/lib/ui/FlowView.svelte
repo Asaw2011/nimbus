@@ -419,7 +419,7 @@
         {:else if atHome || !sheet}
           <RoundHome onopensheet={openSheet} />
         {:else}
-          <Grid {sheet} onblockdrop={(h, c) => docRef?.appendCard(h, c)} />
+          <Grid {sheet} onblockdrop={(node) => docRef?.appendNode(node)} />
         {/if}
       </div>
 

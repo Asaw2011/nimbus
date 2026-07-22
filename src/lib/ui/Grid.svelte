@@ -12,7 +12,7 @@
   }: {
     sheet: Sheet;
     spread?: boolean;
-    onblockdrop?: ((header: string, fullCard: string, row: number, col: number) => void) | null;
+    onblockdrop?: ((node: unknown, row: number, col: number) => void) | null;
   } = $props();
 
   const speeches = $derived(store.round?.template.speeches ?? []);
@@ -64,7 +64,7 @@
     dropTargetCell = null;
     const raw = e.dataTransfer?.getData("text/nimbus-block");
     if (!raw) return;
-    let payload: { header: string; fullCard: string };
+    let payload: { header: string; fullCard: string; node?: unknown };
     try { payload = JSON.parse(raw); } catch { return; }
     const cell = cellAt(e as unknown as MouseEvent);
     if (!cell) return;
@@ -77,8 +77,8 @@
       s.rows[r].cells[c].text = payload.header;
     });
     store.cursor = { row: r, col: c };
-    // Notify FlowView to also append the full card to the speech doc
-    onblockdrop?.(payload.header, payload.fullCard, r, c);
+    // Notify FlowView to append the rich card to the speech doc
+    if (payload.node) onblockdrop?.(payload.node, r, c);
   }
 
   // Unlimited paper: keep the sheet at least a viewport tall, keep blank rows

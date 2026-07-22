@@ -311,7 +311,12 @@
               draggable="true"
               ondragstart={(e) => {
                 const full = buildFullCard(node);
-                e.dataTransfer?.setData("text/nimbus-block", JSON.stringify({ header: node.text, fullCard: full }));
+                // Include the full node so the drop can render the rich card
+                // (highlighting/underline/emphasis) in the speech doc.
+                e.dataTransfer?.setData(
+                  "text/nimbus-block",
+                  JSON.stringify({ header: node.text, fullCard: full, node }),
+                );
                 if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
               }}
               onclick={() => { selectedIdx = i; insertSelected(); }}
