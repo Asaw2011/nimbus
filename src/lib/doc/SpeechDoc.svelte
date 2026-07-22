@@ -4,42 +4,28 @@
   import { EditorView } from "prosemirror-view";
   import { toggleMark, setBlockType, baseKeymap } from "prosemirror-commands";
   import { keymap } from "prosemirror-keymap";
-  import { history, undo as pmUndo, redo as pmRedo } from "prosemirror-history";
-  import { LoroDoc } from "loro-crdt";
-  import { LoroSyncPlugin, LoroUndoPlugin, undo as loroUndo, redo as loroRedo } from "loro-prosemirror";
+  import { history, undo, redo } from "prosemirror-history";
   import { debateSchema } from "./schema";
 
-  let { loro = null }: { loro?: LoroDoc | null } = $props();
+  // Speech doc is in-memory only (session-scoped, exported to .docx on demand).
+  // Loro CRDT is added in Phase 4 when partner collab is wired in.
 
   let mountEl = $state<HTMLDivElement>();
   let view: EditorView | null = null;
   let mounted = false;
 
-  let localLoro: LoroDoc | null = null;
-  function getLoroDoc(): LoroDoc {
-    if (loro) return loro;
-    if (!localLoro) localLoro = new LoroDoc();
-    return localLoro;
-  }
-
   $effect(() => {
     if (!mountEl || mounted) return;
     mounted = true;
 
-    const loroDoc = getLoroDoc();
-
     const state = EditorState.create({
       schema: debateSchema,
       plugins: [
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        LoroSyncPlugin({ doc: loroDoc as any }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        LoroUndoPlugin({ doc: loroDoc as any }),
         history(),
         keymap({
-          "Mod-z": (st, dispatch) => loroUndo(st, dispatch) || pmUndo(st, dispatch),
-          "Mod-y": (st, dispatch) => loroRedo(st, dispatch) || pmRedo(st, dispatch),
-          "Mod-Shift-z": (st, dispatch) => loroRedo(st, dispatch) || pmRedo(st, dispatch),
+          "Mod-z": undo,
+          "Mod-y": redo,
+          "Mod-Shift-z": redo,
         }),
         keymap(baseKeymap),
       ],
@@ -60,20 +46,22 @@
     mounted = false;
   });
 
-  // ── public API (exported so bind:this callers can access) ──────
+  // ── public API ────────────────────────────────────────────────
 
   export function appendCard(header: string, fullCard: string) {
     if (!view) return;
     const { state } = view;
-    const { schema } = state;
     const end = state.doc.content.size;
     const nodes = [
-      schema.nodes.block.create({ id: crypto.randomUUID() }, header ? schema.text(header) : undefined),
+      state.schema.nodes.block.create(
+        { id: crypto.randomUUID() },
+        header ? state.schema.text(header) : undefined,
+      ),
       ...fullCard
         .split("\n")
         .map((l) => l.trim())
         .filter((l) => l && l !== header)
-        .map((line) => schema.nodes.card_body.create({}, schema.text(line))),
+        .map((line) => state.schema.nodes.card_body.create({}, state.schema.text(line))),
     ];
     view.dispatch(state.tr.insert(end, nodes).scrollIntoView());
   }
@@ -103,13 +91,12 @@
     view.dispatch(state.tr.insert(pos, nodes).scrollIntoView());
   }
 
-  // ── toolbar helpers ────────────────────────────────────────────
+  // ── toolbar ───────────────────────────────────────────────────
 
   function runToggleMark(markName: string) {
     if (!view) return;
     const mark = debateSchema.marks[markName];
-    if (!mark) return;
-    toggleMark(mark)(view.state, view.dispatch);
+    if (mark) toggleMark(mark)(view.state, view.dispatch);
     view.focus();
   }
 
@@ -127,9 +114,7 @@
     const mark = debateSchema.marks[markName];
     if (!mark) return false;
     const sel = view.state.selection;
-    if (sel.empty) {
-      return !!mark.isInSet(view.state.storedMarks ?? sel.$from.marks());
-    }
+    if (sel.empty) return !!mark.isInSet(view.state.storedMarks ?? sel.$from.marks());
     return view.state.doc.rangeHasMark(sel.from, sel.to, mark);
   }
 </script>
@@ -179,7 +164,6 @@
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     flex-shrink: 0;
-    flex-wrap: wrap;
   }
   .toolbar-group { display: flex; align-items: center; gap: 2px; }
   .toolbar-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
@@ -240,13 +224,11 @@
   }
   :global([data-theme="dark"]) :global(.ProseMirror) { color: #e8e8e8; }
   :global(.ProseMirror p) { margin: 0 0 6px; }
-  :global(.ProseMirror p:last-child) { margin-bottom: 0; }
   :global(.pm-pocket) { font-size: 16pt; font-weight: 700; margin: 20px 0 6px; border-bottom: 2px solid #333; padding-bottom: 2px; }
   :global(.pm-hat)    { font-size: 13pt; font-weight: 700; margin: 14px 0 4px; color: #1a4fa8; }
   :global(.pm-block)  { font-size: 12pt; font-weight: 700; margin: 10px 0 2px; }
-  :global(.pm-tag)    { font-size: 11pt; text-decoration: underline; margin: 4px 0 2px; color: #333; }
+  :global(.pm-tag)    { font-size: 11pt; text-decoration: underline; margin: 4px 0 2px; }
   :global(.pm-card-body) { font-size: 10pt; color: #555; margin: 2px 0; line-height: 1.4; }
   :global([data-theme="dark"]) :global(.pm-hat) { color: #7fb5ff; }
-  :global([data-theme="dark"]) :global(.pm-tag) { color: #ccc; }
   :global([data-theme="dark"]) :global(.pm-card-body) { color: #999; }
 </style>
