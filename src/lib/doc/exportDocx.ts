@@ -51,12 +51,17 @@ function paraXml(node: PMNode, styleName: string): string {
 }
 
 function walk(node: PMNode, out: string[]): void {
-  const style = P_STYLE[node.type.name];
+  const name = node.type.name;
+  // Analytics are your own in-round analysis — omitted from the sent .docx
+  // (matches CardMirror's stripAnalytics on export). Drop the whole unit and
+  // any in-card analytic heading.
+  if (name === "analytic_unit" || name === "analytic") return;
+  const style = P_STYLE[name];
   if (style && node.inlineContent) {
     out.push(paraXml(node, style));
     return;
   }
-  // Container (doc, card, analytic_unit) — recurse into children.
+  // Container (doc, card) — recurse into children.
   node.forEach((child) => walk(child, out));
 }
 
