@@ -8,6 +8,8 @@
   import RoundHome from "./RoundHome.svelte";
   import SpreadView from "./SpreadView.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
+  import DocSearch from "$lib/search/DocSearch.svelte";
+  import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
 
   let { onexit }: { onexit: () => void } = $props();
 
@@ -55,6 +57,23 @@
     dragOverIdx = null;
   }
   let showSettings = $state(false);
+  let showDocSearch = $state(false);
+  let docOpen = $state(false);
+  let docWidth = $state(480);
+  interface DocAPI { appendCard(h: string, c: string): void; appendBlocks(l: string[]): void; insertAtCursor(h: string, c: string): void; }
+  let docRef = $state<DocAPI | null>(null);
+  let resizingDoc = $state(false);
+
+  function startDocResize(e: PointerEvent) {
+    resizingDoc = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onDocResizeMove(e: PointerEvent) {
+    if (!resizingDoc) return;
+    const newWidth = window.innerWidth - e.clientX;
+    docWidth = Math.min(window.innerWidth * 0.65, Math.max(320, newWidth));
+  }
+  function stopDocResize() { resizingDoc = false; }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
   // Tab right-click menu + inline rename.
@@ -258,6 +277,12 @@
     } else if (matchesAny(e, km.openSettings)) {
       e.preventDefault();
       showSettings = !showSettings;
+    } else if (matchesAny(e, km.openDocSearch)) {
+      e.preventDefault();
+      showDocSearch = !showDocSearch;
+    } else if (mod && e.key === "d" && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      docOpen = !docOpen;
     } else if (mod && /^[1-9]$/.test(e.key)) {
       const idx = Number(e.key) - 1;
       const target = round?.sheets[idx];
@@ -356,6 +381,7 @@
         {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
       </span>
       <span class="spacer"></span>
+      <button class="icon-btn" class:active={docOpen} onclick={() => (docOpen = !docOpen)} title="Speech doc (⌘D)">📄</button>
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙</button>
       <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?</button>
     </div>
@@ -366,19 +392,36 @@
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
 
-    {#if spread && round}
-      <SpreadView
-        sheets={round.sheets}
-        hidden={hiddenInSpread}
-        direction={spreadMode === "horizontal" ? "horizontal" : "vertical"}
-        ontoggle={toggleSheetOnDesk}
-        onset={(h) => (hiddenInSpread = h)}
-      />
-    {:else if atHome || !sheet}
-      <RoundHome onopensheet={openSheet} />
-    {:else}
-      <Grid {sheet} />
-    {/if}
+    <!-- Split workspace: flow on left, speech doc on right -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="workspace"
+      onpointermove={onDocResizeMove}
+      onpointerup={stopDocResize}
+    >
+      <div class="flow-pane">
+        {#if spread && round}
+          <SpreadView
+            sheets={round.sheets}
+            hidden={hiddenInSpread}
+            direction={spreadMode === "horizontal" ? "horizontal" : "vertical"}
+            ontoggle={toggleSheetOnDesk}
+            onset={(h) => (hiddenInSpread = h)}
+          />
+        {:else if atHome || !sheet}
+          <RoundHome onopensheet={openSheet} />
+        {:else}
+          <Grid {sheet} />
+        {/if}
+      </div>
+
+      {#if docOpen && !spread}
+        <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
+        <div class="doc-pane" style="width: {docWidth}px">
+          <SpeechDoc bind:this={docRef} />
+        </div>
+      {/if}
+    </div>
 
     {#if settings.tabsPosition === "bottom"}{@render tabs()}{/if}
 
@@ -421,6 +464,10 @@
       <SettingsPanel onclose={() => (showSettings = false)} />
     {/if}
 
+    {#if showDocSearch}
+      <DocSearch onclose={() => (showDocSearch = false)} {docRef} />
+    {/if}
+
     {#if showHelp}
       <div class="help">
         <h3>Keybinds</h3>
@@ -444,6 +491,7 @@
             <tr><td><kbd>{combosLabel(km.moveSheetLeft, mac)}</kbd> / <kbd>{combosLabel(km.moveSheetRight, mac)}</kbd></td><td>Move sheet left / right</td></tr>
             <tr><td><kbd>{combosLabel(km.hoverPrevSheet, mac)}</kbd> / <kbd>{combosLabel(km.hoverNextSheet, mac)}</kbd></td><td>Hover sheets (Enter opens)</td></tr>
             <tr><td><kbd>{mac ? "⌘" : "Ctrl"}C</kbd> / <kbd>{mac ? "⌘" : "Ctrl"}V</kbd></td><td>Copy / paste cells (Excel-style)</td></tr>
+            <tr><td><kbd>{combosLabel(km.openDocSearch, mac)}</kbd></td><td>Doc Search (search prep files)</td></tr>
             <tr><td><kbd>{combosLabel(km.toggleSpread, mac)}</kbd></td><td>Spread view (tabs toggle sheets)</td></tr>
             <tr><td><kbd>{combosLabel(km.goHome, mac)}</kbd></td><td>Round home</td></tr>
             <tr><td><kbd>{combosLabel(km.newSheet, mac)}</kbd></td><td>New sheet</td></tr>
@@ -501,6 +549,40 @@
     justify-content: center;
     padding: 0;
     line-height: 1;
+  }
+  .icon-btn.active {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  /* Split workspace */
+  .workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .flow-pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .doc-divider {
+    width: 5px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .doc-divider:hover { background: var(--accent); }
+  .doc-pane {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 320px;
   }
   /* Excel-style sheet tab strip: flat joined tabs with dividers */
   .tabs {

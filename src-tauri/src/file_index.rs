@@ -3,7 +3,7 @@
 // app regains focus. No caching here — the frontend owns the cache.
 
 use serde::Serialize;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use walkdir::WalkDir;
 
 #[derive(Serialize)]
@@ -37,7 +37,7 @@ pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
     'outer: for root in &roots {
         let walker = WalkDir::new(root)
             .max_depth(MAX_DEPTH)
-            .follow_links(false) // don't follow symlinks to prevent loops
+            .follow_links(true) // Dropbox on macOS is a symlink — must follow it
             .into_iter();
 
         for entry in walker.filter_entry(|e| {

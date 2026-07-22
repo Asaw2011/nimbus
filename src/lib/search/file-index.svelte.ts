@@ -3,7 +3,6 @@
 // this module owns the in-memory cache and the fuzzy scoring logic.
 
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { saveBlob, loadBlobCached } from "$lib/model/blobs";
 import { settings } from "$lib/model/settings.svelte";
 

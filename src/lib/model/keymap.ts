@@ -30,7 +30,8 @@ export type ActionId =
   | "toggleSpread"
   | "goHome"
   | "toggleHelp"
-  | "openSettings";
+  | "openSettings"
+  | "openDocSearch";
 
 export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowBelow: "Insert row below",
@@ -54,6 +55,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   goHome: "Round home",
   toggleHelp: "Show keybinds",
   openSettings: "Open settings",
+  openDocSearch: "Doc Search (search prep files)",
 };
 
 /** Each action can have any number of bindings (including none). */
@@ -79,6 +81,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   goHome: [{ key: "0", mod: true }],
   toggleHelp: [{ key: "/", mod: true }],
   openSettings: [{ key: ",", mod: true }],
+  openDocSearch: [{ key: "k", mod: true }],
 };
 
 export function matches(e: KeyboardEvent, combo: Combo): boolean {

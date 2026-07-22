@@ -8,7 +8,7 @@
   import { exportSettings, importSettings } from "../model/backup";
   import { uid } from "../model/types";
   import { checkForUpdate, type UpdateInfo } from "../updater";
-  import { fileIndex } from "../search/file-index";
+  import { fileIndex } from "../search/file-index.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -37,6 +37,27 @@
     const u = await checkForUpdate();
     checkingUpdate = false;
     updateStatus = u ? `Version ${u.version} is available — restart the app to see the install prompt.` : "Nimbus is up to date.";
+  }
+
+  // Search library
+  let libraryToast = $state("");
+  function flashLibraryToast(msg: string) {
+    libraryToast = msg;
+    setTimeout(() => (libraryToast = ""), 2500);
+  }
+  async function addLibraryFolder() {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({ directory: true, multiple: false, title: "Choose a folder to index" });
+    if (!path || typeof path !== "string") return;
+    const label = path.split("/").at(-1) ?? path;
+    const added = settings.addLibraryRoot(path, label);
+    if (!added) {
+      flashLibraryToast("Already in library.");
+      return;
+    }
+    // Trigger rescan immediately after adding
+    void fileIndex.scan();
   }
   const syntaxError = $derived(
     macroCode.trim() ? validateMacroCode(macroCode) : null,
@@ -534,6 +555,62 @@
     </section>
 
     <section>
+      <h3>Search Library</h3>
+      <p class="hint">
+        Add your Dropbox or prep folders. Nimbus indexes all .docx files inside
+        for Doc Search (⌘K) so you can find and drag blocks into the flow.
+      </p>
+      <div class="backup-row">
+        <button class="chip" onclick={addLibraryFolder}>+ Add folder</button>
+        {#if fileIndex.scanning}
+          <span class="lib-status">Scanning…</span>
+        {:else if fileIndex.files.length > 0}
+          <span class="lib-status">{fileIndex.files.length} files indexed</span>
+        {/if}
+      </div>
+      {#if libraryToast}
+        <p class="backup-status">{libraryToast}</p>
+      {/if}
+      {#if fileIndex.error}
+        <p class="backup-status lib-err">{fileIndex.error}</p>
+      {/if}
+      {#each settings.libraryRoots as root (root.id)}
+        <div class="lib-root">
+          <label class="lib-toggle">
+            <input
+              type="checkbox"
+              checked={root.enabled}
+              onchange={(e) => {
+                settings.updateLibraryRoot(root.id, { enabled: (e.currentTarget as HTMLInputElement).checked });
+                void fileIndex.scan();
+              }}
+            />
+          </label>
+          <div class="lib-info">
+            <input
+              class="lib-label"
+              value={root.label}
+              oninput={(e) =>
+                settings.updateLibraryRoot(root.id, { label: (e.currentTarget as HTMLInputElement).value })}
+            />
+            <span class="lib-path">{root.path}</span>
+          </div>
+          <button
+            class="lib-remove"
+            onclick={() => {
+              settings.removeLibraryRoot(root.id);
+              void fileIndex.scan();
+            }}
+            title="Remove"
+          >×</button>
+        </div>
+      {/each}
+      {#if settings.libraryRoots.length === 0}
+        <p class="hint" style="margin-top: 6px">No folders added yet.</p>
+      {/if}
+    </section>
+
+    <section>
       <h3>Updates</h3>
       <div class="backup-row">
         <button class="chip" onclick={doCheckUpdate} disabled={checkingUpdate}>
@@ -889,5 +966,71 @@
     font-size: 12px;
     color: var(--text-dim);
     word-break: break-all;
+  }
+  .lib-status {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-left: 4px;
+  }
+  .lib-err {
+    color: var(--mark-dropped) !important;
+  }
+  .lib-root {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .lib-root:last-of-type {
+    border-bottom: none;
+  }
+  .lib-toggle input {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+  }
+  .lib-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lib-label {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0;
+    width: 100%;
+  }
+  .lib-label:focus {
+    outline: 1px solid var(--accent);
+    border-radius: 2px;
+  }
+  .lib-path {
+    font-size: 11px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lib-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .lib-remove:hover {
+    color: var(--mark-dropped);
+    background: color-mix(in srgb, var(--mark-dropped) 12%, transparent);
   }
 </style>
