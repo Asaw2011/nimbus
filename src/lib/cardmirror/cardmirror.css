@@ -155,12 +155,10 @@
  * band), underlined (the cut), emphasis-boxed, and the bold cite — flowing
  * inline. This matches how the cut reads in the round. */
 
-/* Runs with no read marker get this class from the read-mode plugin — that's
- * the unread text. Collapse each to a single space (not display:none) so the
- * surrounding read words don't jam together into "failedsystem". */
-.pmd-document.pmd-read-mode .pmd-rm-hide,
-.pmd-document.pmd-read-mode .pmd-rm-hide * { font-size: 0 !important; }
-.pmd-document.pmd-read-mode .pmd-rm-hide::after { content: " "; font-size: 12pt; }
+/* Unread runs (no read marker) get this class from the read-mode plugin — the
+ * plugin also inserts a real space after each so read words never jam. */
+.pmd-document.pmd-read-mode .pmd-rm-hide { display: none; }
+.pmd-document.pmd-read-mode .pmd-rm-sep { white-space: pre; }
 /* Also hide undertags and stray non-card paragraphs. */
 .pmd-document.pmd-read-mode .pmd-undertag { display: none; }
 .pmd-document.pmd-read-mode .ProseMirror > p { display: none; }

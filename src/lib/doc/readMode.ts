@@ -21,14 +21,26 @@ const READ_MARKS = new Set(["highlight", "cite_mark"]);
 // Only hide runs inside these evidence containers (never headings).
 const BODY_NODES = new Set(["card_body", "cite_paragraph"]);
 
+function spaceWidget(): HTMLElement {
+  const s = document.createElement("span");
+  s.textContent = " ";
+  s.className = "pmd-rm-sep";
+  return s;
+}
+
 function buildDecos(doc: PMNode, on: boolean): DecorationSet {
   if (!on) return DecorationSet.empty;
   const decos: Decoration[] = [];
   doc.descendants((node, pos, parent) => {
     if (node.isText && parent && BODY_NODES.has(parent.type.name)) {
       const isRead = node.marks.some((m) => READ_MARKS.has(m.type.name));
-      if (!isRead) {
+      const isSpace = (node.text ?? "").trim() === "";
+      // Hide unread runs that carry actual text. Whitespace-only runs stay so
+      // the spacing between read words is preserved.
+      if (!isRead && !isSpace) {
         decos.push(Decoration.inline(pos, pos + node.nodeSize, { class: "pmd-rm-hide" }));
+        // Insert a real space where the hidden run was so read words never jam.
+        decos.push(Decoration.widget(pos + node.nodeSize, spaceWidget, { side: 1, key: "sp" + pos }));
       }
     }
     return true;
