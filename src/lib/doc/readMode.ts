@@ -14,15 +14,10 @@ interface ReadState {
   decos: DecorationSet;
 }
 
-// Marks that mean "this text is read aloud / part of the cut".
-const READ_MARKS = new Set([
-  "highlight",
-  "underline_mark",
-  "underline_direct",
-  "emphasis_mark",
-  "cite_mark",
-  "analytic_mark",
-]);
+// Marks that mean "this text is read aloud". Read mode shows ONLY the
+// highlighted (spoken) text — not underlined-only or emphasized-only runs.
+// The cite line (cite_mark) stays so you can read the source.
+const READ_MARKS = new Set(["highlight", "cite_mark"]);
 // Only hide runs inside these evidence containers (never headings).
 const BODY_NODES = new Set(["card_body", "cite_paragraph"]);
 

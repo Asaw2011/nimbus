@@ -172,4 +172,5 @@
 }
 /* Cite line stays on its own line, bold — hide the non-cite bracket detail. */
 .pmd-document.pmd-read-mode .pmd-cite-para .pmd-condensed { display: none; }
-/* Keep highlight bands, underline, emphasis boxes, and cite exactly as normal. */
+/* Drop emphasis boxes in read mode — you're reading, not marking. */
+.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
