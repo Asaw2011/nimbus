@@ -40,6 +40,8 @@ export interface DocNode {
   body: string[];
   /** Same paragraphs, but with run-level formatting preserved. */
   bodyRuns: DocRun[][];
+  /** This heading is an Analytic (rendered as CardMirror's analytic unit). */
+  isAnalytic?: boolean;
 }
 
 export interface ParsedDoc {
@@ -156,7 +158,9 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
     const text = paragraphText(p);
     if (!text.trim()) continue;
 
-    const level = headingLevel(p);
+    const analytic = isAnalyticStyle(p);
+    // Analytics behave like a tag-level heading (they carry their own body).
+    const level = analytic ? 4 : headingLevel(p);
     if (level === null) {
       // Body text belongs to the deepest open heading — keep both the plain
       // text (for the flow) and the styled runs (for the speech doc).
@@ -175,6 +179,7 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
       children: [],
       body: [],
       bodyRuns: [],
+      ...(analytic ? { isAnalytic: true } : {}),
     };
     while (stack.length > 0 && stack[stack.length - 1].level >= level) {
       stack.pop();
@@ -203,12 +208,31 @@ function headingLevel(p: Element): number | null {
   return null;
 }
 
+/** Verbatim's "Analytic" paragraph style (an argument without a card). */
+function isAnalyticStyle(p: Element): boolean {
+  const styles = p.getElementsByTagNameNS("*", "pStyle");
+  for (const s of Array.from(styles)) {
+    for (const attr of Array.from(s.attributes)) {
+      if (attr.localName === "val" && attr.value.toLowerCase().includes("analytic")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function paragraphText(p: Element): string {
   let out = "";
   for (const t of p.getElementsByTagNameNS("*", "t")) {
     out += t.textContent ?? "";
   }
   return out;
+}
+
+/** Short type chip for a node (shown on the flow cell it's dropped into). */
+export function nodeChip(node: DocNode): string {
+  if (node.isAnalytic) return "ANL";
+  return ["", "POC", "HAT", "BLK", "TAG"][node.level] ?? "TAG";
 }
 
 /** Flatten a top-level node into flowable lines (its heading descendants, in order). */

@@ -139,37 +139,6 @@
 .pmd-document .pmd-underline,
 .pmd-document .pmd-emphasis { font-variant-ligatures: none; }
 
-/* ── Type chips before each heading (POC / HAT / BLK / TAG) ──────── */
-.pmd-document .pmd-pocket::before,
-.pmd-document .pmd-hat::before,
-.pmd-document .pmd-block::before,
-.pmd-document .pmd-tag::before,
-.pmd-document .pmd-analytic::before {
-  display: inline-block;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #fff;
-  border-radius: 4px;
-  padding: 1px 4px;
-  margin-right: 6px;
-  vertical-align: middle;
-  line-height: 1.4;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.pmd-document .pmd-pocket::before   { content: "POC"; background: #6b52d1; }
-.pmd-document .pmd-hat::before      { content: "HAT"; background: #8a63d2; }
-.pmd-document .pmd-block::before    { content: "BLK"; background: #c0392b; }
-.pmd-document .pmd-tag::before      { content: "TAG"; background: #2e8b57; }
-.pmd-document .pmd-analytic::before { content: "ANL"; background: #b8860b; }
-/* No chips in read mode (you're reading, not navigating). */
-.pmd-document.pmd-read-mode .pmd-pocket::before,
-.pmd-document.pmd-read-mode .pmd-hat::before,
-.pmd-document.pmd-read-mode .pmd-block::before,
-.pmd-document.pmd-read-mode .pmd-tag::before,
-.pmd-document.pmd-read-mode .pmd-analytic::before { display: none; }
-
 /* ProseMirror base */
 .pmd-document .ProseMirror { outline: none; word-break: break-word; }
 .pmd-document .ProseMirror:focus { outline: none; }
@@ -183,17 +152,21 @@
 .pmd-document.pmd-read-mode .pmd-undertag,
 .pmd-document.pmd-read-mode .ProseMirror > p { display: none; }
 
+/* Zero out ALL card-body / cite text (including the inline font-size that the
+ * condensed/unread runs carry), then restore only the spoken text. */
 .pmd-document.pmd-read-mode .pmd-card-body,
-.pmd-document.pmd-read-mode .pmd-cite-para {
+.pmd-document.pmd-read-mode .pmd-card-body *,
+.pmd-document.pmd-read-mode .pmd-cite-para,
+.pmd-document.pmd-read-mode .pmd-cite-para * {
   font-size: 0 !important;
   line-height: 1.5;
 }
-/* Restore the spoken (highlighted) text and cite text. */
+/* Restore the spoken (highlighted) text and the cite line. */
 .pmd-document.pmd-read-mode .pmd-card-body .pmd-highlight,
 .pmd-document.pmd-read-mode .pmd-card-body .pmd-highlight *,
 .pmd-document.pmd-read-mode .pmd-cite-para .pmd-cite,
 .pmd-document.pmd-read-mode .pmd-cite-para .pmd-cite * {
-  font-size: 11pt !important;
+  font-size: 12pt !important;
 }
 /* Read-mode highlighted text: no background band, just plain black —
  * you're reading it, not marking it. */

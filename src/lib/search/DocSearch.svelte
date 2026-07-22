@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fileIndex, relativeTime, type LibFile } from "./file-index.svelte";
-  import { parseDocx, type DocNode } from "$lib/docx/parse";
+  import { parseDocx, nodeChip, type DocNode } from "$lib/docx/parse";
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
@@ -123,7 +123,9 @@
           const nCols = r.template.speeches.length;
           sheet.rows.push({ id: crypto.randomUUID(), cells: Array.from({ length: nCols }, () => ({ text: "" })) });
         }
-        sheet.rows[row].cells[col].text = node.text;
+        const cell = sheet.rows[row].cells[col];
+        cell.text = node.text;
+        cell.chip = nodeChip(node);
       });
     }
     onappenddoc?.(node);

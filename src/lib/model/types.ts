@@ -44,6 +44,8 @@ export interface Cell {
   marks?: CellMarks;
   /** Extension arrow: this cell continues an argument from an earlier speech. */
   ext?: boolean;
+  /** Source type chip (POC/HAT/BLK/TAG/ANL) when dragged in from Doc Search. */
+  chip?: string;
 }
 
 export interface Row {

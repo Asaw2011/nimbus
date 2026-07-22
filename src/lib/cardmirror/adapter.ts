@@ -57,16 +57,20 @@ function bodyNodes(node: DocNode): PMNode[] {
 }
 
 function emit(node: DocNode, out: PMNode[]): void {
-  if (node.level >= 4) {
+  if (node.isAnalytic) {
+    // Analytic → CardMirror analytic_unit: analytic heading + its body.
+    const heading = schema.nodes.analytic.create({ id: crypto.randomUUID() }, headingInline(node));
+    const bodies = bodyNodes(node);
+    out.push(schema.nodes.analytic_unit.create(null, [heading, ...bodies]));
+  } else if (node.level >= 4) {
     // Tag → a proper CardMirror card: tag heading + card body paragraphs.
-    const tagInline = headingInline(node);
-    const tag = schema.nodes.tag.create(null, tagInline);
+    const tag = schema.nodes.tag.create(null, headingInline(node));
     const bodies = bodyNodes(node);
     out.push(schema.nodes.card.create(null, [tag, ...bodies]));
   } else {
     const type = node.level <= 1 ? "pocket" : node.level === 2 ? "hat" : "block";
     out.push(schema.nodes[type].create(null, headingInline(node)));
-    // A block's own body (analytics/overviews under it) → card_body at doc level.
+    // A heading's own body (overviews under a block/hat) → card_body at doc level.
     out.push(...bodyNodes(node));
   }
   for (const child of node.children) emit(child, out);

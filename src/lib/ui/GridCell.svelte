@@ -242,6 +242,9 @@
   {#if cell.ext}
     <span class="ext-arrow" title="Extended from an earlier speech">➜</span>
   {/if}
+  {#if cell.chip}
+    <span class="cell-chip chip-{cell.chip}">{cell.chip}</span>
+  {/if}
   <div
     bind:this={editor}
     class="editor"
@@ -294,6 +297,27 @@
   .cell:has(.ext-arrow) {
     border-left: 3px solid var(--accent);
   }
+  .cell-chip {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    color: #fff;
+    border-radius: 3px;
+    padding: 0 3px;
+    line-height: 1.5;
+    z-index: 2;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+  .chip-POC { background: #6b52d1; }
+  .chip-HAT { background: #8a63d2; }
+  .chip-BLK { background: #c0392b; }
+  .chip-TAG { background: #2e8b57; }
+  .chip-ANL { background: #b8860b; }
   .editor[data-ph]:not([data-ph=""]):empty::before {
     content: attr(data-ph);
     color: var(--text-dim);

@@ -64,17 +64,22 @@
     dropTargetCell = null;
     const raw = e.dataTransfer?.getData("text/nimbus-block");
     if (!raw) return;
-    let payload: { header: string; fullCard: string; node?: unknown };
+    let payload: { header: string; fullCard: string; node?: { level: number; isAnalytic?: boolean } };
     try { payload = JSON.parse(raw); } catch { return; }
     const cell = cellAt(e as unknown as MouseEvent);
     if (!cell) return;
     const { r, c } = cell;
+    const chip = payload.node
+      ? (payload.node.isAnalytic ? "ANL" : ["", "POC", "HAT", "BLK", "TAG"][payload.node.level] ?? "TAG")
+      : undefined;
     // Write header into the cell
     store.mutate((round) => {
       const s = round.sheets.find((s) => s.id === sheet.id);
       if (!s) return;
       store.ensureRows(r, s);
-      s.rows[r].cells[c].text = payload.header;
+      const dc = s.rows[r].cells[c];
+      dc.text = payload.header;
+      if (chip) dc.chip = chip;
     });
     store.cursor = { row: r, col: c };
     // Notify FlowView to append the rich card to the speech doc
