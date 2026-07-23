@@ -61,6 +61,8 @@ export interface Persisted {
   macros: Macro[];
   /** How many rows the bulk insert actions add (default 3, clamped 2–50). */
   bulkRows: number;
+  /** Grid zoom factor (default 1, clamped 0.5–2.5). */
+  zoom: number;
   /** Folders to index for Doc Search (⌘K). */
   libraryRoots: LibraryRoot[];
   /** Speech-doc display typography (matches CardMirror's per-user settings). */
@@ -79,6 +81,12 @@ export interface DocTypography {
 export function clampBulkRows(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_BULK_ROWS;
   return Math.min(50, Math.max(2, Math.round(n)));
+}
+
+/** Zoom is clamped to 0.5×–2.5×. */
+export function clampZoom(n: number): number {
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(2.5, Math.max(0.5, Math.round(n * 100) / 100));
 }
 
 export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
@@ -106,6 +114,7 @@ class Settings {
   fontSize = $state(13);
   rowHeight = $state(26);
   bulkRows = $state(DEFAULT_BULK_ROWS);
+  zoom = $state(1);
   keymap = $state<Record<ActionId, Combo[]>>(structuredClone(DEFAULT_KEYMAP));
   macros = $state<Macro[]>(defaultMacros());
   libraryRoots = $state<LibraryRoot[]>([]);
@@ -157,6 +166,7 @@ class Settings {
     if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
+    if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -192,6 +202,7 @@ class Settings {
       showTutorial: this.showTutorial,
       defaultSaveFormat: this.defaultSaveFormat,
       bulkRows: this.bulkRows,
+      zoom: this.zoom,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
@@ -281,6 +292,14 @@ class Settings {
     this.bulkRows = clampBulkRows(n);
     this.save();
   }
+
+  setZoom(n: number): void {
+    this.zoom = clampZoom(n);
+    this.save();
+  }
+  zoomIn(): void { this.setZoom(this.zoom + 0.1); }
+  zoomOut(): void { this.setZoom(this.zoom - 0.1); }
+  zoomReset(): void { this.setZoom(1); }
 
   /** Human label of whatever a combo is currently bound to, or null. */
   findBinding(combo: Combo): string | null {

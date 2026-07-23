@@ -31,7 +31,10 @@ export type ActionId =
   | "goHome"
   | "toggleHelp"
   | "openSettings"
-  | "openDocSearch";
+  | "openDocSearch"
+  | "zoomIn"
+  | "zoomOut"
+  | "zoomReset";
 
 export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowBelow: "Insert row below",
@@ -56,6 +59,9 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   toggleHelp: "Show keybinds",
   openSettings: "Open settings",
   openDocSearch: "Doc Search (search prep files)",
+  zoomIn: "Zoom in",
+  zoomOut: "Zoom out",
+  zoomReset: "Reset zoom to 100%",
 };
 
 /** Each action can have any number of bindings (including none). */
@@ -82,6 +88,9 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   toggleHelp: [{ key: "/", mod: true }],
   openSettings: [{ key: ",", mod: true }],
   openDocSearch: [{ key: "k", mod: true }],
+  zoomIn: [{ key: "=", mod: true }],
+  zoomOut: [{ key: "-", mod: true }],
+  zoomReset: [{ key: "0", mod: true, shift: true }],
 };
 
 /** Default count for the two bulk row-insert actions. User-editable in Settings. */

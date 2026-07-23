@@ -364,6 +364,15 @@
     } else if (matchesAny(e, km.openDocSearch)) {
       e.preventDefault();
       showDocSearch = !showDocSearch;
+    } else if (matchesAny(e, km.zoomReset)) {
+      e.preventDefault();
+      settings.zoomReset();
+    } else if (matchesAny(e, km.zoomIn)) {
+      e.preventDefault();
+      settings.zoomIn();
+    } else if (matchesAny(e, km.zoomOut)) {
+      e.preventDefault();
+      settings.zoomOut();
     } else if (mod && e.key === "d" && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       docOpen = !docOpen;
@@ -496,7 +505,11 @@
           {:else if atHome || !sheet}
             <RoundHome onopensheet={openSheet} />
           {:else}
-            <Grid {sheet} onblockdrop={(node) => appendToDoc(node)} />
+            <!-- Zoom applies to the single main flow only (WebView2/Chromium
+                 `zoom`); the spread view zooms its own panels independently. -->
+            <div class="zoom-wrap" style="zoom: {settings.zoom}">
+              <Grid {sheet} onblockdrop={(node) => appendToDoc(node)} />
+            </div>
           {/if}
         </div>
       {/if}
@@ -677,6 +690,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  .zoom-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
   .doc-divider {
     width: 5px;

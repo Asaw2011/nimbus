@@ -159,6 +159,11 @@
     <div class="controls">
       <button class="rb" class:on={spreadMode === "vertical"} title="See several flows stacked, columns aligned ({combosLabel(km.toggleSpread, mac)})" onclick={() => onspread("vertical")}>▤ Stack</button>
       <button class="rb" class:on={spreadMode === "horizontal"} title="See several flows next to each other" onclick={() => onspread("horizontal")}>◫ Split</button>
+      <span class="zoom-ctl">
+        <button class="rb zoom-btn" title="Zoom out ({combosLabel(km.zoomOut, mac)})" onclick={() => settings.zoomOut()}>−</button>
+        <button class="rb zoom-pct" title="Reset zoom ({combosLabel(km.zoomReset, mac)})" onclick={() => settings.zoomReset()}>{Math.round(settings.zoom * 100)}%</button>
+        <button class="rb zoom-btn" title="Zoom in ({combosLabel(km.zoomIn, mac)})" onclick={() => settings.zoomIn()}>+</button>
+      </span>
     </div>
     <div class="caption">View</div>
   </div>
@@ -192,6 +197,14 @@
     align-items: center;
     gap: 3px;
   }
+  .zoom-ctl {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    gap: 1px;
+  }
+  .zoom-btn { min-width: 22px; padding: 2px 4px; }
+  .zoom-pct { min-width: 42px; padding: 2px 4px; font-variant-numeric: tabular-nums; }
   .caption {
     text-align: center;
     font-size: 9.5px;
