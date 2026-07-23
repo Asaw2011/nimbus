@@ -1,7 +1,7 @@
 <script lang="ts">
   import { settings } from "../model/settings.svelte";
   import type { ActionId, Combo } from "../model/keymap";
-  import { ACTION_LABELS, comboFromEvent, comboLabel } from "../model/keymap";
+  import { ACTION_LABELS, actionLabel, comboFromEvent, comboLabel } from "../model/keymap";
   import { THEMES } from "../model/settings.svelte";
   import { loadSnippets, saveSnippets } from "../model/snippets";
   import { validateMacroCode } from "../model/macros";
@@ -375,9 +375,21 @@
         Enter/Tab/arrows are fixed grid motions. Click a binding, then press the
         new keys. Esc cancels.
       </p>
+      <div class="row">
+        <label for="bulk-rows">Bulk insert count (⌥↵ / ⇧⌥↵)</label>
+        <input
+          id="bulk-rows"
+          class="num-field"
+          type="number"
+          min="2"
+          max="50"
+          value={settings.bulkRows}
+          onchange={(e) => settings.setBulkRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
+        />
+      </div>
       {#each actions as action (action)}
         <div class="row">
-          {ACTION_LABELS[action]}
+          {actionLabel(action, settings.bulkRows)}
           <span class="binds">
             {#each settings.keymap[action] ?? [] as combo, bi (bi)}
               <span class="bind-chip">

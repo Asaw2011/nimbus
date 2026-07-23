@@ -1,7 +1,7 @@
 // App-wide settings (Svelte 5 runes), persisted to localStorage.
 
 import type { ActionId, Combo } from "./keymap";
-import { ACTION_LABELS, DEFAULT_KEYMAP, sameCombo } from "./keymap";
+import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_KEYMAP, sameCombo } from "./keymap";
 import type { Macro } from "./macros";
 import { defaultMacros, migrateLegacyMacro } from "./macros";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
@@ -59,6 +59,8 @@ export interface Persisted {
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
   keymap: Partial<Record<ActionId, Combo | Combo[]>>;
   macros: Macro[];
+  /** How many rows the bulk insert actions add (default 3, clamped 2–50). */
+  bulkRows: number;
   /** Folders to index for Doc Search (⌘K). */
   libraryRoots: LibraryRoot[];
   /** Speech-doc display typography (matches CardMirror's per-user settings). */
@@ -71,6 +73,12 @@ export interface DocTypography {
   emphasisItalic: boolean;
   /** Emphasis box thickness in pt. */
   emphasisBoxSize: number;
+}
+
+/** Bulk-row count is clamped to a sane 2–50 range. */
+export function clampBulkRows(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_BULK_ROWS;
+  return Math.min(50, Math.max(2, Math.round(n)));
 }
 
 export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
@@ -97,6 +105,7 @@ class Settings {
   fontFamily = $state("");
   fontSize = $state(13);
   rowHeight = $state(26);
+  bulkRows = $state(DEFAULT_BULK_ROWS);
   keymap = $state<Record<ActionId, Combo[]>>(structuredClone(DEFAULT_KEYMAP));
   macros = $state<Macro[]>(defaultMacros());
   libraryRoots = $state<LibraryRoot[]>([]);
@@ -147,6 +156,7 @@ class Settings {
     if (p.rowHeight) this.rowHeight = p.rowHeight;
     if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
+    if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -181,6 +191,7 @@ class Settings {
       rowHeight: this.rowHeight,
       showTutorial: this.showTutorial,
       defaultSaveFormat: this.defaultSaveFormat,
+      bulkRows: this.bulkRows,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
@@ -266,11 +277,16 @@ class Settings {
     this.save();
   }
 
+  setBulkRows(n: number): void {
+    this.bulkRows = clampBulkRows(n);
+    this.save();
+  }
+
   /** Human label of whatever a combo is currently bound to, or null. */
   findBinding(combo: Combo): string | null {
     for (const [action, combos] of Object.entries(this.keymap)) {
       if (combos.some((c) => sameCombo(c, combo))) {
-        return ACTION_LABELS[action as ActionId];
+        return actionLabel(action as ActionId, this.bulkRows);
       }
     }
     for (const m of this.macros) {

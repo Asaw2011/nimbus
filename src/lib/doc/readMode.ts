@@ -37,10 +37,15 @@ function buildDecos(doc: PMNode, on: boolean): DecorationSet {
   // "_" dash otherwise. Everything else is hidden. To keep the shown words from
   // jamming together we drop exactly ONE space where a hidden GROUP was, not one
   // per hidden run (that produced huge gaps through long stretches of cut text).
+  // ONE space is dropped wherever hidden content — a run, or a whole body —
+  // separates two surviving words. `pendingGap` persists ACROSS bodies (there is
+  // no per-body CSS spacer any more; this plugin is the sole spacing authority),
+  // so no matter how many hidden runs or fully-hidden paragraphs sit between two
+  // read-aloud words, they end up exactly one space apart — never a big gap.
+  let pendingGap = false;
   doc.descendants((node, pos) => {
     if (!BODY_NODES.has(node.type.name)) return true;
     let childPos = pos + 1; // first inline child position
-    let pendingGap = false; // a hidden run since the last shown word
     let anyShown = false; // did this body contribute any read-aloud word?
     node.forEach((child) => {
       const from = childPos;
@@ -49,23 +54,24 @@ function buildDecos(doc: PMNode, on: boolean): DecorationSet {
       const isRead = child.marks.some((m) => READ_MARKS.has(m.type.name));
       const blank = !child.text || child.text.trim() === "";
       if (isRead && !blank) {
-        anyShown = true;
         // Shown word. If hidden content preceded it, insert one separating space.
         if (pendingGap) {
           decos.push(Decoration.widget(from, spaceWidget, { side: -1, key: "sp" + from }));
           pendingGap = false;
         }
+        anyShown = true;
       } else {
         decos.push(Decoration.inline(from, from + child.nodeSize, { class: "pmd-rm-hide" }));
         pendingGap = true;
       }
     });
-    // A body with no read-aloud word must be fully removed — otherwise its
-    // `::after` spacer (white-space: pre, non-collapsing) stacks with its
-    // neighbours' into a large gap between the words that survive.
+    // A body with no read-aloud word is removed entirely (its structure adds
+    // nothing). Either way, a body boundary counts as a gap, so the next
+    // surviving word gets a single separating space.
     if (!anyShown) {
       decos.push(Decoration.node(pos, pos + node.nodeSize, { class: "pmd-rm-hide" }));
     }
+    pendingGap = true;
     return false; // handled this body's inline content
   });
   return DecorationSet.create(doc, decos);

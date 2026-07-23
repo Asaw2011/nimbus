@@ -125,15 +125,20 @@
       store.cursor = { row: row + 1, col };
     } else if (matchesAny(e, km.insertRow3Above)) {
       e.preventDefault();
+      const n = settings.bulkRows;
       store.runBatch(() => {
-        for (let i = 0; i < 3; i++) store.insertRow(row);
+        for (let i = 0; i < n; i++) store.insertRow(row);
       });
-      store.cursor = { row: row + 3, col };
+      // Cursor stays on the original text, now pushed down by n rows.
+      store.cursor = { row: row + n, col };
     } else if (matchesAny(e, km.insertRow3Below)) {
       e.preventDefault();
+      const n = settings.bulkRows;
       store.runBatch(() => {
-        for (let i = 0; i < 3; i++) store.insertRow(row + 1);
+        for (let i = 0; i < n; i++) store.insertRow(row + 1);
       });
+      // Land on the first new row directly beneath (not the last one).
+      store.cursor = { row: row + 1, col };
     } else if (matchesAny(e, km.deleteRow)) {
       e.preventDefault();
       store.deleteRow(row);

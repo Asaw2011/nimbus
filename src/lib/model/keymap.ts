@@ -36,8 +36,8 @@ export type ActionId =
 export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowBelow: "Insert row below",
   insertRowAbove: "Insert row above",
-  insertRow3Below: "Insert 3 rows below",
-  insertRow3Above: "Insert 3 rows above",
+  insertRow3Below: "Insert several rows below",
+  insertRow3Above: "Insert several rows above",
   deleteRow: "Delete row",
   extendArg: "Extend argument (arrow to next speech)",
   markDropped: "Mark dropped",
@@ -83,6 +83,16 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   openSettings: [{ key: ",", mod: true }],
   openDocSearch: [{ key: "k", mod: true }],
 };
+
+/** Default count for the two bulk row-insert actions. User-editable in Settings. */
+export const DEFAULT_BULK_ROWS = 3;
+
+/** Action label, with the live bulk-row count folded into the two bulk actions. */
+export function actionLabel(action: ActionId, bulkRows: number): string {
+  if (action === "insertRow3Below") return `Insert ${bulkRows} rows below`;
+  if (action === "insertRow3Above") return `Insert ${bulkRows} rows above`;
+  return ACTION_LABELS[action];
+}
 
 export function matches(e: KeyboardEvent, combo: Combo): boolean {
   return (

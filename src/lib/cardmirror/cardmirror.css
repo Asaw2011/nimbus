@@ -188,10 +188,9 @@
   display: inline;
   margin: 0;
 }
-.pmd-document.pmd-read-mode .pmd-card-body::after {
-  content: " ";
-  white-space: pre;
-}
+/* No ::after spacer here — the read-mode plugin inserts exactly one space per
+ * hidden gap (including body boundaries). A CSS `pre` spacer stacked with those
+ * and, being non-collapsing, produced large gaps between surviving words. */
 /* Hide the trailing/hard breaks ProseMirror adds — they cause a stray line
  * break mid-sentence in read mode. The card should flow as one sentence. */
 .pmd-document.pmd-read-mode .pmd-card-body br,
