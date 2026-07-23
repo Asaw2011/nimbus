@@ -266,6 +266,64 @@ export function flowLines(node: DocNode): string[] {
   return lines;
 }
 
+// ---- section splitting (one sheet per position) ---------------------------
+// The naive "one sheet per top-level heading" collapses a 1NC's whole off-case
+// block (all under one "OFF" hat) into a single sheet. positionSections walks
+// past wrapper headings to the level that actually holds positions, and expands
+// an OFF *container* into its children — while keeping an "Adv---Costs" whole
+// (all of it answers one advantage → one sheet).
+
+/** A heading that merely groups off-cases: "OFF", "1NC — OFF", "Off-Case", … */
+function isOffContainer(node: DocNode): boolean {
+  const t = node.text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return (
+    /(^|\s)(off|offcase|off case|off-case)(\s|$)/.test(t) ||
+    /(^|\s)1nc\s*(shell|shells|off)?(\s|$)/.test(t) && node.children.length >= 2
+  ) && node.children.length >= 2;
+}
+
+/** Strip speech suffixes (Costs---1AC → Costs) and an Adv--- prefix. */
+export function cleanSectionTitle(raw: string): string {
+  let t = raw.trim();
+  t = t.replace(/^\s*adv(antage)?\s*[-–—:]+\s*/i, ""); // Adv---Costs → Costs
+  // Trailing speech marker: "Costs---1AC", "Impact — 2NC".
+  t = t.replace(/\s*[-–—]{1,3}\s*(1ac|2ac|1nc|2nc|1nr|2nr|1ar|2ar|cx|nc|nr|ac|ar)\s*$/i, "");
+  return t.trim() || raw.trim();
+}
+
+/**
+ * Turn the parsed heading tree into the list of position-level sections, one
+ * per sheet. Descends through single wrapper headings (doc title → hat), then
+ * for each child either expands it (OFF container) or keeps it whole.
+ */
+export function positionSections(roots: DocNode[]): DocNode[] {
+  // Unwrap a single top wrapper (e.g. the doc title) down to where breadth begins.
+  let level = roots;
+  while (level.length === 1 && level[0].children.length > 0 && (level[0].body?.length ?? 0) === 0) {
+    level = level[0].children;
+  }
+  const out: DocNode[] = [];
+  for (const node of level) {
+    if (isOffContainer(node)) out.push(...node.children);
+    else out.push(node);
+  }
+  return out.length ? out : roots;
+}
+
+/** Generic section names (OFF, 1NC) get numbered "Off 1", "Off 2" in order. */
+export function sectionTitles(sections: DocNode[]): string[] {
+  let offN = 0;
+  return sections.map((s) => {
+    const clean = cleanSectionTitle(s.text);
+    const t = clean.toLowerCase().replace(/[^a-z0-9]+/g, "").trim();
+    if (t === "off" || t === "offcase" || t === "1nc" || t === "") {
+      offN += 1;
+      return `Off ${offN}`;
+    }
+    return clean;
+  });
+}
+
 // ---- matching answer docs to existing sheets ------------------------------
 // A 2AC doc says "AT: Cap K" / "A2 Econ DA" — strip the answer prefixes and
 // fuzzy-match against existing sheet titles so answers land on the right flow.

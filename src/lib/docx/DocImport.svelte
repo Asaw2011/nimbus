@@ -5,7 +5,7 @@
   // Import an opponent's speech doc: each selected top-level section becomes
   // a sheet, its heading tree becomes rows in the chosen speech column.
 
-  import { parseDocx, flowLines, guessTargetSheet, type ParsedDoc, type DocNode } from "./parse";
+  import { parseDocx, flowLines, guessTargetSheet, positionSections, sectionTitles, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow } from "../model/types";
 
@@ -16,6 +16,8 @@
   let checked = $state<boolean[]>([]);
   /** Per section: "new" = create a sheet, else the id of an existing sheet. */
   let targets = $state<string[]>([]);
+  /** Cleaned + numbered display titles, one per section (parallel to nodes). */
+  let titles = $state<string[]>([]);
   let speechIdx = $state(0);
   /** "auto" or a heading level 1–4 chosen by the user. */
   let splitLevel = $state<"auto" | 1 | 2 | 3 | 4>("auto");
@@ -41,6 +43,11 @@
    * Falls back to the single-chain unwrap if no level clears 3 nodes.
    */
   function autoSplit(roots: DocNode[]): DocNode[] {
+    // Prefer position-aware splitting: descend past wrappers and expand an
+    // "OFF" container so each off-case becomes its own sheet (an Adv--- stays
+    // whole). This fixes a 1NC collapsing its whole off-case block into one sheet.
+    const positions = positionSections(roots);
+    if (positions.length >= 2) return positions;
     for (const level of [1, 2, 3, 4] as const) {
       const at = nodesAtLevel(roots, level);
       if (at.length >= 3) return at;
@@ -128,11 +135,14 @@
         const nodes = applySplit(rawNodes, "auto");
         parsed = { ...base, nodes };
         checked = nodes.map(() => true);
+        titles = sectionTitles(nodes);
         // Guess where each section belongs: an answer doc ("AT: Cap K")
         // matches the existing Cap K sheet; unmatched sections make new ones.
+        // Match on the cleaned display title, not the raw "OFF" heading, so
+        // off-cases don't all collapse onto one sheet.
         const sheets = store.round?.sheets ?? [];
         targets = nodes.map(
-          (n) => guessTargetSheet(n.text, sheets) ?? "new",
+          (n, i) => guessTargetSheet(titles[i] ?? n.text, sheets) ?? "new",
         );
         // Column guess, strongest signal first. Always overridable.
         const fromRound = guessColumnFromRound(targets);
@@ -168,13 +178,14 @@
     const sheets = store.round?.sheets ?? [];
     parsed = { ...parsed, nodes };
     checked = nodes.map(() => true);
-    targets = nodes.map((n) => guessTargetSheet(n.text, sheets) ?? "new");
+    titles = sectionTitles(nodes);
+    targets = nodes.map((n, i) => guessTargetSheet(titles[i] ?? n.text, sheets) ?? "new");
   });
 
   function apply() {
     if (!parsed || !store.round) return;
     const jobs = parsed.nodes
-      .map((node, i) => ({ node, target: targets[i], on: checked[i] }))
+      .map((node, i) => ({ node, target: targets[i], title: titles[i] ?? node.text, on: checked[i] }))
       .filter((j) => j.on);
     if (jobs.length === 0) return;
     const col = speechIdx;
@@ -186,7 +197,7 @@
 
     // One mutate = the whole import is a single undo step.
     store.mutate((r) => {
-      for (const { node, target } of jobs) {
+      for (const { node, target, title } of jobs) {
         const lines = flowLines(node);
         const existing = r.sheets.find((s) => s.id === target);
         if (existing) {
@@ -206,14 +217,14 @@
           filled++;
         } else {
           const sheet = makeSheet(
-            node.text,
+            title,
             nCols,
             kind,
             col,
             Math.max(INITIAL_ROWS, lines.length + 4),
           );
           // Row 0 is the LABEL cell; content follows below it.
-          sheet.rows[0].cells[col].text = node.text;
+          sheet.rows[0].cells[col].text = title;
           lines.forEach((line, i) => {
             while (sheet.rows.length <= i + 1) sheet.rows.push(makeRow(nCols));
             sheet.rows[i + 1].cells[col].text = line;
