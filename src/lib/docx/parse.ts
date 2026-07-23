@@ -273,7 +273,8 @@ function paragraphText(p: Element): string {
 /** Short type chip for a node (shown on the flow cell it's dropped into). */
 export function nodeChip(node: DocNode): string {
   if (node.isAnalytic) return "ANL";
-  return ["", "POC", "HAT", "BLK", "TAG"][node.level] ?? "TAG";
+  // Level 4 is a CARD (a tag is just the front of a card — never labelled "TAG").
+  return ["", "POC", "HAT", "BLK", "CARD"][node.level] ?? "CARD";
 }
 
 /** Flatten a top-level node into flowable lines (its heading descendants, in order). */

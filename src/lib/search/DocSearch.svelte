@@ -310,7 +310,7 @@
   // ── chips ─────────────────────────────────────────────────────
   const CHIPS: { id: "all" | 1 | 2 | 3 | 4 | "body"; label: string }[] = [
     { id: "all", label: "ALL" }, { id: 1, label: "POC" }, { id: 2, label: "HAT" },
-    { id: 3, label: "BLK" }, { id: 4, label: "TAG" }, { id: "body", label: "BODY" },
+    { id: 3, label: "BLK" }, { id: 4, label: "CARD" }, { id: "body", label: "BODY" },
   ];
   function chipFor(level: number): { label: string; cls: string } {
     return [
@@ -318,8 +318,8 @@
       { label: "POC", cls: "c-poc" },
       { label: "HAT", cls: "c-hat" },
       { label: "BLK", cls: "c-blk" },
-      { label: "TAG", cls: "c-tag" },
-    ][level] ?? { label: "TAG", cls: "c-tag" };
+      { label: "CARD", cls: "c-card" },
+    ][level] ?? { label: "CARD", cls: "c-card" };
   }
 
   // ── panel drag (move the whole panel) ─────────────────────────
@@ -585,7 +585,7 @@
   .c-poc { background: #6b52d1; }
   .c-hat { background: #8a63d2; }
   .c-blk { background: #c0392b; }
-  .c-tag { background: #2e8b57; }
+  .c-card { background: #2e8b57; }
   .ds-rowtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .ds-footer {

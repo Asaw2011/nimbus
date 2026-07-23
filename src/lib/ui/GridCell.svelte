@@ -486,7 +486,8 @@
   .chip-POC { background: #6b52d1; }
   .chip-HAT { background: #8a63d2; }
   .chip-BLK { background: #c0392b; }
-  .chip-TAG { background: #2e8b57; }
+  .chip-CARD { background: #2e8b57; }
+  .chip-TAG { background: #2e8b57; } /* legacy saved cells */
   .chip-ANL { background: #b8860b; }
   .editor[data-ph]:not([data-ph=""]):empty::before {
     content: attr(data-ph);
