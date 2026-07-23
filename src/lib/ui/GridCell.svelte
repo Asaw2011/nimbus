@@ -188,8 +188,8 @@
     if (lookupOpen) {
       if (e.key === "ArrowDown") { e.preventDefault(); lookupSel = Math.min(lookupSel + 1, Math.max(0, lookupMatches.length - 1)); return; }
       if (e.key === "ArrowUp") { e.preventDefault(); lookupSel = Math.max(0, lookupSel - 1); return; }
-      if (e.key === "Enter") { e.preventDefault(); chooseLookup(false); return; }
-      if (e.key === "Tab") { e.preventDefault(); chooseLookup(true); return; }
+      if (e.key === "Enter") { e.preventDefault(); chooseLookup(true); return; }
+      if (e.key === "Tab") { e.preventDefault(); chooseLookup(false); return; }
       if (e.key === "Escape") { e.preventDefault(); closeLookup(); return; }
     }
     if (matchesAny(e, km.authorLookup)) {
@@ -353,7 +353,7 @@
   ></div>
   {#if lookupOpen}
     <div class="author-lookup" role="listbox">
-      <div class="al-hint">↵ author · ⇥ author + tag · esc</div>
+      <div class="al-hint">↵ author + tag · ⇥ author · esc</div>
       {#if lookupMatches.length === 0}
         <div class="al-empty">
           {store.round?.cards?.length
@@ -367,7 +367,7 @@
           class:sel={mi === lookupSel}
           role="option"
           aria-selected={mi === lookupSel}
-          onmousedown={(e) => { e.preventDefault(); lookupSel = mi; chooseLookup(false); }}
+          onmousedown={(e) => { e.preventDefault(); lookupSel = mi; chooseLookup(true); }}
         >
           <b>{m.author}</b><span class="al-tag">{m.tag}</span>
         </button>
