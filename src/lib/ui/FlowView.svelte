@@ -501,7 +501,7 @@
         </div>
       {/if}
 
-      {#if docOpen && !spread}
+      {#if docOpen}
         {#if poppedOut}
           <div class="doc-divider"></div>
           <div class="doc-pane" style="width: {docWidth}px">

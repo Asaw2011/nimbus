@@ -77,16 +77,16 @@
     view.state.doc.descendants((node, pos) => {
       const lvl = HEADING_LEVEL[node.type.name];
       if (lvl !== undefined) {
-        // For a card, use its tag child's text as the label.
-        let text = node.textContent.trim();
-        if (node.type.name === "card") {
-          const tag = node.firstChild;
-          text = tag ? tag.textContent.trim() : "(card)";
+        // A card / analytic_unit is a wrapper whose first child is the heading
+        // (tag / analytic). Use that child's text and DON'T descend — otherwise
+        // the inner heading (also level 4) would push a second, doubled item.
+        if (node.type.name === "card" || node.type.name === "analytic_unit") {
+          const head = node.firstChild;
+          const text = head ? head.textContent.trim() : "";
+          items.push({ pos, level: lvl, text: text || "(untitled)" });
+          return false;
         }
-        if (node.type.name === "card") {
-          items.push({ pos, level: lvl, text: text || "(card)" });
-          return false; // don't descend into the card's tag again
-        }
+        const text = node.textContent.trim();
         items.push({ pos, level: lvl, text: text || "(untitled)" });
       }
       return undefined;
@@ -409,9 +409,25 @@
   }
 
   /** Insert CardMirror-schema nodes (from fromDocx) directly at the doc end. */
+  // A whitespace-only text run must never carry a *visible* character mark
+  // (emphasis box / cite / underline) — it renders as an empty box or a stray
+  // "_ _" gap. Strip those marks from blank runs before insert; keep highlight
+  // (a highlighted space is invisible and harmless, and preserves spacing).
+  function stripBlankRunMarks(node: unknown): void {
+    const o = node as { type?: string; text?: string; marks?: { type: string }[]; content?: unknown[] };
+    if (o.type === "text" && o.marks && !(o.text ?? "").trim()) {
+      o.marks = o.marks.filter(
+        (m) => m.type !== "emphasis_mark" && m.type !== "cite_mark" &&
+               m.type !== "underline_mark" && m.type !== "bold",
+      );
+    }
+    if (Array.isArray(o.content)) o.content.forEach(stripBlankRunMarks);
+  }
+
   export function appendCMNodes(jsonNodes: unknown[]) {
     if (!view || jsonNodes.length === 0) return;
     try {
+      jsonNodes.forEach(stripBlankRunMarks);
       const nodes = jsonNodes.map((j) => schema.nodeFromJSON(j));
       view.dispatch(view.state.tr.insert(view.state.doc.content.size, nodes).scrollIntoView());
     } catch (err) {

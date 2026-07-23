@@ -110,18 +110,6 @@
 .pmd-document .pmd-undertag-mark { color: var(--pmd-color-undertag); }
 .pmd-document .pmd-analytic-mark { font-weight: bold; color: var(--pmd-color-analytic); }
 
-/* Emphasis = boxed power words, bold AND underlined (part of the cut).
- * !important so nothing in the nested mark spans can override the box/underline. */
-.pmd-document .pmd-emphasis {
-  font-weight: bold !important;
-  text-decoration: underline !important;
-  border: 1px solid currentColor !important;
-  padding: 0 2px !important;
-  border-radius: 2px !important;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
 /* Highlight = spoken. Word's 15 named colours, OOXML-canonical RGBs. */
 .pmd-document .pmd-highlight { background: var(--pmd-c-highlight-default); }
 .pmd-document .pmd-highlight[data-highlight="yellow"]      { background: #ffff00; color: #000; }

@@ -31,18 +31,42 @@ function spaceWidget(): HTMLElement {
 function buildDecos(doc: PMNode, on: boolean): DecorationSet {
   if (!on) return DecorationSet.empty;
   const decos: Decoration[] = [];
-  doc.descendants((node, pos, parent) => {
-    if (node.isText && parent && BODY_NODES.has(parent.type.name)) {
-      const isRead = node.marks.some((m) => READ_MARKS.has(m.type.name));
-      // Hide every unread run (including underlined whitespace, which otherwise
-      // renders as stray "_ _ _" gaps). Insert one plain space where it was so
-      // the surrounding read words stay separated; adjacent spaces collapse.
-      if (!isRead) {
-        decos.push(Decoration.inline(pos, pos + node.nodeSize, { class: "pmd-rm-hide" }));
-        decos.push(Decoration.widget(pos + node.nodeSize, spaceWidget, { side: 1, key: "sp" + pos }));
+  // Walk each evidence body and decide, run by run, what's read aloud. A run is
+  // SHOWN only if it carries a read marker (highlight / cite) AND has a real
+  // (non-whitespace) character — a highlighted space renders as an empty box or
+  // "_" dash otherwise. Everything else is hidden. To keep the shown words from
+  // jamming together we drop exactly ONE space where a hidden GROUP was, not one
+  // per hidden run (that produced huge gaps through long stretches of cut text).
+  doc.descendants((node, pos) => {
+    if (!BODY_NODES.has(node.type.name)) return true;
+    let childPos = pos + 1; // first inline child position
+    let pendingGap = false; // a hidden run since the last shown word
+    let anyShown = false; // did this body contribute any read-aloud word?
+    node.forEach((child) => {
+      const from = childPos;
+      childPos += child.nodeSize;
+      if (!child.isText) return;
+      const isRead = child.marks.some((m) => READ_MARKS.has(m.type.name));
+      const blank = !child.text || child.text.trim() === "";
+      if (isRead && !blank) {
+        anyShown = true;
+        // Shown word. If hidden content preceded it, insert one separating space.
+        if (pendingGap) {
+          decos.push(Decoration.widget(from, spaceWidget, { side: -1, key: "sp" + from }));
+          pendingGap = false;
+        }
+      } else {
+        decos.push(Decoration.inline(from, from + child.nodeSize, { class: "pmd-rm-hide" }));
+        pendingGap = true;
       }
+    });
+    // A body with no read-aloud word must be fully removed — otherwise its
+    // `::after` spacer (white-space: pre, non-collapsing) stacks with its
+    // neighbours' into a large gap between the words that survive.
+    if (!anyShown) {
+      decos.push(Decoration.node(pos, pos + node.nodeSize, { class: "pmd-rm-hide" }));
     }
-    return true;
+    return false; // handled this body's inline content
   });
   return DecorationSet.create(doc, decos);
 }
