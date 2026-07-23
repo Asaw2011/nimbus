@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fileIndex, relativeTime, type LibFile } from "./file-index.svelte";
+  import { contentIndex } from "./content-index.svelte";
   import { parseDocx, nodeChip, type DocNode } from "$lib/docx/parse";
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -79,6 +80,8 @@
 
   // ── state ──────────────────────────────────────────────────────
   let mode = $state<"files" | "within">("files");
+  /** File-list search scope: by file NAME, or by CONTENT (headings inside). */
+  let searchBy = $state<"name" | "content">("name");
   let query = $state("");
   let prevQuery = $state("");
   let selectedIdx = $state(0);
@@ -98,6 +101,24 @@
 
   // ── file list ──────────────────────────────────────────────────
   const fileResults = $derived(fileIndex.search(query, 200));
+
+  // ── content results (by-content search) ────────────────────────
+  // Reference contentIndex.version so this recomputes as the index builds.
+  const contentResults = $derived.by(() => {
+    contentIndex.version;
+    return searchBy === "content" && query.trim()
+      ? contentIndex.search(query, 100)
+      : [];
+  });
+
+  // Kick off the (incremental, cached) content build when the user switches to
+  // by-content — never on startup, so it costs nothing unless you use it.
+  function ensureContentIndex() {
+    if (!contentIndex.building) void contentIndex.build();
+  }
+  $effect(() => {
+    if (searchBy === "content") ensureContentIndex();
+  });
 
   // ── tree rows (within-file) ────────────────────────────────────
   interface Row { node: DocNode; depth: number; key: string; hasKids: boolean; }
@@ -148,12 +169,17 @@
   });
 
   $effect(() => { rows; fileResults; if (selectedIdx >= activeLen()) selectedIdx = 0; });
-  function activeLen() { return mode === "files" ? fileResults.length : rows.length; }
+  function activeLen() {
+    if (mode !== "files") return rows.length;
+    return searchBy === "content" ? contentResults.length : fileResults.length;
+  }
 
   // ── dive into a file ──────────────────────────────────────────
-  async function diveInto(file: LibFile) {
+  // keepQuery: when diving from a by-content hit, carry the query in so the
+  // within-file tree lands right on the matching section.
+  async function diveInto(file: LibFile, keepQuery = false) {
     if (parseCache.has(file.path)) {
-      setDived(file, parseCache.get(file.path)!);
+      setDived(file, parseCache.get(file.path)!, keepQuery);
       return;
     }
     parsing = true; parseError = "";
@@ -162,16 +188,18 @@
       const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
       const parsed = parseDocx(new Uint8Array(bytes).buffer);
       parseCache.set(file.path, parsed.nodes);
-      setDived(file, parsed.nodes);
+      setDived(file, parsed.nodes, keepQuery);
     } catch (err) {
       parseError = `Could not read "${file.name}": ${err instanceof Error ? err.message : err}`;
     } finally {
       parsing = false;
     }
   }
-  function setDived(file: LibFile, nodes: DocNode[]) {
+  function setDived(file: LibFile, nodes: DocNode[], keepQuery = false) {
     divedFile = file; divedNodes = nodes;
-    prevQuery = query; query = ""; mode = "within"; selectedIdx = 0;
+    prevQuery = query;
+    if (!keepQuery) query = "";
+    mode = "within"; selectedIdx = 0;
     collapsed = new Set();
   }
   function backToFiles() {
@@ -210,8 +238,13 @@
 
   function activateSelected() {
     if (mode === "files") {
-      const f = fileResults[selectedIdx];
-      if (f) void diveInto(f);
+      if (searchBy === "content") {
+        const hit = contentResults[selectedIdx];
+        if (hit) void diveInto(hit.file, true);
+      } else {
+        const f = fileResults[selectedIdx];
+        if (f) void diveInto(f);
+      }
     } else {
       const r = rows[selectedIdx];
       if (r) { insertNode(r.node); onclose(); }
@@ -259,7 +292,11 @@
     }
     if (e.key === "Tab" && mode === "files") {
       e.preventDefault();
-      const f = fileResults[selectedIdx]; if (f) void diveInto(f);
+      if (searchBy === "content") {
+        const hit = contentResults[selectedIdx]; if (hit) void diveInto(hit.file, true);
+      } else {
+        const f = fileResults[selectedIdx]; if (f) void diveInto(f);
+      }
       return;
     }
     if (e.key === "Enter") { e.preventDefault(); activateSelected(); return; }
@@ -317,6 +354,21 @@
     <div class="ds-sub">In: {divedFile.name}</div>
   {/if}
 
+  <!-- By name / By content toggle (file list only) -->
+  {#if mode === "files"}
+    <div class="ds-scope">
+      <button class="ds-scopebtn" class:on={searchBy === "name"} onclick={() => { searchBy = "name"; selectedIdx = 0; }}>By name</button>
+      <button class="ds-scopebtn" class:on={searchBy === "content"} onclick={() => { searchBy = "content"; selectedIdx = 0; }}>By content</button>
+      {#if searchBy === "content"}
+        {#if contentIndex.building}
+          <span class="ds-scopeinfo">indexing {contentIndex.built}/{contentIndex.total}…</span>
+        {:else if contentIndex.ready}
+          <button class="ds-scopeinfo link" title="Re-scan documents for changes" onclick={() => contentIndex.build()}>↻ rescan</button>
+        {/if}
+      {/if}
+    </div>
+  {/if}
+
   <!-- Chips (within-file) -->
   {#if mode === "within"}
     <div class="ds-chips">
@@ -334,7 +386,11 @@
     bind:this={inputEl}
     bind:value={query}
     class="ds-input"
-    placeholder={mode === "files" ? "🔍  Find a file by name…" : "🔍  Filter blocks / cards / tags…"}
+    placeholder={mode !== "files"
+      ? "🔍  Filter blocks / cards / tags…"
+      : searchBy === "content"
+        ? "🔍  Find a tag / card / block in any doc…"
+        : "🔍  Find a file by name…"}
     spellcheck="false"
     autocomplete="off"
   />
@@ -345,6 +401,35 @@
       <div class="ds-msg err">{parseError}</div>
     {:else if parsing}
       <div class="ds-msg">Parsing…</div>
+    {:else if mode === "files" && searchBy === "content"}
+      {#if !query.trim()}
+        <div class="ds-msg">
+          {contentIndex.building
+            ? `Indexing document contents… ${contentIndex.built}/${contentIndex.total}`
+            : "Type a tagline / card / block to find which docs contain it."}
+        </div>
+      {:else if contentResults.length === 0}
+        <div class="ds-msg">
+          {contentIndex.building ? "Indexing… results appear as docs are scanned." : `No document contains "${query}"`}
+        </div>
+      {:else}
+        {#each contentResults as hit, i (hit.file.path)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <div class="ds-file content" class:sel={i === selectedIdx}
+            onclick={() => { selectedIdx = i; void diveInto(hit.file, true); }}
+            onmouseenter={() => (selectedIdx = i)}>
+            <div class="ds-filerow">
+              <span class="ds-fileicon">📄</span>
+              <span class="ds-filename">{hit.file.name}</span>
+              <span class="ds-filemeta">{relativeTime(hit.file.mtime)}</span>
+              <span class="ds-tab">open ›</span>
+            </div>
+            {#each hit.hits as h}
+              <div class="ds-hit">{h}</div>
+            {/each}
+          </div>
+        {/each}
+      {/if}
     {:else if mode === "files"}
       {#if fileIndex.files.length === 0}
         <div class="ds-msg">{fileIndex.scanning ? "Scanning library…" : "No files. Add a folder in Settings → Search Library."}</div>
@@ -396,6 +481,8 @@
   <div class="ds-footer">
     {#if mode === "within"}
       <button class="ds-back" onclick={backToFiles}>‹ Back to files</button>
+    {:else if searchBy === "content"}
+      <span class="ds-count">{contentResults.length} doc{contentResults.length === 1 ? "" : "s"}</span>
     {:else}
       <span class="ds-count">{fileResults.length} of {fileIndex.files.length}</span>
     {/if}
@@ -437,6 +524,25 @@
   .ds-x { background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; }
   .ds-x:hover { color: var(--text); }
   .ds-sub { font-size: 11px; color: var(--text-dim); padding: 0 12px 6px; }
+
+  .ds-scope { display: flex; align-items: center; gap: 6px; padding: 2px 12px 4px; }
+  .ds-scopebtn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 6px; padding: 3px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .ds-scopebtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ds-scopeinfo { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+  .ds-scopeinfo.link { background: none; border: none; cursor: pointer; }
+  .ds-scopeinfo.link:hover { color: var(--text); }
+
+  /* By-content result: a file with the matching heading snippets under it. */
+  .ds-file.content { flex-direction: column; align-items: stretch; gap: 2px; }
+  .ds-filerow { display: flex; align-items: center; gap: 8px; }
+  .ds-hit {
+    font-size: 11.5px; color: var(--text-dim); padding-left: 26px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ds-file.content.sel .ds-hit { color: var(--text); }
 
   .ds-chips { display: flex; align-items: center; gap: 3px; padding: 4px 12px; flex-wrap: wrap; }
   .ds-chip {

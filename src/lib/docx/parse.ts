@@ -209,6 +209,29 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
   return { nodes: roots, paragraphCount, headingCount };
 }
 
+/**
+ * Lightweight heading-only extraction for the content index. Parses the docx and
+ * collects ONLY heading/tag/analytic paragraph texts — it never touches body
+ * runs (the expensive part of parseDocx), so indexing a whole library stays
+ * cheap. Body paragraphs cost only a pStyle check before they're skipped.
+ */
+export function extractHeadings(buf: ArrayBuffer): Array<{ text: string; level: number; analytic: boolean }> {
+  const files = unzipSync(new Uint8Array(buf));
+  const docXml = files["word/document.xml"];
+  if (!docXml) throw new Error("No word/document.xml — is this a .docx?");
+  const xml = new DOMParser().parseFromString(strFromU8(docXml), "application/xml");
+  if (xml.querySelector("parsererror")) throw new Error("Couldn't parse the document XML.");
+  const out: Array<{ text: string; level: number; analytic: boolean }> = [];
+  for (const p of Array.from(xml.getElementsByTagNameNS("*", "p"))) {
+    const analytic = isAnalyticStyle(p);
+    const level = analytic ? 4 : headingLevel(p);
+    if (level === null) continue; // body text — skip (that's what keeps this light)
+    const text = paragraphText(p).trim();
+    if (text) out.push({ text, level, analytic });
+  }
+  return out;
+}
+
 function headingLevel(p: Element): number | null {
   const styles = p.getElementsByTagNameNS("*", "pStyle");
   for (const s of styles) {
