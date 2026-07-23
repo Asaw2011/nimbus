@@ -9,8 +9,9 @@
   import { store } from "../model/round.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow } from "../model/types";
 
-  let parsed = $state<ParsedDoc | null>(null);
+  let parsed = $state<ParsedDoc | null>(null); // raw parse result; set once, never rewritten
   let rawNodes = $state<DocNode[]>([]); // original tree before level-splitting
+  let sections = $state<DocNode[]>([]); // current split (the sheets-to-be)
   let fileName = $state("");
   let status = $state("");
   let checked = $state<boolean[]>([]);
@@ -135,17 +136,19 @@
         const base = parseDocx(reader.result as ArrayBuffer);
         rawNodes = base.nodes;
         splitLevel = "auto";
+        parsed = base; // raw result only; the split lives in `sections`
         const nodes = applySplit(rawNodes, "auto");
-        parsed = { ...base, nodes };
+        sections = nodes;
         checked = nodes.map(() => true);
-        titles = sectionTitles(nodes);
+        const t = sectionTitles(nodes);
+        titles = t;
         // Guess where each section belongs: an answer doc ("AT: Cap K")
         // matches the existing Cap K sheet; unmatched sections make new ones.
         // Match on the cleaned display title, not the raw "OFF" heading, so
         // off-cases don't all collapse onto one sheet.
         const sheets = store.round?.sheets ?? [];
         targets = nodes.map(
-          (n, i) => guessTargetSheet(titles[i] ?? n.text, sheets) ?? "new",
+          (n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new",
         );
         // Column guess, strongest signal first. Always overridable.
         const fromRound = guessColumnFromRound(targets);
@@ -174,20 +177,26 @@
     input.value = "";
   }
 
-  /** When the user changes the split level, re-derive sections from the raw tree. */
+  // Re-derive the split whenever the user changes the split level. This runs a
+  // plain function on change (not an $effect that writes state it reads), so it
+  // can never self-trigger. `lastSplit` guards against redundant work.
+  let lastSplit: typeof splitLevel | null = null;
   $effect(() => {
-    // Only depend on the split level. Reading `titles`/`parsed` here (which the
-    // body also writes) would make the effect re-trigger itself forever.
-    void splitLevel;
-    if (!parsed || rawNodes.length === 0) return;
-    const nodes = applySplit(rawNodes, splitLevel);
+    const level = splitLevel; // the ONLY tracked dependency
+    if (rawNodes.length === 0 || level === lastSplit) return;
+    lastSplit = level;
+    resplit(level);
+  });
+
+  function resplit(level: typeof splitLevel) {
+    const nodes = applySplit(rawNodes, level);
     const sheets = store.round?.sheets ?? [];
-    const t = sectionTitles(nodes); // local — do NOT read the `titles` state here
+    const t = sectionTitles(nodes);
+    sections = nodes;
     checked = nodes.map(() => true);
     titles = t;
     targets = nodes.map((n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new");
-    parsed = { ...parsed, nodes };
-  });
+  }
 
   function apply() {
     if (!parsed || !store.round) return;
@@ -201,7 +210,7 @@
     const writeTags = mode === "pages_tags";
 
     if (mode !== "bank_only") {
-      const jobs = parsed.nodes
+      const jobs = sections
         .map((node, i) => ({ node, target: targets[i], title: titles[i] ?? node.text, on: checked[i] }))
         .filter((j) => j.on);
       if (jobs.length === 0 && banked.length === 0) return;
@@ -270,7 +279,7 @@
         <span class="col-pick">
           Split at:
           <select bind:value={splitLevel}>
-            <option value="auto">Auto ({parsed.nodes.length} sections)</option>
+            <option value="auto">Auto ({sections.length} sections)</option>
             <option value={1}>Pocket (H1)</option>
             <option value={2}>Hat (H2)</option>
             <option value={3}>Block (H3)</option>
@@ -288,11 +297,11 @@
         <span class="guess-note">{guessNote}</span>
       </div>
       <div class="mode-pick">
-        <label><input type="radio" value="pages_tags" bind:group={mode} /> Pages + tags + authors</label>
-        <label><input type="radio" value="pages_only" bind:group={mode} /> Pages + authors (no tags)</label>
-        <label><input type="radio" value="bank_only" bind:group={mode} /> Authors + tags only — no pages</label>
+        <label><input type="radio" name="import-mode" value="pages_tags" bind:group={mode} /> Pages + tags + authors</label>
+        <label><input type="radio" name="import-mode" value="pages_only" bind:group={mode} /> Pages + authors (no tags)</label>
+        <label><input type="radio" name="import-mode" value="bank_only" bind:group={mode} /> Authors + tags only — no pages</label>
       </div>
-      {#each parsed.nodes as node, i (i)}
+      {#each sections as node, i (i)}
         <div class="node" class:dim={mode === "bank_only"}>
           <input type="checkbox" bind:checked={checked[i]} disabled={mode === "bank_only"} />
           <span class="node-title">{titles[i] ?? node.text}</span>
