@@ -39,13 +39,15 @@
 
   let editor: HTMLDivElement | undefined = $state();
 
-  // Focus whenever the cursor lands on this cell. First mouse click selects the
-  // whole cell (store.selectAll); keyboard nav lands with a caret at the end.
+  // Focus whenever the cursor LANDS on this cell (keyboard nav). This effect
+  // must depend ONLY on `active` — NOT on store.selectAll. Reading selectAll here
+  // made every cell's effect re-run on each click/keystroke (selectAll toggles
+  // constantly), so the active cell kept grabbing focus back mid-click and you
+  // couldn't move off it. Whole-cell select is applied in onfocus() instead.
   $effect(() => {
     if (active && editor && document.activeElement !== editor) {
       editor.focus();
-      if (store.selectAll) selectAllText();
-      else placeCaretAtEnd();
+      placeCaretAtEnd();
     }
   });
 
@@ -293,6 +295,13 @@
     // (insert row, extend, marks) target the sheet you're actually in.
     store.activeSheetId = sheetId;
     store.cursor = { row, col };
+    // First-click whole-cell select is applied HERE (not in the focus effect),
+    // once, after the browser has placed the caret — so it never re-grabs focus.
+    if (store.selectAll) {
+      requestAnimationFrame(() => {
+        if (document.activeElement === editor && store.selectAll) selectAllText();
+      });
+    }
   }
 
   function onpaste(e: ClipboardEvent) {
