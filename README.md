@@ -1,7 +1,7 @@
 <div align="center">
   <img src="static/logo.png" width="96" alt="Nimbus logo" />
   <h1>Nimbus</h1>
-  <p><strong>Fast, smart flowing for competitive debate</strong> — Policy · LD · PF</p>
+  <p><strong>Fast flowing for competitive debate</strong> — Policy · LD · PF</p>
 </div>
 
 Nimbus is a desktop flowing app that combines the strengths of paper — seeing
@@ -9,24 +9,18 @@ many flows at once, spatial argument interaction — with the strengths of a
 laptop: typing speed, copy/paste, search, and integration with the rest of the
 debate tech stack.
 
-Two design pillars, in priority order:
-
-1. **FAST** — every action is keybound, the app is local-first and works fully
-   offline (tournament wifi can't be trusted), and it loads instantly.
-2. **SMART** — doc-aware today (import `.docx` speech docs), AI-assisted soon
-   (see [Planned](#planned)).
-
-> **Status:** Nimbus is usable today for real rounds. The **AI features are not
-> built yet** — everything under [Planned](#planned) is a roadmap, not a
-> shipped feature.
+Built to be **FAST**: every action is keybound, the app is local-first and works
+fully offline (tournament wifi can't be trusted), and it loads instantly. It's
+**doc-aware** too — a full CardMirror-schema speech doc is built in, and you can
+import `.docx` speech docs.
 
 ## Download
 
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.1.4_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.1.4_x64-setup.exe`
+- **macOS** — `Nimbus_0.1.5_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.1.5_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**
@@ -76,15 +70,6 @@ Builds are currently unsigned, so first launch shows a security warning:
 - Flows live inside as files; **drag a flow between tournaments** to move the
   file on disk — organize in Nimbus or in Finder/Explorer, it's the same files
 
-**Scouting & opponent research**
-- **Scouting hub** — track opposing teams organized as
-  School → Team → Tournament → Round
-- Upload their `.docx` speech docs per round alongside your own answers and
-  round notes; every block stays attached to the speech it came from
-- Flows auto-link to the matching team by code (e.g. `Greenhill LL`) — no
-  manual attaching; tournament folders from the main dashboard surface in
-  scouting automatically
-
 **The speech doc — CardMirror, inside Nimbus**
 - A full CardMirror-schema editor: highlight (spoken), underline (the cut),
   emphasis (boxed power word), condensed (unread) — with lossless `.docx`
@@ -93,9 +78,20 @@ Builds are currently unsigned, so first launch shows a security warning:
   **standardize highlighting** (unify every highlight, with an optional exception)
 - Editable **doc style & headings** — sizes, colors, emphasis/underline/pocket —
   with a live preview
-- **Send to Doc / Cell → Doc** — build your speech from the flow, always in flow
-  order; typed cells send as analytics, cards as cards. Nothing is auto-added.
-- Maximize it, or pop it out into its own window
+- **Build from the flow — the selection decides where it lands.** Highlight some
+  text, one cell, or a whole range and send it **at your cursor**; hit **↕ Send
+  Entire Row** to send the whole speech in **flow order** (mirrors the flow,
+  de-dupes so re-sending updates rather than duplicates). Typed cells send as
+  analytics, cards as cards. Nothing is auto-added.
+- **Multiple docs, and a ★ speech doc.** Keep several docs in tabs; mark one as
+  your **speech doc** with the star. Press **`` ` `` / `~`** in any other doc to
+  send its current card straight to the speech doc — the classic Verbatim/
+  CardMirror "send to speech." Each doc keeps its **own undo history** across
+  tab switches.
+- **Quick Cards** — save any selection as a reusable card and drop it into the
+  doc from the Quick Cards palette.
+- Type `---` for an em dash (—); maximize the doc, or pop it out into its own
+  window.
 
 **Import `.docx`**
 - A 1NC creates off-case sheets; answer docs (AT:/A2…) match your existing flows;
@@ -114,15 +110,6 @@ Builds are currently unsigned, so first launch shows a security warning:
 
 Not built yet — this is the roadmap.
 
-- **AI layer** (the "smart" half), all optional and with a hard **Tournament
-  Mode** off-switch that disables every AI/network feature for rules compliance:
-  - Row-level argument alignment — line up 2AC answers with the 1NC arguments
-    they respond to, as a suggestion you accept or reject
-  - Dropped-argument detection — flag arguments with no response before your
-    next speech
-  - Next-speech coverage checklist
-  - Cross-flow analysis — double binds and contradictions between positions
-- Practice mode: live speech transcription that auto-flows
 - Signed builds (no "unidentified developer" warning)
 - Cloud sync / backup across your own devices
 

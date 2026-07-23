@@ -6,8 +6,8 @@
 //
 // A Sheet is a plain grid, like Excel or a sheet of paper: rows already exist
 // and every cell is directly editable. Each Row has one Cell per speech
-// column. Smart features (extension arrows, cross-flow links, AI) layer on
-// top of this base without changing the mental model.
+// column. Extras (extension arrows, cross-flow links) layer on top of this
+// base without changing the mental model.
 
 export type Side = "aff" | "neg" | "neutral";
 
