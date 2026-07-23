@@ -2,7 +2,7 @@
 // debounced persistence. All mutations go through `mutate()` so history and
 // autosave can never be bypassed.
 
-import type { Round, Sheet, SpeechTemplate } from "./types";
+import type { CardRef, Round, Sheet, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRound } from "./persist";
 
@@ -244,6 +244,9 @@ class RoundStore {
       () => {
         const cell = sheet.rows[row].cells[col];
         cell.text = text;
+        // A banked author only stays bold while its exact substring survives in
+        // the text — edit it away and the bold signal drops with it.
+        if (cell.author && !text.includes(cell.author)) delete cell.author;
         // Typing over an inserted card drops its source-type chip + stored card.
         if (!text.trim()) {
           delete cell.chip;
@@ -258,6 +261,52 @@ class RoundStore {
       },
       { coalesceText: true },
     );
+  }
+
+  // ---- card bank + author autocomplete ------------------------------------
+
+  /** Bank cards from an imported doc; dedupe by author+tag. */
+  addCards(cards: CardRef[]): void {
+    if (!this.round || cards.length === 0) return;
+    const bank = (this.round.cards ??= []);
+    const seen = new Set(bank.map((c) => `${c.author} ${c.tag}`));
+    for (const c of cards) {
+      if (!c.author?.trim()) continue;
+      const key = `${c.author} ${c.tag}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      bank.push(c);
+    }
+    this.scheduleSave();
+  }
+
+  /** Banked cards whose author surname prefix-matches the query. Cards whose
+   *  tag is already on the active sheet are ranked first (most likely reuse). */
+  authorMatches(query: string): CardRef[] {
+    const bank = this.round?.cards ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const hits = bank.filter((c) => c.author.toLowerCase().startsWith(q));
+    const sheetText = (this.activeSheet?.rows ?? [])
+      .flatMap((r) => r.cells.map((c) => c.text.toLowerCase()))
+      .join("   ");
+    const onSheet = (c: CardRef) => sheetText.includes(c.tag.toLowerCase().slice(0, 20));
+    return hits.sort((a, b) => Number(onSheet(b)) - Number(onSheet(a))).slice(0, 12);
+  }
+
+  /** Write a cell with an author leading its text; records the author substring
+   *  on the cell so it renders bold. Does NOT force the card ink — authored
+   *  cards keep their speech's aff/neg color (the bold author is the signal). */
+  setCellWithAuthor(row: number, col: number, author: string, rest = ""): void {
+    const sheet = this.activeSheet;
+    const cell = sheet?.rows[row]?.cells[col];
+    if (!cell) return;
+    const text = rest ? `${author} ${rest}` : author;
+    this.mutate(() => {
+      cell.text = text;
+      cell.author = author;
+    });
+    this.selectAll = false;
   }
 
   /**

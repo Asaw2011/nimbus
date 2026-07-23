@@ -5,7 +5,7 @@
   // Import an opponent's speech doc: each selected top-level section becomes
   // a sheet, its heading tree becomes rows in the chosen speech column.
 
-  import { parseDocx, flowLines, guessTargetSheet, positionSections, sectionTitles, type ParsedDoc, type DocNode } from "./parse";
+  import { parseDocx, flowLines, guessTargetSheet, positionSections, sectionTitles, collectCards, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow } from "../model/types";
 
@@ -18,6 +18,9 @@
   let targets = $state<string[]>([]);
   /** Cleaned + numbered display titles, one per section (parallel to nodes). */
   let titles = $state<string[]>([]);
+  /** Import mode: full pages+tags, pages only (bank authors), or bank only. */
+  type ImportMode = "pages_tags" | "pages_only" | "bank_only";
+  let mode = $state<ImportMode>("pages_tags");
   let speechIdx = $state(0);
   /** "auto" or a heading level 1–4 chosen by the user. */
   let splitLevel = $state<"auto" | 1 | 2 | 3 | 4>("auto");
@@ -184,61 +187,68 @@
 
   function apply() {
     if (!parsed || !store.round) return;
-    const jobs = parsed.nodes
-      .map((node, i) => ({ node, target: targets[i], title: titles[i] ?? node.text, on: checked[i] }))
-      .filter((j) => j.on);
-    if (jobs.length === 0) return;
-    const col = speechIdx;
-    const side = speeches[col]?.side;
-    const kind = side === "aff" ? "case" : "offcase";
-    const nCols = speeches.length;
+    // Always bank the doc's cards for author autocomplete (⌘Space), whatever
+    // the mode — this is the point of the "bank only" mode and a free win otherwise.
+    const banked = collectCards(rawNodes);
+    store.addCards(banked);
+
     let created = 0;
     let filled = 0;
+    const writeTags = mode === "pages_tags";
 
-    // One mutate = the whole import is a single undo step.
-    store.mutate((r) => {
-      for (const { node, target, title } of jobs) {
-        const lines = flowLines(node);
-        const existing = r.sheets.find((s) => s.id === target);
-        if (existing) {
-          // Answer doc: stack the answers in the chosen column of the
-          // matched sheet, after anything already in that column.
-          // (Row-level alignment to specific arguments is a Phase 3 AI job.)
-          const lastUsed = existing.rows.findLastIndex(
-            (row) => row.cells[col]?.text.trim() !== "",
-          );
-          const start = lastUsed + 1;
-          lines.forEach((line, i) => {
-            while (existing.rows.length <= start + i) {
-              existing.rows.push(makeRow(nCols));
-            }
-            existing.rows[start + i].cells[col].text = line;
-          });
-          filled++;
-        } else {
-          const sheet = makeSheet(
-            title,
-            nCols,
-            kind,
-            col,
-            Math.max(INITIAL_ROWS, lines.length + 4),
-          );
-          // Row 0 is the LABEL cell; content follows below it.
-          sheet.rows[0].cells[col].text = title;
-          lines.forEach((line, i) => {
-            while (sheet.rows.length <= i + 1) sheet.rows.push(makeRow(nCols));
-            sheet.rows[i + 1].cells[col].text = line;
-          });
-          r.sheets.push(sheet);
-          created++;
+    if (mode !== "bank_only") {
+      const jobs = parsed.nodes
+        .map((node, i) => ({ node, target: targets[i], title: titles[i] ?? node.text, on: checked[i] }))
+        .filter((j) => j.on);
+      if (jobs.length === 0 && banked.length === 0) return;
+      const col = speechIdx;
+      const side = speeches[col]?.side;
+      const kind = side === "aff" ? "case" : "offcase";
+      const nCols = speeches.length;
+
+      // One mutate = the whole import is a single undo step.
+      store.mutate((r) => {
+        for (const { node, target, title } of jobs) {
+          const lines = writeTags ? flowLines(node) : [];
+          const existing = r.sheets.find((s) => s.id === target);
+          if (existing) {
+            const lastUsed = existing.rows.findLastIndex(
+              (row) => row.cells[col]?.text.trim() !== "",
+            );
+            const start = lastUsed + 1;
+            lines.forEach((line, i) => {
+              while (existing.rows.length <= start + i) {
+                existing.rows.push(makeRow(nCols));
+              }
+              existing.rows[start + i].cells[col].text = line;
+            });
+            filled++;
+          } else {
+            const sheet = makeSheet(
+              title,
+              nCols,
+              kind,
+              col,
+              Math.max(INITIAL_ROWS, lines.length + 4),
+            );
+            // Row 0 is the LABEL cell; content follows below it.
+            sheet.rows[0].cells[col].text = title;
+            lines.forEach((line, i) => {
+              while (sheet.rows.length <= i + 1) sheet.rows.push(makeRow(nCols));
+              sheet.rows[i + 1].cells[col].text = line;
+            });
+            r.sheets.push(sheet);
+            created++;
+          }
         }
-      }
-    });
+      });
+    }
     const parts = [
       created && `created ${created} sheet${created === 1 ? "" : "s"}`,
       filled && `filled ${filled} existing`,
+      banked.length && `banked ${banked.length} card${banked.length === 1 ? "" : "s"}`,
     ].filter(Boolean);
-    status = `${parts.join(", ")} from ${fileName} ✓`;
+    status = `${parts.join(", ") || "nothing to import"} from ${fileName} ✓`;
     parsed = null;
   }
 </script>
@@ -273,10 +283,15 @@
         </span>
         <span class="guess-note">{guessNote}</span>
       </div>
+      <div class="mode-pick">
+        <label><input type="radio" value="pages_tags" bind:group={mode} /> Pages + tags + authors</label>
+        <label><input type="radio" value="pages_only" bind:group={mode} /> Pages + authors (no tags)</label>
+        <label><input type="radio" value="bank_only" bind:group={mode} /> Authors + tags only — no pages</label>
+      </div>
       {#each parsed.nodes as node, i (i)}
-        <div class="node">
-          <input type="checkbox" bind:checked={checked[i]} />
-          <span class="node-title">{node.text}</span>
+        <div class="node" class:dim={mode === "bank_only"}>
+          <input type="checkbox" bind:checked={checked[i]} disabled={mode === "bank_only"} />
+          <span class="node-title">{titles[i] ?? node.text}</span>
           <span class="node-count">{flowLines(node).length} rows · {placement(i)}</span>
           <select class="target" bind:value={targets[i]}>
             <option value="new">＋ new sheet</option>
@@ -287,7 +302,9 @@
         </div>
       {/each}
       <div class="actions">
-        <button class="chip primary" onclick={apply}>Create sheets</button>
+        <button class="chip primary" onclick={apply}>
+          {mode === "bank_only" ? "Bank cards" : "Create sheets"}
+        </button>
         <button class="chip" onclick={() => (parsed = null)}>Cancel</button>
       </div>
     </div>
@@ -372,11 +389,27 @@
     font-size: 12px;
     margin-left: 4px;
   }
+  .mode-pick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 6px 0 10px;
+    font-size: 12px;
+  }
+  .mode-pick label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
   .node {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 13px;
+  }
+  .node.dim {
+    opacity: 0.45;
   }
   .node-title {
     font-weight: 600;

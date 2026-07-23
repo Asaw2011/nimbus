@@ -49,6 +49,9 @@ export interface Cell {
   /** The full card (DocNode) this cell was filled from, so "Send to Doc"
    *  can re-send the real substance — not just the block name. */
   card?: unknown;
+  /** The card's author, stored as the exact substring that lives inside `text`
+   *  (not offsets — self-heals when you edit around it) so it renders bold. */
+  author?: string;
 }
 
 export interface Row {
@@ -82,6 +85,13 @@ export function sheetAccent(sheet: Sheet): string {
   return "var(--text-dim)";
 }
 
+/** A banked card: author + tag (+ cite), for author autocomplete while flowing. */
+export interface CardRef {
+  author: string;
+  tag: string;
+  cite?: string;
+}
+
 export interface Round {
   id: string;
   name: string;
@@ -96,6 +106,8 @@ export interface Round {
   updatedAt: number;
   /** Where this flow is saved on disk, if the user chose a location (Save As). */
   filePath?: string;
+  /** Cards banked from imported docs, for author autocomplete (⌘Space). */
+  cards?: CardRef[];
 }
 
 /** Lightweight listing for the dashboard (no sheet contents). */

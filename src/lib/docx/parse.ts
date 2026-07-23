@@ -324,6 +324,51 @@ export function sectionTitles(sections: DocNode[]): string[] {
   });
 }
 
+// ---- author extraction + card bank ----------------------------------------
+
+/**
+ * Tidy a raw cite author-date into "Surname YY": insert a space before the
+ * year (Mühleisen25 → Mühleisen 25), trim trailing punctuation, and CUT at the
+ * first year so a second co-author never glues on (Kahn 23, and Smith → Kahn 23).
+ */
+export function normalizeAuthor(raw: string): string {
+  let t = (raw ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  // Space between a letter and a 2-or-4 digit year: "Mühleisen25" → "Mühleisen 25".
+  t = t.replace(/([\p{L}.])\s*['’]?(\d{2,4})\b/u, "$1 $2");
+  // Keep everything up to and including the first year token.
+  const m = t.match(/^(.*?['’]?\d{2,4})\b/u);
+  if (m) t = m[1];
+  return t.replace(/^[\s,;:.]+|[\s,;:.]+$/g, "").trim();
+}
+
+/** The cite text (bold author-date runs) of a card node, concatenated. */
+function citeTextOf(node: DocNode): string {
+  for (const runs of node.bodyRuns ?? []) {
+    if (runs.some((r) => r.cite && r.text.trim())) {
+      return runs.filter((r) => r.cite).map((r) => r.text).join("").trim();
+    }
+  }
+  return "";
+}
+
+/** Walk the heading tree and pull one CardRef per carded tag ({author,tag,cite}). */
+export function collectCards(nodes: DocNode[]): Array<{ author: string; tag: string; cite: string }> {
+  const out: Array<{ author: string; tag: string; cite: string }> = [];
+  const walk = (ns: DocNode[]) => {
+    for (const n of ns) {
+      if (!n.isAnalytic && n.level >= 4) {
+        const cite = citeTextOf(n);
+        const author = normalizeAuthor(cite);
+        if (author) out.push({ author, tag: n.text.trim(), cite });
+      }
+      if (n.children.length) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
 // ---- matching answer docs to existing sheets ------------------------------
 // A 2AC doc says "AT: Cap K" / "A2 Econ DA" — strip the answer prefixes and
 // fuzzy-match against existing sheet titles so answers land on the right flow.

@@ -58,18 +58,76 @@
     sel?.addRange(range);
   }
 
+  // ---- author lookup dropdown (⌘Space) ----
+  let lookupOpen = $state(false);
+  let lookupQuery = $state("");
+  let lookupSel = $state(0);
+  const lookupMatches = $derived(lookupOpen ? store.authorMatches(lookupQuery) : []);
+
+  function openLookup() {
+    lookupQuery = (editor?.textContent ?? "").trim();
+    lookupSel = 0;
+    lookupOpen = true;
+  }
+  function closeLookup() {
+    lookupOpen = false;
+  }
+  function chooseLookup(withTag: boolean) {
+    const m = lookupMatches[lookupSel];
+    lookupOpen = false;
+    if (!m) return;
+    store.setCellWithAuthor(row, col, m.author, withTag ? m.tag : "");
+    setTimeout(() => {
+      if (editor) {
+        editor.focus();
+        placeCaretAtEnd();
+      }
+    }, 0);
+  }
+
   // Set text imperatively. We skip re-painting a focused, non-empty editor to
   // avoid caret jumps mid-typing — BUT a focused-yet-empty editor means the
   // cursor just landed here on load (e.g. the LABEL cell), so we must paint it
   // or the value shows blank even though the data has it.
   $effect(() => {
-    if (!editor || editor.textContent === cell.text) return;
+    if (!editor) return;
+    // Reference cell.author so the effect repaints when the banked author changes.
+    void cell.author;
+    if (editor.textContent === cell.text && !authorNeedsPaint()) return;
     const focused = document.activeElement === editor;
     if (!focused || editor.textContent === "") {
-      editor.textContent = cell.text;
+      paint();
       if (focused) placeCaretAtEnd();
     }
   });
+
+  /** True when the DOM isn't yet showing the bold-author markup it should. */
+  function authorNeedsPaint(): boolean {
+    if (!editor) return false;
+    const wantBold = !!cell.author && cell.text.includes(cell.author);
+    const hasBold = !!editor.querySelector("b.author");
+    return wantBold !== hasBold;
+  }
+
+  /** Render the cell text, bolding the banked author substring if present. The
+   *  editor's `.textContent` stays the plain text, so input/copy/export are
+   *  unaffected — only the visual gets a <b class="author"> wrapper. */
+  function paint() {
+    if (!editor) return;
+    const text = cell.text;
+    const author = cell.author;
+    const at = author ? text.indexOf(author) : -1;
+    if (at < 0) {
+      editor.textContent = text;
+      return;
+    }
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    editor.innerHTML =
+      esc(text.slice(0, at)) +
+      `<b class="author">${esc(author!)}</b>` +
+      esc(text.slice(at + author!.length));
+  }
 
   function placeCaretAtEnd() {
     if (!editor) return;
@@ -105,6 +163,7 @@
       placeCaretAtEnd();
     }
     store.setCell(row, col, text);
+    if (lookupOpen) { lookupQuery = text.trim(); lookupSel = 0; }
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -124,6 +183,19 @@
         }, 0);
         return;
       }
+    }
+    // Author lookup dropdown swallows navigation keys while open.
+    if (lookupOpen) {
+      if (e.key === "ArrowDown") { e.preventDefault(); lookupSel = Math.min(lookupSel + 1, Math.max(0, lookupMatches.length - 1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); lookupSel = Math.max(0, lookupSel - 1); return; }
+      if (e.key === "Enter") { e.preventDefault(); chooseLookup(false); return; }
+      if (e.key === "Tab") { e.preventDefault(); chooseLookup(true); return; }
+      if (e.key === "Escape") { e.preventDefault(); closeLookup(); return; }
+    }
+    if (matchesAny(e, km.authorLookup)) {
+      e.preventDefault();
+      openLookup();
+      return;
     }
     // Remappable actions first, so rebinding e.g. Enter-based combos wins.
     if (matchesAny(e, km.insertRowAbove)) {
@@ -277,8 +349,24 @@
     {onkeydown}
     {onfocus}
     {onpaste}
-    onblur={() => store.endTextSession()}
+    onblur={() => { store.endTextSession(); closeLookup(); }}
   ></div>
+  {#if lookupOpen && lookupMatches.length > 0}
+    <div class="author-lookup" role="listbox">
+      <div class="al-hint">↵ author · ⇥ author + tag · esc</div>
+      {#each lookupMatches as m, mi (m.author + m.tag)}
+        <button
+          class="al-item"
+          class:sel={mi === lookupSel}
+          role="option"
+          aria-selected={mi === lookupSel}
+          onmousedown={(e) => { e.preventDefault(); lookupSel = mi; chooseLookup(false); }}
+        >
+          <b>{m.author}</b><span class="al-tag">{m.tag}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -292,6 +380,52 @@
   }
   .cell.label .editor {
     font-weight: 700;
+  }
+  .editor :global(b.author) {
+    font-weight: 700;
+  }
+  .author-lookup {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 30;
+    min-width: 220px;
+    max-width: 340px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    padding: 3px;
+  }
+  .al-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 3px 6px;
+  }
+  .al-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .al-item.sel {
+    background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  }
+  .al-tag {
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .cell.label {
     border-bottom: 2px solid var(--border);

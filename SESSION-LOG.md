@@ -39,21 +39,20 @@ AND have the doc open.
 Now `analytic_unit` is handled like `card` — read the inner heading's label once
 and stop descending.
 
-## PENDING — Adam's INTEGRATION-GUIDE.md (in ~/Downloads)
-NOT yet applied. 13 changes to fold in (patch file was NOT downloaded, only the
-guide, so apply by concept). Checklist:
-- [ ] §1 tauri.conf minWidth 900→380, minHeight 600→300
-- [ ] §2 editable "insert N rows" (`bulkRows` setting, default 3, clamp 2–50)
-- [ ] §3 insert-below cursor lands on first new row (row+1)
-- [ ] §4 active sheet tab stands out (0.5 opacity inactive; active bold+tinted)
-- [ ] §5 DOCX import: correct sheet splitting (expand OFF container, not Adv---)
+## Adam's INTEGRATION-GUIDE.md — progress (applied by concept; patch not present)
+- [x] §1 tauri.conf minWidth 380, minHeight 300
+- [x] §2 editable bulkRows (2–50, default 3) + actionLabel + Settings field
+- [x] §3 insert-below cursor lands on first new row (row+1)
+- [x] §4 active sheet tab stands out (inactive 0.5 opacity; active bold+tinted+bar)
+- [x] §5 DOCX import: positionSections expands OFF containers; cleanSectionTitle;
+      sectionTitles number generic offs. Verified: 1NC OFF → N sheets not 1.
 - [ ] §6 DOCX import: author extraction + bank-only mode (3 radio modes)
 - [ ] §7 two-pass parse (strict cite style, then any-bold fallback)
 - [ ] §8 card bank + author autocomplete (⌘Space lookup, bold author in cell)
-- [ ] §9 authored cards colored by side (not flat card color)
-- [ ] §10 autosave hardening (dirty flag, 5s heartbeat, flush on blur/hide)
-- [ ] §11 click to select, click again to edit
-- [ ] §12 zoom (⌘±) + off-screen star/scroll cues
-- [ ] §13 moving a cell recolors to destination speech
-Note: current tree diverged heavily from 0.1.4 (added CardMirror engine + doc
-panel), so §5–§8 (parse.ts) need careful semantic reconciliation.
+- [ ] §9 authored cards colored by side (depends on §8)
+- [x] §10 autosave hardening (dirty flag, 5s heartbeat, flush on blur/hide)
+- [x] §11 click to select, click again to edit
+- [~] §12 zoom (⌘± / ⌘⇧0 + ribbon − 100% +) DONE; off-screen star/scroll cues TODO
+- [x] §13 moving a cell recolors to destination speech
+Remaining: §6, §7, §8, §9 (card bank / author autocomplete — one coherent
+feature), and §12 scroll/star cues. §6–§8 touch parse.ts + GridCell heavily.

@@ -34,7 +34,8 @@ export type ActionId =
   | "openDocSearch"
   | "zoomIn"
   | "zoomOut"
-  | "zoomReset";
+  | "zoomReset"
+  | "authorLookup";
 
 export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowBelow: "Insert row below",
@@ -62,6 +63,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   zoomReset: "Reset zoom to 100%",
+  authorLookup: "Author lookup (autocomplete banked cards)",
 };
 
 /** Each action can have any number of bindings (including none). */
@@ -91,6 +93,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   zoomIn: [{ key: "=", mod: true }],
   zoomOut: [{ key: "-", mod: true }],
   zoomReset: [{ key: "0", mod: true, shift: true }],
+  authorLookup: [{ key: " ", mod: true }],
 };
 
 /** Default count for the two bulk row-insert actions. User-editable in Settings. */
