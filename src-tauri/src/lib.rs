@@ -312,17 +312,19 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
+        .run(|_app_handle, _event| {
             // macOS delivers "open with" as an Opened event (app cold or warm).
-            if let tauri::RunEvent::Opened { urls } = event {
+            // The Opened variant doesn't exist on Windows/Linux, so gate it.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = _event {
                 for url in urls {
                     if let Ok(path) = url.to_file_path() {
                         let p = path.to_string_lossy().to_string();
-                        if let Some(state) = app_handle.try_state::<PendingFile>() {
+                        if let Some(state) = _app_handle.try_state::<PendingFile>() {
                             *state.0.lock().unwrap() = Some(p.clone());
                         }
                         // If the webview is already up, tell it to load now.
-                        let _ = app_handle.emit("open-file", p);
+                        let _ = _app_handle.emit("open-file", p);
                     }
                 }
             }

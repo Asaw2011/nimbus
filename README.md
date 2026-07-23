@@ -25,8 +25,8 @@ Two design pillars, in priority order:
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_x.y.z_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_x.y.z_x64-setup.exe`
+- **macOS** — `Nimbus_0.1.4_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.1.4_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**
@@ -53,7 +53,8 @@ Builds are currently unsigned, so first launch shows a security warning:
 **Power tools**
 - **Excel-style ribbon** — font, size, bold/italic, ink color, rows, debate
   marks, view
-- **Custom keybinds** — multiple binds per action, conflict warnings
+- **Custom keybinds** — multiple binds per action, conflict warnings; includes
+  sheet navigation (prev/next, reorder, hover) and all other actions
 - **Macros** — write your own in JavaScript via a `flow` API (e.g. a one-key
   "AT:" answer block); runs as a single undo step
 - Range selection (drag-select, copy as TSV, bulk-mark, drag-move blocks)
@@ -61,15 +62,28 @@ Builds are currently unsigned, so first launch shows a security warning:
 **Files & formats**
 - Two formats: **`.nimbus`** (native, full fidelity) and **`.xlsx`** (Excel).
   Convert between them either way, losslessly — flow in Excel or in Nimbus.
-- **Double-click** a `.nimbus` or `.xlsx` file to open it straight into Nimbus;
-  `⌘S` to save; pick your default save format in Settings
-- **Save/Open** flows anywhere on your Mac; export an HTML round report
+- **Double-click** a `.nimbus` or `.xlsx` file to open it straight into Nimbus
+  from Finder or Explorer; **⌘S / Ctrl+S** to save; pick your default save
+  format in Settings
+- **Save/Open** flows anywhere on your computer; export an HTML round report
+- **Excel-style multi-cell paste** — paste TSV content and it distributes
+  across the target cells correctly
+- Correctly imports Verbatim-exported `.xlsx` files (handles blank leading rows)
 
 **Tournaments = real folders**
-- A tournament is an actual folder on your Mac. Create one and Nimbus makes the
-  folder; **link** any existing folder to use it as a tournament
+- A tournament is an actual folder on your computer. Create one and Nimbus makes
+  the folder; **link** any existing folder to use it as a tournament
 - Flows live inside as files; **drag a flow between tournaments** to move the
-  file on disk — organize in Nimbus or in Finder, it's the same files
+  file on disk — organize in Nimbus or in Finder/Explorer, it's the same files
+
+**Scouting & opponent research**
+- **Scouting hub** — track opposing teams organized as
+  School → Team → Tournament → Round
+- Upload their `.docx` speech docs per round alongside your own answers and
+  round notes; every block stays attached to the speech it came from
+- Flows auto-link to the matching team by code (e.g. `Greenhill LL`) — no
+  manual attaching; tournament folders from the main dashboard surface in
+  scouting automatically
 
 **The speech doc — CardMirror, inside Nimbus**
 - A full CardMirror-schema editor: highlight (spoken), underline (the cut),
@@ -120,7 +134,8 @@ Ideas and bug reports are welcome via
 - **Tauri 2 + SvelteKit (Svelte 5) + TypeScript** — small, fast native shell;
   all app logic in the frontend.
 - Rounds and settings are JSON files in the app data dir, written atomically.
-- Cross-platform installers are built automatically in GitHub Actions.
+- Cross-platform installers are built automatically in GitHub Actions on every
+  version tag (macOS universal + Windows x64).
 
 ## Development
 
@@ -134,8 +149,8 @@ npm run check       # typecheck
 Cut a release (builds macOS + Windows in the cloud):
 
 ```sh
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.1.5 && git push origin v0.1.5
 ```
 
 Open the **📖 Manual** in the app for a full feature reference, or press `⌘/`
-for the keybind list.
+(Mac) / `Ctrl+/` (Windows) for the keybind list.

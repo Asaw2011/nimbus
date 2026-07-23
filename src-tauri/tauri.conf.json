@@ -44,7 +44,9 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["nimbus"],
+        "ext": [
+          "nimbus"
+        ],
         "name": "Nimbus Flow",
         "description": "Nimbus debate flow",
         "role": "Editor",
