@@ -85,12 +85,22 @@ export function sheetAccent(sheet: Sheet): string {
   return "var(--text-dim)";
 }
 
-/** A banked card: author + tag (+ cite), for author autocomplete while flowing. */
-export interface CardRef {
-  author: string;
+/**
+ * A banked argument — either a carded tag (has an author) or an analytic (no
+ * card behind it). Both are arguments someone made; the argument bank holds
+ * both so you can pull either while flowing.
+ */
+export interface ArgRef {
+  /** The argument text — a card's tag, or the analytic's text. */
   tag: string;
+  /** Author (carded evidence only); absent for analytics. */
+  author?: string;
   cite?: string;
+  /** True when this is an analytic (no card / author). */
+  analytic?: boolean;
 }
+/** @deprecated old name — kept so existing imports still type-check. */
+export type CardRef = ArgRef;
 
 export interface Round {
   id: string;
@@ -106,8 +116,9 @@ export interface Round {
   updatedAt: number;
   /** Where this flow is saved on disk, if the user chose a location (Save As). */
   filePath?: string;
-  /** Cards banked from imported docs, for author autocomplete (⌘Space). */
-  cards?: CardRef[];
+  /** Arguments (cards + analytics) banked from imported docs, for the argument
+   *  lookup (⌘J). Field name kept as `cards` for save-file compatibility. */
+  cards?: ArgRef[];
 }
 
 /** Lightweight listing for the dashboard (no sheet contents). */

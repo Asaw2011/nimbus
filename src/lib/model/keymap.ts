@@ -63,7 +63,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   zoomReset: "Reset zoom to 100%",
-  authorLookup: "Author lookup (autocomplete banked cards)",
+  authorLookup: "Argument lookup (autocomplete banked cards + analytics)",
 };
 
 /** Each action can have any number of bindings (including none). */

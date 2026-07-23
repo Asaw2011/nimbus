@@ -352,15 +352,30 @@ function citeTextOf(node: DocNode): string {
   return "";
 }
 
-/** Walk the heading tree and pull one CardRef per carded tag ({author,tag,cite}). */
-export function collectCards(nodes: DocNode[]): Array<{ author: string; tag: string; cite: string }> {
-  const out: Array<{ author: string; tag: string; cite: string }> = [];
+export interface BankArg {
+  tag: string;
+  author?: string;
+  cite?: string;
+  analytic?: boolean;
+}
+
+/**
+ * Walk the heading tree and bank every ARGUMENT — both carded tags (with an
+ * author pulled from the cite) and analytics (no card behind them). Tags and
+ * analytics are treated the same way: each is an argument someone made.
+ */
+export function collectArguments(nodes: DocNode[]): BankArg[] {
+  const out: BankArg[] = [];
   const walk = (ns: DocNode[]) => {
     for (const n of ns) {
-      if (!n.isAnalytic && n.level >= 4) {
+      const text = n.text.trim();
+      if (n.isAnalytic) {
+        if (text) out.push({ tag: text, analytic: true });
+      } else if (n.level >= 4) {
         const cite = citeTextOf(n);
         const author = normalizeAuthor(cite);
-        if (author) out.push({ author, tag: n.text.trim(), cite });
+        // A tag with an author is a card; a tag without one is still an argument.
+        if (text) out.push({ tag: text, author: author || undefined, cite: cite || undefined });
       }
       if (n.children.length) walk(n.children);
     }
@@ -368,6 +383,9 @@ export function collectCards(nodes: DocNode[]): Array<{ author: string; tag: str
   walk(nodes);
   return out;
 }
+
+/** @deprecated use {@link collectArguments}. */
+export const collectCards = collectArguments;
 
 // ---- matching answer docs to existing sheets ------------------------------
 // A 2AC doc says "AT: Cap K" / "A2 Econ DA" — strip the answer prefixes and

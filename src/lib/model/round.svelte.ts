@@ -2,7 +2,7 @@
 // debounced persistence. All mutations go through `mutate()` so history and
 // autosave can never be bypassed.
 
-import type { CardRef, Round, Sheet, SpeechTemplate } from "./types";
+import type { ArgRef, Round, Sheet, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRound } from "./persist";
 
@@ -263,51 +263,67 @@ class RoundStore {
     );
   }
 
-  // ---- card bank + author autocomplete ------------------------------------
+  // ---- argument bank (cards + analytics) ----------------------------------
 
-  /** Bank cards from an imported doc; dedupe by author+tag. */
-  addCards(cards: CardRef[]): void {
-    if (!this.round || cards.length === 0) return;
+  /** Bank arguments from an imported doc; dedupe by author+tag. Tags AND
+   *  analytics are both banked — each is an argument someone made. */
+  addCards(args: ArgRef[]): void {
+    if (!this.round || args.length === 0) return;
     const bank = (this.round.cards ??= []);
-    const seen = new Set(bank.map((c) => `${c.author} ${c.tag}`));
-    for (const c of cards) {
-      if (!c.author?.trim()) continue;
-      const key = `${c.author} ${c.tag}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+    const key = (c: ArgRef) => (c.author ?? "") + "::" + c.tag;
+    const seen = new Set(bank.map(key));
+    for (const c of args) {
+      if (!c.tag?.trim()) continue; // an argument needs text; author is optional
+      if (seen.has(key(c))) continue;
+      seen.add(key(c));
       bank.push(c);
     }
     this.scheduleSave();
   }
 
-  /** Banked cards whose author surname prefix-matches the query. Cards whose
-   *  tag is already on the active sheet are ranked first (most likely reuse). */
-  authorMatches(query: string): CardRef[] {
+  /** Banked arguments matching the query by author OR argument text. Empty
+   *  query returns the whole bank (so the lookup shows something immediately).
+   *  Arguments whose text is already on the active sheet rank first. */
+  argMatches(query: string): ArgRef[] {
     const bank = this.round?.cards ?? [];
     const q = query.trim().toLowerCase();
-    // Empty query shows the whole bank, so the lookup displays something the
-    // instant it opens on a blank cell (otherwise it looks broken).
     const hits = q
-      ? bank.filter((c) => c.author.toLowerCase().includes(q))
+      ? bank.filter(
+          (c) =>
+            (c.author ? c.author.toLowerCase().includes(q) : false) ||
+            c.tag.toLowerCase().includes(q),
+        )
       : bank.slice();
     const sheetText = (this.activeSheet?.rows ?? [])
       .flatMap((r) => r.cells.map((c) => c.text.toLowerCase()))
-      .join("   ");
-    const onSheet = (c: CardRef) => sheetText.includes(c.tag.toLowerCase().slice(0, 20));
-    return hits.sort((a, b) => Number(onSheet(b)) - Number(onSheet(a))).slice(0, 12);
+      .join("   ");
+    const onSheet = (c: ArgRef) =>
+      sheetText.includes(c.tag.toLowerCase().slice(0, 20));
+    return hits
+      .sort((a, b) => Number(onSheet(b)) - Number(onSheet(a)))
+      .slice(0, 12);
   }
 
-  /** Write a cell with an author leading its text; records the author substring
-   *  on the cell so it renders bold. Does NOT force the card ink — authored
-   *  cards keep their speech's aff/neg color (the bold author is the signal). */
-  setCellWithAuthor(row: number, col: number, author: string, rest = ""): void {
+  /**
+   * Insert a banked argument into a cell.
+   * - Analytic -> its text, marked as an analytic (green ink).
+   * - Card, full -> "Author tag"; the author is recorded so it renders bold.
+   * - Card, not full -> just the author (bold). Card ink is NOT forced; the
+   *   bold author is the "this is a card" signal (keeps the speech side color).
+   */
+  setCellFromArg(row: number, col: number, arg: ArgRef, full: boolean): void {
     const sheet = this.activeSheet;
     const cell = sheet?.rows[row]?.cells[col];
     if (!cell) return;
-    const text = rest ? `${author} ${rest}` : author;
     this.mutate(() => {
-      cell.text = text;
-      cell.author = author;
+      if (arg.analytic || !arg.author) {
+        cell.text = arg.tag;
+        delete cell.author;
+        if (arg.analytic) (cell.marks ??= {}).evidence = "analytic";
+      } else {
+        cell.text = full ? arg.author + " " + arg.tag : arg.author;
+        cell.author = arg.author;
+      }
     });
     this.selectAll = false;
   }

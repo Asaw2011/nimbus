@@ -58,11 +58,11 @@
     sel?.addRange(range);
   }
 
-  // ---- author lookup dropdown (⌘Space) ----
+  // ---- argument lookup dropdown (⌘J): banked cards + analytics ----
   let lookupOpen = $state(false);
   let lookupQuery = $state("");
   let lookupSel = $state(0);
-  const lookupMatches = $derived(lookupOpen ? store.authorMatches(lookupQuery) : []);
+  const lookupMatches = $derived(lookupOpen ? store.argMatches(lookupQuery) : []);
 
   function openLookup() {
     lookupQuery = (editor?.textContent ?? "").trim();
@@ -72,11 +72,13 @@
   function closeLookup() {
     lookupOpen = false;
   }
-  function chooseLookup(withTag: boolean) {
+  /** full = Enter (card → author + tag); !full = Tab (card → author only).
+   *  Analytics ignore `full` and insert their text either way. */
+  function chooseLookup(full: boolean) {
     const m = lookupMatches[lookupSel];
     lookupOpen = false;
     if (!m) return;
-    store.setCellWithAuthor(row, col, m.author, withTag ? m.tag : "");
+    store.setCellFromArg(row, col, m, full);
     setTimeout(() => {
       if (editor) {
         editor.focus();
@@ -353,15 +355,15 @@
   ></div>
   {#if lookupOpen}
     <div class="author-lookup" role="listbox">
-      <div class="al-hint">↵ author + tag · ⇥ author · esc</div>
+      <div class="al-hint">↵ full · ⇥ author only · esc</div>
       {#if lookupMatches.length === 0}
         <div class="al-empty">
           {store.round?.cards?.length
-            ? "No author matches — keep typing"
-            : "No banked cards yet — import a doc to bank authors"}
+            ? "No matches — keep typing"
+            : "No banked arguments yet — import a doc to bank them"}
         </div>
       {/if}
-      {#each lookupMatches as m, mi (m.author + m.tag)}
+      {#each lookupMatches as m, mi ((m.author ?? "") + m.tag)}
         <button
           class="al-item"
           class:sel={mi === lookupSel}
@@ -369,7 +371,11 @@
           aria-selected={mi === lookupSel}
           onmousedown={(e) => { e.preventDefault(); lookupSel = mi; chooseLookup(true); }}
         >
-          <b>{m.author}</b><span class="al-tag">{m.tag}</span>
+          {#if m.analytic}
+            <span class="al-kind anl">ANL</span><span class="al-tag">{m.tag}</span>
+          {:else}
+            {#if m.author}<b>{m.author}</b>{/if}<span class="al-tag">{m.tag}</span>
+          {/if}
         </button>
       {/each}
     </div>
@@ -439,6 +445,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .al-kind {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .al-kind.anl {
+    color: var(--analytic, #2e7d32);
+    background: color-mix(in srgb, var(--analytic, #2e7d32) 16%, transparent);
   }
   .cell.label {
     border-bottom: 2px solid var(--border);

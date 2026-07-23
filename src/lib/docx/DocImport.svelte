@@ -5,7 +5,7 @@
   // Import an opponent's speech doc: each selected top-level section becomes
   // a sheet, its heading tree becomes rows in the chosen speech column.
 
-  import { parseDocx, flowLines, guessTargetSheet, positionSections, sectionTitles, collectCards, type ParsedDoc, type DocNode } from "./parse";
+  import { parseDocx, flowLines, guessTargetSheet, positionSections, sectionTitles, collectArguments, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow } from "../model/types";
 
@@ -202,7 +202,7 @@
     if (!parsed || !store.round) return;
     // Always bank the doc's cards for author autocomplete (⌘Space), whatever
     // the mode — this is the point of the "bank only" mode and a free win otherwise.
-    const banked = collectCards(rawNodes);
+    const banked = collectArguments(rawNodes);
     store.addCards(banked);
 
     let created = 0;
@@ -259,7 +259,7 @@
     const parts = [
       created && `created ${created} sheet${created === 1 ? "" : "s"}`,
       filled && `filled ${filled} existing`,
-      banked.length && `banked ${banked.length} card${banked.length === 1 ? "" : "s"}`,
+      banked.length && `banked ${banked.length} argument${banked.length === 1 ? "" : "s"}`,
     ].filter(Boolean);
     status = `${parts.join(", ") || "nothing to import"} from ${fileName} ✓`;
     parsed = null;
@@ -297,9 +297,9 @@
         <span class="guess-note">{guessNote}</span>
       </div>
       <div class="mode-pick">
-        <label><input type="radio" name="import-mode" value="pages_tags" bind:group={mode} /> Pages + tags + authors</label>
-        <label><input type="radio" name="import-mode" value="pages_only" bind:group={mode} /> Pages + authors (no tags)</label>
-        <label><input type="radio" name="import-mode" value="bank_only" bind:group={mode} /> Authors + tags only — no pages</label>
+        <label><input type="radio" name="import-mode" value="pages_tags" bind:group={mode} /> Pages + tags</label>
+        <label><input type="radio" name="import-mode" value="pages_only" bind:group={mode} /> Pages only (no tag text)</label>
+        <label><input type="radio" name="import-mode" value="bank_only" bind:group={mode} /> Bank arguments only — no pages</label>
       </div>
       {#each sections as node, i (i)}
         <div class="node" class:dim={mode === "bank_only"}>
@@ -316,7 +316,7 @@
       {/each}
       <div class="actions">
         <button class="chip primary" onclick={apply}>
-          {mode === "bank_only" ? "Bank cards" : "Create sheets"}
+          {mode === "bank_only" ? "Bank arguments" : "Create sheets"}
         </button>
         <button class="chip" onclick={() => (parsed = null)}>Cancel</button>
       </div>
