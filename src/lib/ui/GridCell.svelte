@@ -39,13 +39,24 @@
 
   let editor: HTMLDivElement | undefined = $state();
 
-  // Focus + caret-to-end whenever the cursor lands on this cell.
+  // Focus whenever the cursor lands on this cell. First mouse click selects the
+  // whole cell (store.selectAll); keyboard nav lands with a caret at the end.
   $effect(() => {
     if (active && editor && document.activeElement !== editor) {
       editor.focus();
-      placeCaretAtEnd();
+      if (store.selectAll) selectAllText();
+      else placeCaretAtEnd();
     }
   });
+
+  function selectAllText() {
+    if (!editor) return;
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
 
   // Set text imperatively. We skip re-painting a focused, non-empty editor to
   // avoid caret jumps mid-typing — BUT a focused-yet-empty editor means the
@@ -232,6 +243,7 @@
 <div
   class="cell"
   class:active
+  class:select-all={active && store.selectAll}
   class:in-range={inRange}
   class:dropped={cell.marks?.dropped}
   class:starred={cell.marks?.starred}
@@ -334,6 +346,12 @@
     outline: 1.5px solid var(--accent);
     outline-offset: -1.5px;
     background: var(--active-cell-bg);
+  }
+  /* Whole-cell select (first click): a heavier ring than the caret-edit outline. */
+  .cell.select-all {
+    outline: 2.5px solid var(--accent);
+    outline-offset: -2.5px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--active-cell-bg));
   }
   .cell.drop-target {
     outline: 2px dashed var(--accent);

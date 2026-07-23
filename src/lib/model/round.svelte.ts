@@ -21,6 +21,10 @@ class RoundStore {
   cursor = $state<Cursor | null>(null);
   /** Excel-style range selection on the active sheet (anchor→focus corners). */
   selection = $state<{ anchor: Cursor; focus: Cursor } | null>(null);
+  /** First mouse click on a cell selects the whole cell (heavy outline, all
+   *  text selected so Delete clears / typing replaces). A second click drops the
+   *  caret in. Keyboard flowing always lands in caret-edit (this stays false). */
+  selectAll = $state(false);
 
   private undoStack: string[] = [];
   private redoStack: string[] = [];
@@ -234,6 +238,8 @@ class RoundStore {
   setCell(row: number, col: number, text: string): void {
     const sheet = this.activeSheet;
     if (!sheet?.rows[row]?.cells[col]) return;
+    // Once text changes, we're editing — leave whole-cell select mode.
+    this.selectAll = false;
     this.mutate(
       () => {
         const cell = sheet.rows[row].cells[col];
@@ -516,6 +522,8 @@ class RoundStore {
     const row = Math.max(0, this.cursor.row + dRow);
     this.ensureRows(row);
     this.cursor = { row, col };
+    // Keyboard flowing always lands in caret edit, never whole-cell select.
+    this.selectAll = false;
   }
 }
 
