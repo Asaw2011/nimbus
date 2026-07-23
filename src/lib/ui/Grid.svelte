@@ -183,15 +183,6 @@
       store.activeSheetId === sheet.id &&
       store.hasMultiSelection &&
       store.inSelection(rc.r, rc.c);
-    if (!insideSelection) {
-      // First click on a cell selects the whole cell; clicking the cell that's
-      // already the cursor drops the caret in to edit (second click / dbl-click).
-      const wasActive =
-        store.activeSheetId === sheet.id &&
-        store.cursor?.row === rc.r &&
-        store.cursor?.col === rc.c;
-      store.selectAll = !wasActive;
-    }
     drag = {
       mode: insideSelection ? "move" : "select",
       startR: rc.r,

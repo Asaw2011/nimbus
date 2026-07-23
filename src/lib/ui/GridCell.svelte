@@ -39,26 +39,13 @@
 
   let editor: HTMLDivElement | undefined = $state();
 
-  // Focus whenever the cursor LANDS on this cell (keyboard nav). This effect
-  // must depend ONLY on `active` — NOT on store.selectAll. Reading selectAll here
-  // made every cell's effect re-run on each click/keystroke (selectAll toggles
-  // constantly), so the active cell kept grabbing focus back mid-click and you
-  // couldn't move off it. Whole-cell select is applied in onfocus() instead.
+  // Focus + caret-to-end whenever the cursor lands on this cell.
   $effect(() => {
     if (active && editor && document.activeElement !== editor) {
       editor.focus();
       placeCaretAtEnd();
     }
   });
-
-  function selectAllText() {
-    if (!editor) return;
-    const range = document.createRange();
-    range.selectNodeContents(editor);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-  }
 
   // ---- argument lookup dropdown (⌘J): banked cards + analytics ----
   let lookupOpen = $state(false);
@@ -295,13 +282,6 @@
     // (insert row, extend, marks) target the sheet you're actually in.
     store.activeSheetId = sheetId;
     store.cursor = { row, col };
-    // First-click whole-cell select is applied HERE (not in the focus effect),
-    // once, after the browser has placed the caret — so it never re-grabs focus.
-    if (store.selectAll) {
-      requestAnimationFrame(() => {
-        if (document.activeElement === editor && store.selectAll) selectAllText();
-      });
-    }
   }
 
   function onpaste(e: ClipboardEvent) {
@@ -326,7 +306,6 @@
 <div
   class="cell"
   class:active
-  class:select-all={active && store.selectAll}
   class:in-range={inRange}
   class:dropped={cell.marks?.dropped}
   class:starred={cell.marks?.starred}
@@ -520,12 +499,6 @@
     outline: 1.5px solid var(--accent);
     outline-offset: -1.5px;
     background: var(--active-cell-bg);
-  }
-  /* Whole-cell select (first click): a heavier ring than the caret-edit outline. */
-  .cell.select-all {
-    outline: 2.5px solid var(--accent);
-    outline-offset: -2.5px;
-    background: color-mix(in srgb, var(--accent) 10%, var(--active-cell-bg));
   }
   .cell.drop-target {
     outline: 2px dashed var(--accent);
