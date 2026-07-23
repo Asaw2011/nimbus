@@ -285,8 +285,11 @@ class RoundStore {
   authorMatches(query: string): CardRef[] {
     const bank = this.round?.cards ?? [];
     const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const hits = bank.filter((c) => c.author.toLowerCase().startsWith(q));
+    // Empty query shows the whole bank, so the lookup displays something the
+    // instant it opens on a blank cell (otherwise it looks broken).
+    const hits = q
+      ? bank.filter((c) => c.author.toLowerCase().includes(q))
+      : bank.slice();
     const sheetText = (this.activeSheet?.rows ?? [])
       .flatMap((r) => r.cells.map((c) => c.text.toLowerCase()))
       .join("   ");

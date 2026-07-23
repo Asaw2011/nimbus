@@ -351,9 +351,16 @@
     {onpaste}
     onblur={() => { store.endTextSession(); closeLookup(); }}
   ></div>
-  {#if lookupOpen && lookupMatches.length > 0}
+  {#if lookupOpen}
     <div class="author-lookup" role="listbox">
       <div class="al-hint">↵ author · ⇥ author + tag · esc</div>
+      {#if lookupMatches.length === 0}
+        <div class="al-empty">
+          {store.round?.cards?.length
+            ? "No author matches — keep typing"
+            : "No banked cards yet — import a doc to bank authors"}
+        </div>
+      {/if}
       {#each lookupMatches as m, mi (m.author + m.tag)}
         <button
           class="al-item"
@@ -403,6 +410,12 @@
     font-size: 10px;
     color: var(--text-dim);
     padding: 3px 6px;
+  }
+  .al-empty {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    font-style: italic;
   }
   .al-item {
     display: flex;

@@ -93,7 +93,8 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   zoomIn: [{ key: "=", mod: true }],
   zoomOut: [{ key: "-", mod: true }],
   zoomReset: [{ key: "0", mod: true, shift: true }],
-  authorLookup: [{ key: " ", mod: true }],
+  // NOT ⌘Space — macOS Spotlight eats that before the app sees it. ⌘J is free.
+  authorLookup: [{ key: "j", mod: true }],
 };
 
 /** Default count for the two bulk row-insert actions. User-editable in Settings. */
