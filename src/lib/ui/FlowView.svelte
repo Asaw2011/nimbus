@@ -739,25 +739,37 @@
     border-radius: 0;
     /* Tab text takes the sheet's color, like your template's blue/red pages */
     color: var(--stripe, var(--text-dim));
-    opacity: 0.65;
+    /* Inactive tabs recede — no stripe, half opacity — so the current sheet
+     * reads unambiguously. */
+    opacity: 0.5;
     padding: 7px 18px;
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.03em;
     cursor: pointer;
     white-space: nowrap;
-    box-shadow: inset 0 2px 0 var(--stripe, transparent);
     user-select: none;
     -webkit-user-select: none;
     box-sizing: border-box;
   }
   .tab:hover {
-    opacity: 1;
+    opacity: 0.85;
     background: color-mix(in srgb, var(--bg) 50%, var(--panel));
   }
+  /* Active tab: full opacity, heavier, tinted in its own sheet color, with a
+   * 3px accent bar on the edge facing the grid (top when tabs sit at the
+   * bottom, bottom when they sit at the top). */
   .tab.active {
-    background: var(--bg);
     opacity: 1;
+    font-weight: 800;
+    background: color-mix(in srgb, var(--stripe, var(--accent)) 12%, var(--bg));
+    box-shadow: inset 0 3px 0 var(--stripe, var(--accent));
+  }
+  .tabs.bottom .tab.active {
+    box-shadow: inset 0 3px 0 var(--stripe, var(--accent));
+  }
+  .tabs:not(.bottom) .tab.active {
+    box-shadow: inset 0 -3px 0 var(--stripe, var(--accent));
   }
   .tab.dragging {
     opacity: 0.35;

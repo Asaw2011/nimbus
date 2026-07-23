@@ -46,12 +46,34 @@
     if (settings.showTutorial) showTutorial = true;
     setupCloseGuard();
     setupFileOpen();
+    const teardownAutosave = setupAutosave();
     // Check for updates in the background after a short delay so it
     // doesn't slow down the initial render.
     setTimeout(() => {
       checkForUpdate().then((u) => { if (u) pendingUpdate = u; });
     }, 4000);
+    return teardownAutosave;
   });
+
+  /** Belt-and-braces persistence: a 5s heartbeat plus a flush whenever the
+   *  window loses focus / is hidden / is being torn down. The per-edit debounce
+   *  alone can't cover a crash, sleep, or force-quit between keystroke and flush. */
+  function setupAutosave(): () => void {
+    const flush = () => { void store.autosaveIfDirty(); };
+    const heartbeat = setInterval(flush, 5000);
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("blur", flush);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(heartbeat);
+      window.removeEventListener("blur", flush);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }
 
   async function installUpdate() {
     if (!pendingUpdate) return;

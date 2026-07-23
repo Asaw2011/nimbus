@@ -114,6 +114,9 @@ class RoundStore {
       this.suppressHistory = false;
       this.textSessionOpen = false;
     }
+    // A batch used to rely on its inner mutations to schedule the save; some
+    // callers mutate the round directly inside fn(), so schedule here too.
+    this.scheduleSave();
   }
 
   private pushHistory(): void {
@@ -139,17 +142,31 @@ class RoundStore {
     this.scheduleSave();
   }
 
+  /** True whenever there are edits not yet flushed to disk. */
+  private dirty = false;
+
   private scheduleSave(): void {
+    this.dirty = true;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
-      if (this.round) void saveRound($state.snapshot(this.round) as Round);
+      void this.saveNow();
     }, SAVE_DEBOUNCE_MS);
   }
 
   /** Write the current round to app-data immediately (e.g. before quitting). */
   async saveNow(): Promise<void> {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    this.dirty = false;
     if (this.round) await saveRound($state.snapshot(this.round) as Round);
+  }
+
+  /** Flush only if there are unsaved edits — cheap to call from a heartbeat
+   *  or on window blur / hide / pagehide, so a crash or sleep can't lose work. */
+  async autosaveIfDirty(): Promise<void> {
+    if (this.dirty && this.round) await this.saveNow();
   }
 
   // ---- lookup -------------------------------------------------------------
@@ -469,8 +486,12 @@ class RoundStore {
         const target = sheet.rows[rect.r0 + dRow + dr]?.cells[rect.c0 + dCol + dc];
         if (target) {
           target.text = cell.text;
-          if (cell.marks) target.marks = cell.marks;
-          else delete target.marks;
+          if (cell.marks) {
+            // Drop the custom per-cell ink so the cell takes the destination
+            // column's aff/neg color. Card/analytic + dropped/star marks carry.
+            delete cell.marks.color;
+            target.marks = cell.marks;
+          } else delete target.marks;
           if (cell.ext) target.ext = cell.ext;
           else delete target.ext;
         }
