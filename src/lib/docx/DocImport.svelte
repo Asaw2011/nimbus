@@ -176,13 +176,17 @@
 
   /** When the user changes the split level, re-derive sections from the raw tree. */
   $effect(() => {
+    // Only depend on the split level. Reading `titles`/`parsed` here (which the
+    // body also writes) would make the effect re-trigger itself forever.
+    void splitLevel;
     if (!parsed || rawNodes.length === 0) return;
     const nodes = applySplit(rawNodes, splitLevel);
     const sheets = store.round?.sheets ?? [];
-    parsed = { ...parsed, nodes };
+    const t = sectionTitles(nodes); // local — do NOT read the `titles` state here
     checked = nodes.map(() => true);
-    titles = sectionTitles(nodes);
-    targets = nodes.map((n, i) => guessTargetSheet(titles[i] ?? n.text, sheets) ?? "new");
+    titles = t;
+    targets = nodes.map((n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new");
+    parsed = { ...parsed, nodes };
   });
 
   function apply() {
