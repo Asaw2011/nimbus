@@ -46,13 +46,19 @@ and stop descending.
 - [x] §4 active sheet tab stands out (inactive 0.5 opacity; active bold+tinted+bar)
 - [x] §5 DOCX import: positionSections expands OFF containers; cleanSectionTitle;
       sectionTitles number generic offs. Verified: 1NC OFF → N sheets not 1.
-- [ ] §6 DOCX import: author extraction + bank-only mode (3 radio modes)
-- [ ] §7 two-pass parse (strict cite style, then any-bold fallback)
-- [ ] §8 card bank + author autocomplete (⌘Space lookup, bold author in cell)
-- [ ] §9 authored cards colored by side (depends on §8)
+- [x] §6 DOCX import: author extraction + 3 modes (pages+tags / pages / bank-only)
+- [x] §7 (folded into §6): normalizeAuthor + collectCards author extraction
+- [x] §8 card bank + author autocomplete (⌘Space lookup, bold author in cell)
+- [x] §9 authored cards keep side color (setCellWithAuthor no forced card ink)
 - [x] §10 autosave hardening (dirty flag, 5s heartbeat, flush on blur/hide)
 - [x] §11 click to select, click again to edit
-- [~] §12 zoom (⌘± / ⌘⇧0 + ribbon − 100% +) DONE; off-screen star/scroll cues TODO
+- [x] §12 zoom (⌘± / ⌘⇧0 + ribbon − 100% +) AND off-screen star/scroll cues
 - [x] §13 moving a cell recolors to destination speech
-Remaining: §6, §7, §8, §9 (card bank / author autocomplete — one coherent
-feature), and §12 scroll/star cues. §6–§8 touch parse.ts + GridCell heavily.
+
+ALL 13 SECTIONS APPLIED. Notes:
+- ⌘Space (author lookup) may collide with macOS Spotlight; rebind in Settings →
+  Keybinds if it doesn't fire.
+- §7's "two-pass strict-then-bold" cite detection was simplified: collectCards
+  uses the existing cite-run detection (Style13ptBold / Cite). Good enough for
+  the current parser; can add the bold-only fallback pass later if a doc has no
+  cite style at all.

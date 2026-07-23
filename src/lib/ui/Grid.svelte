@@ -102,7 +102,53 @@
     const nearBottom =
       scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - 300;
     if (nearBottom) store.ensureRows(sheet.rows.length + 20, sheet);
+    updateCues();
   }
+
+  // ---- off-screen cues (main flow only) ----
+  let moreAbove = $state(false);
+  let moreBelow = $state(false);
+  let starsAbove = $state(0);
+  let starsBelow = $state(0);
+
+  function updateCues() {
+    if (!scroller || spread) return;
+    moreAbove = scroller.scrollTop > 4;
+    moreBelow =
+      scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 4;
+    const srect = scroller.getBoundingClientRect();
+    let above = 0;
+    let below = 0;
+    for (const el of scroller.querySelectorAll(".cell.starred")) {
+      const r = el.getBoundingClientRect();
+      if (r.bottom < srect.top + 2) above++;
+      else if (r.top > srect.bottom - 2) below++;
+    }
+    starsAbove = above;
+    starsBelow = below;
+  }
+
+  /** Scroll to the nearest off-screen starred cell in the given direction. */
+  function scrollToStar(dir: -1 | 1) {
+    if (!scroller) return;
+    const srect = scroller.getBoundingClientRect();
+    let best: Element | null = null;
+    let bestDist = Infinity;
+    for (const el of scroller.querySelectorAll(".cell.starred")) {
+      const r = el.getBoundingClientRect();
+      const off = dir < 0 ? r.bottom < srect.top + 2 : r.top > srect.bottom - 2;
+      if (!off) continue;
+      const dist = dir < 0 ? srect.top - r.bottom : r.top - srect.bottom;
+      if (dist < bestDist) { bestDist = dist; best = el; }
+    }
+    best?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // Recompute cues whenever the sheet content changes or on first paint.
+  $effect(() => {
+    void sheet.rows.length;
+    if (!spread) requestAnimationFrame(updateCues);
+  });
 
   // ---- Excel-style range selection ---------------------------------------
   // Drag across cells to highlight a block; drag from inside a highlighted
@@ -226,6 +272,17 @@
 
 <svelte:window onkeydown={onSelectionKeys} />
 
+<div class="grid-wrap">
+{#if !spread}
+  <div class="edge-fade top" class:on={moreAbove}></div>
+  <div class="edge-fade bottom" class:on={moreBelow}></div>
+  {#if starsAbove > 0}
+    <button class="star-pill top" onclick={() => scrollToStar(-1)} title="Scroll to the nearest starred argument above">★ {starsAbove} above ↑</button>
+  {/if}
+  {#if starsBelow > 0}
+    <button class="star-pill bottom" onclick={() => scrollToStar(1)} title="Scroll to the nearest starred argument below">★ {starsBelow} below ↓</button>
+  {/if}
+{/if}
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="grid-scroll"
@@ -272,11 +329,60 @@
     </div>
   {/each}
 </div>
+</div>
 
 <style>
+  .grid-wrap {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
   .grid-scroll {
     flex: 1;
     overflow: auto;
+  }
+  .edge-fade {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 22px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 3;
+  }
+  .edge-fade.on { opacity: 1; }
+  .edge-fade.top {
+    top: 0;
+    background: linear-gradient(to bottom, var(--bg), transparent);
+  }
+  .edge-fade.bottom {
+    bottom: 0;
+    background: linear-gradient(to top, var(--bg), transparent);
+  }
+  .star-pill {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    background: var(--star, #d4a017);
+    color: #1a1a1a;
+    border: none;
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+    animation: star-pulse 1.6s ease-in-out infinite;
+  }
+  .star-pill.top { top: 6px; }
+  .star-pill.bottom { bottom: 6px; }
+  @keyframes star-pulse {
+    0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28); }
+    50% { box-shadow: 0 2px 14px rgba(212, 160, 23, 0.7); }
   }
   .grid-scroll.dragging,
   .grid-scroll.dragging :global(*) {
