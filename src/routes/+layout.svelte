@@ -2,6 +2,9 @@
   import { settings } from "$lib/model/settings.svelte";
   import { initSnippets } from "$lib/model/snippets";
   import { onMount } from "svelte";
+  import "$lib/fonts.css"; // bundled Lexend + Calibri(Carlito), offline
+  import "$lib/cardmirror/cardmirror.css"; // doc rendering (also for the settings preview)
+  import "$lib/doc/doc-style.css"; // configurable doc display toggles
 
   let { children } = $props();
 
@@ -31,6 +34,12 @@
     else root.removeProperty("--cell-font");
     root.setProperty("--cell-size", `${settings.fontSize}px`);
     root.setProperty("--row-h", `${settings.rowHeight}px`);
+    // The default font also drives the speech doc; when unset it keeps the
+    // traditional Calibri look debaters expect (now bundled, so it renders).
+    root.setProperty(
+      "--doc-font",
+      settings.fontFamily || '"Calibri", "Segoe UI", Arial, sans-serif',
+    );
   });
 </script>
 

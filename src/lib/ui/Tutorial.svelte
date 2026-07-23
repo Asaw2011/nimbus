@@ -40,14 +40,19 @@
         <b>Analytic</b>, or <b>Card</b> from the ribbon or keys.
       </div>
       <div class="item">
+        <span class="k">A real speech doc</span>
+        <kbd>⌘D</kbd> opens a full CardMirror-style doc — cut, highlight, read
+        mode, and one-click <b>Send to Doc</b> from your flow.
+      </div>
+      <div class="item">
         <span class="k">Make it yours</span>
         <kbd>⌘,</kbd> opens Settings — themes, custom keybinds, and JavaScript
         macros for one-key argument blocks.
       </div>
       <div class="item">
-        <span class="k">Flow together</span>
-        On a round's home page, start <b>Partner flowing</b> — share one code
-        and edit the same round live.
+        <span class="k">Read the manual</span>
+        The <b>📖 Manual</b> button in the top bar explains every feature —
+        flow, speech doc, shortcuts, and settings.
       </div>
     </div>
 
@@ -55,7 +60,10 @@
       <button class="primary" onclick={onclose}>Start flowing</button>
       <button class="ghost" onclick={dismissForever}>Don't show this again</button>
     </div>
-    <p class="foot">You can reopen this anytime in Settings → “Show welcome tutorial”.</p>
+    <p class="foot">
+      New here? The <b>📖 Manual</b> button (top bar) explains every feature.
+      Reopen this welcome anytime in Settings → “Show welcome tutorial”.
+    </p>
   </div>
 </div>
 

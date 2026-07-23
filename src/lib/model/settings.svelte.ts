@@ -63,6 +63,8 @@ export interface Persisted {
   bulkRows: number;
   /** Grid zoom factor (default 1, clamped 0.5–2.5). */
   zoom: number;
+  docZoom: number;
+  sendAtCursor: boolean;
   /** Folders to index for Doc Search (⌘K). */
   libraryRoots: LibraryRoot[];
   /** Speech-doc display typography (matches CardMirror's per-user settings). */
@@ -70,11 +72,29 @@ export interface Persisted {
 }
 
 export interface DocTypography {
+  // Heading font sizes (pt) — Verbatim defaults.
+  sizePocket: number;
+  sizeHat: number;
+  sizeBlock: number;
+  sizeTag: number;
+  sizeCite: number;
+  // Ink colors (hex).
+  colorAnalytic: string;
+  colorUndertag: string;
+  // Emphasis (the boxed power word).
   emphasisBox: boolean;
   emphasisBold: boolean;
   emphasisItalic: boolean;
   /** Emphasis box thickness in pt. */
   emphasisBoxSize: number;
+  // Pocket heading box.
+  pocketBox: boolean;
+  /** Pocket box thickness in pt. */
+  pocketBoxSize: number;
+  // The cut (underline) + undertag marks.
+  underlineBold: boolean;
+  undertagItalic: boolean;
+  undertagBold: boolean;
 }
 
 /** Bulk-row count is clamped to a sane 2–50 range. */
@@ -90,10 +110,22 @@ export function clampZoom(n: number): number {
 }
 
 export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
+  sizePocket: 26,
+  sizeHat: 22,
+  sizeBlock: 16,
+  sizeTag: 13,
+  sizeCite: 13,
+  colorAnalytic: "#1F3864",
+  colorUndertag: "#385623",
   emphasisBox: true,
   emphasisBold: true,
   emphasisItalic: false,
   emphasisBoxSize: 1,
+  pocketBox: true,
+  pocketBoxSize: 2.25,
+  underlineBold: false,
+  undertagItalic: true,
+  undertagBold: false,
 };
 
 class Settings {
@@ -115,6 +147,11 @@ class Settings {
   rowHeight = $state(26);
   bulkRows = $state(DEFAULT_BULK_ROWS);
   zoom = $state(1);
+  /** Speech-doc view zoom (pinch-to-zoom), default 1, clamped 0.5–2.5. */
+  docZoom = $state(1);
+  /** Send to Doc / Cell → Doc insert at the doc's cursor (true) instead of in
+   *  flow order (false, the default). */
+  sendAtCursor = $state(false);
   keymap = $state<Record<ActionId, Combo[]>>(structuredClone(DEFAULT_KEYMAP));
   macros = $state<Macro[]>(defaultMacros());
   libraryRoots = $state<LibraryRoot[]>([]);
@@ -167,6 +204,8 @@ class Settings {
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
+    if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
+    if (p.sendAtCursor !== undefined) this.sendAtCursor = p.sendAtCursor;
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -203,6 +242,8 @@ class Settings {
       defaultSaveFormat: this.defaultSaveFormat,
       bulkRows: this.bulkRows,
       zoom: this.zoom,
+      docZoom: this.docZoom,
+      sendAtCursor: this.sendAtCursor,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
@@ -300,6 +341,10 @@ class Settings {
   zoomIn(): void { this.setZoom(this.zoom + 0.1); }
   zoomOut(): void { this.setZoom(this.zoom - 0.1); }
   zoomReset(): void { this.setZoom(1); }
+
+  /** Live-set the flow zoom WITHOUT persisting (pinch); commit with save(). */
+  setZoomLive(n: number): void { this.zoom = clampZoom(n); }
+  setDocZoomLive(n: number): void { this.docZoom = clampZoom(n); }
 
   /** Human label of whatever a combo is currently bound to, or null. */
   findBinding(combo: Combo): string | null {

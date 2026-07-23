@@ -25,8 +25,6 @@ export type ActionId =
   | "nextSheet"
   | "moveSheetLeft"
   | "moveSheetRight"
-  | "hoverPrevSheet"
-  | "hoverNextSheet"
   | "toggleSpread"
   | "goHome"
   | "toggleHelp"
@@ -35,7 +33,23 @@ export type ActionId =
   | "zoomIn"
   | "zoomOut"
   | "zoomReset"
-  | "authorLookup";
+  | "authorLookup"
+  // Speech-doc editor actions (only fire while the doc has focus).
+  | "docBody"
+  | "docPocket"
+  | "docHat"
+  | "docBlock"
+  | "docTag"
+  | "docAnalytic"
+  | "docUndertag"
+  | "docCite"
+  | "docEmphasis"
+  | "docUnderline"
+  | "docClearFormat"
+  | "docBold"
+  | "docItalic"
+  | "docFind"
+  | "docQuickCards";
 
 export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowBelow: "Insert row below",
@@ -53,8 +67,6 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   nextSheet: "Next sheet (right)",
   moveSheetLeft: "Move sheet left (reorder)",
   moveSheetRight: "Move sheet right (reorder)",
-  hoverPrevSheet: "Hover left sheet (don't switch)",
-  hoverNextSheet: "Hover right sheet (don't switch)",
   toggleSpread: "Spread view (multiple sheets at once)",
   goHome: "Round home",
   toggleHelp: "Show keybinds",
@@ -64,6 +76,21 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   zoomOut: "Zoom out",
   zoomReset: "Reset zoom to 100%",
   authorLookup: "Argument lookup (autocomplete banked cards + analytics)",
+  docBody: "Body text",
+  docPocket: "Pocket heading",
+  docHat: "Hat heading",
+  docBlock: "Block heading",
+  docTag: "Tag (card)",
+  docAnalytic: "Analytic",
+  docUndertag: "Undertag",
+  docCite: "Cite mark",
+  docEmphasis: "Emphasis mark",
+  docUnderline: "Underline mark",
+  docClearFormat: "Clear formatting",
+  docBold: "Bold",
+  docItalic: "Italic",
+  docFind: "Find in document",
+  docQuickCards: "Quick cards (save / insert snippets)",
 };
 
 /** Each action can have any number of bindings (including none). */
@@ -83,8 +110,6 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   nextSheet: [{ key: "]", mod: true }],
   moveSheetLeft: [{ key: "arrowleft", mod: true, shift: true }],
   moveSheetRight: [{ key: "arrowright", mod: true, shift: true }],
-  hoverPrevSheet: [{ key: "arrowleft", mod: true, alt: true }],
-  hoverNextSheet: [{ key: "arrowright", mod: true, alt: true }],
   toggleSpread: [{ key: "b", mod: true }],
   goHome: [{ key: "0", mod: true }],
   toggleHelp: [{ key: "/", mod: true }],
@@ -95,7 +120,57 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   zoomReset: [{ key: "0", mod: true, shift: true }],
   // NOT ⌘Space — macOS Spotlight eats that before the app sees it. ⌘J is free.
   authorLookup: [{ key: "j", mod: true }],
+  // Speech-doc styles/marks (match the CardMirror personal binds shown on the
+  // toolbar). These only fire while the doc editor has focus.
+  docBody: [{ key: "0", mod: true }],
+  docPocket: [{ key: "1", mod: true }],
+  docHat: [{ key: "2", mod: true }],
+  docBlock: [{ key: "3", mod: true }],
+  docTag: [{ key: "4", mod: true }],
+  docAnalytic: [{ key: "5", mod: true }],
+  docUndertag: [{ key: "6", mod: true }],
+  docCite: [{ key: "9", mod: true }],
+  docEmphasis: [{ key: "arrowdown", mod: true }],
+  docUnderline: [{ key: "arrowup", mod: true }],
+  docClearFormat: [{ key: "arrowleft", mod: true }],
+  docBold: [{ key: "b", mod: true }],
+  docItalic: [{ key: "i", mod: true }],
+  docFind: [{ key: "f", mod: true }],
+  docQuickCards: [{ key: "'", mod: true }],
 };
+
+/** Keybind actions grouped into sections for the Settings UI. Every ActionId
+ *  must appear in exactly one group. */
+export interface ActionGroup { title: string; actions: ActionId[]; }
+export const ACTION_GROUPS: ActionGroup[] = [
+  {
+    title: "Rows",
+    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "deleteRow"],
+  },
+  {
+    title: "Flowing & marks",
+    actions: ["extendArg", "markDropped", "markStarred", "markAnalytic", "markCard", "authorLookup"],
+  },
+  {
+    title: "Sheets",
+    actions: ["newSheet", "prevSheet", "nextSheet", "moveSheetLeft", "moveSheetRight"],
+  },
+  {
+    title: "View & zoom",
+    actions: ["toggleSpread", "goHome", "openDocSearch", "zoomIn", "zoomOut", "zoomReset"],
+  },
+  {
+    title: "App",
+    actions: ["toggleHelp", "openSettings"],
+  },
+  {
+    title: "Speech doc",
+    actions: [
+      "docPocket", "docHat", "docBlock", "docTag", "docAnalytic", "docUndertag", "docBody",
+      "docCite", "docEmphasis", "docUnderline", "docClearFormat", "docBold", "docItalic", "docFind", "docQuickCards",
+    ],
+  },
+];
 
 /** Default count for the two bulk row-insert actions. User-editable in Settings. */
 export const DEFAULT_BULK_ROWS = 3;

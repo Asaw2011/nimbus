@@ -1,0 +1,79 @@
+/* Bundled, self-hosted fonts (offline-first — no CDN at runtime).
+ *
+ * - Lexend (SIL OFL): a legibility-tuned sans, offered as a flow/doc font.
+ * - Calibri: proprietary (Microsoft), so it can't be shipped. Carlito (SIL OFL)
+ *   is Google's METRIC-COMPATIBLE substitute — identical metrics, so Verbatim
+ *   Calibri cards lay out the same. It's registered under the "Calibri" family
+ *   with `local("Calibri")` first, so a machine that actually has Calibri uses
+ *   the real thing and everyone else gets the bundled look-alike. This is why
+ *   selecting "Calibri" now works even without the font installed.
+ */
+
+/* ---- Lexend ---- */
+@font-face {
+  font-family: "Lexend";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/lexend-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Lexend";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/lexend-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Lexend";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/lexend-700.woff2") format("woff2");
+}
+
+/* ---- Calibri (real if installed, else metric-compatible Carlito) ---- */
+@font-face {
+  font-family: "Calibri";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Calibri"), url("/fonts/carlito-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Calibri";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local("Calibri Bold"), local("Calibri"), url("/fonts/carlito-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Calibri";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Calibri Italic"), local("Calibri"), url("/fonts/carlito-400-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Calibri";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: local("Calibri Bold Italic"), local("Calibri"), url("/fonts/carlito-700-italic.woff2") format("woff2");
+}
+
+/* ---- Carlito under its own name too (for anyone who wants it explicitly) ---- */
+@font-face {
+  font-family: "Carlito";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/carlito-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Carlito";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/carlito-700.woff2") format("woff2");
+}

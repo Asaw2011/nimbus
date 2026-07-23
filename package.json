@@ -1,6 +1,6 @@
 {
   "name": "nimbus",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "",
   "type": "module",
   "scripts": {
@@ -29,7 +29,6 @@
     "prosemirror-state": "^1.4.4",
     "prosemirror-tables": "^1.8.5",
     "prosemirror-view": "^1.42.1",
-    "trystero": "^0.25.3",
     "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {

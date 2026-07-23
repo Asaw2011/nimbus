@@ -39,8 +39,31 @@ export interface CellMarks {
   italic?: boolean;
 }
 
+/**
+ * A sub-entry inside a cell — a block expands into several of these (its cards),
+ * and you can add your own typed responses alongside them. "Multiple cells
+ * inside one cell."
+ */
+export interface CellItem {
+  id: string;
+  text: string;
+  /** "card" = came from an inserted card; "response" = you typed it. */
+  kind: "card" | "response";
+  /** Source-type chip (CARD/BLK/…) for inserted cards. */
+  chip?: string;
+  /** Full source node (for "Send to Doc"). */
+  card?: unknown;
+  /** The exact CardMirror node JSON (with images/formatting) — sent to the doc
+   *  verbatim so images survive, unlike the text-only `card` adapter path. */
+  cmNode?: unknown;
+}
+
 export interface Cell {
   text: string;
+  /** Sub-entries (cards + your responses). When present, the cell is expandable. */
+  items?: CellItem[];
+  /** UI: whether the sub-entries are shown (persisted so it stays put). */
+  expanded?: boolean;
   marks?: CellMarks;
   /** Extension arrow: this cell continues an argument from an earlier speech. */
   ext?: boolean;
@@ -49,6 +72,9 @@ export interface Cell {
   /** The full card (DocNode) this cell was filled from, so "Send to Doc"
    *  can re-send the real substance — not just the block name. */
   card?: unknown;
+  /** The exact CardMirror node JSON (with images) for a single-card cell —
+   *  sent to the doc verbatim so images survive. */
+  cmNode?: unknown;
   /** The card's author, stored as the exact substring that lives inside `text`
    *  (not offsets — self-heals when you edit around it) so it renders bold. */
   author?: string;
@@ -98,6 +124,10 @@ export interface ArgRef {
   cite?: string;
   /** True when this is an analytic (no card / author). */
   analytic?: boolean;
+  /** The full card/analytic node (DocNode) behind this argument, so inserting
+   *  it carries the real substance — not just tag + author — and it can be
+   *  sent to the speech doc. */
+  card?: unknown;
 }
 /** @deprecated old name — kept so existing imports still type-check. */
 export type CardRef = ArgRef;

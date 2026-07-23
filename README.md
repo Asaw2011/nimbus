@@ -71,15 +71,28 @@ Builds are currently unsigned, so first launch shows a security warning:
 - Flows live inside as files; **drag a flow between tournaments** to move the
   file on disk — organize in Nimbus or in Finder, it's the same files
 
-**Docs & sharing**
-- **Import `.docx` speech docs** — a 1NC creates off-case sheets; answer docs
-  (AT:/A2…) match your existing flows; target column is guessed from the round
-- **Partner flowing** — real-time co-flowing over one room code, no account and
-  no server to run (peer-to-peer, encrypted)
+**The speech doc — CardMirror, inside Nimbus**
+- A full CardMirror-schema editor: highlight (spoken), underline (the cut),
+  emphasis (boxed power word), condensed (unread) — with lossless `.docx`
+  round-trip
+- Structure + read-marking shortcuts, **find-in-doc** (`⌘F`), read mode, and
+  **standardize highlighting** (unify every highlight, with an optional exception)
+- Editable **doc style & headings** — sizes, colors, emphasis/underline/pocket —
+  with a live preview
+- **Send to Doc / Cell → Doc** — build your speech from the flow, always in flow
+  order; typed cells send as analytics, cards as cards. Nothing is auto-added.
+- Maximize it, or pop it out into its own window
+
+**Import `.docx`**
+- A 1NC creates off-case sheets; answer docs (AT:/A2…) match your existing flows;
+  the target column is guessed from the round. Every doc's cards are banked for
+  argument lookup.
 
 **Make it yours**
-- 6 themes (five light options + dark), custom aff/neg/analytic/card colors,
-  adjustable font, size, and row height
+- Themes (five light + dark), custom aff/neg/analytic/card colors, adjustable
+  font/size/row height, and **bundled Lexend + Calibri** fonts that work offline
+- **Pinch-to-zoom** the flow and the doc; tabbed Settings; and a built-in
+  **📖 Manual** that explains every feature
 - Everything auto-saves to disk and survives updates; export/import your full
   settings bundle
 
@@ -121,7 +134,8 @@ npm run check       # typecheck
 Cut a release (builds macOS + Windows in the cloud):
 
 ```sh
-git tag v0.1.1 && git push origin v0.1.1
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-Press `⌘/` in the app for the full keybind reference.
+Open the **📖 Manual** in the app for a full feature reference, or press `⌘/`
+for the keybind list.

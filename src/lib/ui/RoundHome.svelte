@@ -6,9 +6,6 @@
   // DOCX-IMPORT feature — to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
-  // COLLAB feature — to remove: delete this import + the marked section below
-  // + the src/lib/collab folder, then `npm uninstall trystero`.
-  import CollabPanel from "../collab/CollabPanel.svelte";
 
   let { onopensheet }: { onopensheet: (sheetId: string) => void } = $props();
 
@@ -220,16 +217,6 @@
     </section>
 
     <div class="tools">
-      <!-- COLLAB feature (removable — see import comment above) -->
-      <details class="tool">
-        <summary>🔗 Partner flowing</summary>
-        <div class="tool-body">
-          <p class="hint-line">Flow the same round live with your partner — exchange one code, then it syncs both ways.</p>
-          <CollabPanel />
-        </div>
-      </details>
-      <!-- /COLLAB -->
-
       <!-- DOCX-IMPORT feature (removable — see import comment above) -->
       <details class="tool">
         <summary>📄 Import speech doc (.docx)</summary>

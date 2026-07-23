@@ -13,32 +13,48 @@
     onsendspeech = null,
     onsendcell = null,
     onremove = null,
+    ondocbold = null,
+    ondocitalic = null,
+    ondoccolor = null,
+    ondocfontsize = null,
   }: {
     spreadMode: "off" | "vertical" | "horizontal";
     onspread: (mode: "vertical" | "horizontal") => void;
     onsendspeech?: (() => void) | null;
     onsendcell?: (() => void) | null;
     onremove?: (() => void) | null;
+    ondocbold?: (() => void) | null;
+    ondocitalic?: (() => void) | null;
+    ondoccolor?: ((hex: string | null) => void) | null;
+    ondocfontsize?: ((delta: number) => void) | null;
   } = $props();
 
   const km = $derived(settings.keymap);
   const mac = settings.isMac;
+  // When the speech doc is the surface you last edited, the Text controls act
+  // on the doc instead of the flow grid.
+  const onDoc = $derived(store.activeSurface === "doc");
 
-  const FONTS = [
-    { label: "System", value: "" },
-    { label: "Calibri", value: "Calibri, sans-serif" },
-    { label: "Arial", value: "Arial, sans-serif" },
-    { label: "Georgia", value: "Georgia, serif" },
-    { label: "Times", value: "'Times New Roman', serif" },
-    { label: "Mono", value: "ui-monospace, Menlo, monospace" },
-  ];
+  // How many cells are in the current range selection (0 or 1 = no range), so
+  // the send button can say "Send Cell" vs "Send N Cells".
+  const selCount = $derived.by(() => {
+    const r = store.selRect;
+    return r && store.hasMultiSelection ? (r.r1 - r.r0 + 1) * (r.c1 - r.c0 + 1) : 0;
+  });
+  const sendCellLabel = $derived(selCount > 1 ? `Send ${selCount} Cells` : "Send Cell");
 
   function bumpFont(delta: number) {
+    if (onDoc) { ondocfontsize?.(delta); return; } // resize the doc selection
     settings.fontSize = Math.max(10, Math.min(22, settings.fontSize + delta));
     settings.save();
   }
 
   function toggle(mark: "bold" | "italic") {
+    if (onDoc) {
+      if (mark === "bold") ondocbold?.();
+      else ondocitalic?.();
+      return;
+    }
     store.applyToTargets((c) => {
       const m = (c.marks ??= {});
       m[mark] = !m[mark];
@@ -46,6 +62,7 @@
   }
 
   function ink(color: string | null) {
+    if (onDoc) { ondoccolor?.(color); return; }
     store.applyToTargets((c) => {
       const m = (c.marks ??= {});
       if (color) m.color = color;
@@ -96,32 +113,17 @@
 
   <div class="group">
     <div class="controls">
-      <select
-        class="font-select"
-        title="Font"
-        value={settings.fontFamily}
-        onchange={(e) => { settings.fontFamily = e.currentTarget.value; settings.save(); }}
-      >
-        {#each FONTS as f (f.label)}
-          <option value={f.value}>{f.label}</option>
-        {/each}
-      </select>
-      <span class="stepper" title="Text size">
+      <span class="stepper" title={onDoc ? "Selected text size (speech doc)" : "Text size"}>
         <button class="rb slim" onclick={() => bumpFont(-1)}>−</button>
-        <span class="font-size">{settings.fontSize}</span>
+        <span class="font-size">{onDoc ? store.docSelSize : settings.fontSize}</span>
         <button class="rb slim" onclick={() => bumpFont(1)}>+</button>
       </span>
       <button class="rb b" title="Bold (whole cell)" onclick={() => toggle("bold")}>B</button>
       <button class="rb i" title="Italic (whole cell)" onclick={() => toggle("italic")}>I</button>
-      <label class="rb swatch" title="Custom text color for this cell/selection">
+      <label class="rb swatch" title="Custom text color — right-click clears it back to automatic ink" oncontextmenu={(e) => { e.preventDefault(); ink(null); }}>
         <span class="ink-a">A</span>
         <input type="color" oninput={(e) => ink(e.currentTarget.value)} />
       </label>
-      <button
-        class="rb"
-        title="Remove the custom color — back to automatic ink (blue aff / red neg / analytic / card)"
-        onclick={() => ink(null)}
-      >Auto color</button>
     </div>
     <div class="caption">Text</div>
   </div>
@@ -143,10 +145,10 @@
       <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onclick={() => evidence("card")}>Card</button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}>➜ Extend</button>
       {#if onsendspeech}
-        <button class="rb send-doc" title="Build the whole speech: send every card in this column to the Speech Doc" onclick={onsendspeech}>Send to Doc</button>
+        <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order — mirrors the flow and de-dupes." onclick={onsendspeech}>↕ Send Entire Row</button>
       {/if}
       {#if onsendcell}
-        <button class="rb send-cell" title="Send just this cell's card to the doc at the cursor" onclick={onsendcell}>Cell → Doc</button>
+        <button class="rb send-cell" title="Send the selected cell(s) to the doc AT THE CURSOR. Select a range first to send multiple cells." onclick={onsendcell}>⌖ {sendCellLabel}</button>
       {/if}
       {#if onremove}
         <button class="rb remove" title="Clear this cell and remove its card from the doc" onclick={onremove}>✕ Remove</button>
@@ -284,15 +286,6 @@
     border: 1px solid var(--border);
     border-radius: 5px;
     padding: 0 2px;
-  }
-  .font-select {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 5px;
-    height: 26px;
-    font-size: 12px;
-    max-width: 92px;
   }
   .font-size {
     font-size: 12px;

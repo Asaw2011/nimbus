@@ -1,10 +1,11 @@
 <script lang="ts">
-  import type { Cell } from "../model/types";
+  import type { Cell, CellItem } from "../model/types";
   import { store } from "../model/round.svelte";
   import { expand, loadSnippets } from "../model/snippets";
   import { matches, matchesAny } from "../model/keymap";
   import { settings } from "../model/settings.svelte";
   import { runMacro } from "../model/macros";
+  import { guard } from "../model/crash";
 
   let {
     cell,
@@ -41,10 +42,8 @@
 
   // Focus + caret-to-end whenever the cursor lands on this cell.
   $effect(() => {
-    if (active && editor && document.activeElement !== editor) {
-      editor.focus();
-      placeCaretAtEnd();
-    }
+    if (active && editor && document.activeElement !== editor)
+      guard("GridCell.focus", () => { editor!.focus(); placeCaretAtEnd(); });
   });
 
   // ---- argument lookup dropdown (⌘J): banked cards + analytics ----
@@ -84,12 +83,15 @@
     if (!editor) return;
     // Reference cell.author so the effect repaints when the banked author changes.
     void cell.author;
-    if (editor.textContent === cell.text && !authorNeedsPaint()) return;
-    const focused = document.activeElement === editor;
-    if (!focused || editor.textContent === "") {
-      paint();
-      if (focused) placeCaretAtEnd();
-    }
+    void cell.text;
+    guard("GridCell.paint", () => {
+      if (!editor || (editor.textContent === cell.text && !authorNeedsPaint())) return;
+      const focused = document.activeElement === editor;
+      if (!focused || editor.textContent === "") {
+        paint();
+        if (focused) placeCaretAtEnd();
+      }
+    });
   });
 
   /** True when the DOM isn't yet showing the bold-author markup it should. */
@@ -146,10 +148,11 @@
 
   function oninput() {
     if (!editor) return;
-    let text = editor.textContent ?? "";
-    const expanded = expand(text, loadSnippets());
-    if (expanded !== null) {
-      text = expanded;
+    const raw = editor.textContent ?? "";
+    const expanded = expand(raw, loadSnippets());
+    // Collapse "---" to a single em dash (—), like the speech doc.
+    let text = (expanded ?? raw).replace(/---/g, "—");
+    if (text !== raw) {
       editor.textContent = text;
       placeCaretAtEnd();
     }
@@ -186,6 +189,19 @@
     if (matchesAny(e, km.authorLookup)) {
       e.preventDefault();
       openLookup();
+      return;
+    }
+    // Backspace on an already-empty header drops the whole card block, so a
+    // cleared cell doesn't stay "stuck" with items you can't reach.
+    if (
+      e.key === "Backspace" &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      (editor?.textContent ?? "") === "" &&
+      cell.items?.length
+    ) {
+      e.preventDefault();
+      store.clearCell(row, col);
       return;
     }
     // Remappable actions first, so rebinding e.g. Enter-based combos wins.
@@ -282,29 +298,106 @@
     // (insert row, extend, marks) target the sheet you're actually in.
     store.activeSheetId = sheetId;
     store.cursor = { row, col };
+    store.activeSurface = "flow";
   }
 
   function onpaste(e: ClipboardEvent) {
     const text = e.clipboardData?.getData("text/plain") ?? "";
     // Multi-cell clipboard (tabs = columns, newlines = rows) → spread like Excel.
-    if (!text.includes("\t") && !text.includes("\n")) return; // single value: normal paste
-    e.preventDefault();
-    const grid = text
-      .replace(/\r\n/g, "\n")
-      .replace(/\n+$/, "")
-      .split("\n")
-      .map((line) => line.split("\t"));
-    store.pasteBlock(row, col, grid);
-    // Paint this (top-left) cell now; the rest sync as they're unfocused.
-    if (editor) {
-      editor.textContent = grid[0]?.[0] ?? "";
-      editor.blur();
+    if (text.includes("\t") || text.includes("\n")) {
+      e.preventDefault();
+      const grid = text
+        .replace(/\r\n/g, "\n")
+        .replace(/\n+$/, "")
+        .split("\n")
+        .map((line) => line.split("\t"));
+      store.pasteBlock(row, col, grid);
+      // Paint this (top-left) cell now; the rest sync as they're unfocused.
+      if (editor) {
+        editor.textContent = grid[0]?.[0] ?? "";
+        editor.blur();
+      }
+      return;
     }
+    // Single value: force PLAIN TEXT. The browser's default paste keeps
+    // CardMirror's bold / underline / highlight and inline colors, which stops
+    // the cell from taking its side color (aff blue / neg red). Stripping to
+    // plain text standardizes it and lets the normal cell styling apply.
+    e.preventDefault();
+    const ok = document.execCommand("insertText", false, text);
+    if (!ok && editor) {
+      editor.textContent = (editor.textContent ?? "") + text;
+      placeCaretAtEnd();
+      store.setCell(row, col, editor.textContent);
+    }
+  }
+
+  // ---- multi-item cells (inserted cards + your own responses) --------------
+  // A cell with `items` shows an expandable list beneath its header. Card
+  // sub-items are read-only (they mirror the source doc); response sub-items
+  // are editable and removable.
+  let pendingFocusItem = $state<string | null>(null);
+
+  /** Set an item editor's text once, and repaint on external change while it's
+   *  not focused (same caret-safe rule as the main editor). */
+  function itemText(node: HTMLElement, it: CellItem) {
+    node.textContent = it.text;
+    if (pendingFocusItem === it.id) {
+      pendingFocusItem = null;
+      queueMicrotask(() => {
+        node.focus();
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      });
+    }
+    return {
+      update(next: CellItem) {
+        if (document.activeElement !== node && node.textContent !== next.text) {
+          node.textContent = next.text;
+        }
+      },
+    };
+  }
+
+  function onItemInput(id: string, e: Event) {
+    store.updateCellItem(row, col, id, (e.currentTarget as HTMLElement).textContent ?? "");
+  }
+
+  /** Add a response. `at` = index to insert before; omit to append at the end. */
+  function addResponse(at?: number) {
+    pendingFocusItem = store.addCellItem(row, col, "response", "", at);
+  }
+
+  /** Enter (no shift) inside a response adds a sibling right below it. */
+  function onItemKeydown(index: number, e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      addResponse(index + 1);
+    }
+  }
+
+  // In a multi-item cell the editable header is only the top line, so clicking
+  // the item area / dead space wouldn't enter the cell. Route those clicks to
+  // the header editor so you can start typing from anywhere in the cell.
+  // (Clicks on a response, a button, or the lookup keep their own behavior.)
+  function onCellClick(e: MouseEvent) {
+    if (!editor) return;
+    const t = e.target as HTMLElement;
+    if (t.closest(".editor, .item-text.editable, .item-del, .item-add, .items-toggle, .items-clear, .item-gap, .author-lookup")) return;
+    editor.focus();
+    placeCaretAtEnd();
   }
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="cell"
+  onclick={onCellClick}
   class:active
   class:in-range={inRange}
   class:dropped={cell.marks?.dropped}
@@ -341,6 +434,68 @@
     {onpaste}
     onblur={() => { store.endTextSession(); closeLookup(); }}
   ></div>
+  {#if cell.items?.length}
+    <div class="items-bar">
+      <button
+        class="items-toggle"
+        onmousedown={(e) => e.preventDefault()}
+        onclick={() => store.toggleCellExpanded(row, col)}
+      >
+        <span class="tw">{cell.expanded ? "▾" : "▸"}</span>
+        {cell.items.length}
+        {cell.items.length === 1 ? "item" : "items"}
+      </button>
+      <button
+        class="items-clear"
+        title="Clear the whole cell — header, chip, and all cards/responses"
+        onmousedown={(e) => e.preventDefault()}
+        onclick={() => store.clearCell(row, col)}
+      >clear</button>
+    </div>
+    {#if cell.expanded}
+      <div class="items">
+        {#each cell.items as it, i (it.id)}
+          <button
+            class="item-gap"
+            title="Insert response here"
+            onmousedown={(e) => e.preventDefault()}
+            onclick={() => addResponse(i)}
+            aria-label="Insert response here"
+          ><span class="gap-plus">+</span></button>
+          <div class="item" class:response={it.kind === "response"}>
+            {#if it.chip}
+              <span class="item-chip chip-{it.chip}">{it.chip}</span>
+            {/if}
+            <div
+              class="item-text"
+              class:editable={it.kind === "response"}
+              contenteditable={it.kind === "response"}
+              role="textbox"
+              tabindex={it.kind === "response" ? 0 : -1}
+              spellcheck="false"
+              data-ph={it.kind === "response" ? "your response…" : ""}
+              use:itemText={it}
+              oninput={(e) => onItemInput(it.id, e)}
+              onkeydown={(e) => onItemKeydown(i, e)}
+              onfocus={onfocus}
+              onblur={() => store.endTextSession()}
+            ></div>
+            <button
+              class="item-del"
+              title={it.kind === "response" ? "Remove response" : "Remove card"}
+              onmousedown={(e) => e.preventDefault()}
+              onclick={() => store.removeCellItem(row, col, it.id)}
+            >×</button>
+          </div>
+        {/each}
+        <button
+          class="item-add"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => addResponse()}
+        >+ response</button>
+      </div>
+    {/if}
+  {/if}
   {#if lookupOpen}
     <div class="author-lookup" role="listbox">
       <div class="al-hint">↵ full · ⇥ author only · esc</div>
@@ -489,6 +644,182 @@
   .chip-CARD { background: #2e8b57; }
   .chip-TAG { background: #2e8b57; } /* legacy saved cells */
   .chip-ANL { background: #b8860b; }
+  /* ---- multi-item cells (cards + responses) ---- */
+  .items-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .items-bar .items-clear {
+    margin-right: 6px;
+    padding: 1px 5px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    cursor: pointer;
+    opacity: 0;
+  }
+  .cell:hover .items-bar .items-clear {
+    opacity: 1;
+  }
+  .items-bar .items-clear:hover {
+    color: var(--mark-dropped, #c0392b);
+    background: color-mix(in srgb, var(--mark-dropped, #c0392b) 12%, transparent);
+  }
+  .items-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 2px 7px;
+    padding: 1px 5px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .items-toggle:hover {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text);
+  }
+  .items-toggle .tw {
+    font-size: 8px;
+  }
+  .items {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 6px 5px 10px;
+  }
+  /* Thin hover strip between items — click to insert a response at that spot. */
+  .item-gap {
+    position: relative;
+    height: 4px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .item-gap .gap-plus {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+    background: var(--accent);
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.08s, transform 0.08s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    z-index: 3;
+  }
+  .item-gap::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+    opacity: 0;
+    transition: opacity 0.08s;
+  }
+  .item-gap:hover .gap-plus {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .item-gap:hover::before {
+    opacity: 0.5;
+  }
+  .item {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border-left: 2px solid color-mix(in srgb, var(--card) 55%, transparent);
+    background: color-mix(in srgb, var(--card) 7%, transparent);
+  }
+  .item.response {
+    border-left-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+  .item-chip {
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    color: #fff;
+    border-radius: 3px;
+    padding: 0 3px;
+    line-height: 1.6;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .item-text {
+    flex: 1;
+    outline: none;
+    font-size: calc(var(--cell-size, 13px) - 1px);
+    line-height: 1.3;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    min-width: 0;
+  }
+  .item-text.editable:empty::before {
+    content: attr(data-ph);
+    color: var(--text-dim);
+    opacity: 0.6;
+    font-style: italic;
+  }
+  .item-del {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .item:hover .item-del {
+    opacity: 1;
+  }
+  .item-del:hover {
+    color: var(--mark-dropped, #c0392b);
+  }
+  .item-add {
+    align-self: flex-start;
+    margin-top: 1px;
+    padding: 1px 6px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .item-add:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
   .editor[data-ph]:not([data-ph=""]):empty::before {
     content: attr(data-ph);
     color: var(--text-dim);

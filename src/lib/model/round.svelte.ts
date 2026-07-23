@@ -2,7 +2,7 @@
 // debounced persistence. All mutations go through `mutate()` so history and
 // autosave can never be bypassed.
 
-import type { ArgRef, Round, Sheet, SpeechTemplate } from "./types";
+import type { ArgRef, Cell, CellItem, Round, Sheet, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRound } from "./persist";
 
@@ -19,6 +19,12 @@ class RoundStore {
   round = $state<Round | null>(null);
   activeSheetId = $state<string | null>(null);
   cursor = $state<Cursor | null>(null);
+  /** Which surface was focused last — so the ribbon's text controls act on the
+   *  flow grid or the speech doc, whichever you were just editing. */
+  activeSurface = $state<"flow" | "doc">("flow");
+  /** Font size (pt) of the doc's current selection — shown in the ribbon while
+   *  the doc is the active surface. Updated by SpeechDoc. */
+  docSelSize = $state(11);
   /** Excel-style range selection on the active sheet (anchor→focus corners). */
   selection = $state<{ anchor: Cursor; focus: Cursor } | null>(null);
 
@@ -318,7 +324,127 @@ class RoundStore {
         cell.text = full ? arg.author + " " + arg.tag : arg.author;
         cell.author = arg.author;
       }
+      // Carry the full card behind the cell so "Send to Doc" / "Cell → Doc" can
+      // send the real substance later. This does NOT auto-add it to the doc.
+      if (arg.card) cell.card = arg.card;
+      else delete cell.card;
     });
+  }
+
+  /** Fill a cell from a quick-card's flow form (a dragged/clicked quick card),
+   *  building the SAME structured cell — chip + expandable items — a real card
+   *  produces, rather than flat text. */
+  setCellFromFlow(
+    row: number,
+    col: number,
+    flow: { header: string; chip?: string; card?: unknown; items?: { text: string; kind: "card" | "response"; chip?: string; card?: unknown }[] },
+  ): void {
+    const cell = this.cellAt(row, col);
+    if (!cell) return;
+    this.mutate(() => {
+      cell.text = flow.header ?? "";
+      if (flow.chip) cell.chip = flow.chip; else delete cell.chip;
+      if (flow.card) cell.card = flow.card; else delete cell.card;
+      if (flow.items?.length) {
+        cell.items = flow.items.map((i) => ({ id: uid(), text: i.text, kind: i.kind, chip: i.chip, card: i.card }));
+        cell.expanded = true;
+      } else {
+        delete cell.items;
+        delete cell.expanded;
+      }
+    });
+  }
+
+  // ---- multi-item cells (a block's cards + your own responses) -------------
+
+  private cellAt(row: number, col: number): Cell | null {
+    return this.activeSheet?.rows[row]?.cells[col] ?? null;
+  }
+
+  /** Put a set of sub-items into a cell (from a block insert) and expand it. */
+  setCellItems(row: number, col: number, header: string, items: CellItem[]): void {
+    const cell = this.cellAt(row, col);
+    if (!cell) return;
+    this.mutate(() => {
+      cell.text = header;
+      cell.items = items;
+      cell.expanded = true;
+    });
+  }
+
+  /** Insert one sub-item (e.g. a typed response); returns its id. `at` is the
+   *  index to insert before — omit (or pass past the end) to append. */
+  addCellItem(row: number, col: number, kind: CellItem["kind"], text = "", at?: number): string {
+    const cell = this.cellAt(row, col);
+    if (!cell) return "";
+    const id = uid();
+    this.mutate(() => {
+      const items = (cell.items ??= []);
+      const i = at == null ? items.length : Math.max(0, Math.min(at, items.length));
+      items.splice(i, 0, { id, text, kind });
+      cell.expanded = true;
+    });
+    return id;
+  }
+
+  updateCellItem(row: number, col: number, id: string, text: string): void {
+    const cell = this.cellAt(row, col);
+    const item = cell?.items?.find((i) => i.id === id);
+    if (!item) return;
+    this.mutate(() => { item.text = text; }, { coalesceText: true });
+  }
+
+  removeCellItem(row: number, col: number, id: string): void {
+    const cell = this.cellAt(row, col);
+    if (!cell?.items) return;
+    this.mutate(() => {
+      cell.items = cell.items!.filter((i) => i.id !== id);
+      // Last sub-item gone → this is no longer a card block; shed the block
+      // scaffolding (chip/source) so the cell reads as a plain cell again.
+      if (cell.items.length === 0) {
+        delete cell.items;
+        delete cell.expanded;
+        delete cell.chip;
+        delete cell.card;
+      }
+    });
+  }
+
+  /** Drop the whole card block: sub-items, expand state, chip and source. The
+   *  header text stays (clear it separately if you want a fully empty cell). */
+  clearCellItems(row: number, col: number): void {
+    const cell = this.cellAt(row, col);
+    if (!cell?.items) return;
+    this.mutate(() => {
+      delete cell.items;
+      delete cell.expanded;
+      delete cell.chip;
+      delete cell.card;
+    });
+  }
+
+  /** Wipe an ENTIRE cell — header text, chip, card, marks, items, everything —
+   *  back to a blank cell. */
+  clearCell(row: number, col: number): void {
+    const cell = this.cellAt(row, col);
+    if (!cell) return;
+    this.mutate(() => {
+      cell.text = "";
+      delete cell.items;
+      delete cell.expanded;
+      delete cell.marks;
+      delete cell.ext;
+      delete cell.chip;
+      delete cell.card;
+      delete cell.cmNode;
+      delete cell.author;
+    });
+  }
+
+  toggleCellExpanded(row: number, col: number): void {
+    const cell = this.cellAt(row, col);
+    if (!cell?.items?.length) return;
+    this.mutate(() => { cell.expanded = !cell.expanded; });
   }
 
   /**

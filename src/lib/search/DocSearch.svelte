@@ -208,10 +208,59 @@
   }
 
   // ── insert ────────────────────────────────────────────────────
+  // Collect the cards beneath a heading (a block/hat expands into its cards).
+  function cardsUnder(node: DocNode): DocNode[] {
+    const out: DocNode[] = [];
+    const walk = (ns: DocNode[]) => {
+      for (const n of ns) {
+        if (n.level >= 4 || n.isAnalytic) out.push(n);
+        else walk(n.children);
+      }
+    };
+    walk(node.children);
+    return out;
+  }
+
   async function insertNode(node: DocNode) {
-    // Flow cell gets the header text (fast, from the lightweight parse).
-    if (!docOnly && store.round && store.cursor && store.activeSheetId) {
+    // "To doc" mode only: send the EXACT CardMirror card into the speech doc.
+    // We NEVER auto-add to the doc from a flow insert — you might be flowing an
+    // opponent's cards, and those must not land in your speech. The full card
+    // still rides along on the flow cell (cell.card), so you can send it to the
+    // doc later with the explicit "Cell → Doc" / "Send to Doc" actions.
+    if (docOnly) {
+      if (divedFile && onappendcm) {
+        const cm = await getCMDocJSON(divedFile);
+        if (cm) {
+          const nodes = extractCMNodes(cm as never, node.text, node.level);
+          if (nodes.length) { onappendcm(nodes); return; }
+        }
+      }
+      onappenddoc?.(node); // fallback to the approximate adapter
+      return;
+    }
+
+    // Flow insert: fill the flow cell only.
+    if (store.round && store.cursor && store.activeSheetId) {
       const { row, col } = store.cursor;
+      const cards = cardsUnder(node);
+      // Capture the EXACT CardMirror nodes (with images) so a later Cell → Doc
+      // keeps images, instead of the text-only DocNode adapter path.
+      let cellCM: unknown;
+      const itemCM = new Map<string, unknown>();
+      if (divedFile) {
+        const cm = await getCMDocJSON(divedFile);
+        if (cm) {
+          if (cards.length) {
+            for (const c of cards) {
+              const ns = extractCMNodes(cm as never, c.text, 4);
+              if (ns.length) itemCM.set(c.text, ns[0]);
+            }
+          } else {
+            const ns = extractCMNodes(cm as never, node.text, node.level);
+            if (ns.length) cellCM = ns[0];
+          }
+        }
+      }
       store.mutate((r) => {
         const sheet = r.sheets.find((s) => s.id === store.activeSheetId);
         if (!sheet) return;
@@ -223,17 +272,21 @@
         cell.text = node.text;
         cell.chip = nodeChip(node);
         cell.card = node;
+        if (cellCM) cell.cmNode = cellCM; else delete cell.cmNode;
+        // A block/hat with cards under it becomes an expandable multi-item cell.
+        if (cards.length) {
+          cell.items = cards.map((c) => ({
+            id: crypto.randomUUID(),
+            text: c.text,
+            kind: "card" as const,
+            chip: nodeChip(c),
+            card: c,
+            cmNode: itemCM.get(c.text),
+          }));
+          cell.expanded = true;
+        }
       });
     }
-    // Speech doc gets the EXACT CardMirror card via fromDocx.
-    if (divedFile && onappendcm) {
-      const cm = await getCMDocJSON(divedFile);
-      if (cm) {
-        const nodes = extractCMNodes(cm as never, node.text, node.level);
-        if (nodes.length) { onappendcm(nodes); return; }
-      }
-    }
-    onappenddoc?.(node); // fallback to the approximate adapter
   }
 
   function activateSelected() {
@@ -419,7 +472,6 @@
             onclick={() => { selectedIdx = i; void diveInto(hit.file, true); }}
             onmouseenter={() => (selectedIdx = i)}>
             <div class="ds-filerow">
-              <span class="ds-fileicon">📄</span>
               <span class="ds-filename">{hit.file.name}</span>
               <span class="ds-filemeta">{relativeTime(hit.file.mtime)}</span>
               <span class="ds-tab">open ›</span>
@@ -441,7 +493,6 @@
           <div class="ds-file" class:sel={i === selectedIdx}
             onclick={() => { selectedIdx = i; void diveInto(file); }}
             onmouseenter={() => (selectedIdx = i)}>
-            <span class="ds-fileicon">📄</span>
             <span class="ds-filename">{file.name}</span>
             <span class="ds-filemeta">{relativeTime(file.mtime)}</span>
             <span class="ds-tab">Tab ›</span>

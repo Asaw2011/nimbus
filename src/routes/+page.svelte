@@ -14,6 +14,7 @@
   } from "$lib/model/filedoc.svelte";
   import { checkForUpdate, type UpdateInfo } from "$lib/updater";
   import SpeechDocWindow from "$lib/doc/SpeechDocWindow.svelte";
+  import { reportError } from "$lib/model/crash";
 
   // Pop-out window mode: render ONLY the speech-doc editor.
   const isDocWindow =
@@ -42,6 +43,27 @@
   }
 
   onMount(() => {
+    // The pop-out doc window renders ONLY <SpeechDocWindow/>. None of the main
+    // window's setup applies here — and critically, the close guard would
+    // force_quit the WHOLE app when the doc window is closed/docked back. So
+    // skip all main-window setup in the doc window.
+    if (isDocWindow) return;
+
+    // Surface uncaught errors instead of letting them silently freeze the UI:
+    // a throw in an event handler or effect can leave native contenteditable
+    // typing working while every JS-driven button goes dead. Log loudly and
+    // toast so a freeze is visible and reportable.
+    const onErr = (e: ErrorEvent) => {
+      reportError(`window.error ${e.filename}:${e.lineno}:${e.colno}`, e.error ?? e.message);
+      flashToast("⚠︎ " + (e.error?.message ?? e.message));
+    };
+    const onRej = (e: PromiseRejectionEvent) => {
+      reportError("unhandledrejection", e.reason);
+      flashToast("⚠︎ " + ((e.reason as Error)?.message ?? String(e.reason)));
+    };
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+
     // First-open (or re-enabled) welcome tutorial.
     if (settings.showTutorial) showTutorial = true;
     setupCloseGuard();
@@ -52,7 +74,11 @@
     setTimeout(() => {
       checkForUpdate().then((u) => { if (u) pendingUpdate = u; });
     }, 4000);
-    return teardownAutosave;
+    return () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+      teardownAutosave();
+    };
   });
 
   /** Belt-and-braces persistence: a 5s heartbeat plus a flush whenever the

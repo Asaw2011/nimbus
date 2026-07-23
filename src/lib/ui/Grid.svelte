@@ -4,15 +4,14 @@
   import { settings } from "../model/settings.svelte";
   import { matchesAny } from "../model/keymap";
   import GridCell from "./GridCell.svelte";
+  import { guard } from "../model/crash";
 
   let {
     sheet,
     spread = false,
-    onblockdrop = null,
   }: {
     sheet: Sheet;
     spread?: boolean;
-    onblockdrop?: ((node: unknown, row: number, col: number) => void) | null;
   } = $props();
 
   const speeches = $derived(store.round?.template.speeches ?? []);
@@ -36,11 +35,14 @@
 
   // ---- Doc Search drag bridge ------------------------------------------
   // Blocks dragged from DocSearch carry a 'text/nimbus-block' MIME type.
-  // Drop onto any cell: header goes into the cell, full card fires onblockdrop
-  // so FlowView can append it to the speech doc simultaneously.
+  // Drop onto any cell: the header + full card go into the FLOW cell only.
+  // Dropping never touches the speech doc — cards reach the doc only via the
+  // explicit "Cell → Doc" / "Send to Doc" actions (you might be flowing an
+  // opponent's cards and don't want them landing in your speech).
 
   function isBlockDrag(e: DragEvent): boolean {
-    return !!e.dataTransfer?.types.includes("text/nimbus-block");
+    const t = e.dataTransfer?.types;
+    return !!t && (t.includes("text/nimbus-block") || t.includes("text/nimbus-quickcard"));
   }
 
   function ondragover_grid(e: DragEvent) {
@@ -62,6 +64,33 @@
     if (!isBlockDrag(e)) return;
     e.preventDefault();
     dropTargetCell = null;
+    // A quick card carries a structured flow form → build the same cell (chip +
+    // items) a real card produces, not flat text.
+    const qc = e.dataTransfer?.getData("text/nimbus-quickcard");
+    if (qc) {
+      const rc = cellAt(e as unknown as MouseEvent);
+      if (!rc) return;
+      let flow: { header?: string; chip?: string; card?: unknown; items?: { text: string; kind: "card" | "response"; chip?: string; card?: unknown }[] };
+      try { flow = JSON.parse(qc); } catch { return; }
+      store.mutate((round) => {
+        const s = round.sheets.find((x) => x.id === sheet.id);
+        if (!s) return;
+        store.ensureRows(rc.r, s);
+        const dc = s.rows[rc.r].cells[rc.c];
+        dc.text = flow.header ?? "";
+        if (flow.chip) dc.chip = flow.chip; else delete dc.chip;
+        if (flow.card) dc.card = flow.card; else delete dc.card;
+        if (flow.items?.length) {
+          dc.items = flow.items.map((i) => ({ id: crypto.randomUUID(), text: i.text, kind: i.kind, chip: i.chip, card: i.card }));
+          dc.expanded = true;
+        } else {
+          delete dc.items;
+          delete dc.expanded;
+        }
+      });
+      store.cursor = { row: rc.r, col: rc.c };
+      return;
+    }
     const raw = e.dataTransfer?.getData("text/nimbus-block");
     if (!raw) return;
     let payload: { header: string; fullCard: string; node?: { level: number; isAnalytic?: boolean } };
@@ -83,18 +112,20 @@
       if (payload.node) dc.card = payload.node;
     });
     store.cursor = { row: r, col: c };
-    // Notify FlowView to append the rich card to the speech doc
-    if (payload.node) onblockdrop?.(payload.node, r, c);
   }
 
   // Unlimited paper: keep the sheet at least a viewport tall, keep blank rows
   // below the last used row, and grow further as the user scrolls down.
   $effect(() => {
-    const lastUsed = sheet.rows.findLastIndex((r) =>
-      r.cells.some((c) => c.text.trim() !== ""),
-    );
-    const viewportRows = scroller ? Math.ceil(scroller.clientHeight / 27) : 30;
-    store.ensureRows(Math.max(lastUsed + 3, viewportRows), sheet);
+    // Track row/cell text so the buffer grows as you fill the sheet.
+    const rows = sheet.rows;
+    guard("Grid.ensureRows", () => {
+      const lastUsed = rows.findLastIndex((r) =>
+        r.cells.some((c) => (c?.text ?? "").trim() !== ""),
+      );
+      const viewportRows = scroller ? Math.ceil(scroller.clientHeight / 27) : 30;
+      store.ensureRows(Math.max(lastUsed + 3, viewportRows), sheet);
+    });
   });
 
   function onscroll() {

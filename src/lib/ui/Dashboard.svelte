@@ -7,9 +7,6 @@
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
-  // SCOUTING feature — to remove: delete this import + the marked card + view
-  // block below, and the src/lib/scouting folder.
-  import ScoutingView from "../scouting/ScoutingView.svelte";
 
   let { onopen }: { onopen: () => void } = $props();
 
@@ -18,7 +15,6 @@
   let rounds: RoundMeta[] = $state([]); // app-data flows not yet in a folder
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
   let showSettings = $state(false);
-  let showScouting = $state(false);
   let converting = $state(false);
   let status = $state("");
 
@@ -241,11 +237,6 @@
         <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
         <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
       </button>
-      <!-- SCOUTING card (removable) -->
-      <button class="action-card" onclick={() => (showScouting = true)}>
-        <div class="ac-title">🔎 Scouting</div>
-        <div class="ac-desc">Opponent position &amp; card bank — upload their docs, browse by school.</div>
-      </button>
     </div>
 
     {#if status}<p class="status">{status}</p>{/if}
@@ -386,21 +377,7 @@
   <SettingsPanel onclose={() => (showSettings = false)} />
 {/if}
 
-<!-- SCOUTING view (removable) -->
-{#if showScouting}
-  <div class="scout-overlay">
-    <ScoutingView
-      onexit={() => (showScouting = false)}
-      onopenflow={async (path) => {
-        const round = await openPath(path);
-        if (round) { store.loadRound(round); showScouting = false; onopen(); }
-      }}
-    />
-  </div>
-{/if}
-
 <style>
-  .scout-overlay { position: fixed; inset: 0; z-index: 40; background: var(--bg); }
   .dashboard { height: 100vh; display: flex; flex-direction: column; }
   .topbar {
     display: flex; justify-content: space-between; align-items: center;

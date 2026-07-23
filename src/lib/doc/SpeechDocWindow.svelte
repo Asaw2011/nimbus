@@ -1,30 +1,55 @@
 <script lang="ts">
-  // Standalone pop-out window: the full CardMirror speech-doc editor on its own.
-  import { onMount } from "svelte";
+  // Standalone pop-out window for ONE doc. Reads its doc id from the URL and
+  // edits that doc's content blob directly — independent of the main window and
+  // of any other popped-out doc.
+  import { onMount, onDestroy } from "svelte";
   import SpeechDoc from "./SpeechDoc.svelte";
   import DocSearch from "$lib/search/DocSearch.svelte";
-  import { docBridge } from "./docBridge.svelte";
-  import type { DocNode } from "$lib/docx/parse";
+  import { saveBlob, loadBlob } from "$lib/model/blobs";
+  import { docContentBlob } from "./docBridge.svelte";
+
+  const docId =
+    typeof location !== "undefined"
+      ? new URLSearchParams(location.search).get("docid") ?? ""
+      : "";
 
   let docRef = $state<{
-    appendNode(n: DocNode): void;
     getDocJSON(): unknown;
-    setDocJSON(j: unknown): void;
+    appendNode(n: unknown): void;
     appendCMNodes(nodes: unknown[]): void;
+    insertCMAtCursor(nodes: unknown[]): void;
   } | null>(null);
   let initial = $state<unknown>(null);
   let ready = $state(false);
   let showSearch = $state(false);
-
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let unlisten: (() => void) | undefined;
 
   onMount(async () => {
-    initial = await docBridge.loadDoc();
+    initial = await loadBlob(docContentBlob(docId));
     ready = true;
-    // Receive cards inserted from the main window (⌘K / drag).
-    await docBridge.listenForAppends((node) => docRef?.appendNode(node));
-    await docBridge.listenForCMAppends((nodes) => docRef?.appendCMNodes(nodes));
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
+    // If THIS window holds the ★ speech doc, receive cards routed from the main
+    // window (` / ~ pressed in another source doc) at our cursor.
+    if ("__TAURI_INTERNALS__" in window) {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen<{ id: string; nodes: unknown[] }>("nimbus:insert-into-speech", (e) => {
+        if (e.payload?.id === docId) docRef?.insertCMAtCursor(e.payload.nodes);
+      });
+    }
   });
+
+  onDestroy(() => unlisten?.());
+
+  function flush() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (docRef) saveBlob(docContentBlob(docId), docRef.getDocJSON());
+  }
+  function onDocChange(json: unknown) {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveBlob(docContentBlob(docId), json), 250);
+  }
 
   function onkeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -33,15 +58,17 @@
     }
   }
 
-  function onDocChange(json: unknown) {
-    // Persist to the shared blob so dock-back restores the latest content.
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => void docBridge.saveDoc(json), 200);
+  async function dockBack() {
+    flush();
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().close();
   }
 
-  async function dockBack() {
-    if (docRef) await docBridge.saveDoc(docRef.getDocJSON());
-    await docBridge.dockBack();
+  // ` / ~ from this (source) doc sends the current card to the MAIN speech doc.
+  async function sendToSpeech(nodes: unknown[]) {
+    if (!nodes.length) return;
+    const { emit } = await import("@tauri-apps/api/event");
+    await emit("nimbus:send-to-speech", nodes);
   }
 </script>
 
@@ -57,7 +84,7 @@
   </div>
   {#if ready}
     <div class="window-body">
-      <SpeechDoc bind:this={docRef} initialDoc={initial} onchange={onDocChange} poppedOut onpopout={dockBack} />
+      <SpeechDoc bind:this={docRef} initialDoc={initial} onchange={onDocChange} poppedOut onpopout={dockBack} onTilde={sendToSpeech} />
     </div>
   {/if}
 

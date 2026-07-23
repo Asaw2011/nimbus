@@ -1,8 +1,8 @@
 <script lang="ts">
   import { settings } from "../model/settings.svelte";
   import type { ActionId, Combo } from "../model/keymap";
-  import { ACTION_LABELS, actionLabel, comboFromEvent, comboLabel } from "../model/keymap";
-  import { THEMES } from "../model/settings.svelte";
+  import { ACTION_GROUPS, actionLabel, comboFromEvent, comboLabel } from "../model/keymap";
+  import { THEMES, DEFAULT_DOC_TYPOGRAPHY, type DocTypography } from "../model/settings.svelte";
   import { loadSnippets, saveSnippets } from "../model/snippets";
   import { validateMacroCode } from "../model/macros";
   import { exportSettings, importSettings } from "../model/backup";
@@ -24,6 +24,43 @@
   let snippets = $state(loadSnippets());
   let newTrigger = $state("");
   let newExpansion = $state("");
+
+  // Settings are split into tabs (CardMirror-style) instead of one long scroll.
+  const TABS = [
+    { id: "appearance", label: "Appearance" },
+    { id: "editing", label: "Editing" },
+    { id: "keyboard", label: "Keyboard" },
+    { id: "library", label: "Library" },
+    { id: "backup", label: "Backup" },
+  ] as const;
+  let tab = $state<(typeof TABS)[number]["id"]>("appearance");
+
+  // Speech-doc style editor helpers.
+  function patchDoc(patch: Partial<DocTypography>) {
+    settings.docTypography = { ...settings.docTypography, ...patch };
+    settings.save();
+  }
+  function resetDocStyle() {
+    settings.docTypography = { ...DEFAULT_DOC_TYPOGRAPHY };
+    settings.save();
+  }
+  // Heading-size and toggle rows are data-driven to keep the template compact.
+  const DOC_SIZES: { key: keyof DocTypography; label: string }[] = [
+    { key: "sizePocket", label: "Pocket" },
+    { key: "sizeHat", label: "Hat" },
+    { key: "sizeBlock", label: "Block" },
+    { key: "sizeTag", label: "Tag" },
+    { key: "sizeCite", label: "Cite" },
+  ];
+  const DOC_TOGGLES: { key: keyof DocTypography; label: string }[] = [
+    { key: "emphasisBox", label: "Emphasis: boxed" },
+    { key: "emphasisBold", label: "Emphasis: bold" },
+    { key: "emphasisItalic", label: "Emphasis: italic" },
+    { key: "pocketBox", label: "Pocket: boxed" },
+    { key: "underlineBold", label: "Underline (the cut): bold" },
+    { key: "undertagItalic", label: "Undertag: italic" },
+    { key: "undertagBold", label: "Undertag: bold" },
+  ];
 
   // Macro code editor state (macros are plain JavaScript using the flow API)
   let macroName = $state("");
@@ -63,8 +100,6 @@
     macroCode.trim() ? validateMacroCode(macroCode) : null,
   );
   const codeValid = $derived(macroCode.trim() !== "" && syntaxError === null);
-
-  const actions = Object.keys(ACTION_LABELS) as ActionId[];
 
   function onRebindKey(e: KeyboardEvent) {
     e.preventDefault();
@@ -207,6 +242,13 @@
       <button class="close" onclick={onclose}>×</button>
     </div>
 
+    <div class="tabbar">
+      {#each TABS as t (t.id)}
+        <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>{t.label}</button>
+      {/each}
+    </div>
+
+    {#if tab === "appearance"}
     <section>
       <h3>Appearance</h3>
       <div class="row theme-row">
@@ -333,13 +375,14 @@
         </span>
       </label>
       <label class="row">
-        Font
+        Default font
         <select
           value={settings.fontFamily}
           onchange={(e) => { settings.fontFamily = e.currentTarget.value; settings.save(); }}
         >
           <option value="">System</option>
           <option value="Calibri, sans-serif">Calibri</option>
+          <option value="Lexend, sans-serif">Lexend</option>
           <option value="Arial, sans-serif">Arial</option>
           <option value="Georgia, serif">Georgia</option>
           <option value="'Times New Roman', serif">Times</option>
@@ -368,7 +411,9 @@
         </div>
       </label>
     </section>
+    {/if}
 
+    {#if tab === "keyboard"}
     <section>
       <h3>Keybinds</h3>
       <p class="hint">
@@ -387,30 +432,33 @@
           onchange={(e) => settings.setBulkRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
         />
       </div>
-      {#each actions as action (action)}
-        <div class="row">
-          {actionLabel(action, settings.bulkRows)}
-          <span class="binds">
-            {#each settings.keymap[action] ?? [] as combo, bi (bi)}
-              <span class="bind-chip">
-                {comboLabel(combo, settings.isMac)}
-                <button
-                  class="bind-x"
-                  title="Remove this binding"
-                  onclick={() => settings.removeBind(action, bi)}
-                >×</button>
-              </span>
-            {/each}
-            <button
-              class="bind add"
-              class:listening={rebinding === action}
-              title="Add a binding"
-              onclick={() => { rebinding = action; rebindingMacro = null; conflict = null; }}
-            >
-              {rebinding === action ? "press keys…" : "+"}
-            </button>
-          </span>
-        </div>
+      {#each ACTION_GROUPS as group (group.title)}
+        <div class="kb-group-title">{group.title}</div>
+        {#each group.actions as action (action)}
+          <div class="row">
+            {actionLabel(action, settings.bulkRows)}
+            <span class="binds">
+              {#each settings.keymap[action] ?? [] as combo, bi (bi)}
+                <span class="bind-chip">
+                  {comboLabel(combo, settings.isMac)}
+                  <button
+                    class="bind-x"
+                    title="Remove this binding"
+                    onclick={() => settings.removeBind(action, bi)}
+                  >×</button>
+                </span>
+              {/each}
+              <button
+                class="bind add"
+                class:listening={rebinding === action}
+                title="Add a binding"
+                onclick={() => { rebinding = action; rebindingMacro = null; conflict = null; }}
+              >
+                {rebinding === action ? "press keys…" : "+"}
+              </button>
+            </span>
+          </div>
+        {/each}
       {/each}
       {#if conflict}
         <div class="conflict">
@@ -429,7 +477,9 @@
         <button class="reset" onclick={() => settings.clearAllBinds()}>Clear all binds</button>
       </div>
     </section>
+    {/if}
 
+    {#if tab === "editing"}
     <section>
       <h3>Macros</h3>
       <p class="hint">
@@ -546,7 +596,9 @@
         <button class="chip" onclick={addSnippet}>Add</button>
       </div>
     </section>
+    {/if}
 
+    {#if tab === "backup"}
     <section>
       <h3>Backup</h3>
       <p class="hint">
@@ -565,7 +617,9 @@
         <p class="backup-status">{backupStatus}</p>
       {/if}
     </section>
+    {/if}
 
+    {#if tab === "library"}
     <section>
       <h3>Search Library</h3>
       <p class="hint">
@@ -621,29 +675,101 @@
         <p class="hint" style="margin-top: 6px">No folders added yet.</p>
       {/if}
     </section>
+    {/if}
 
+    {#if tab === "appearance"}
     <section>
-      <h3>Speech Doc Style</h3>
+      <h3>Speech Doc Style &amp; Headings</h3>
       <p class="hint">
-        Match how your CardMirror displays evidence — everyone's setup is personal.
+        Edit how the speech doc renders evidence — sizes, colors, and marks, like
+        CardMirror. Everyone's setup is personal; changes are live.
       </p>
-      <label class="row" style="gap: 8px; cursor: pointer;">
-        <input type="checkbox" checked={settings.docTypography.emphasisBox}
-          onchange={(e) => { settings.docTypography = { ...settings.docTypography, emphasisBox: (e.currentTarget as HTMLInputElement).checked }; settings.save(); }} />
-        Emphasis: boxed
-      </label>
-      <label class="row" style="gap: 8px; cursor: pointer;">
-        <input type="checkbox" checked={settings.docTypography.emphasisBold}
-          onchange={(e) => { settings.docTypography = { ...settings.docTypography, emphasisBold: (e.currentTarget as HTMLInputElement).checked }; settings.save(); }} />
-        Emphasis: bold
-      </label>
-      <label class="row" style="gap: 8px; cursor: pointer;">
-        <input type="checkbox" checked={settings.docTypography.emphasisItalic}
-          onchange={(e) => { settings.docTypography = { ...settings.docTypography, emphasisItalic: (e.currentTarget as HTMLInputElement).checked }; settings.save(); }} />
-        Emphasis: italic
-      </label>
-    </section>
 
+      <!-- Live preview -->
+      <div
+        class="doc-preview pmd-document"
+        class:pmd-emphasis-box={settings.docTypography.emphasisBox}
+        class:pmd-emphasis-bold={settings.docTypography.emphasisBold}
+        class:pmd-emphasis-italic={settings.docTypography.emphasisItalic}
+        class:pmd-no-pocket-box={!settings.docTypography.pocketBox}
+        class:pmd-underline-bold={settings.docTypography.underlineBold}
+        class:pmd-undertag-italic={settings.docTypography.undertagItalic}
+        class:pmd-undertag-bold={settings.docTypography.undertagBold}
+        style="
+          --pmd-emphasis-box-size: {settings.docTypography.emphasisBoxSize}pt;
+          --pmd-pocket-box-size: {settings.docTypography.pocketBoxSize}pt;
+          --pmd-size-pocket: {settings.docTypography.sizePocket}pt;
+          --pmd-size-hat: {settings.docTypography.sizeHat}pt;
+          --pmd-size-block: {settings.docTypography.sizeBlock}pt;
+          --pmd-size-tag: {settings.docTypography.sizeTag}pt;
+          --pmd-size-cite: {settings.docTypography.sizeCite}pt;
+          --pmd-color-analytic: {settings.docTypography.colorAnalytic};
+          --pmd-color-undertag: {settings.docTypography.colorUndertag};
+        "
+      >
+        <div class="pmd-pocket">Pocket</div>
+        <div class="pmd-hat">Hat</div>
+        <div class="pmd-block">Block</div>
+        <div class="pmd-card">
+          <div class="pmd-tag">Tag — the argument</div>
+          <div class="pmd-cite-para"><span class="pmd-cite">Author '24</span></div>
+          <div>Body with <span class="pmd-emphasis">emphasis</span>, the <span class="pmd-underline">cut</span>, and <span class="pmd-highlight" data-highlight="yellow">spoken</span> text. <span class="pmd-undertag-mark">undertag</span></div>
+        </div>
+        <div class="pmd-analytic-unit"><div class="pmd-analytic">Analytic line</div></div>
+      </div>
+
+      <div class="kb-group-title">Heading sizes (pt)</div>
+      {#each DOC_SIZES as s (s.key)}
+        <label class="row">
+          {s.label}
+          <input
+            type="number" min="6" max="72" step="0.5"
+            value={settings.docTypography[s.key]}
+            onchange={(e) => patchDoc({ [s.key]: (e.currentTarget as HTMLInputElement).valueAsNumber } as Partial<DocTypography>)}
+          />
+        </label>
+      {/each}
+
+      <div class="kb-group-title">Colors</div>
+      <label class="row">
+        Analytic
+        <input type="color" value={settings.docTypography.colorAnalytic}
+          onchange={(e) => patchDoc({ colorAnalytic: (e.currentTarget as HTMLInputElement).value })} />
+      </label>
+      <label class="row">
+        Undertag
+        <input type="color" value={settings.docTypography.colorUndertag}
+          onchange={(e) => patchDoc({ colorUndertag: (e.currentTarget as HTMLInputElement).value })} />
+      </label>
+
+      <div class="kb-group-title">Marks</div>
+      {#each DOC_TOGGLES as t (t.key)}
+        <label class="row" style="gap: 8px; cursor: pointer;">
+          <input type="checkbox" checked={settings.docTypography[t.key] as boolean}
+            onchange={(e) => patchDoc({ [t.key]: (e.currentTarget as HTMLInputElement).checked } as Partial<DocTypography>)} />
+          {t.label}
+        </label>
+      {/each}
+      <label class="row">
+        Emphasis box thickness (pt)
+        <input type="number" min="0" max="6" step="0.25"
+          value={settings.docTypography.emphasisBoxSize}
+          onchange={(e) => patchDoc({ emphasisBoxSize: (e.currentTarget as HTMLInputElement).valueAsNumber })} />
+      </label>
+      <label class="row">
+        Pocket box thickness (pt)
+        <input type="number" min="0" max="8" step="0.25"
+          value={settings.docTypography.pocketBoxSize}
+          onchange={(e) => patchDoc({ pocketBoxSize: (e.currentTarget as HTMLInputElement).valueAsNumber })} />
+      </label>
+
+      <div class="backup-row" style="margin-top: 14px;">
+        <button class="chip" onclick={resetDocStyle}>Reset to Verbatim defaults</button>
+      </div>
+    </section>
+    {/if}
+
+    {#if tab === "backup"}
     <section>
       <h3>Updates</h3>
       <div class="backup-row">
@@ -655,6 +781,7 @@
         <p class="backup-status">{updateStatus}</p>
       {/if}
     </section>
+    {/if}
   </div>
 </div>
 
@@ -693,6 +820,31 @@
     font-size: 20px;
     cursor: pointer;
   }
+  .tabbar {
+    display: flex;
+    gap: 2px;
+    margin-top: 14px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    position: sticky;
+    top: 0;
+    background: var(--panel);
+    z-index: 2;
+  }
+  .tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   section {
     margin-top: 18px;
   }
@@ -716,6 +868,29 @@
     padding: 5px 0;
     gap: 12px;
   }
+  .doc-preview {
+    background: #fff;
+    color: #111;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 6px 0 4px;
+    max-height: 260px;
+    overflow: auto;
+    font-family: var(--doc-font, "Calibri", "Segoe UI", Arial, sans-serif);
+  }
+  :global([data-theme="dark"]) .doc-preview { background: #1c1c1c; color: #e6e6e6; }
+  .kb-group-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 16px 0 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .kb-group-title:first-of-type { margin-top: 4px; }
   .inline {
     display: flex;
     align-items: center;

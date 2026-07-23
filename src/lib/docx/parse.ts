@@ -381,6 +381,9 @@ export interface BankArg {
   author?: string;
   cite?: string;
   analytic?: boolean;
+  /** The full parsed card/analytic node, so an inserted argument carries its
+   *  real substance (body + cite) — you can send it to the speech doc intact. */
+  card?: DocNode;
 }
 
 /**
@@ -394,12 +397,12 @@ export function collectArguments(nodes: DocNode[]): BankArg[] {
     for (const n of ns) {
       const text = n.text.trim();
       if (n.isAnalytic) {
-        if (text) out.push({ tag: text, analytic: true });
+        if (text) out.push({ tag: text, analytic: true, card: n });
       } else if (n.level >= 4) {
         const cite = citeTextOf(n);
         const author = normalizeAuthor(cite);
         // A tag with an author is a card; a tag without one is still an argument.
-        if (text) out.push({ tag: text, author: author || undefined, cite: cite || undefined });
+        if (text) out.push({ tag: text, author: author || undefined, cite: cite || undefined, card: n });
       }
       if (n.children.length) walk(n.children);
     }

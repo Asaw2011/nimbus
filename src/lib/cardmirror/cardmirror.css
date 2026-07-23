@@ -110,6 +110,28 @@
 .pmd-document .pmd-undertag-mark { color: var(--pmd-color-undertag); }
 .pmd-document .pmd-analytic-mark { font-weight: bold; color: var(--pmd-color-analytic); }
 
+/* Inline images / charts. */
+.pmd-document img[data-pmd-image] {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+.pmd-document .pmd-image-placeholder,
+.pmd-document span[data-pmd-image] {
+  display: inline-block;
+  vertical-align: middle;
+  min-width: 60px;
+  min-height: 40px;
+  border: 1px dashed var(--border, #999);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-dim, #888) 12%, transparent);
+  color: var(--text-dim, #777);
+  font-size: 11px;
+  text-align: center;
+  padding: 6px 8px;
+}
+
 /* Highlight = spoken. Word's 15 named colours, OOXML-canonical RGBs. */
 .pmd-document .pmd-highlight { background: var(--pmd-c-highlight-default); }
 .pmd-document .pmd-highlight[data-highlight="yellow"]      { background: #ffff00; color: #000; }
