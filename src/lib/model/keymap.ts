@@ -14,6 +14,7 @@ export type ActionId =
   | "insertRowAbove"
   | "insertRow3Below"
   | "insertRow3Above"
+  | "moveDownRows"
   | "deleteRow"
   | "extendArg"
   | "markDropped"
@@ -56,6 +57,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowAbove: "Insert row above",
   insertRow3Below: "Insert several rows below",
   insertRow3Above: "Insert several rows above",
+  moveDownRows: "Move cursor down several rows",
   deleteRow: "Delete row",
   extendArg: "Extend argument (arrow to next speech)",
   markDropped: "Mark dropped",
@@ -99,6 +101,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   insertRowAbove: [{ key: "enter", mod: true, shift: true }],
   insertRow3Below: [{ key: "enter", mod: true, alt: true }],
   insertRow3Above: [{ key: "enter", mod: true, alt: true, shift: true }],
+  moveDownRows: [{ key: "\\", mod: true }],
   deleteRow: [{ key: "backspace", mod: true, shift: true }],
   extendArg: [{ key: "g", mod: true }],
   markDropped: [{ key: "d", mod: true }],
@@ -145,7 +148,7 @@ export interface ActionGroup { title: string; actions: ActionId[]; }
 export const ACTION_GROUPS: ActionGroup[] = [
   {
     title: "Rows",
-    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "deleteRow"],
+    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "moveDownRows", "deleteRow"],
   },
   {
     title: "Flowing & marks",
@@ -174,11 +177,13 @@ export const ACTION_GROUPS: ActionGroup[] = [
 
 /** Default count for the two bulk row-insert actions. User-editable in Settings. */
 export const DEFAULT_BULK_ROWS = 3;
+export const DEFAULT_MOVE_ROWS = 4;
 
 /** Action label, with the live bulk-row count folded into the two bulk actions. */
-export function actionLabel(action: ActionId, bulkRows: number): string {
+export function actionLabel(action: ActionId, bulkRows: number, moveRows = bulkRows): string {
   if (action === "insertRow3Below") return `Insert ${bulkRows} rows below`;
   if (action === "insertRow3Above") return `Insert ${bulkRows} rows above`;
+  if (action === "moveDownRows") return `Move cursor down ${moveRows} rows`;
   return ACTION_LABELS[action];
 }
 
@@ -214,13 +219,35 @@ const KEY_GLYPHS: Record<string, string> = {
   " ": "Space",
 };
 
+// Spelled-out key names for Windows/Linux labels (Mac uses the compact glyphs).
+const KEY_NAMES: Record<string, string> = {
+  enter: "Enter",
+  backspace: "Backspace",
+  arrowup: "Up",
+  arrowdown: "Down",
+  arrowleft: "Left",
+  arrowright: "Right",
+  escape: "Esc",
+  " ": "Space",
+};
+
 export function comboLabel(combo: Combo, isMac: boolean): string {
+  if (isMac) {
+    // Compact glyphs, no separators — the Mac convention (⌘⇧↵).
+    const parts: string[] = [];
+    if (combo.mod) parts.push("⌘");
+    if (combo.shift) parts.push("⇧");
+    if (combo.alt) parts.push("⌥");
+    parts.push(KEY_GLYPHS[combo.key] ?? combo.key.toUpperCase());
+    return parts.join("");
+  }
+  // Windows/Linux: word modifiers, "+" separators, spelled-out keys.
   const parts: string[] = [];
-  if (combo.mod) parts.push(isMac ? "⌘" : "Ctrl");
-  if (combo.shift) parts.push("⇧");
-  if (combo.alt) parts.push(isMac ? "⌥" : "Alt");
-  parts.push(KEY_GLYPHS[combo.key] ?? combo.key.toUpperCase());
-  return parts.join("");
+  if (combo.mod) parts.push("Ctrl");
+  if (combo.alt) parts.push("Alt");
+  if (combo.shift) parts.push("Shift");
+  parts.push(KEY_NAMES[combo.key] ?? combo.key.toUpperCase());
+  return parts.join("+");
 }
 
 export function combosLabel(combos: Combo[] | undefined, isMac: boolean): string {

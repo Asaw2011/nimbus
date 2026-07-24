@@ -273,7 +273,8 @@
         cell.chip = nodeChip(node);
         cell.card = node;
         if (cellCM) cell.cmNode = cellCM; else delete cell.cmNode;
-        // A block/hat with cards under it becomes an expandable multi-item cell.
+        // A block/hat with cards under it becomes an expandable multi-item cell,
+        // collapsed by default (click ▸ to expand its cards).
         if (cards.length) {
           cell.items = cards.map((c) => ({
             id: crypto.randomUUID(),
@@ -283,7 +284,7 @@
             card: c,
             cmNode: itemCM.get(c.text),
           }));
-          cell.expanded = true;
+          cell.expanded = false;
         }
       });
     }
@@ -365,7 +366,10 @@
     { id: "all", label: "ALL" }, { id: 1, label: "POC" }, { id: 2, label: "HAT" },
     { id: 3, label: "BLK" }, { id: 4, label: "CARD" }, { id: "body", label: "BODY" },
   ];
-  function chipFor(level: number): { label: string; cls: string } {
+  function chipFor(level: number, isAnalytic = false): { label: string; cls: string } {
+    // An analytic is level 4 like a card, but shows a gold ANL chip so it's not
+    // mistaken for a carded argument.
+    if (isAnalytic) return { label: "ANL", cls: "c-anl" };
     return [
       { label: "", cls: "" },
       { label: "POC", cls: "c-poc" },
@@ -504,7 +508,7 @@
         <div class="ds-msg">{query ? `No matches for "${query}"` : "No headings found."}</div>
       {:else}
         {#each rows as r, i (r.key)}
-          {@const ci = chipFor(r.node.level)}
+          {@const ci = chipFor(r.node.level, r.node.isAnalytic)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <div class="ds-row" class:sel={i === selectedIdx}
             style="padding-left: {8 + r.depth * 16}px"
@@ -637,6 +641,7 @@
   .c-hat { background: #8a63d2; }
   .c-blk { background: #c0392b; }
   .c-card { background: #2e8b57; }
+  .c-anl { background: #b8860b; }
   .ds-rowtext { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .ds-footer {

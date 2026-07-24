@@ -71,6 +71,28 @@
     --kbd-border: #444;
     color-scheme: dark;
   }
+  /* ---- Slate: a mid grey between Paper and Dark (dark ink treatment) ---- */
+  :global(:root[data-theme="slate"]) {
+    --bg: #33383e;
+    --panel: #3c424a;
+    --cell-bg: #383e45;
+    --border: #545b64;
+    --grid-line: #454c54;
+    --text: #e9edf1;
+    --text-dim: #a7b0ba;
+    --accent: #6db0ff;
+    --aff: #8fc0ff;
+    --neg: #ffab90;
+    --analytic: #79e0a0;
+    --card: #cfa6f0;
+    --active-cell-bg: #3a4656;
+    --dropped-bg: #402c2c;
+    --mark-dropped: #e87070;
+    --mark-star: #e6c05c;
+    --kbd-bg: #454c54;
+    --kbd-border: #5a626b;
+    color-scheme: dark;
+  }
   /* ---- light themes (shared ink defaults, distinct backgrounds) ---- */
   :global(:root[data-theme="light"]) {
     --bg: #f6f5f1; /* legal-pad paper */

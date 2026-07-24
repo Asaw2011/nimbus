@@ -93,6 +93,7 @@
     bumpDocFontSize(delta: number): void;
     insertCMAtCursor(nodes: unknown[]): void;
     insertNodeAtCursor(node: unknown): void;
+    invalidateCache(id: string): void;
   }
   let docRef = $state<DocAPI | null>(null);
   let resizingDoc = $state(false);
@@ -103,14 +104,23 @@
   let docKey = $state(0); // bumped to remount the editor for a new/switched doc
   let renamingDocId = $state<string | null>(null);
   let docStatus = $state("");
+  let docsRoundId = ""; // which round's docs are currently loaded
 
-  // Bring up the docs library the first time the doc opens.
+  // Docs are scoped PER FLOW. Load this round's own docs when the pane opens, and
+  // swap to another round's docs when you open a different flow — each flow keeps
+  // its own saved docs, none bleed across.
   $effect(() => {
-    if (docOpen && !docsReady) void initDocs();
+    const rid = store.round?.id;
+    if (!docOpen || !rid || rid === docsRoundId) return;
+    if (docsRoundId) saveCurrentDoc(); // flush the outgoing flow's doc first
+    docsRoundId = rid;
+    docsReady = false;
+    void initDocs(rid);
   });
-  async function initDocs() {
-    await docsStore.init();
+  async function initDocs(rid: string) {
+    await docsStore.initFor(rid);
     activeContent = await docsStore.loadContent(docsStore.activeId);
+    docKey++; // remount the editor for this flow's active doc
     docsReady = true;
   }
 
@@ -167,26 +177,57 @@
   /** Open a .docx into a NEW doc via CardMirror's importer. */
   async function openDocx() {
     if (!("__TAURI_INTERNALS__" in window)) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({ multiple: false, filters: [{ name: "Word Document", extensions: ["docx"] }] });
+    if (!path || typeof path !== "string") return;
+    const { invoke } = await import("@tauri-apps/api/core");
+    const bytes = await invoke<number[]>("read_binary_file", { path });
+    const name = (path.split(/[\\/]/).pop() ?? "Document");
+    await openDocxBytes(new Uint8Array(bytes), name);
+  }
+
+  /** Import a .docx (from the picker or a drag-drop) into a new doc. */
+  async function openDocxBytes(bytes: Uint8Array, filename: string) {
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const path = await open({ multiple: false, filters: [{ name: "Word Document", extensions: ["docx"] }] });
-      if (!path || typeof path !== "string") return;
       docStatus = "Opening…";
-      const { invoke } = await import("@tauri-apps/api/core");
-      const bytes = await invoke<number[]>("read_binary_file", { path });
       const { fromDocx } = await import("$lib/cardmirror");
-      const doc = await fromDocx(new Uint8Array(bytes));
-      const name = (path.split(/[\\/]/).pop() ?? "Document").replace(/\.docx$/i, "");
+      const doc = await fromDocx(bytes);
       saveCurrentDoc();
       activeContent = doc.toJSON();
-      docsStore.addFromContent(name, activeContent);
+      docsStore.addFromContent(filename.replace(/\.docx$/i, ""), activeContent);
       docKey++;
+      docOpen = true;
       docStatus = "";
     } catch (err) {
       console.error("open docx failed", err);
       docStatus = "Couldn't open that .docx";
       setTimeout(() => (docStatus = ""), 2500);
     }
+  }
+
+  // Drag a .docx from Explorer/Finder onto the doc pane → open it. HTML5 file
+  // drop (the window runs with dragDropEnabled:false); internal card/tab drags
+  // carry custom MIME types, not "Files", so they don't trigger this.
+  let docDragOver = $state(false);
+  function docHasFiles(e: DragEvent) {
+    return Array.from(e.dataTransfer?.types ?? []).includes("Files");
+  }
+  function onDocDragOver(e: DragEvent) {
+    if (!docHasFiles(e)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    docDragOver = true;
+  }
+  function onDocDragLeave(e: DragEvent) {
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) docDragOver = false;
+  }
+  async function onDocDrop(e: DragEvent) {
+    if (!docHasFiles(e)) return;
+    e.preventDefault();
+    docDragOver = false;
+    const file = Array.from(e.dataTransfer?.files ?? []).find((f) => f.name.toLowerCase().endsWith(".docx"));
+    if (!file) return;
+    await openDocxBytes(new Uint8Array(await file.arrayBuffer()), file.name);
   }
 
   function startDocResize(e: PointerEvent) {
@@ -248,6 +289,9 @@
     } else {
       const content = await docsStore.loadContent(id);
       docsStore.saveContent(id, appendCMToDocJSON(content, nodes));
+      // The editor caches each doc's state in memory; drop this one so switching
+      // to it rebuilds from the blob we just updated (not a stale cached copy).
+      docRef?.invalidateCache(id);
     }
     const name = docsStore.docs.find((d) => d.id === id)?.name ?? "speech";
     flashDocStatus(`Sent to ★ ${name}`);
@@ -298,6 +342,16 @@
     docsStore.setActive(id);
     activeContent = c;
     docKey++;
+  }
+
+  /** "Move cursor to speech" (Home menu, à la Verbatim): drop the cursor on a
+   *  speech's column and open the flow. The column is preserved as you switch
+   *  sheets (clamped per sheet's startCol), so it lands on that speech on each. */
+  function moveCursorToSpeech(col: number) {
+    const target = store.activeSheetId ?? round?.sheets[0]?.id;
+    if (!target) return;
+    store.cursor = { row: store.cursor?.row ?? 1, col };
+    openSheet(target);
   }
 
   /** Mark a doc as THE speech doc (the ` / ~ send target) and make it the live
@@ -468,7 +522,6 @@
     sendOpsToDoc(ops, col, "flow");
   }
   let addingSheet = $state(false);
-  let newSheetTitle = $state("");
   // Tab right-click menu + inline rename.
   let tabMenu = $state<{ id: string; x: number; y: number } | null>(null);
   let menuEl = $state<HTMLElement>();
@@ -521,7 +574,7 @@
   const sheet = $derived(store.activeSheet);
   const km = $derived(settings.keymap);
   const mac = settings.isMac;
-  function openSheet(sheetId: string) {
+  function openSheet(sheetId: string, landOnLabel = false) {
     // Save the current cursor row before leaving the active sheet.
     if (store.activeSheetId && !atHome && store.cursor) {
       sheetLastRow.set(store.activeSheetId, store.cursor.row);
@@ -529,14 +582,19 @@
     store.activeSheetId = sheetId;
     const target = round?.sheets.find((s) => s.id === sheetId);
     const startCol = target?.startCol ?? 0;
-    // Preserve the current speech column across sheets; clamp to the target's
-    // startCol so you never land in a dead (hatched) column.
-    const col = Math.max(store.cursor?.col ?? startCol, startCol);
-    // Restore the last cursor row for this sheet, defaulting to row 1 (row 0
-    // is the LABEL cell, so row 1 is the first real content row).
-    const maxRow = Math.max(0, (target?.rows.length ?? 1) - 1);
-    const row = Math.min(sheetLastRow.get(sheetId) ?? 1, maxRow);
-    store.cursor = { row, col };
+    if (landOnLabel) {
+      // A brand-new page opens on its LABEL cell (row 0), ready to name it.
+      store.cursor = { row: 0, col: startCol };
+    } else {
+      // Preserve the current speech column across sheets; clamp to the target's
+      // startCol so you never land in a dead (hatched) column.
+      const col = Math.max(store.cursor?.col ?? startCol, startCol);
+      // Restore the last cursor row for this sheet, defaulting to row 1 (row 0
+      // is the LABEL cell, so row 1 is the first real content row).
+      const maxRow = Math.max(0, (target?.rows.length ?? 1) - 1);
+      const row = Math.min(sheetLastRow.get(sheetId) ?? 1, maxRow);
+      store.cursor = { row, col };
+    }
     atHome = false;
     spreadMode = "off";
   }
@@ -671,12 +729,12 @@
     }
   }
 
-  function createSheet() {
-    if (!newSheetTitle.trim()) return;
-    const id = store.addSheet(newSheetTitle.trim());
-    newSheetTitle = "";
+  // New sheet from the + tab: pick a kind (sets start column + coloring); the
+  // page is blank and you name it on the LABEL cell it opens on.
+  function addKindSheet(kind: Parameters<typeof store.addSheet>[1]) {
+    const id = store.addSheet("", kind);
     addingSheet = false;
-    openSheet(id);
+    openSheet(id, true); // land on the LABEL cell
   }
 </script>
 
@@ -732,7 +790,7 @@
           />
         {:else}
           <span class="tab-num">{i + 1}</span>
-          {s.title || "(untitled)"}
+          {s.title || "New sheet"}
         {/if}
       </div>
     {/each}
@@ -800,7 +858,7 @@
               onset={(h) => (hiddenInSpread = h)}
             />
           {:else if atHome || !sheet}
-            <RoundHome onopensheet={openSheet} />
+            <RoundHome onopensheet={openSheet} onnewpage={(id) => openSheet(id, true)} onmovecursor={moveCursorToSpeech} />
           {:else}
             <!-- Zoom applies to the single main flow only (WebView2/Chromium
                  `zoom`); the spread view zooms its own panels independently. -->
@@ -815,7 +873,17 @@
         {#if !docExpanded}
           <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
         {/if}
-        <div class="doc-pane" style={docExpanded ? "flex:1" : `width: ${docWidth}px`}>
+        <div
+          class="doc-pane"
+          style={docExpanded ? "flex:1" : `width: ${docWidth}px`}
+          role="region"
+          ondragover={onDocDragOver}
+          ondragleave={onDocDragLeave}
+          ondrop={onDocDrop}
+        >
+          {#if docDragOver}
+            <div class="doc-drop-overlay">Drop a .docx to open it</div>
+          {/if}
           <div class="doc-tabs">
             {#each docsStore.docs as d (d.id)}
               {@const out = docBridge.isPoppedOut(d.id)}
@@ -902,12 +970,13 @@
           tabindex="-1"
         >
           <h3>New sheet</h3>
-          <input
-            placeholder="Title (e.g. Cap K, Econ DA, T-Subsets)"
-            bind:value={newSheetTitle}
-            onkeydown={(e) => e.key === "Enter" && createSheet()}
-          />
-          <button class="primary" onclick={createSheet}>Create</button>
+          <p class="modal-hint">Pick a kind — you'll name it on the LABEL cell.</p>
+          <div class="kind-buttons">
+            <button class="chip" onclick={() => addKindSheet("case")}>Advantage</button>
+            <button class="chip" onclick={() => addKindSheet("offcase")}>Off-case</button>
+            <button class="chip" onclick={() => addKindSheet("overview")}>Overview</button>
+            <button class="chip" onclick={() => addKindSheet("cx")}>CX</button>
+          </div>
         </div>
       </div>
     {/if}
@@ -1066,6 +1135,21 @@
     flex-direction: column;
     overflow: hidden;
     min-width: 240px;
+    position: relative;
+  }
+  .doc-drop-overlay {
+    position: absolute;
+    inset: 6px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--accent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+    color: var(--text);
+    font-weight: 600;
+    pointer-events: none;
   }
   /* Doc tabs (multiple speech docs) */
   .doc-tabs {
@@ -1313,22 +1397,30 @@
     margin: 0;
     font-size: 14px;
   }
-  .modal input {
+  .modal-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .kind-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .kind-buttons .chip {
+    flex: 1;
+    min-width: 92px;
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
-    border-radius: 4px;
-    padding: 6px 8px;
+    border-radius: 14px;
+    padding: 8px 12px;
     font-size: 13px;
-  }
-  .primary {
-    background: var(--accent);
-    border: none;
-    color: #fff;
-    border-radius: 4px;
-    padding: 6px;
     cursor: pointer;
-    font-weight: 600;
+  }
+  .kind-buttons .chip:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
   }
   .help {
     position: fixed;

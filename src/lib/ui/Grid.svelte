@@ -5,6 +5,7 @@
   import { matchesAny } from "../model/keymap";
   import GridCell from "./GridCell.svelte";
   import { guard } from "../model/crash";
+  import { nodeChip, type DocNode } from "../docx/parse";
 
   let {
     sheet,
@@ -82,7 +83,7 @@
         if (flow.card) dc.card = flow.card; else delete dc.card;
         if (flow.items?.length) {
           dc.items = flow.items.map((i) => ({ id: crypto.randomUUID(), text: i.text, kind: i.kind, chip: i.chip, card: i.card }));
-          dc.expanded = true;
+          dc.expanded = false; // collapsed on drop
         } else {
           delete dc.items;
           delete dc.expanded;
@@ -93,23 +94,47 @@
     }
     const raw = e.dataTransfer?.getData("text/nimbus-block");
     if (!raw) return;
-    let payload: { header: string; fullCard: string; node?: { level: number; isAnalytic?: boolean } };
+    let payload: { header: string; fullCard: string; node?: DocNode };
     try { payload = JSON.parse(raw); } catch { return; }
     const cell = cellAt(e as unknown as MouseEvent);
     if (!cell) return;
     const { r, c } = cell;
-    const chip = payload.node
-      ? (payload.node.isAnalytic ? "ANL" : ["", "POC", "HAT", "BLK", "TAG"][payload.node.level] ?? "TAG")
+    const node = payload.node;
+    const chip = node
+      ? (node.isAnalytic ? "ANL" : ["", "POC", "HAT", "BLK", "TAG"][node.level] ?? "TAG")
       : undefined;
-    // Write header into the cell
+    // A block/hat with cards or analytics under it becomes an expandable
+    // multi-item cell — same as pressing Enter in Doc Search. Without this the
+    // dropped cell shows only its header and the children are invisible.
+    const cards: DocNode[] = [];
+    const walk = (ns: DocNode[] | undefined) => {
+      for (const n of ns ?? []) {
+        if (n.level >= 4 || n.isAnalytic) cards.push(n);
+        else walk(n.children);
+      }
+    };
+    if (node) walk(node.children);
     store.mutate((round) => {
       const s = round.sheets.find((s) => s.id === sheet.id);
       if (!s) return;
       store.ensureRows(r, s);
       const dc = s.rows[r].cells[c];
       dc.text = payload.header;
-      if (chip) dc.chip = chip;
-      if (payload.node) dc.card = payload.node;
+      if (chip) dc.chip = chip; else delete dc.chip;
+      if (node) dc.card = node; else delete dc.card;
+      if (cards.length) {
+        dc.items = cards.map((cd) => ({
+          id: crypto.randomUUID(),
+          text: cd.text,
+          kind: "card" as const,
+          chip: nodeChip(cd),
+          card: cd,
+        }));
+        dc.expanded = false; // collapsed on drop — click ▸ to expand
+      } else {
+        delete dc.items;
+        delete dc.expanded;
+      }
     });
     store.cursor = { row: r, col: c };
   }

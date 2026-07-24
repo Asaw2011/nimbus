@@ -269,15 +269,20 @@ class RoundStore {
    *  analytics are both banked — each is an argument someone made. */
   addCards(args: ArgRef[]): void {
     if (!this.round || args.length === 0) return;
-    const bank = (this.round.cards ??= []);
+    const bank = this.round.cards ?? [];
     const key = (c: ArgRef) => (c.author ?? "") + "::" + c.tag;
     const seen = new Set(bank.map(key));
+    // Build the new array and assign it back in one go. Pushing onto the
+    // captured array reference doesn't update the $state length signal, so the
+    // ⌘J bank looked empty after an import even though the flow had the cards.
+    const next = [...bank];
     for (const c of args) {
       if (!c.tag?.trim()) continue; // an argument needs text; author is optional
       if (seen.has(key(c))) continue;
       seen.add(key(c));
-      bank.push(c);
+      next.push(c);
     }
+    this.round.cards = next;
     this.scheduleSave();
   }
 
@@ -347,7 +352,7 @@ class RoundStore {
       if (flow.card) cell.card = flow.card; else delete cell.card;
       if (flow.items?.length) {
         cell.items = flow.items.map((i) => ({ id: uid(), text: i.text, kind: i.kind, chip: i.chip, card: i.card }));
-        cell.expanded = true;
+        cell.expanded = false; // collapsed on insert
       } else {
         delete cell.items;
         delete cell.expanded;
@@ -368,7 +373,7 @@ class RoundStore {
     this.mutate(() => {
       cell.text = header;
       cell.items = items;
-      cell.expanded = true;
+      cell.expanded = false; // drops in collapsed — click ▸ to expand its cards
     });
   }
 
@@ -597,6 +602,11 @@ class RoundStore {
       delete cell.ext;
       delete cell.chip;
       delete cell.card;
+      // Also wipe imported block contents (cards/responses), not just the header.
+      delete cell.items;
+      delete cell.expanded;
+      delete cell.cmNode;
+      delete cell.author;
     });
   }
 

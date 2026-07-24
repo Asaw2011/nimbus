@@ -11,9 +11,10 @@ export interface DocEntry {
   name: string;
 }
 
-const LIST_BLOB = "docs-list";
+// The doc list is scoped PER ROUND so each flow has its own speech docs; doc
+// content blobs are keyed by their (globally-unique) id, so they never collide.
+const listBlob = (roundId: string) => `docs-list:${roundId}`;
 const contentBlob = (id: string) => `doc:${id}`;
-const LEGACY_BLOB = "speech-doc-json";
 
 class DocsStore {
   docs = $state<DocEntry[]>([]);
@@ -21,30 +22,30 @@ class DocsStore {
   // The doc that receives ` / ~ "send to speech" sends — your speech in progress.
   // CardMirror/Verbatim call this "the speech"; here it's marked with a ★ on its tab.
   speechDocId = $state<string | null>(null);
-  private loaded = false;
+  /** Which round's docs are currently loaded. */
+  private roundId: string | null = null;
 
-  async init(): Promise<void> {
-    if (this.loaded) return;
-    this.loaded = true;
-    const saved = await loadBlob<{ docs: DocEntry[]; activeId: string | null; speechDocId?: string | null }>(LIST_BLOB);
+  /** Load (or create) the doc list belonging to a specific round/flow. Switching
+   *  rounds swaps to that round's own docs so they never bleed across flows. */
+  async initFor(roundId: string): Promise<void> {
+    if (this.roundId === roundId) return;
+    if (this.roundId) this.persist(); // save the outgoing round's list first
+    this.roundId = roundId;
+    const saved = await loadBlob<{ docs: DocEntry[]; activeId: string | null; speechDocId?: string | null }>(listBlob(roundId));
     if (saved?.docs?.length) {
       this.docs = saved.docs;
       const has = (id: string | null | undefined) => !!id && saved.docs.some((d) => d.id === id);
       const fallback = saved.docs[0].id;
       this.activeId = has(saved.activeId) ? saved.activeId! : fallback;
       this.speechDocId = has(saved.speechDocId) ? saved.speechDocId! : fallback;
-      // If either pointer referenced a doc that no longer exists, heal the
-      // persisted state so it doesn't keep loading a phantom (empty) doc.
       if (!has(saved.activeId) || !has(saved.speechDocId)) this.persist();
       return;
     }
-    // First run: carry over the old single doc if there was one, else start blank.
+    // First time this round's docs are opened → start with one blank Speech doc.
     const id = uid();
     this.docs = [{ id, name: "Speech" }];
     this.activeId = id;
     this.speechDocId = id;
-    const legacy = await loadBlob<unknown>(LEGACY_BLOB);
-    if (legacy) saveBlob(contentBlob(id), legacy);
     this.persist();
   }
 
@@ -121,7 +122,8 @@ class DocsStore {
   }
 
   private persist(): void {
-    saveBlob(LIST_BLOB, { docs: $state.snapshot(this.docs), activeId: this.activeId, speechDocId: this.speechDocId });
+    if (!this.roundId) return;
+    saveBlob(listBlob(this.roundId), { docs: $state.snapshot(this.docs), activeId: this.activeId, speechDocId: this.speechDocId });
   }
 }
 

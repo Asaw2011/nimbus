@@ -100,9 +100,16 @@
     const cur = store.cursor;
     if (cur) store.extendCell(cur.row, cur.col);
   }
+
+  function cycleRibbonMode() {
+    const order = ["full", "icons", "slim"] as const;
+    const i = order.indexOf(settings.ribbonMode);
+    settings.ribbonMode = order[(i + 1) % order.length];
+    settings.save();
+  }
 </script>
 
-<div class="ribbon">
+<div class="ribbon" class:mode-icons={settings.ribbonMode === "icons"} class:mode-slim={settings.ribbonMode === "slim"}>
   <div class="group">
     <div class="controls">
       <button class="rb" title="Undo (⌘Z)" onclick={() => store.undo()}>↶ Undo</button>
@@ -169,6 +176,12 @@
     </div>
     <div class="caption">View</div>
   </div>
+
+  <button
+    class="rb ribbon-density"
+    title={"Ribbon density: " + settings.ribbonMode + " — click to cycle (full → icons → slim)"}
+    onclick={cycleRibbonMode}
+  >{settings.ribbonMode === "full" ? "⤢" : settings.ribbonMode === "icons" ? "⤡" : "⇔"}</button>
 </div>
 
 <style>
@@ -309,4 +322,24 @@
     opacity: 0;
     cursor: pointer;
   }
+
+  /* ── Ribbon density modes ─────────────────────────────────────── */
+  .ribbon-density {
+    margin-left: auto; /* push to the far right */
+    align-self: center;
+    min-width: 30px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  /* slim — labels kept (legible), captions gone, min height, groups spread */
+  .ribbon.mode-slim { align-items: center; }
+  .ribbon.mode-slim .caption { display: none; }
+  .ribbon.mode-slim .group { flex: 1; justify-content: center; }
+  .ribbon.mode-slim .rb { height: 24px; }
+  /* icons — captions gone + compact sizing (dense) */
+  .ribbon.mode-icons { align-items: center; }
+  .ribbon.mode-icons .caption { display: none; }
+  .ribbon.mode-icons .group { padding: 0 6px; }
+  .ribbon.mode-icons .controls { gap: 2px; }
+  .ribbon.mode-icons .rb { height: 24px; padding: 0 5px; font-size: 11px; }
 </style>

@@ -2,7 +2,16 @@
   import { onDestroy } from "svelte";
   import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
   import { EditorView } from "prosemirror-view";
-  import { toggleMark, setBlockType, baseKeymap } from "prosemirror-commands";
+  import { toggleMark, setBlockType, baseKeymap, chainCommands } from "prosemirror-commands";
+  // CardMirror's authoritative tag/analytic boundary editing (ported from
+  // ant981228/cardmirror src/editor/tag-keymap.ts) — Backspace/Delete/Enter.
+  import {
+    backspaceAtTagStart, deleteAtTagEnd, backspaceAtFirstBodyStart,
+    deleteAtContainerEnd, enterMidTag, enterAtTagEnd, enterInHeading,
+  } from "$lib/cardmirror/editor/tag-keymap";
+  import {
+    keepCursorInLeadingBlockOnBlockedMerge, blockBackspaceNodeSelect, blockDeleteNodeSelect,
+  } from "$lib/cardmirror/editor/boundary-cursor-keymap";
   import { keymap } from "prosemirror-keymap";
   import { history, undo, redo } from "prosemirror-history";
   import { Fragment, Slice, type Node as PMNode } from "prosemirror-model";
@@ -13,6 +22,7 @@
   import { settings } from "$lib/model/settings.svelte";
   import { store } from "$lib/model/round.svelte";
   import { matchesAny, comboLabel, type ActionId } from "$lib/model/keymap";
+  import { guard, reportError } from "$lib/model/crash";
   import { pinchZoom } from "$lib/util/pinch";
   import QuickCards from "./QuickCards.svelte";
   import "$lib/cardmirror/cardmirror.css";
@@ -89,6 +99,7 @@
   function rebuildOutline() {
     if (!view) return;
     const items: OutlineItem[] = [];
+    try {
     view.state.doc.descendants((node, pos) => {
       const lvl = HEADING_LEVEL[node.type.name];
       if (lvl !== undefined) {
@@ -109,6 +120,7 @@
       }
       return undefined;
     });
+    } catch (err) { console.error("rebuildOutline failed", err); }
     outline = items;
   }
 
@@ -121,8 +133,13 @@
     const clamped = Math.min(pos + 1, state.doc.content.size);
     try {
       const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(clamped)));
-      view.dispatch(tr.scrollIntoView());
+      view.dispatch(tr);
       view.focus();
+      // Scroll the clicked heading to the TOP of the pane (like CardMirror),
+      // rather than parking it at the bottom edge (ProseMirror's "nearest").
+      const at = view.domAtPos(clamped).node;
+      const el = at.nodeType === 3 ? at.parentElement : (at as HTMLElement);
+      el?.scrollIntoView({ block: "start", behavior: "auto" });
     } catch { rebuildOutline(); }
   }
   let applyingExternal = false;
@@ -131,12 +148,60 @@
   // full undo history — remounting the editor would throw the history away.
   const stateCache = new Map<string, EditorState>();
   let currentDocId: string | null = null;
+  // The last doc JSON that serialized cleanly — the recovery point if a later
+  // transaction lands the editor on a corrupt, un-editable state.
+  let lastGoodJSON: unknown = null;
+
+  /** Rebuild the editor from the last good doc so editing keeps working after a
+   *  corrupt-node crash (instead of being stuck on a half-applied state). */
+  function recoverDoc() {
+    if (!view) return;
+    try {
+      view.updateState(buildState(lastGoodJSON));
+      rebuildOutline();
+      view.focus();
+    } catch (err) {
+      reportError("SpeechDoc.recoverDoc", err);
+    }
+  }
+
+  /** A node is "safe" if ProseMirror can actually walk it. A corrupt fragment
+   *  (a child ends up undefined) throws `c.nodeSize` inside nodesBetween on the
+   *  next edit/focus and aborts the whole operation (e.g. backspace stops
+   *  deleting). Drop such nodes at the door instead of letting them into state. */
+  function isSafeNode(n: PMNode): boolean {
+    try {
+      n.check();
+      n.descendants(() => true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Recursively drop null/undefined children and holes from `content` arrays.
+   *  A sparse/holey content array reaches ProseMirror as a Fragment with an
+   *  `undefined` child, which crashes `nodesBetween` (`c.nodeSize`) on the next
+   *  edit/focus and freezes the whole app. Sanitizing on the way in prevents it. */
+  function sanitizeCMJson<T>(json: T): T {
+    if (Array.isArray(json)) {
+      return json.filter((x) => x != null).map((x) => sanitizeCMJson(x)) as unknown as T;
+    }
+    if (json && typeof json === "object") {
+      const out = { ...(json as Record<string, unknown>) };
+      if (Array.isArray(out.content)) {
+        out.content = out.content.filter((x) => x != null).map((x) => sanitizeCMJson(x));
+      }
+      return out as unknown as T;
+    }
+    return json;
+  }
 
   /** Build a fresh EditorState (with its own history) from doc JSON. */
   function buildState(json: unknown): EditorState {
     const doc = json
       ? (() => {
-          try { return schema.nodeFromJSON(json); } catch { return undefined; }
+          try { return schema.nodeFromJSON(sanitizeCMJson(json)); } catch { return undefined; }
         })()
       : undefined;
     return EditorState.create({
@@ -147,9 +212,20 @@
         searchPlugin(),
         history(),
         keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
-        // Backspace on an EMPTY heading/tag actually removes it (base Backspace
-        // leaves empty pockets/hats/blocks/tags stuck as un-deletable boxes).
-        keymap({ Backspace: backspaceEmptyBlock, Delete: backspaceEmptyBlock }),
+        // CardMirror's tag/analytic boundary rules (Backspace/Delete/Enter),
+        // ported verbatim so the doc edits exactly like CardMirror. Each returns
+        // false for the non-tag cases so the base keymap handles them.
+        keymap({
+          Backspace: chainCommands(
+            backspaceAtTagStart, backspaceAtFirstBodyStart,
+            keepCursorInLeadingBlockOnBlockedMerge, blockBackspaceNodeSelect,
+          ),
+          Delete: chainCommands(
+            deleteAtTagEnd, deleteAtContainerEnd,
+            keepCursorInLeadingBlockOnBlockedMerge, blockDeleteNodeSelect,
+          ),
+          Enter: chainCommands(enterMidTag, enterAtTagEnd, enterInHeading),
+        }),
         keymap(baseKeymap),
       ],
     });
@@ -161,6 +237,7 @@
 
     const state = buildState(initialDoc);
     currentDocId = docId;
+    lastGoodJSON = initialDoc ?? null;
     if (docId) stateCache.set(docId, state);
 
     view = new EditorView(mountEl, {
@@ -183,15 +260,29 @@
       },
       dispatchTransaction(tr: Transaction) {
         if (!view) return;
-        view.updateState(view.state.apply(tr));
-        // Bump so toolbar active-states (which read view.state) re-render as the
-        // cursor/selection moves.
-        selTick++;
-        if (tr.selectionSet || tr.docChanged) syncDocSelSize();
-        if (tr.docChanged) {
-          rebuildOutline();
-          if (!applyingExternal) onchange?.(view.state.doc.toJSON());
+        // apply() runs plugin appendTransactions and updateState re-renders —
+        // either can throw on a corrupt node. If so, revert to the last good
+        // doc so editing (backspace/delete/typing) keeps working instead of
+        // getting stuck on a half-applied, un-editable state.
+        try {
+          view.updateState(view.state.apply(tr));
+        } catch (err) {
+          reportError("SpeechDoc.apply", err);
+          recoverDoc();
+          return;
         }
+        selTick++;
+        guard("SpeechDoc.dispatch", () => {
+          if (tr.selectionSet || tr.docChanged) syncDocSelSize();
+          if (tr.docChanged) {
+            rebuildOutline();
+            if (view) {
+              const json = view.state.doc.toJSON(); // throws if the doc is corrupt
+              lastGoodJSON = json;
+              if (!applyingExternal) onchange?.(json);
+            }
+          }
+        });
       },
     });
     rebuildOutline();
@@ -209,6 +300,7 @@
     if (id) stateCache.set(id, next);
     currentDocId = id;
     view.updateState(next);
+    try { lastGoodJSON = next.doc.toJSON(); } catch { /* keep prior good */ }
     rebuildOutline();
     syncDocSelSize();
     view.focus();
@@ -217,6 +309,13 @@
   /** Serialise the current document to JSON (for pop-out handoff / persistence). */
   export function getDocJSON(): unknown {
     return view?.state.doc.toJSON() ?? null;
+  }
+
+  /** Drop a doc's cached editor state so the next switch to it rebuilds from its
+   *  (freshly saved) blob — used after a background append to a non-shown doc. */
+  export function invalidateCache(id: string) {
+    if (id === currentDocId) return; // the live doc is already up to date
+    stateCache.delete(id);
   }
 
   /** Label of a top-level node (tag/analytic heading text, else its own text). */
@@ -240,8 +339,10 @@
       top.push({ node, key, i: index });
     });
     const sorted = [...top].sort((a, b) => a.key - b.key || a.i - b.i);
-    if (sorted.every((s, idx) => s.i === idx)) return; // already ordered
-    const frag = Fragment.fromArray(sorted.map((s) => s.node));
+    const nodes = sorted.map((s) => s.node).filter(isSafeNode);
+    if (!nodes.length) return;
+    if (nodes.length === top.length && sorted.every((s, idx) => s.i === idx)) return; // already ordered
+    const frag = Fragment.fromArray(nodes);
     view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, frag));
   }
 
@@ -275,15 +376,22 @@
     const fs = schema.marks.font_size;
     const { from, to, empty } = view.state.selection;
     let hp: number | null = null;
-    const a = empty ? Math.max(0, from - 1) : from;
-    view.state.doc.nodesBetween(a, Math.max(a + 1, to), (node) => {
-      if (hp !== null) return false;
-      if (node.isText) {
-        const m = node.marks.find((x) => x.type === fs);
-        if (m) hp = Number(m.attrs.halfPoints);
-      }
-      return true;
-    });
+    // Clamp every position into the document — a stale selection after a tab
+    // swap can point past the end, and nodesBetween(a, to>size) throws
+    // `nodeSize` of undefined, which (inside an $effect) freezes the doc UI.
+    const size = view.state.doc.content.size;
+    const a = Math.min(Math.max(0, empty ? from - 1 : from), size);
+    const b = Math.min(Math.max(a + 1, to), size);
+    try {
+      view.state.doc.nodesBetween(a, b, (node) => {
+        if (hp !== null) return false;
+        if (node.isText) {
+          const m = node.marks.find((x) => x.type === fs);
+          if (m) hp = Number(m.attrs.halfPoints);
+        }
+        return true;
+      });
+    } catch { /* out-of-range/transient state — fall back to the base size */ }
     return hp != null ? hp / 2 : baseSizeForSelection();
   }
 
@@ -392,7 +500,7 @@
   export function insertQuickCard(contentJson: unknown) {
     if (!view) return;
     try {
-      const slice = Slice.fromJSON(schema, contentJson as never);
+      const slice = Slice.fromJSON(schema, sanitizeCMJson(contentJson) as never);
       view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
       view.focus();
     } catch (err) {
@@ -444,7 +552,9 @@
   // ── inserting ──────────────────────────────────────────────────
 
   function insertAtEnd(nodes: ReturnType<typeof schema.nodes.card.create>[]) {
-    if (!view || nodes.length === 0) return;
+    if (!view) return;
+    nodes = nodes.filter(isSafeNode);
+    if (nodes.length === 0) return;
     const { state } = view;
     view.dispatch(state.tr.insert(state.doc.content.size, nodes).scrollIntoView());
   }
@@ -488,6 +598,7 @@
     const tag = schema.nodes.tag.create(null, header ? [schema.text(header)] : []);
     const bodies = lines.map((line) => schema.nodes.card_body.create(null, [schema.text(line)]));
     const card = schema.nodes.card.create(null, [tag, ...bodies]);
+    if (!isSafeNode(card)) return;
     view.dispatch(view.state.tr.replaceSelectionWith(card).scrollIntoView());
   }
 
@@ -505,7 +616,31 @@
     if (type === "analytic") { makeAnalytic(); return; }
     if (type === "tag") { makeCard(); return; }
     const nt = schema.nodes[type];
-    if (nt) setBlockType(nt)(view.state, view.dispatch);
+    if (!nt) { view.focus(); return; }
+    const { state } = view;
+    // Normal in-place change first (works for paragraph/pocket/hat/block that
+    // aren't a card's required first child).
+    if (setBlockType(nt)(state, view.dispatch)) { view.focus(); return; }
+    // Blocked because the cursor is in a card's/analytic_unit's required heading
+    // (tag/analytic) — a card can't just swap its tag for another block type. So
+    // UNWRAP the card: replace it with [newBlock(heading text), ...body], so you
+    // can freely switch a tag to any style instead of being grid-locked.
+    const at = state.selection.$from;
+    for (let d = at.depth - 1; d >= 0; d--) {
+      const node = at.node(d);
+      if (node.type.name === "card" || node.type.name === "analytic_unit") {
+        const start = at.before(d);
+        const end = at.after(d);
+        const head = node.firstChild; // tag / analytic
+        const repl: PMNode[] = [nt.create(null, head ? head.content : undefined)];
+        node.forEach((child, _off, i) => { if (i > 0) repl.push(child); }); // keep body
+        const tr = state.tr.replaceWith(start, end, repl);
+        tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(start + 1, tr.doc.content.size))));
+        view.dispatch(tr.scrollIntoView());
+        view.focus();
+        return;
+      }
+    }
     view.focus();
   }
 
@@ -607,40 +742,6 @@
     return b ? comboLabel(b, settings.isMac) : "";
   }
 
-  /** Backspace/Delete on an EMPTY heading/tag removes it. Base Backspace can't:
-   *  an empty pocket/hat/block renders as a stuck box, and an empty tag as an
-   *  un-deletable "(untitled)" card. Returns false for non-empty blocks so
-   *  normal character deletion is untouched. */
-  function backspaceEmptyBlock(
-    state: EditorState,
-    dispatch?: (tr: Transaction) => void,
-  ): boolean {
-    const sel = state.selection;
-    if (!(sel instanceof TextSelection) || !sel.empty) return false;
-    const at = sel.$from;
-    // Only act at the very start of a completely empty block.
-    if (at.parentOffset !== 0 || at.parent.content.size !== 0) return false;
-    if (at.parent.type === schema.nodes.paragraph) return false; // let base handle
-
-    // 1) Empty heading (pocket/hat/block/analytic/undertag) → plain paragraph,
-    //    so the box disappears and it becomes a normal, deletable line.
-    if (setBlockType(schema.nodes.paragraph)(state, dispatch)) return true;
-
-    // 2) Empty tag inside a card / analytic_unit that is ITSELF entirely empty
-    //    → delete the whole stub node (never destroys a card with real body).
-    for (let d = at.depth - 1; d >= 0; d--) {
-      const node = at.node(d);
-      if (node.type.name === "card" || node.type.name === "analytic_unit") {
-        if (node.textContent.trim() !== "") return false; // has real content — keep it
-        if (dispatch) {
-          dispatch(state.tr.delete(at.before(d), at.after(d)).scrollIntoView());
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-
   /** Capture the current card/selection as CardMirror node JSON (for `~` send). */
   function captureForTilde(): unknown[] {
     if (!view) return [];
@@ -650,8 +751,29 @@
       sel.content().content.forEach((n) => out.push(n.toJSON()));
       return out;
     }
-    const top = sel.$from.depth > 0 ? sel.$from.node(1) : null;
-    return top ? [top.toJSON()] : [];
+    // Send the SECTION owned by the heading at the cursor (like CardMirror):
+    //  - on a Hat heading  → the whole hat (its blocks, analytics, and cards)
+    //  - on a Block heading → the whole block and nothing else
+    //  - on a single card/analytic → just that one card.
+    const doc = view.state.doc;
+    const idx = sel.$from.index(0); // which top-level node the cursor is in
+    if (idx < 0 || idx >= doc.childCount) return [];
+    const topNode = doc.child(idx);
+    const name = topNode.type.name;
+    if (name === "card" || name === "analytic_unit") return [topNode.toJSON()];
+    const LEVEL: Record<string, number> = { pocket: 1, hat: 2, block: 3 };
+    const myLevel = LEVEL[name];
+    if (!myLevel) return [topNode.toJSON()];
+    // The section = this heading + following top-level nodes until the next
+    // heading of the same or a higher level.
+    const out: unknown[] = [topNode.toJSON()];
+    for (let i = idx + 1; i < doc.childCount; i++) {
+      const n = doc.child(i);
+      const lvl = LEVEL[n.type.name] ?? 5; // cards/analytics/bodies are "below" a heading
+      if (lvl <= myLevel) break;
+      out.push(n.toJSON());
+    }
+    return out;
   }
 
   /** Insert CardMirror node JSON at the cursor (after the current top-level
@@ -660,7 +782,7 @@
     if (!view || !nodes.length) return;
     try {
       nodes.forEach(stripBlankRunMarks);
-      insertPMAtCursor(nodes.map((j) => schema.nodeFromJSON(j as never)));
+      insertPMAtCursor(nodes.map((j) => schema.nodeFromJSON(sanitizeCMJson(j) as never)));
     } catch (err) {
       console.error("insertCMAtCursor failed", err);
     }
@@ -679,7 +801,9 @@
   /** Insert top-level PM nodes after the current node, and move the cursor past
    *  them so successive inserts stack in order. */
   function insertPMAtCursor(pm: PMNode[]) {
-    if (!view || !pm.length) return;
+    if (!view) return;
+    pm = pm.filter(isSafeNode);
+    if (!pm.length) return;
     const frag = Fragment.fromArray(pm);
     const at = view.state.selection.$from;
     const pos = at.depth > 0 ? at.after(1) : view.state.selection.from;
@@ -924,7 +1048,8 @@
     if (!view || jsonNodes.length === 0) return;
     try {
       jsonNodes.forEach(stripBlankRunMarks);
-      const nodes = jsonNodes.map((j) => schema.nodeFromJSON(j));
+      const nodes = jsonNodes.map((j) => schema.nodeFromJSON(sanitizeCMJson(j))).filter(isSafeNode);
+      if (!nodes.length) return;
       view.dispatch(view.state.tr.insert(view.state.doc.content.size, nodes).scrollIntoView());
     } catch (err) {
       console.error("appendCMNodes failed", err);

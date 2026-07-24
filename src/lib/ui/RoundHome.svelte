@@ -7,7 +7,17 @@
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
 
-  let { onopensheet }: { onopensheet: (sheetId: string) => void } = $props();
+  let {
+    onopensheet,
+    onnewpage,
+    onmovecursor,
+  }: {
+    onopensheet: (sheetId: string) => void;
+    /** Open a freshly created page on its LABEL cell, ready to name it. */
+    onnewpage: (sheetId: string) => void;
+    /** Place the cursor on a given speech column across the flows. */
+    onmovecursor: (col: number) => void;
+  } = $props();
 
   const round = $derived(store.round);
   let renamingId = $state<string | null>(null);
@@ -38,36 +48,32 @@
     store.deleteSheet(id);
   }
 
+  // Off-case / Advantage pick only the KIND (start column + coloring). The pages
+  // are created blank and you name them on the LABEL cell — no auto "Off 1"/"Adv 1".
   function addOffcase(count: number) {
     if (!store.round) return;
-    const existing = store.round.sheets.filter((s) => s.kind === "offcase").length;
     let lastId = "";
-    for (let i = 1; i <= count; i++) {
-      lastId = store.addSheet(`Off ${existing + i}`, "offcase");
-    }
-    if (count === 1 && lastId) startRename(lastId, `Off ${existing + 1}`);
+    for (let i = 1; i <= count; i++) lastId = store.addSheet("", "offcase");
+    if (lastId) onnewpage(lastId); // open the new page on its LABEL cell
   }
 
   function addAdvantages(count: number) {
     if (!store.round) return;
-    const existing = store.round.sheets.filter((s) => s.kind === "case").length;
     let lastId = "";
-    for (let i = 1; i <= count; i++) {
-      lastId = store.addSheet(`Adv ${existing + i}`, "case");
-    }
-    if (count === 1 && lastId) startRename(lastId, `Adv ${existing + 1}`);
+    for (let i = 1; i <= count; i++) lastId = store.addSheet("", "case");
+    if (lastId) onnewpage(lastId);
   }
 
   function addOverview() {
     if (!store.round) return;
     const existing = store.round.sheets.filter((s) => s.kind === "overview").length;
     const title = existing === 0 ? "Overview" : `Overview ${existing + 1}`;
-    startRename(store.addSheet(title, "overview"), title);
+    onnewpage(store.addSheet(title, "overview"));
   }
 
   function addCx() {
     if (!store.round) return;
-    store.addSheet("CX", "cx");
+    onnewpage(store.addSheet("CX", "cx"));
   }
 
   function startRename(id: string, current: string) {
@@ -148,6 +154,20 @@
           <button class="chip" onclick={addCx}>CX</button>
         </div>
       </div>
+      {#if round.template.speeches.length}
+        <div class="cursor-row">
+          <span class="add-label" title="Jump your cursor to a speech's column — it stays on that column as you switch flows">Cursor → speech</span>
+          {#each round.template.speeches as sp, i (i)}
+            <button
+              class="chip speech"
+              class:aff={sp.side === "aff"}
+              class:neg={sp.side === "neg"}
+              title="Place your cursor on the {sp.label} column across every flow"
+              onclick={() => onmovecursor(i)}
+            >{sp.abbr}</button>
+          {/each}
+        </div>
+      {/if}
       {#if round.sheets.length === 0}
         <p class="hint-line">No pages yet — add one above, or import a speech doc below.</p>
       {/if}
@@ -191,7 +211,7 @@
               <span class="grip" title="Drag to reorder">⠿</span>
               <button class="open" onclick={() => onopensheet(s.id)}>
                 <span class="num">{i + 1}</span>
-                {s.title || "(untitled)"}
+                {s.title || "New sheet"}
               </button>
               <label class="swatch" title="Sheet color">
                 <input
@@ -388,6 +408,20 @@
   .chip:hover {
     border-color: var(--accent);
   }
+  .cursor-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .chip.speech {
+    padding: 3px 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .chip.speech.aff { color: var(--aff); border-color: color-mix(in srgb, var(--aff) 40%, var(--border)); }
+  .chip.speech.neg { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 40%, var(--border)); }
   .sheet-list {
     display: flex;
     flex-direction: column;

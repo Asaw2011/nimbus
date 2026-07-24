@@ -432,11 +432,23 @@
           onchange={(e) => settings.setBulkRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
         />
       </div>
+      <div class="row">
+        <label for="move-rows">Move-cursor-down count (rows the "space down" key jumps)</label>
+        <input
+          id="move-rows"
+          class="num-field"
+          type="number"
+          min="2"
+          max="50"
+          value={settings.moveRows}
+          onchange={(e) => settings.setMoveRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
+        />
+      </div>
       {#each ACTION_GROUPS as group (group.title)}
         <div class="kb-group-title">{group.title}</div>
         {#each group.actions as action (action)}
           <div class="row">
-            {actionLabel(action, settings.bulkRows)}
+            {actionLabel(action, settings.bulkRows, settings.moveRows)}
             <span class="binds">
               {#each settings.keymap[action] ?? [] as combo, bi (bi)}
                 <span class="bind-chip">

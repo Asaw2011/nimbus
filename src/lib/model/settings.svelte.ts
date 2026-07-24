@@ -1,7 +1,7 @@
 // App-wide settings (Svelte 5 runes), persisted to localStorage.
 
 import type { ActionId, Combo } from "./keymap";
-import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_KEYMAP, sameCombo } from "./keymap";
+import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_MOVE_ROWS, DEFAULT_KEYMAP, sameCombo } from "./keymap";
 import type { Macro } from "./macros";
 import { defaultMacros, migrateLegacyMacro } from "./macros";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
@@ -19,12 +19,14 @@ const BLOB = "settings";
 
 export type Theme =
   | "dark"
+  | "slate"
   | "light"
   | "snow"
   | "cream"
   | "sky"
   | "mist";
 export type TabsPosition = "top" | "bottom";
+export type RibbonMode = "full" | "icons" | "slim";
 
 /** Theme picker options: id, label, and the swatch bg to preview. */
 export const THEMES: { id: Theme; label: string; bg: string }[] = [
@@ -33,6 +35,7 @@ export const THEMES: { id: Theme; label: string; bg: string }[] = [
   { id: "cream", label: "Cream", bg: "#f7f2e9" },
   { id: "sky", label: "Sky", bg: "#eef4fb" },
   { id: "mist", label: "Mist", bg: "#f4f5f6" },
+  { id: "slate", label: "Slate", bg: "#33383e" },
   { id: "dark", label: "Dark", bg: "#141414" },
 ];
 
@@ -41,6 +44,9 @@ export interface Persisted {
   version?: number;
   theme: Theme;
   tabsPosition: TabsPosition;
+  ribbonMode?: RibbonMode;
+  /** Legacy: replaced by ribbonMode ("icons"). */
+  compactRibbon?: boolean;
   colMinWidth: number;
   /** Overrides for the aff/neg accent colors; "" = theme default. */
   affColor: string;
@@ -61,6 +67,7 @@ export interface Persisted {
   macros: Macro[];
   /** How many rows the bulk insert actions add (default 3, clamped 2–50). */
   bulkRows: number;
+  moveRows?: number;
   /** Grid zoom factor (default 1, clamped 0.5–2.5). */
   zoom: number;
   docZoom: number;
@@ -134,6 +141,7 @@ class Settings {
   defaultSaveFormat = $state<"nimbus" | "xlsx">("nimbus");
   /** Bottom by default — the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
+  ribbonMode = $state<RibbonMode>("full");
   /** Columns stretch to fill the window but never shrink below this.
    * Default ≈ the ~30.7-char columns of a standard Verbatim flow template. */
   colMinWidth = $state(200);
@@ -146,6 +154,8 @@ class Settings {
   fontSize = $state(13);
   rowHeight = $state(26);
   bulkRows = $state(DEFAULT_BULK_ROWS);
+  /** How many rows the "Move cursor down several rows" keybind jumps. */
+  moveRows = $state(DEFAULT_MOVE_ROWS);
   zoom = $state(1);
   /** Speech-doc view zoom (pinch-to-zoom), default 1, clamped 0.5–2.5. */
   docZoom = $state(1);
@@ -188,10 +198,14 @@ class Settings {
 
   applyPersisted(p: Partial<Persisted>): void {
     if (p.theme) this.theme = p.theme;
-    // v2: tabs moved to the bottom (Excel-style) — override pre-v2 saves.
-    if (p.tabsPosition && (p.version ?? 1) >= 2) {
+    // v3: re-assert the bottom (Excel-style) tabs default — override pre-v3
+    // saves; a deliberate top choice made after v3 is still honored.
+    if (p.tabsPosition && (p.version ?? 1) >= 3) {
       this.tabsPosition = p.tabsPosition;
     }
+    // ribbonMode replaced the old compactRibbon boolean.
+    if (p.ribbonMode) this.ribbonMode = p.ribbonMode;
+    else if (p.compactRibbon) this.ribbonMode = "icons";
     if (p.colMinWidth) this.colMinWidth = p.colMinWidth;
     if (p.affColor !== undefined) this.affColor = p.affColor;
     if (p.negColor !== undefined) this.negColor = p.negColor;
@@ -203,6 +217,7 @@ class Settings {
     if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
+    if (p.moveRows !== undefined) this.moveRows = clampBulkRows(p.moveRows);
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
     if (p.sendAtCursor !== undefined) this.sendAtCursor = p.sendAtCursor;
@@ -227,9 +242,10 @@ class Settings {
 
   buildPersisted(): Persisted {
     return {
-      version: 2,
+      version: 3,
       theme: this.theme,
       tabsPosition: this.tabsPosition,
+      ribbonMode: this.ribbonMode,
       colMinWidth: this.colMinWidth,
       affColor: this.affColor,
       negColor: this.negColor,
@@ -241,6 +257,7 @@ class Settings {
       showTutorial: this.showTutorial,
       defaultSaveFormat: this.defaultSaveFormat,
       bulkRows: this.bulkRows,
+      moveRows: this.moveRows,
       zoom: this.zoom,
       docZoom: this.docZoom,
       sendAtCursor: this.sendAtCursor,
@@ -334,6 +351,11 @@ class Settings {
     this.save();
   }
 
+  setMoveRows(n: number): void {
+    this.moveRows = clampBulkRows(n);
+    this.save();
+  }
+
   setZoom(n: number): void {
     this.zoom = clampZoom(n);
     this.save();
@@ -350,7 +372,7 @@ class Settings {
   findBinding(combo: Combo): string | null {
     for (const [action, combos] of Object.entries(this.keymap)) {
       if (combos.some((c) => sameCombo(c, combo))) {
-        return actionLabel(action as ActionId, this.bulkRows);
+        return actionLabel(action as ActionId, this.bulkRows, this.moveRows);
       }
     }
     for (const m of this.macros) {

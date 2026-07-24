@@ -29,9 +29,18 @@
   line-height: 1.35;
   color: #111;
 }
-:global([data-theme="dark"]) .pmd-document {
+/* NOTE: this is a plain .css file — `:global()` is Svelte-only and the browser
+   drops it, so dark rules are written as bare selectors. Covers Slate too. */
+[data-theme="dark"] .pmd-document,
+[data-theme="slate"] .pmd-document {
   --pmd-c-emphasis-box: #888;
   color: #e6e6e6;
+}
+/* Imported Verbatim runs carry explicit black ink; inherit the light doc color
+   on dark surfaces so text isn't black-on-black. */
+[data-theme="dark"] .pmd-document span[data-color-band="dark"],
+[data-theme="slate"] .pmd-document span[data-color-band="dark"] {
+  color: inherit;
 }
 
 /* ── Structural headings ───────────────────────────────────────── */
@@ -75,7 +84,8 @@
   color: var(--pmd-color-analytic);
   margin: 0.5rem 0 0.2rem;
 }
-:global([data-theme="dark"]) .pmd-document .pmd-analytic { color: #8aa9d1; }
+[data-theme="dark"] .pmd-document .pmd-analytic,
+[data-theme="slate"] .pmd-document .pmd-analytic { color: #8aa9d1; }
 
 /* ── Card container (draggable unit) ───────────────────────────── */
 .pmd-document .pmd-card,

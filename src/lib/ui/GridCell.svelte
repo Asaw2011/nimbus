@@ -182,8 +182,9 @@
     if (lookupOpen) {
       if (e.key === "ArrowDown") { e.preventDefault(); lookupSel = Math.min(lookupSel + 1, Math.max(0, lookupMatches.length - 1)); return; }
       if (e.key === "ArrowUp") { e.preventDefault(); lookupSel = Math.max(0, lookupSel - 1); return; }
-      if (e.key === "Enter") { e.preventDefault(); chooseLookup(true); return; }
-      if (e.key === "Tab") { e.preventDefault(); chooseLookup(false); return; }
+      // Enter = insert author only; Tab = insert author + tag.
+      if (e.key === "Enter") { e.preventDefault(); chooseLookup(false); return; }
+      if (e.key === "Tab") { e.preventDefault(); chooseLookup(true); return; }
       if (e.key === "Escape") { e.preventDefault(); closeLookup(); return; }
     }
     if (matchesAny(e, km.authorLookup)) {
@@ -229,6 +230,11 @@
       });
       // Land on the first new row directly beneath (not the last one).
       store.cursor = { row: row + 1, col };
+    } else if (matchesAny(e, km.moveDownRows)) {
+      // Jump the cursor down N rows (leave space for answers) — does NOT insert
+      // rows, just moves over the existing blank paper. Count is configurable.
+      e.preventDefault();
+      store.moveCursor(settings.moveRows, 0);
     } else if (matchesAny(e, km.deleteRow)) {
       e.preventDefault();
       store.deleteRow(row);
@@ -876,11 +882,19 @@
   .cell.neg .editor {
     color: color-mix(in srgb, var(--neg) 80%, var(--text));
   }
-  /* Analytic / card tags override the side ink (declared after, so they win) */
-  .cell.analytic .editor {
-    color: var(--analytic);
+  /* Analytic / card cells get a colored LEFT bar (like the dropped/starred
+     markers) instead of recoloring the tag text, so the side ink stays. */
+  .cell.analytic {
+    box-shadow: inset 3px 0 0 var(--analytic);
   }
-  .cell.card .editor {
-    color: var(--card);
+  .cell.card {
+    box-shadow: inset 3px 0 0 var(--card);
+  }
+  /* Also starred → evidence bar stays left, star bar moves right so both show. */
+  .cell.analytic.starred {
+    box-shadow: inset 3px 0 0 var(--analytic), inset -3px 0 0 var(--mark-star);
+  }
+  .cell.card.starred {
+    box-shadow: inset 3px 0 0 var(--card), inset -3px 0 0 var(--mark-star);
   }
 </style>

@@ -127,20 +127,33 @@ class ContentIndexStore {
     const tokens = q.split(/\s+/).filter(Boolean);
     // Map path -> LibFile once, so we can attach mtime/name to each hit.
     const fileByPath = new Map(fileIndex.files.map((f) => [f.path, f]));
+    // Relevance of ONE heading to the query. Reward tight matches so the file
+    // that's actually ABOUT the query beats files with incidental mentions.
+    const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordRes = tokens.map((t) => new RegExp(`(^|\\W)${esc(t)}(\\W|$)`));
+    const headingScore = (hl: string): number => {
+      if (!tokens.every((t) => hl.includes(t))) return 0;
+      let s = 1; // every token appears somewhere in this heading
+      if (hl === q) s += 100; // the heading IS the query
+      if (hl.startsWith(q)) s += 20; // "Clash — ..." style
+      for (const re of wordRes) if (re.test(hl)) s += 8; // whole word, not mid-word
+      return s;
+    };
     const out: ContentHit[] = [];
     for (const d of this.docs) {
+      const file = fileByPath.get(d.path);
+      if (!file) continue;
+      const nameHit = file.name.toLowerCase().includes(q) ? 40 : 0; // filename match is a strong signal
       const hits: string[] = [];
+      let score = nameHit;
       for (const h of d.headings) {
-        const hl = h.toLowerCase();
-        if (tokens.every((t) => hl.includes(t))) {
-          hits.push(h);
-          if (hits.length >= 4) break; // enough for a snippet
+        const hs = headingScore(h.toLowerCase());
+        if (hs > 0) {
+          score += hs;
+          if (hits.length < 4) hits.push(h);
         }
       }
-      if (hits.length) {
-        const file = fileByPath.get(d.path);
-        if (file) out.push({ file, hits, score: hits.length });
-      }
+      if (score > 0 && (hits.length || nameHit)) out.push({ file, hits, score });
     }
     out.sort((a, b) => b.score - a.score || b.file.mtime - a.file.mtime);
     return out.slice(0, limit);
