@@ -309,6 +309,48 @@ class RoundStore {
       .slice(0, 12);
   }
 
+  /** The whole argument bank (for the manager UI). */
+  get bank(): ArgRef[] {
+    return this.round?.cards ?? [];
+  }
+
+  /** Edit a banked argument's tag/author in place. */
+  updateArg(index: number, patch: { tag?: string; author?: string }): void {
+    if (!this.round?.cards?.[index]) return;
+    const next = [...this.round.cards];
+    const cur = { ...next[index] };
+    if (patch.tag !== undefined) cur.tag = patch.tag;
+    if (patch.author !== undefined) {
+      const a = patch.author.trim();
+      if (a) cur.author = a; else delete cur.author;
+    }
+    next[index] = cur;
+    this.round.cards = next;
+    this.scheduleSave();
+  }
+
+  /** Remove one banked argument. */
+  removeArg(index: number): void {
+    if (!this.round?.cards?.[index]) return;
+    this.round.cards = this.round.cards.filter((_, i) => i !== index);
+    this.scheduleSave();
+  }
+
+  /** Manually add a banked argument (bank editing). */
+  addArg(tag: string, author?: string): void {
+    if (!this.round || !tag.trim()) return;
+    const a = author?.trim();
+    this.round.cards = [...(this.round.cards ?? []), { tag: tag.trim(), author: a || undefined }];
+    this.scheduleSave();
+  }
+
+  /** Empty the whole bank. */
+  clearBank(): void {
+    if (!this.round) return;
+    this.round.cards = [];
+    this.scheduleSave();
+  }
+
   /**
    * Insert a banked argument into a cell.
    * - Analytic -> its text, marked as an analytic (green ink).
@@ -390,6 +432,19 @@ class RoundStore {
       cell.expanded = true;
     });
     return id;
+  }
+
+  /** Ensure a cell holds at least `count` response slots — one answer box per
+   *  card in the cell being responded to (paired, vertically-aligned answers). */
+  setResponseSlots(row: number, col: number, count: number): void {
+    const cell = this.cellAt(row, col);
+    if (!cell) return;
+    this.mutate(() => {
+      const items = (cell.items ??= []);
+      let have = items.filter((i) => i.kind === "response").length;
+      while (have < count) { items.push({ id: uid(), text: "", kind: "response" }); have++; }
+      cell.expanded = true;
+    });
   }
 
   updateCellItem(row: number, col: number, id: string, text: string): void {

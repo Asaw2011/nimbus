@@ -8,6 +8,7 @@
   import RoundHome from "./RoundHome.svelte";
   import SpreadView from "./SpreadView.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
+  import ArgBank from "./ArgBank.svelte";
   import DocSearch from "$lib/search/DocSearch.svelte";
   import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
   import { docBridge } from "$lib/doc/docBridge.svelte";
@@ -24,6 +25,7 @@
   let showHelp = $state(false);
   let showManual = $state(false);
   let showQuickCards = $state(false);
+  let showBank = $state(false);
   // Spread view: several sheets visible at once, stacked or side-by-side.
   let spreadMode = $state<"off" | "vertical" | "horizontal">("off");
   let lastSpread = $state<"vertical" | "horizontal">("vertical");
@@ -33,6 +35,11 @@
   let draggingTab = $state<string | null>(null);
   let dragOverIdx = $state<number | null>(null);
   let dragBefore = $state(true);
+
+  // Drag-reorder of the speech-doc tabs (the +/Open buttons stay pinned at the
+  // end because they're outside the {#each} of docs).
+  let draggingDoc = $state<string | null>(null);
+  let docDropIdx = $state<number | null>(null);
 
   /**
    * The whole strip is the drop zone: wherever the pointer is, snap to the
@@ -83,6 +90,7 @@
     insertAtCursor(h: string, c: string): void;
     appendNode(n: unknown): void;
     getDocJSON(): unknown;
+    getDocId(): string | null;
     setDocJSON(j: unknown): void;
     removeByText(t: string): void;
     appendCMNodes(nodes: unknown[]): void;
@@ -127,8 +135,11 @@
   // Debounced doc-content save — the editor's onchange fires per keystroke, but
   // writing the (possibly image-heavy) doc to disk every stroke is wasteful.
   let docSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  function onDocChange(json: unknown) {
-    const id = docsStore.activeId;
+  function onDocChange(json: unknown, id: string | null) {
+    // Save to the doc the EDITOR says the content belongs to (id from the
+    // editor), never FlowView's activeId — those can desync mid-switch/upload
+    // and write one doc's content over another's (the data-loss bug).
+    if (!id || json == null) return;
     if (docSaveTimer) clearTimeout(docSaveTimer);
     docSaveTimer = setTimeout(() => docsStore.saveContent(id, json), 350);
   }
@@ -136,9 +147,9 @@
   /** Persist the doc currently in the editor to its blob (flush any pending). */
   function saveCurrentDoc() {
     if (docSaveTimer) { clearTimeout(docSaveTimer); docSaveTimer = null; }
-    if (docsStore.activeId && docRef) {
-      docsStore.saveContent(docsStore.activeId, docRef.getDocJSON());
-    }
+    const id = docRef?.getDocId() ?? null;
+    const json = docRef?.getDocJSON() ?? null;
+    if (id && json != null) docsStore.saveContent(id, json);
   }
 
   async function switchDoc(id: string) {
@@ -183,21 +194,33 @@
     const { invoke } = await import("@tauri-apps/api/core");
     const bytes = await invoke<number[]>("read_binary_file", { path });
     const name = (path.split(/[\\/]/).pop() ?? "Document");
-    await openDocxBytes(new Uint8Array(bytes), name);
+    await openDocxBytes(new Uint8Array(bytes), name, path);
   }
 
-  /** Import a .docx (from the picker or a drag-drop) into a new doc. */
-  async function openDocxBytes(bytes: Uint8Array, filename: string) {
+  /** Import a .docx (from the picker or a drag-drop) into a new doc. `srcPath`
+   *  (when opened from the file system) binds the doc so ⌘S saves back to it. */
+  async function openDocxBytes(bytes: Uint8Array, filename: string, srcPath?: string) {
     try {
       docStatus = "Opening…";
       const { fromDocx } = await import("$lib/cardmirror");
       const doc = await fromDocx(bytes);
       saveCurrentDoc();
       activeContent = doc.toJSON();
-      docsStore.addFromContent(filename.replace(/\.docx$/i, ""), activeContent);
+      docsStore.addFromContent(filename.replace(/\.docx$/i, ""), activeContent, srcPath);
+      // Bank this doc's cards + analytics so they show up in the ⌘J lookup and
+      // the Bank manager (uploading a doc used to populate ONLY the editor).
+      try {
+        const { collectArgsFromCM } = await import("$lib/doc/bankFromCM");
+        const args = collectArgsFromCM(activeContent);
+        store.addCards(args);
+        docStatus = args.length ? `Opened · banked ${args.length} arguments` : "";
+      } catch (e) {
+        console.error("bank from docx failed", e);
+      }
       docKey++;
       docOpen = true;
-      docStatus = "";
+      if (!docStatus) docStatus = "";
+      setTimeout(() => (docStatus = ""), 2500);
     } catch (err) {
       console.error("open docx failed", err);
       docStatus = "Couldn't open that .docx";
@@ -257,12 +280,49 @@
   $effect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
     let un: (() => void) | undefined;
+    let unDock: (() => void) | undefined;
+    // A pop-out that closed any other way (X / app close) → re-dock from disk.
+    docBridge.onWindowClosed = (id) => void reDockFromDisk(id);
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
       un = await listen<unknown[]>("nimbus:send-to-speech", (e) => void routeToSpeech(e.payload));
+      // The pop-out's "Dock back" button hands its content straight here.
+      unDock = await listen<{ id: string; json: unknown }>("nimbus:dock-doc", (e) =>
+        reDockWithContent(e.payload.id, e.payload.json),
+      );
     })();
-    return () => un?.();
+    return () => { un?.(); unDock?.(); docBridge.onWindowClosed = null; };
   });
+
+  /** Dock a popped-out doc back into the main viewer using content handed over
+   *  by the pop-out (no disk round-trip) — the reliable "Dock back" path. */
+  async function reDockWithContent(id: string, content: unknown) {
+    if (!docsStore.docs.some((d) => d.id === id)) return;
+    saveCurrentDoc();
+    docRef?.invalidateCache(id);
+    // The pop-out normally hands its live content over; if it couldn't (null),
+    // fall back to the copy it flushed to disk so the doc still comes back.
+    const c = content != null ? content : await docsStore.loadContent(id);
+    if (content != null) docsStore.saveContent(id, content);
+    docsStore.setActive(id);
+    activeContent = c;
+    docKey++;
+    docOpen = true;
+  }
+
+  /** Fallback dock-back when a pop-out closed via the X / app close: reload the
+   *  doc's content from disk (the pop-out flushed it there). */
+  async function reDockFromDisk(id: string) {
+    if (!docsStore.docs.some((d) => d.id === id)) return;
+    saveCurrentDoc();
+    docRef?.invalidateCache(id);
+    await new Promise((r) => setTimeout(r, 250)); // let the pop-out's flush land
+    const content = await docsStore.loadContent(id);
+    docsStore.setActive(id);
+    activeContent = content;
+    docKey++;
+    docOpen = true;
+  }
 
   /** Append CardMirror node JSON to the end of a stored doc's content — used
    *  when the speech doc isn't open anywhere (no live cursor to insert at). */
@@ -336,12 +396,15 @@
 
   /** Dock a popped-out doc back in and make it the active/main doc. */
   async function dockDoc(id: string) {
-    await docBridge.dock(id);
     saveCurrentDoc();
+    await docBridge.dock(id); // closes the window; its pagehide flush writes disk
+    docRef?.invalidateCache(id);
+    await new Promise((r) => setTimeout(r, 220)); // let that flush land on disk
     const c = await docsStore.loadContent(id);
     docsStore.setActive(id);
     activeContent = c;
     docKey++;
+    docOpen = true;
   }
 
   /** "Move cursor to speech" (Home menu, à la Verbatim): drop the cursor on a
@@ -664,11 +727,10 @@
     // ⌘1-6 styles, etc.). Don't let flow shortcuts (undo/redo, ⌘1-9 tab switch)
     // also fire off the same keypress.
     if (e.target instanceof HTMLElement && e.target.closest(".speech-doc")) return;
-    const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key === "z" && !e.shiftKey) {
+    if (matchesAny(e, km.undo)) {
       e.preventDefault();
       store.undo();
-    } else if (mod && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+    } else if (matchesAny(e, km.redo)) {
       e.preventDefault();
       store.redo();
     } else if (matchesAny(e, km.newSheet)) {
@@ -714,10 +776,10 @@
     } else if (matchesAny(e, km.zoomOut)) {
       e.preventDefault();
       settings.zoomOut();
-    } else if (mod && e.key === "d" && !e.shiftKey && !e.altKey) {
+    } else if (matchesAny(e, km.toggleDoc)) {
       e.preventDefault();
       docOpen = !docOpen;
-    } else if (mod && /^[1-9]$/.test(e.key)) {
+    } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
       const idx = Number(e.key) - 1;
       const target = round?.sheets[idx];
       if (target) {
@@ -814,14 +876,19 @@
         {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
       </span>
       <span class="spacer"></span>
-      <button class="icon-btn" class:active={docOpen} onclick={() => (docOpen = !docOpen)} title="Speech doc (⌘D)">📄</button>
-      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">★</button>
-      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works">📖</button>
-      <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙</button>
-      <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?</button>
+      <button class="bar-btn" class:active={docOpen} onclick={() => (docOpen = !docOpen)} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">Doc</button>
+      <button class="bar-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">Quick cards</button>
+      <button class="bar-btn" class:active={showBank} onclick={() => (showBank = true)} title="Argument bank — edit banked cards & analytics (⌘J to look them up)">Bank</button>
+      <button class="bar-btn" onclick={() => (showManual = true)} title="Manual — how everything works">Manual</button>
+      <button class="bar-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">Settings</button>
+      <button class="bar-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">Keybinds</button>
     </div>
 
-    {#if !atHome}
+    {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
+
+    <!-- The ribbon spans the FULL width above the flow↔doc split so the doc pane
+         can never sit beside it and clip it off (it's the app's top toolbar). -->
+    {#if !atHome && !(docExpanded && docOpen && !spread)}
       <Ribbon
         {spreadMode}
         onspread={setSpread}
@@ -834,8 +901,6 @@
         ondocfontsize={(d) => docRef?.bumpDocFontSize(d)}
       />
     {/if}
-
-    {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
 
     <!-- Split workspace: flow on left, speech doc on right -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -885,9 +950,16 @@
             <div class="doc-drop-overlay">Drop a .docx to open it</div>
           {/if}
           <div class="doc-tabs">
-            {#each docsStore.docs as d (d.id)}
+            {#each docsStore.docs as d, di (d.id)}
               {@const out = docBridge.isPoppedOut(d.id)}
-              <div class="doc-tab" class:active={d.id === docsStore.activeId && !out} class:out>
+              <div class="doc-tab" class:active={d.id === docsStore.activeId && !out} class:out
+                class:doc-drag={draggingDoc === d.id}
+                class:doc-drop={docDropIdx === di && draggingDoc !== d.id}
+                draggable={renamingDocId !== d.id}
+                ondragstart={(e) => { draggingDoc = d.id; if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); } }}
+                ondragover={(e) => { if (draggingDoc) { e.preventDefault(); docDropIdx = di; } }}
+                ondrop={(e) => { if (draggingDoc) { e.preventDefault(); docsStore.reorder(draggingDoc, docsStore.docs.findIndex((x) => x.id === d.id)); } draggingDoc = null; docDropIdx = null; }}
+                ondragend={() => { draggingDoc = null; docDropIdx = null; }}>
                 {#if renamingDocId === d.id}
                   <!-- svelte-ignore a11y_autofocus -->
                   <input
@@ -934,6 +1006,9 @@
                   poppedOut={false}
                   onexpand={() => (docExpanded = !docExpanded)}
                   onpopout={popOutActiveDoc}
+                  filePath={docsStore.filePathOf(docsStore.activeId) ?? null}
+                  onpathchange={(p) => { if (docsStore.activeId) docsStore.setFilePath(docsStore.activeId, p); }}
+                  onclear={() => { const id = docRef?.getDocId(); if (id) docsStore.saveContentAllowEmpty(id, docRef?.getDocJSON() ?? null); }}
                   onTilde={docsStore.activeId !== docsStore.speechDocId ? (nodes) => void routeToSpeech(nodes) : null}
                 />
               {/key}
@@ -991,6 +1066,10 @@
         onappenddoc={(node) => { docOpen = true; appendToDoc(node); }}
         onappendcm={(nodes) => { docOpen = true; docRef?.appendCMNodes(nodes); }}
       />
+    {/if}
+
+    {#if showBank}
+      <ArgBank onclose={() => (showBank = false)} />
     {/if}
 
     {#if showManual}
@@ -1068,23 +1147,25 @@
   .spacer {
     flex: 1;
   }
-  .icon-btn {
+  .bar-btn {
     background: none;
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     color: var(--text-dim);
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
+    border-radius: 6px;
+    height: 26px;
+    padding: 0 10px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 0;
+    font-size: 12.5px;
+    font-weight: 500;
     line-height: 1;
+    white-space: nowrap;
   }
-  .icon-btn.active {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    border-color: var(--accent);
+  .bar-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+  .bar-btn.active {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     color: var(--accent);
   }
   /* Split workspace */
@@ -1174,6 +1255,9 @@
     max-width: 180px;
   }
   .doc-tab.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+  .doc-tab[draggable="true"] { cursor: grab; }
+  .doc-tab.doc-drag { opacity: 0.45; }
+  .doc-tab.doc-drop { box-shadow: -2px 0 0 0 var(--accent); }
   .doc-tab-star {
     background: none;
     border: none;

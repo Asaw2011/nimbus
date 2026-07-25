@@ -1,5 +1,6 @@
 <script lang="ts">
   import { settings } from "../model/settings.svelte";
+  import { combosLabel } from "../model/keymap";
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -41,7 +42,7 @@
       </div>
       <div class="item">
         <span class="k">A real speech doc</span>
-        <kbd>⌘D</kbd> opens a full CardMirror-style doc — cut, highlight, read
+        <kbd>{combosLabel(settings.keymap.toggleDoc, settings.isMac)}</kbd> opens a full CardMirror-style doc — cut, highlight, read
         mode, and one-click <b>Send to Doc</b> from your flow.
       </div>
       <div class="item">

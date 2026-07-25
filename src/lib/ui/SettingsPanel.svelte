@@ -398,6 +398,14 @@
         />
       </label>
       <label class="row">
+        Compact doc chrome
+        <input
+          type="checkbox"
+          checked={settings.compactDoc}
+          onchange={(e) => { settings.compactDoc = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
+      <label class="row">
         Default save format
         <div class="seg">
           <button
@@ -442,6 +450,19 @@
           max="50"
           value={settings.moveRows}
           onchange={(e) => settings.setMoveRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
+        />
+      </div>
+      <div class="row">
+        <label for="wpm">Speaking pace — words per minute (doc shows how long its text takes to read)</label>
+        <input
+          id="wpm"
+          class="num-field"
+          type="number"
+          min="50"
+          max="600"
+          step="10"
+          value={settings.wpm}
+          onchange={(e) => settings.setWpm((e.currentTarget as HTMLInputElement).valueAsNumber)}
         />
       </div>
       {#each ACTION_GROUPS as group (group.title)}

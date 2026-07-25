@@ -12,6 +12,16 @@
     docOnly?: boolean;
   } = $props();
 
+  // Brief "inserted ✓" confirmation — the panel now stays open after inserting,
+  // so this reassures you the card landed without having to look away.
+  let insertedFlash = $state(0);
+  let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  function flashInserted() {
+    insertedFlash++;
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => (insertedFlash = 0), 1400);
+  }
+
   // CardMirror doc per file (fromDocx) — the exact card structure to insert.
   const cmDocCache = new Map<string, unknown>();
 
@@ -301,7 +311,10 @@
       }
     } else {
       const r = rows[selectedIdx];
-      if (r) { insertNode(r.node); onclose(); }
+      // In doc (append) mode stay open so you can add several cards in a row;
+      // close with ✕ or Escape. In flow mode close after one insert (else the
+      // next click would overwrite the same cell).
+      if (r) { void insertNode(r.node); if (docOnly) flashInserted(); else onclose(); }
     }
   }
 
@@ -405,7 +418,10 @@
       <span class="ds-name">Doc Search</span>
       <span class="ds-hint">· drag to move</span>
     </div>
-    <button class="ds-x" onpointerdown={(e) => e.stopPropagation()} onclick={onclose}>✕</button>
+    {#if insertedFlash > 0}
+      <span class="ds-inserted">✓ inserted{insertedFlash > 1 ? ` ×${insertedFlash}` : ""}</span>
+    {/if}
+    <button class="ds-x" onpointerdown={(e) => e.stopPropagation()} onclick={onclose} title="Close (Esc)">✕</button>
   </div>
   {#if mode === "within" && divedFile}
     <div class="ds-sub">In: {divedFile.name}</div>
@@ -517,7 +533,7 @@
               e.dataTransfer?.setData("text/nimbus-block", JSON.stringify({ header: r.node.text, fullCard: buildFullCard(r.node), node: r.node }));
               if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
             }}
-            onclick={() => { selectedIdx = i; insertNode(r.node); onclose(); }}
+            onclick={() => { selectedIdx = i; void insertNode(r.node); if (docOnly) flashInserted(); else onclose(); }}
             onmouseenter={() => (selectedIdx = i)}>
             {#if r.hasKids}
               <button class="ds-arrow" onclick={(e) => { e.stopPropagation(); toggle(r.key); }}>{collapsed.has(r.key) ? "▸" : "▾"}</button>
@@ -578,6 +594,7 @@
   .ds-hint { font-size: 11px; color: var(--text-dim); }
   .ds-x { background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; }
   .ds-x:hover { color: var(--text); }
+  .ds-inserted { margin-left: auto; margin-right: 8px; font-size: 11px; font-weight: 600; color: var(--accent); white-space: nowrap; }
   .ds-sub { font-size: 11px; color: var(--text-dim); padding: 0 12px 6px; }
 
   .ds-scope { display: flex; align-items: center; gap: 6px; padding: 2px 12px 4px; }

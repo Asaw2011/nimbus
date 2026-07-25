@@ -14,15 +14,27 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
   return invoke<T>(cmd, args);
 }
 
+// Above this size a value is "large" (image-heavy speech docs). On desktop the
+// disk copy is authoritative, so we skip the localStorage cache for large blobs
+// — writing multi-MB strings to localStorage on every debounced save is slow and
+// overflows the ~5MB quota (which is what evicted other docs before).
+const LS_MAX = 512_000;
+
 /** Save to localStorage immediately and to disk in the background. */
 export function saveBlob(name: string, value: unknown): void {
   const json = JSON.stringify(value);
-  try {
-    localStorage.setItem(LS_PREFIX + name, json);
-  } catch {
-    // storage full/blocked — the disk write below still protects the data
+  const tauri = inTauri();
+  if (!(tauri && json.length > LS_MAX)) {
+    try {
+      localStorage.setItem(LS_PREFIX + name, json);
+    } catch {
+      // storage full/blocked — the disk write below still protects the data
+    }
+  } else {
+    // Drop any stale small cache copy so loadBlobCached doesn't return old data.
+    try { localStorage.removeItem(LS_PREFIX + name); } catch { /* ignore */ }
   }
-  if (inTauri()) {
+  if (tauri) {
     void invoke("save_blob", { name, json }).catch((e) =>
       console.error(`save_blob(${name}) failed:`, e),
     );

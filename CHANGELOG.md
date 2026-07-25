@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.1.7
+
+### Fixed — data loss (critical)
+- **Speech docs no longer lose content.** Config blobs whose names contain a
+  colon (`doc:<id>`, `docs-list:<round>`) were silently rejected by the disk
+  writer, so doc content lived only in the size-limited localStorage cache and
+  got evicted after a few image-heavy `.docx` uploads. Blob names are now
+  sanitized to a filesystem-safe form and persist to disk. An in-memory
+  "known non-empty" guard also refuses to overwrite real content with an empty
+  doc from a transient/teardown state.
+- **Pop-out docs dock back reliably.** Pop-out windows (`speech-doc-*`) were
+  missing the capability grant to emit events / close themselves, so "Dock back"
+  did nothing. Fixed the capability glob; both dock paths now hand content over
+  cleanly (with a disk fallback).
+- **`⌘Z` on the flow works** — a focused cell now repaints on undo/redo instead
+  of keeping the stale text on screen.
+
+### Speech doc
+- **Save / Save As** to `.docx` (`⌘S` / `⌘⇧S`). Save writes back to the doc's
+  bound file silently; Save As picks a new one and remembers it.
+- **Word count + read-time estimate** in the toolbar. Set your pace in
+  **Settings → words per minute** and the doc shows how long its text takes to
+  read aloud (e.g. `600 words · ~2:00` at 300 wpm).
+- **Uploading a `.docx` now banks its cards and analytics** into the argument
+  bank (⌘J lookup + Bank manager), not just the editor.
+- Opening a doc lands at its **top**; switching back to a doc keeps your exact
+  **scroll position**. Drag-reorder the doc tabs.
+- `---` stays literal (no more broken em-dash glyph; debate tags use `---`).
+
+### Flowing
+- **Argument bank manager** (new **Bank** button) — view, edit, add, and remove
+  banked cards/analytics.
+- **Paired line-by-line responses.** "respond →" on a card cell creates one
+  answer box per card in the next speech column, each aligned to the card it
+  answers and **growing as you type** (the row expands, keeping everything
+  aligned).
+- **Paste into a LABEL cell** works (single-line, reliable in WebView).
+- Cleaner **top bar** — labeled buttons (Doc · Quick cards · Bank · Manual ·
+  Settings · Keybinds) instead of icons; the ribbon spans full width above the
+  flow↔doc split.
+
+### Search & performance
+- **More accurate file search** — every query token must match (AND), so
+  "cap k" no longer surfaces every file containing "k".
+- **⌘K stays open** in the doc so you can insert several cards in a row (✕ /
+  Esc to close); large docs skip the localStorage cache to keep saves fast.
+
 ## v0.1.6
 
 ### Speech doc

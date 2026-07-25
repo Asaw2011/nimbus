@@ -1,7 +1,7 @@
 // App-wide settings (Svelte 5 runes), persisted to localStorage.
 
 import type { ActionId, Combo } from "./keymap";
-import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_MOVE_ROWS, DEFAULT_KEYMAP, sameCombo } from "./keymap";
+import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_MOVE_ROWS, DEFAULT_KEYMAP, sameCombo, findReservedBinding } from "./keymap";
 import type { Macro } from "./macros";
 import { defaultMacros, migrateLegacyMacro } from "./macros";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
@@ -68,6 +68,8 @@ export interface Persisted {
   /** How many rows the bulk insert actions add (default 3, clamped 2–50). */
   bulkRows: number;
   moveRows?: number;
+  /** Speaking pace in words per minute (for the doc's read-time estimate). */
+  wpm?: number;
   /** Grid zoom factor (default 1, clamped 0.5–2.5). */
   zoom: number;
   docZoom: number;
@@ -76,6 +78,7 @@ export interface Persisted {
   libraryRoots: LibraryRoot[];
   /** Speech-doc display typography (matches CardMirror's per-user settings). */
   docTypography: DocTypography;
+  compactDoc?: boolean;
 }
 
 export interface DocTypography {
@@ -108,6 +111,12 @@ export interface DocTypography {
 export function clampBulkRows(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_BULK_ROWS;
   return Math.min(50, Math.max(2, Math.round(n)));
+}
+
+/** Words-per-minute clamped to a sane 50–600 range. */
+export function clampWpm(n: number): number {
+  if (!Number.isFinite(n)) return 200;
+  return Math.min(600, Math.max(50, Math.round(n)));
 }
 
 /** Zoom is clamped to 0.5×–2.5×. */
@@ -156,6 +165,9 @@ class Settings {
   bulkRows = $state(DEFAULT_BULK_ROWS);
   /** How many rows the "Move cursor down several rows" keybind jumps. */
   moveRows = $state(DEFAULT_MOVE_ROWS);
+  /** Your speaking pace (words per minute) — the doc uses it to estimate how
+   *  long its text takes to read aloud. Debaters "spread" ~200–350 wpm. */
+  wpm = $state(200);
   zoom = $state(1);
   /** Speech-doc view zoom (pinch-to-zoom), default 1, clamped 0.5–2.5. */
   docZoom = $state(1);
@@ -166,6 +178,7 @@ class Settings {
   macros = $state<Macro[]>(defaultMacros());
   libraryRoots = $state<LibraryRoot[]>([]);
   docTypography = $state<DocTypography>({ ...DEFAULT_DOC_TYPOGRAPHY });
+  compactDoc = $state(true);
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -218,9 +231,11 @@ class Settings {
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.moveRows !== undefined) this.moveRows = clampBulkRows(p.moveRows);
+    if (p.wpm !== undefined) this.wpm = clampWpm(p.wpm);
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
     if (p.sendAtCursor !== undefined) this.sendAtCursor = p.sendAtCursor;
+    if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -258,9 +273,11 @@ class Settings {
       defaultSaveFormat: this.defaultSaveFormat,
       bulkRows: this.bulkRows,
       moveRows: this.moveRows,
+      wpm: this.wpm,
       zoom: this.zoom,
       docZoom: this.docZoom,
       sendAtCursor: this.sendAtCursor,
+      compactDoc: this.compactDoc,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
@@ -351,6 +368,11 @@ class Settings {
     this.save();
   }
 
+  setWpm(n: number): void {
+    this.wpm = clampWpm(n);
+    this.save();
+  }
+
   setMoveRows(n: number): void {
     this.moveRows = clampBulkRows(n);
     this.save();
@@ -370,6 +392,9 @@ class Settings {
 
   /** Human label of whatever a combo is currently bound to, or null. */
   findBinding(combo: Combo): string | null {
+    const reserved = findReservedBinding(combo);
+    if (reserved) return `system shortcut "${reserved}"`;
+
     for (const [action, combos] of Object.entries(this.keymap)) {
       if (combos.some((c) => sameCombo(c, combo))) {
         return actionLabel(action as ActionId, this.bulkRows, this.moveRows);

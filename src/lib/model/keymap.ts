@@ -50,7 +50,10 @@ export type ActionId =
   | "docBold"
   | "docItalic"
   | "docFind"
-  | "docQuickCards";
+  | "docQuickCards"
+  | "undo"
+  | "redo"
+  | "toggleDoc";
 
 export const ACTION_LABELS: Record<ActionId, string> = {
   insertRowBelow: "Insert row below",
@@ -93,6 +96,9 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   docItalic: "Italic",
   docFind: "Find in document",
   docQuickCards: "Quick cards (save / insert snippets)",
+  undo: "Undo",
+  redo: "Redo",
+  toggleDoc: "Open/close speech doc",
 };
 
 /** Each action can have any number of bindings (including none). */
@@ -140,6 +146,12 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   docItalic: [{ key: "i", mod: true }],
   docFind: [{ key: "f", mod: true }],
   docQuickCards: [{ key: "'", mod: true }],
+  undo: [{ key: "z", mod: true }],
+  redo: [
+    { key: "z", mod: true, shift: true },
+    { key: "y", mod: true },
+  ],
+  toggleDoc: [{ key: "e", mod: true }],
 };
 
 /** Keybind actions grouped into sections for the Settings UI. Every ActionId
@@ -164,7 +176,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
   },
   {
     title: "App",
-    actions: ["toggleHelp", "openSettings"],
+    actions: ["toggleHelp", "openSettings", "toggleDoc", "undo", "redo"],
   },
   {
     title: "Speech doc",
@@ -264,4 +276,36 @@ export function comboFromEvent(e: KeyboardEvent): Combo | null {
     shift: e.shiftKey || undefined,
     alt: e.altKey || undefined,
   };
+}
+
+export interface ReservedCombo {
+  combo: Combo;
+  label: string;
+}
+
+export const RESERVED_COMBOS: ReservedCombo[] = [
+  ...Array.from({ length: 9 }, (_, i) => ({
+    combo: { key: String(i + 1), mod: true },
+    label: `Jump to sheet ${i + 1}`,
+  })),
+  { combo: { key: "c", mod: true }, label: "Copy cell" },
+  { combo: { key: "v", mod: true }, label: "Paste cell" },
+  { combo: { key: "s", mod: true }, label: "Save round" },
+  { combo: { key: "enter" }, label: "Move down / confirm" },
+  { combo: { key: "enter", shift: true }, label: "Move up" },
+  { combo: { key: "tab" }, label: "Move right" },
+  { combo: { key: "tab", shift: true }, label: "Move left" },
+  { combo: { key: "arrowup" }, label: "Move up" },
+  { combo: { key: "arrowdown" }, label: "Move down" },
+  { combo: { key: "arrowleft" }, label: "Move left" },
+  { combo: { key: "arrowright" }, label: "Move right" },
+];
+
+export function findReservedBinding(combo: Combo): string | null {
+  for (const r of RESERVED_COMBOS) {
+    if (sameCombo(r.combo, combo)) {
+      return r.label;
+    }
+  }
+  return null;
 }

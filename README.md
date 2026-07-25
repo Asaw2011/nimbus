@@ -19,12 +19,26 @@ import `.docx` speech docs.
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.1.6_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.1.6_x64-setup.exe`
+- **macOS** — `Nimbus_0.1.7_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.1.7_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**
 - Windows: **More info → Run anyway**
+
+## New in 0.1.7
+
+- **Fixed the doc data-loss bug** — speech docs now persist reliably to disk, so
+  uploading several `.docx` files no longer wipes earlier ones.
+- **Save / Save As** a doc to `.docx` (`⌘S` / `⌘⇧S`); **word count + read-time**
+  estimate (set your words-per-minute in Settings).
+- **Argument bank manager** (new **Bank** button) — edit/add/remove banked cards;
+  uploading a doc now banks its cards automatically.
+- **Paired line-by-line responses** — "respond →" on a card cell drops one answer
+  box per card in the next column, aligned to each card and growing as you type.
+- Pop-out docs **dock back** reliably; `⌘Z` works on the flow; cleaner top bar.
+
+See the [full changelog](CHANGELOG.md) for details.
 
 ## What's in it today
 
@@ -151,7 +165,7 @@ npm run check       # typecheck
 Cut a release (builds macOS + Windows in the cloud):
 
 ```sh
-git tag v0.1.6 && git push origin v0.1.6
+git tag v0.1.7 && git push origin v0.1.7
 ```
 
 Open the **📖 Manual** in the app for a full feature reference, or press `⌘/`

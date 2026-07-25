@@ -227,19 +227,34 @@ fn list_rounds(app: tauri::AppHandle) -> Result<Vec<String>, String> {
 // Stored as JSON files so user customization survives webview storage wipes.
 
 fn config_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+    if name.is_empty() {
         return Err("invalid blob name".into());
     }
+    // Map the logical blob name to a filesystem-safe filename. Blob names may
+    // contain characters like ':' (e.g. "doc:abc", "docs-list:round1") that are
+    // illegal in filenames on Windows and were previously REJECTED here —
+    // silently dropping the disk copy of every speech doc and doc list, so all
+    // doc content lived only in size-limited localStorage and got evicted after
+    // a few uploads (the "uploading docs deletes other docs" data loss). Map any
+    // char outside [A-Za-z0-9_-] to '_' instead of rejecting. This also removes
+    // any path-traversal risk: '/', '\\', and '.' all collapse to '_'.
+    let safe: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("config");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join(format!("{name}.json")))
+    Ok(dir.join(format!("{safe}.json")))
 }
 
 #[tauri::command]

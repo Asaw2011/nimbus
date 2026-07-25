@@ -36,9 +36,18 @@
     expanded = false,
     poppedOut = false,
     onTilde = null,
+    filePath = null,
+    onpathchange = null,
+    onclear = null,
   }: {
-    onchange?: ((json: unknown) => void) | null;
+    onchange?: ((json: unknown, docId: string | null) => void) | null;
     initialDoc?: unknown;
+    /** The .docx this doc is bound to; Save (⌘S) writes back to it silently. */
+    filePath?: string | null;
+    onpathchange?: ((path: string) => void) | null;
+    /** Fired after a deliberate Clear Doc so the host can persist the now-empty
+     *  doc THROUGH the anti-data-loss empty guard (which blocks incidental empties). */
+    onclear?: (() => void) | null;
     /** Identifies which doc is loaded. When it changes, the editor swaps to that
      *  doc's cached state (preserving its undo history) instead of remounting. */
     docId?: string | null;
@@ -52,6 +61,8 @@
   } = $props();
 
   let mountEl = $state<HTMLDivElement>();
+  let scrollEl = $state<HTMLDivElement>();
+  let wordCount = $state(0);
   let view: EditorView | null = null;
   let mounted = false;
   // Ticks on every transaction so toolbar active-states recompute on cursor move.
@@ -144,13 +155,83 @@
   }
   let applyingExternal = false;
 
+  // ── Outline resizing ──
+  let outlineWidth = $state(140);
+  let resizingOutline = $state(false);
+
+  if (typeof localStorage !== "undefined") {
+    const saved = localStorage.getItem("doc.outlineWidth");
+    if (saved) {
+      outlineWidth = Math.max(84, Math.min(340, parseInt(saved, 10)));
+    }
+  }
+
+  function startOutlineResize(e: PointerEvent) {
+    resizingOutline = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onOutlineResizeMove(e: PointerEvent) {
+    if (!resizingOutline) return;
+    const handle = e.currentTarget as HTMLElement;
+    const aside = handle.parentElement?.querySelector("aside.outline");
+    if (aside) {
+      const rect = aside.getBoundingClientRect();
+      const newWidth = e.clientX - rect.left;
+      outlineWidth = Math.min(340, Math.max(84, newWidth));
+    }
+  }
+  function stopOutlineResize() {
+    resizingOutline = false;
+    localStorage.setItem("doc.outlineWidth", String(Math.round(outlineWidth)));
+  }
+
   // Per-doc EditorState cache so switching tabs and coming back keeps that doc's
   // full undo history — remounting the editor would throw the history away.
   const stateCache = new Map<string, EditorState>();
+  // Scroll position (of .doc-scroll) per doc, so switching back to a doc lands
+  // exactly where you left it instead of inheriting the other doc's scroll.
+  const scrollPos = new Map<string, number>();
   let currentDocId: string | null = null;
   // The last doc JSON that serialized cleanly — the recovery point if a later
   // transaction lands the editor on a corrupt, un-editable state.
   let lastGoodJSON: unknown = null;
+
+  /** Put the caret at the very start of the doc and scroll the pane to the top.
+   *  A freshly-opened/imported doc should show its BEGINNING — a bare focus()
+   *  leaves the scroll container where the previous doc was (looked like it
+   *  jumped to the last word). */
+  /** Recount words (blocks joined by spaces so headings/tags don't merge into
+   *  the next word). Shown in the toolbar for speech timing. */
+  function updateWordCount() {
+    if (!view) { wordCount = 0; return; }
+    const text = view.state.doc.textBetween(0, view.state.doc.content.size, " ", " ");
+    wordCount = (text.match(/\S+/g) ?? []).length;
+  }
+  // Recount is a full-doc walk, so debounce it while typing (mount/switch call
+  // updateWordCount directly for an instant first number).
+  let wcTimer: ReturnType<typeof setTimeout> | null = null;
+  function scheduleWordCount() {
+    if (wcTimer) clearTimeout(wcTimer);
+    wcTimer = setTimeout(updateWordCount, 400);
+  }
+  // Estimated read-aloud time at your set pace (Settings → words per minute).
+  const readTime = $derived.by(() => {
+    const wpm = settings.wpm || 200;
+    const secs = Math.round((wordCount / wpm) * 60);
+    return `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`;
+  });
+
+  function scrollToTop() {
+    if (!view) return;
+    // Put the caret at the very start, then hard-reset the SCROLL CONTAINER to
+    // the top. ProseMirror's scrollIntoView guesses positions before images lay
+    // out, so it could leave a fresh doc scrolled partway down; setting
+    // scrollTop directly (and again after layout settles) is reliable.
+    view.dispatch(view.state.tr.setSelection(TextSelection.atStart(view.state.doc)));
+    view.focus();
+    if (scrollEl) scrollEl.scrollTop = 0;
+    requestAnimationFrame(() => { if (scrollEl) scrollEl.scrollTop = 0; });
+  }
 
   /** Rebuild the editor from the last good doc so editing keeps working after a
    *  corrupt-node crash (instead of being stuck on a half-applied state). */
@@ -246,13 +327,8 @@
       // Settings → keybinds → "Speech doc"), read live so rebinds take effect
       // immediately. Runs before the base keymap so it can override ⌘←/⌘↑/etc.
       handleKeyDown: (_v, e) => docKeydown(e),
-      // Typing the third hyphen turns "---" into a single em dash (—).
-      handleTextInput: (v, from, _to, text) => {
-        if (text !== "-" || from < 2) return false;
-        if (v.state.doc.textBetween(from - 2, from, undefined, "￼") !== "--") return false;
-        v.dispatch(v.state.tr.insertText("—", from - 2, from));
-        return true;
-      },
+      // NOTE: no "---" → em-dash auto-convert — debate tags use "---" literally
+      // (e.g. "Solvency---AT: X"), so converting it mangles tags.
       // Focusing the doc claims it as the active surface, so the flow ribbon's
       // text controls (B / I / color / size) act on the doc.
       handleDOMEvents: {
@@ -276,17 +352,21 @@
           if (tr.selectionSet || tr.docChanged) syncDocSelSize();
           if (tr.docChanged) {
             rebuildOutline();
+            scheduleWordCount();
             if (view) {
               const json = view.state.doc.toJSON(); // throws if the doc is corrupt
               lastGoodJSON = json;
-              if (!applyingExternal) onchange?.(json);
+              if (!applyingExternal) onchange?.(json, currentDocId);
             }
           }
         });
       },
     });
     rebuildOutline();
-    view.focus();
+    updateWordCount();
+    // A freshly-mounted doc (open/import/remount) shows its top, not wherever
+    // the previous doc's scroll happened to be.
+    scrollToTop();
   });
 
   // Switching tabs changes docId. Swap the editor to that doc's state — its
@@ -295,20 +375,43 @@
   $effect(() => {
     const id = docId;
     if (!view || !mounted || id === currentDocId) return;
-    if (currentDocId) stateCache.set(currentDocId, view.state);
-    const next = (id && stateCache.get(id)) || buildState(initialDoc);
+    if (currentDocId) {
+      stateCache.set(currentDocId, view.state);
+      if (scrollEl) scrollPos.set(currentDocId, scrollEl.scrollTop); // remember place
+    }
+    const cached = id ? stateCache.get(id) : undefined;
+    const next = cached || buildState(initialDoc);
     if (id) stateCache.set(id, next);
     currentDocId = id;
     view.updateState(next);
     try { lastGoodJSON = next.doc.toJSON(); } catch { /* keep prior good */ }
     rebuildOutline();
+    updateWordCount();
     syncDocSelSize();
-    view.focus();
+    // Returning to a doc you were editing keeps your place — restore its exact
+    // scroll position (the cached PM state carries the selection, but not the
+    // container's scrollTop). A first-time view of a doc opens at its top.
+    if (cached) {
+      view.focus();
+      const y = id ? scrollPos.get(id) : undefined;
+      if (scrollEl && y != null) {
+        scrollEl.scrollTop = y;
+        requestAnimationFrame(() => { if (scrollEl && y != null) scrollEl.scrollTop = y; });
+      }
+    } else {
+      scrollToTop();
+    }
   });
 
   /** Serialise the current document to JSON (for pop-out handoff / persistence). */
   export function getDocJSON(): unknown {
     return view?.state.doc.toJSON() ?? null;
+  }
+
+  /** Which doc the editor is currently showing — so saves always target the
+   *  right blob even mid-switch (FlowView's activeId can lag by a tick). */
+  export function getDocId(): string | null {
+    return currentDocId;
   }
 
   /** Drop a doc's cached editor state so the next switch to it rebuilds from its
@@ -830,6 +933,12 @@
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) { if (view) undo(view.state, view.dispatch); return true; }
       if ((k === "z" && e.shiftKey) || k === "y") { if (view) redo(view.state, view.dispatch); return true; }
+      // ⌘S / Ctrl-S saves the .docx (fixed bind — matches every other app).
+      if (k === "s") {
+        e.preventDefault();
+        if (e.shiftKey) void saveAsFile(); else void saveToFile();
+        return true;
+      }
     }
     const km = settings.keymap;
     const hit = (fn: () => void) => { fn(); return true; };
@@ -973,6 +1082,9 @@
     if (!view) return;
     const empty = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
     view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, empty.content));
+    // Deliberate clear → tell the host to persist the empty doc past the guard
+    // that otherwise refuses to overwrite real content with nothing.
+    onclear?.();
   }
 
   function toggleReadMode() {
@@ -1022,10 +1134,56 @@
     void saveDocx(stripAnalytics(view.state.doc), "Speech.docx");
   }
 
-  /** Export = a plain .docx of exactly what's here, analytics and all. */
-  function exportDoc() {
+  /** Save (⌘S): write the .docx back to the doc's bound file with NO dialog. If
+   *  the doc isn't bound to a file yet, fall through to Save As. */
+  async function saveToFile() {
     if (!view) return;
-    void saveDocx(view.state.doc, "Document.docx");
+    if (!filePath || !("__TAURI_INTERNALS__" in window)) { void saveAsFile(); return; }
+    try {
+      const { toDocx } = await import("$lib/cardmirror");
+      const bytes = await toDocx(view.state.doc);
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("write_binary_file", { path: filePath, bytes: Array.from(bytes) });
+      sendStatus = "Saved ✓";
+    } catch (err) {
+      sendStatus = "Save failed";
+      console.error(err);
+    }
+    setTimeout(() => (sendStatus = ""), 2500);
+  }
+
+  /** Save As: prompt for a .docx path, write it, and remember it so future ⌘S
+   *  saves straight there. */
+  async function saveAsFile() {
+    if (!view) return;
+    try {
+      const { toDocx } = await import("$lib/cardmirror");
+      const bytes = await toDocx(view.state.doc);
+      if ("__TAURI_INTERNALS__" in window) {
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        const path = await save({
+          defaultPath: filePath ?? "Document.docx",
+          filters: [{ name: "Word Document", extensions: ["docx"] }],
+        });
+        if (!path) return;
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("write_binary_file", { path, bytes: Array.from(bytes) });
+        onpathchange?.(path);
+      } else {
+        const blob = new Blob([bytes as BlobPart], {
+          type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filePath?.split(/[\\/]/).pop() ?? "Document.docx"; a.click();
+        URL.revokeObjectURL(url);
+      }
+      sendStatus = "Saved ✓";
+    } catch (err) {
+      sendStatus = "Save failed";
+      console.error(err);
+    }
+    setTimeout(() => (sendStatus = ""), 2500);
   }
 
   /** Insert CardMirror-schema nodes (from fromDocx) directly at the doc end. */
@@ -1067,6 +1225,7 @@
   class:pmd-underline-bold={settings.docTypography.underlineBold}
   class:pmd-undertag-italic={settings.docTypography.undertagItalic}
   class:pmd-undertag-bold={settings.docTypography.undertagBold}
+  class:compact={settings.compactDoc}
   style="
     --pmd-emphasis-box-size: {settings.docTypography.emphasisBoxSize}pt;
     --pmd-pocket-box-size: {settings.docTypography.pocketBoxSize}pt;
@@ -1145,9 +1304,11 @@
     <div class="toolbar-sep"></div>
     <button class="tb-btn" class:active={quickOpen} onclick={() => (quickOpen = true)} title="Quick cards — save & reuse snippets ({keyHint('docQuickCards')})">★ Quick</button>
     <button class="tb-btn icon" class:active={searchOpen} onclick={openSearch} title="Find in doc ({keyHint('docFind')})">⌕</button>
+    <span class="tb-wc" title="{wordCount.toLocaleString()} words · ~{readTime} to read aloud at {settings.wpm} wpm (change in Settings)">{wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"} · ~{readTime}</span>
     <button class="tb-btn read" class:active={readMode} onclick={toggleReadMode} title="Read mode — show only the read-aloud text">Read</button>
     <button class="tb-btn" onclick={clearDoc} title="Clear the whole document">Clear Doc</button>
-    <button class="tb-btn" onclick={exportDoc} title="Export a plain .docx of everything here (keeps analytics)">Export</button>
+    <button class="tb-btn save" onclick={() => void saveToFile()} title={filePath ? `Save to ${filePath.split(/[\\/]/).pop()} (⌘S)` : "Save as a .docx (⌘S)"}>Save</button>
+    <button class="tb-btn" onclick={() => void saveAsFile()} title="Save As a new .docx (⌘⇧S)">Save As</button>
     <button class="tb-btn send" onclick={sendDoc} title="Send the speech doc as .docx (analytics stripped)">Send</button>
     {#if sendStatus}<span class="send-status">{sendStatus}</span>{/if}
     <div class="toolbar-sep"></div>
@@ -1186,7 +1347,7 @@
 
   <div class="doc-body">
     {#if showOutline}
-      <aside class="outline">
+      <aside class="outline" style="width: {outlineWidth}px">
         <div class="outline-head">
           <span>Outline</span>
           <span class="outline-levels">
@@ -1211,9 +1372,17 @@
           {/each}
         {/if}
       </aside>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="outline-resize-handle"
+        onpointerdown={startOutlineResize}
+        onpointermove={onOutlineResizeMove}
+        onpointerup={stopOutlineResize}
+      ></div>
     {/if}
     <div
       class="doc-scroll"
+      bind:this={scrollEl}
       style="zoom: {settings.docZoom}"
       use:pinchZoom={{ get: () => settings.docZoom, set: (z) => settings.setDocZoomLive(z), commit: () => settings.save() }}
     >
@@ -1335,6 +1504,8 @@
     padding: 3px 9px;
   }
   .tb-btn.labeled .tb-ic { font-size: 14px; line-height: 1; }
+  .tb-wc { font-size: 11px; color: var(--text-dim); padding: 0 6px; white-space: nowrap; align-self: center; font-variant-numeric: tabular-nums; }
+  .tb-btn.save { font-weight: 600; }
   .tb-btn.read, .tb-btn.send { font-size: 12px; min-width: auto; padding: 3px 10px; }
   .tb-btn.read.active { background: #2e8b57; border-color: #2e8b57; color: #fff; }
   .tb-btn.send { color: var(--accent); border-color: var(--accent); }
@@ -1405,12 +1576,27 @@
     overflow: hidden;
   }
   .outline {
-    width: 200px;
     flex-shrink: 0;
     overflow-y: auto;
     border-right: 1px solid var(--border);
     background: var(--panel);
     padding: 6px 0;
+    container-type: inline-size;
+    container-name: outline-container;
+  }
+  .outline-resize-handle {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+    transition: background 0.15s;
+  }
+  .outline-resize-handle:hover,
+  .outline-resize-handle:active {
+    background: var(--accent);
   }
   .outline-head {
     display: flex;
@@ -1422,6 +1608,7 @@
     color: var(--text-dim);
     font-weight: 700;
     padding: 4px 8px 6px 12px;
+    white-space: nowrap;
   }
   .outline-levels { display: flex; gap: 2px; }
   .outline-levels button {
@@ -1435,6 +1622,72 @@
   .outline-row.lvl2 { padding-left: 14px; }
   .outline-row.lvl3 { padding-left: 24px; }
   .outline-row.lvl4 { padding-left: 34px; }
+  
+  /* Container query for outline */
+  @container outline-container (max-width: 124px) {
+    .outline-head > span:first-child {
+      display: none !important;
+    }
+    .outline .outline-head {
+      justify-content: flex-end;
+      padding-left: 0;
+    }
+  }
+
+  /* Compact doc chrome styles */
+  .speech-doc.compact .doc-toolbar {
+    padding: 3px 6px;
+    gap: 3px 4px;
+  }
+  .speech-doc.compact .toolbar-sep {
+    height: 18px;
+    margin: 0 2px;
+  }
+  .speech-doc.compact .tb-grid {
+    gap: 2px;
+  }
+  .speech-doc.compact .pill {
+    padding: 2px 5px;
+    font-size: 10px;
+    border-radius: 3px;
+    gap: 4px;
+  }
+  .speech-doc.compact .pill .k {
+    font-size: 8px;
+  }
+  .speech-doc.compact .tb-btn {
+    padding: 2px 5px;
+    font-size: 11px;
+    min-width: 22px;
+  }
+  .speech-doc.compact .tb-btn.labeled {
+    padding: 2px 6px;
+    font-size: 10px;
+    gap: 3px;
+  }
+  .speech-doc.compact .tb-btn.labeled .tb-ic {
+    font-size: 11px;
+  }
+  .speech-doc.compact .tb-btn.read, 
+  .speech-doc.compact .tb-btn.send {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+  .speech-doc.compact .hl-label {
+    font-size: 10px;
+  }
+  .speech-doc.compact .hl-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+  }
+  .speech-doc.compact .doc-page {
+    padding: 6px 10px;
+  }
+  .speech-doc.compact .outline-row.lvl1 { padding-left: 2px; }
+  .speech-doc.compact .outline-row.lvl2 { padding-left: 8px; }
+  .speech-doc.compact .outline-row.lvl3 { padding-left: 14px; }
+  .speech-doc.compact .outline-row.lvl4 { padding-left: 20px; }
   .outline-arrow {
     background: none; border: none; color: var(--text-dim); cursor: pointer;
     width: 14px; font-size: 9px; padding: 0; flex-shrink: 0;

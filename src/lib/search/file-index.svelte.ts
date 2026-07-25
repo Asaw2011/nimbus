@@ -6,6 +6,18 @@ import { invoke } from "@tauri-apps/api/core";
 import { saveBlob, loadBlobCached } from "$lib/model/blobs";
 import { settings } from "$lib/model/settings.svelte";
 
+// Compiled "token starts a word" regexes, cached so a search over thousands of
+// files doesn't rebuild the same RegExp for every file on every keystroke.
+const wordStartCache = new Map<string, RegExp>();
+function wordStartRe(tok: string): RegExp {
+  let re = wordStartCache.get(tok);
+  if (!re) {
+    re = new RegExp(`(^|[^a-z0-9])${tok.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+    wordStartCache.set(tok, re);
+  }
+  return re;
+}
+
 export interface LibFile {
   path: string;
   name: string; // stem only, no extension
@@ -70,18 +82,25 @@ class FileIndexStore {
     }
   }
 
-  /** Multi-token substring scoring. Returns 0 if no match. */
+  /** Multi-token scoring with AND semantics. Returns 0 if no match. EVERY query
+   *  token must appear in the name — a query like "cap k" must NOT match a file
+   *  that merely contains "k" (that flooded results with junk before). */
   score(query: string, text: string): number {
     if (!query) return 1; // empty query matches everything equally
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
     const t = text.toLowerCase();
     const tokens = q.split(/\s+/).filter(Boolean);
     if (t === q) return 100;
-    if (t.startsWith(q)) return 80;
-    if (tokens.every((tok) => t.includes(tok))) return 60;
-    if (tokens.some((tok) => t.startsWith(tok))) return 40;
-    if (tokens.some((tok) => t.includes(tok))) return 20;
-    return 0;
+    if (t.startsWith(q)) return 85;
+    if (t.includes(q)) return 70; // the whole query appears verbatim
+    // AND: every token must be present somewhere, else it's not a match.
+    if (!tokens.every((tok) => t.includes(tok))) return 0;
+    let s = 40;
+    for (const tok of tokens) {
+      // Reward tokens that start a word ("Cap" in "Cap K") over mid-word hits.
+      if (wordStartRe(tok).test(t)) s += 8;
+    }
+    return s;
   }
 
   /** Search files by name. Returns up to `limit` results sorted by score then recency. */

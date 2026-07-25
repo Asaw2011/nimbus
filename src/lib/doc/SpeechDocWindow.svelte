@@ -44,9 +44,13 @@
 
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    if (docRef) saveBlob(docContentBlob(docId), docRef.getDocJSON());
+    // NEVER save null — on window teardown getDocJSON() returns null (the view
+    // is gone), and saving that would wipe the doc's content on close.
+    const json = docRef?.getDocJSON();
+    if (json != null) saveBlob(docContentBlob(docId), json);
   }
   function onDocChange(json: unknown) {
+    if (json == null) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => saveBlob(docContentBlob(docId), json), 250);
   }
@@ -59,7 +63,18 @@
   }
 
   async function dockBack() {
-    flush();
+    flush(); // also persist to disk as a fallback for the main window
+    // Hand the current content straight to the main window so it docks back with
+    // exactly what's on screen (no disk round-trip / stale-cache race).
+    const json = docRef?.getDocJSON() ?? null;
+    if ("__TAURI_INTERNALS__" in window) {
+      const { emit } = await import("@tauri-apps/api/event");
+      await emit("nimbus:dock-doc", { id: docId, json });
+      // Give the main window a beat to RECEIVE the event and dock the content
+      // before this window (and its JS context) is torn down — otherwise the
+      // event can be dropped mid-close and the doc never comes back.
+      await new Promise((r) => setTimeout(r, 200));
+    }
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().close();
   }

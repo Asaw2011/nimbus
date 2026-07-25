@@ -8,3 +8,9 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# ruflo / agent scratch (local tooling, not part of the app)
+.agents/
+.swarm/
+ruvector.db
+skills-lock.json

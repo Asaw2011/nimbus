@@ -39,10 +39,17 @@
   );
 
   let editor: HTMLDivElement | undefined = $state();
+  let cellEl = $state<HTMLDivElement>(); // the .cell root (for paired-box focus checks)
 
-  // Focus + caret-to-end whenever the cursor lands on this cell.
+  // Focus + caret-to-end whenever the cursor lands on this cell — but never
+  // steal focus from an answer box / response already focused INSIDE this cell
+  // (that's what yanked you back to the header when clicking a paired box).
   $effect(() => {
-    if (active && editor && document.activeElement !== editor)
+    if (
+      active && editor &&
+      document.activeElement !== editor &&
+      !cellEl?.contains(document.activeElement)
+    )
       guard("GridCell.focus", () => { editor!.focus(); placeCaretAtEnd(); });
   });
 
@@ -86,11 +93,13 @@
     void cell.text;
     guard("GridCell.paint", () => {
       if (!editor || (editor.textContent === cell.text && !authorNeedsPaint())) return;
+      // We reach here only when the DOM and model DISAGREE. During normal typing
+      // oninput keeps them in sync, so a mismatch means an EXTERNAL change —
+      // undo/redo, a macro, or a remote edit — which we must repaint even while
+      // focused (that's why ⌘Z appeared to do nothing before). Caret to end.
       const focused = document.activeElement === editor;
-      if (!focused || editor.textContent === "") {
-        paint();
-        if (focused) placeCaretAtEnd();
-      }
+      paint();
+      if (focused) placeCaretAtEnd();
     });
   });
 
@@ -149,9 +158,8 @@
   function oninput() {
     if (!editor) return;
     const raw = editor.textContent ?? "";
-    const expanded = expand(raw, loadSnippets());
-    // Collapse "---" to a single em dash (—), like the speech doc.
-    let text = (expanded ?? raw).replace(/---/g, "—");
+    // No "---" → em-dash convert — debate tags use "---" literally.
+    const text = expand(raw, loadSnippets()) ?? raw;
     if (text !== raw) {
       editor.textContent = text;
       placeCaretAtEnd();
@@ -309,6 +317,17 @@
 
   function onpaste(e: ClipboardEvent) {
     const text = e.clipboardData?.getData("text/plain") ?? "";
+    // The LABEL cell NAMES the sheet — a paste here should always set the name,
+    // never spread across cells. Collapse newlines and sync the store directly
+    // (WKWebView doesn't reliably fire `input` after execCommand, which is why
+    // pasting into a label used to appear to do nothing).
+    if (isLabel) {
+      e.preventDefault();
+      const clean = text.replace(/\s*\r?\n\s*/g, " ").trim();
+      if (editor) { editor.textContent = clean; placeCaretAtEnd(); }
+      store.setCell(row, col, clean);
+      return;
+    }
     // Multi-cell clipboard (tabs = columns, newlines = rows) → spread like Excel.
     if (text.includes("\t") || text.includes("\n")) {
       e.preventDefault();
@@ -334,8 +353,11 @@
     if (!ok && editor) {
       editor.textContent = (editor.textContent ?? "") + text;
       placeCaretAtEnd();
-      store.setCell(row, col, editor.textContent);
     }
+    // Always sync the store from the DOM — execCommand can succeed WITHOUT firing
+    // an input event on WKWebView, which would otherwise lose the pasted text on
+    // the next repaint.
+    if (editor) store.setCell(row, col, editor.textContent ?? "");
   }
 
   // ---- multi-item cells (inserted cards + your own responses) --------------
@@ -378,6 +400,67 @@
     pendingFocusItem = store.addCellItem(row, col, "response", "", at);
   }
 
+  /** Respond to this cell's cards in the NEXT speech column, same row — with one
+   *  answer box per card, vertically aligned to the card it answers. */
+  function respondToSide() {
+    const sheet = store.round?.sheets.find((s) => s.id === sheetId);
+    const rowCells = sheet?.rows[row]?.cells;
+    if (!rowCells) return;
+    const nextCol = col + 1;
+    if (nextCol >= rowCells.length) return; // last speech — nowhere to the side
+    const cardCount = (cell.items ?? []).filter((it) => it.kind !== "response").length;
+    if (cardCount > 0) store.setResponseSlots(row, nextCol, cardCount);
+    store.activeSheetId = sheetId;
+    store.cursor = { row, col: nextCol };
+  }
+
+  // This cell shows PAIRED answer boxes when the cell to its left holds cards and
+  // this one holds responses — each box lines up with the card it answers.
+  const prevCell = $derived.by(() => {
+    const sheet = store.round?.sheets.find((s) => s.id === sheetId);
+    return col > 0 ? sheet?.rows[row]?.cells[col - 1] : undefined;
+  });
+  const pairedResponses = $derived.by(() =>
+    prevCell?.items?.some((i) => i.kind !== "response") && cell.items?.some((i) => i.kind === "response")
+      ? (cell.items ?? []).filter((i) => i.kind === "response")
+      : [],
+  );
+
+  // Keep each answer box lined up with the card it answers AND let it grow as you
+  // type: a box's row height = max(card's natural height, box's content height).
+  // The card is grown to that height too, so the whole row expands and everything
+  // below shifts down together — nothing gets hidden behind the next box.
+  function syncPairedHeights() {
+    if (!cellEl) return;
+    const prevEl = cellEl.previousElementSibling as HTMLElement | null;
+    const boxes = [...cellEl.querySelectorAll<HTMLElement>(".presp")];
+    const cards = prevEl ? [...prevEl.querySelectorAll<HTMLElement>(".item:not(.response)")] : [];
+    if (!cards.length || !boxes.length) return;
+    // 1) natural content height of each box (drop our fixed height first).
+    boxes.forEach((b) => (b.style.height = "auto"));
+    const boxContent = boxes.map((b) => b.scrollHeight);
+    // 2) natural card heights (drop our min-height first).
+    cards.forEach((c) => (c.style.minHeight = ""));
+    const cardNat = cards.map((c) => c.offsetHeight);
+    // 3) row height = the taller of the two; grow the CARD so the column reflows.
+    const rowH = boxes.map((_, i) => Math.max(cardNat[i] ?? 0, boxContent[i] ?? 0));
+    cards.forEach((c, i) => { if (rowH[i]) c.style.minHeight = rowH[i] + "px"; });
+    // 4) after the cards reflow, place each box at its card's (new) top + height.
+    boxes.forEach((b, i) => {
+      const card = cards[i];
+      if (!card) { b.style.display = "none"; return; }
+      b.style.display = "";
+      b.style.top = card.offsetTop + "px";
+      b.style.height = rowH[i] + "px";
+    });
+  }
+  // Re-sync when the pairing structure changes; typing also calls it (below).
+  $effect(() => {
+    void pairedResponses.length; void prevCell?.items?.length; void cell.expanded; void prevCell?.expanded;
+    if (pairedResponses.length === 0) return;
+    requestAnimationFrame(syncPairedHeights);
+  });
+
   /** Enter (no shift) inside a response adds a sibling right below it. */
   function onItemKeydown(index: number, e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
@@ -393,7 +476,7 @@
   function onCellClick(e: MouseEvent) {
     if (!editor) return;
     const t = e.target as HTMLElement;
-    if (t.closest(".editor, .item-text.editable, .item-del, .item-add, .items-toggle, .items-clear, .item-gap, .author-lookup")) return;
+    if (t.closest(".editor, .item-text.editable, .presp, .item-del, .item-add, .items-toggle, .items-clear, .item-gap, .author-lookup")) return;
     editor.focus();
     placeCaretAtEnd();
   }
@@ -402,7 +485,9 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
+  bind:this={cellEl}
   class="cell"
+  class:has-paired={pairedResponses.length > 0}
   onclick={onCellClick}
   class:active
   class:in-range={inRange}
@@ -440,7 +525,26 @@
     {onpaste}
     onblur={() => { store.endTextSession(); closeLookup(); }}
   ></div>
-  {#if cell.items?.length}
+  {#if pairedResponses.length}
+    <!-- Answer boxes, one per card in the cell to the left, each absolutely
+         positioned to line up with its card (see the align $effect). -->
+    <div class="paired-responses">
+      {#each pairedResponses as it (it.id)}
+        <div
+          class="presp"
+          contenteditable="true"
+          role="textbox"
+          tabindex="0"
+          spellcheck="false"
+          data-ph="answer…"
+          use:itemText={it}
+          oninput={(e) => { onItemInput(it.id, e); syncPairedHeights(); }}
+          onfocus={onfocus}
+          onblur={() => store.endTextSession()}
+        ></div>
+      {/each}
+    </div>
+  {:else if cell.items?.length}
     <div class="items-bar">
       <button
         class="items-toggle"
@@ -486,6 +590,14 @@
               onfocus={onfocus}
               onblur={() => store.endTextSession()}
             ></div>
+            {#if it.kind !== "response"}
+              <button
+                class="item-respond"
+                title="Respond in the next speech column (to the side), same row"
+                onmousedown={(e) => e.preventDefault()}
+                onclick={respondToSide}
+              >respond →</button>
+            {/if}
             <button
               class="item-del"
               title={it.kind === "response" ? "Remove response" : "Remove card"}
@@ -703,6 +815,27 @@
     gap: 0;
     padding: 0 6px 5px 10px;
   }
+  /* Paired answer boxes: one per card in the cell to the left, absolutely
+     positioned (top/min-height set in JS) so each lines up with its card. */
+  .paired-responses { position: absolute; inset: 0; pointer-events: none; }
+  .presp {
+    position: absolute;
+    left: 5px;
+    right: 6px;
+    box-sizing: border-box;
+    pointer-events: auto;
+    border: 1px solid var(--grid-line);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+    padding: 3px 6px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    overflow: hidden;
+    outline: none;
+    cursor: text;
+  }
+  .presp:focus { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+  .presp:empty::before { content: attr(data-ph); color: var(--text-dim); pointer-events: none; }
   /* Thin hover strip between items — click to insert a response at that spot. */
   .item-gap {
     position: relative;
@@ -794,6 +927,21 @@
     opacity: 0.6;
     font-style: italic;
   }
+  .item-respond {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0 4px;
+    cursor: pointer;
+    opacity: 0;
+    white-space: nowrap;
+  }
+  .item:hover .item-respond { opacity: 0.8; }
+  .item-respond:hover { opacity: 1; text-decoration: underline; }
   .item-del {
     flex-shrink: 0;
     background: transparent;
