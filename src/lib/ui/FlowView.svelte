@@ -9,6 +9,7 @@
   import SpreadView from "./SpreadView.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
   import ArgBank from "./ArgBank.svelte";
+  import Timer from "./Timer.svelte";
   import DocSearch from "$lib/search/DocSearch.svelte";
   import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
   import { docBridge } from "$lib/doc/docBridge.svelte";
@@ -26,6 +27,7 @@
   let showManual = $state(false);
   let showQuickCards = $state(false);
   let showBank = $state(false);
+  let showTimer = $state(false);
   // Spread view: several sheets visible at once, stacked or side-by-side.
   let spreadMode = $state<"off" | "vertical" | "horizontal">("off");
   let lastSpread = $state<"vertical" | "horizontal">("vertical");
@@ -413,8 +415,9 @@
   function moveCursorToSpeech(col: number) {
     const target = store.activeSheetId ?? round?.sheets[0]?.id;
     if (!target) return;
-    store.cursor = { row: store.cursor?.row ?? 1, col };
     openSheet(target);
+    // Land on the TOP of the picked column (row 0), not wherever the row was.
+    store.cursor = { row: 0, col };
   }
 
   /** Mark a doc as THE speech doc (the ` / ~ send target) and make it the live
@@ -879,6 +882,7 @@
       <button class="bar-btn" class:active={docOpen} onclick={() => (docOpen = !docOpen)} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">Doc</button>
       <button class="bar-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">Quick cards</button>
       <button class="bar-btn" class:active={showBank} onclick={() => (showBank = true)} title="Argument bank — edit banked cards & analytics (⌘J to look them up)">Bank</button>
+      <button class="bar-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + speech/prep presets">Timer</button>
       <button class="bar-btn" onclick={() => (showManual = true)} title="Manual — how everything works">Manual</button>
       <button class="bar-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">Settings</button>
       <button class="bar-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">Keybinds</button>
@@ -899,6 +903,7 @@
         ondocitalic={() => docRef?.toggleItalic()}
         ondoccolor={(hex) => docRef?.setDocColor(hex)}
         ondocfontsize={(d) => docRef?.bumpDocFontSize(d)}
+        onmovecursor={moveCursorToSpeech}
       />
     {/if}
 
@@ -1070,6 +1075,10 @@
 
     {#if showBank}
       <ArgBank onclose={() => (showBank = false)} />
+    {/if}
+
+    {#if showTimer}
+      <Timer onclose={() => (showTimer = false)} />
     {/if}
 
     {#if showManual}

@@ -19,24 +19,23 @@ import `.docx` speech docs.
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.1.7_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.1.7_x64-setup.exe`
+- **macOS** — `Nimbus_0.1.8_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.1.8_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**
 - Windows: **More info → Run anyway**
 
-## New in 0.1.7
+## New in 0.1.8
 
-- **Fixed the doc data-loss bug** — speech docs now persist reliably to disk, so
-  uploading several `.docx` files no longer wipes earlier ones.
-- **Save / Save As** a doc to `.docx` (`⌘S` / `⌘⇧S`); **word count + read-time**
-  estimate (set your words-per-minute in Settings).
-- **Argument bank manager** (new **Bank** button) — edit/add/remove banked cards;
-  uploading a doc now banks its cards automatically.
-- **Paired line-by-line responses** — "respond →" on a card cell drops one answer
-  box per card in the next column, aligned to each card and growing as you type.
-- Pop-out docs **dock back** reliably; `⌘Z` works on the flow; cleaner top bar.
+- **Timer** — a draggable stopwatch + five countdown presets (speech / prep
+  times), editable in Settings; beeps at 0:00.
+- **Cursor → speech** in the ribbon — jump your cursor to the top of any speech's
+  column, and it stays on that column across every flow.
+- **Main event setting** (Policy / LD / PF) — new rounds default to your event.
+
+Earlier in 0.1.7: fixed the doc data-loss bug, Save / Save As `.docx`, word count
++ read-time, the argument bank manager, and paired line-by-line responses.
 
 See the [full changelog](CHANGELOG.md) for details.
 
@@ -54,10 +53,13 @@ See the [full changelog](CHANGELOG.md) for details.
 - LABEL cell that auto-names a flow as you type its tag
 - **New pages open blank on their LABEL cell** — pick a kind (Off-case /
   Advantage / Overview / CX) and name it as you go, no naming dialog
-- **Jump to a speech** — from a round's home, one click parks your cursor on
-  that speech's column (2AC, 1AR, …) across every flow
+- **Jump to a speech** — the ribbon's **Cursor → speech** dropdown (or a chip on
+  the round's home) parks your cursor on the **top** of that speech's column
+  (2AC, 1AR, …), and it stays on that column across every flow
 - **"Space down"** — a keybind (default `⌘\`) moves the cursor down N rows to
   leave room for answers; the row count is set in Settings
+- **Timer** — a draggable stopwatch plus five countdown presets (speech / prep
+  times, adjustable in Settings) that beep at 0:00
 
 **The spread** (what no other flowing tool has)
 - See multiple flows at once — **stack** them (speech columns aligned across
@@ -165,7 +167,7 @@ npm run check       # typecheck
 Cut a release (builds macOS + Windows in the cloud):
 
 ```sh
-git tag v0.1.7 && git push origin v0.1.7
+git tag v0.1.8 && git push origin v0.1.8
 ```
 
 Open the **📖 Manual** in the app for a full feature reference, or press `⌘/`

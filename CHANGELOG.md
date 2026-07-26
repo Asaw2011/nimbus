@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.8
+
+### Flowing
+- **Timer** (new **Timer** button, top bar) — a draggable floating timer with a
+  count-up **stopwatch** and **five countdown presets** (Constructive / Rebuttal
+  / CX / Prep / 1 min by default). It flashes and beeps at 0:00. All five presets
+  are editable in **Settings → Timer presets** (label + `m:ss`).
+- **Cursor → speech** lives in the ribbon now (compact **Cursor** group). Pick a
+  speech and your cursor jumps to the **top** of that column — and stays on that
+  column as you switch flows. Same from the Home-screen speech chips.
+- **Move-cursor lands on the top of the column** (row 0), from the ribbon
+  dropdown and the Home screen.
+
+### Settings
+- **Main event** (Policy / LD / PF) — new rounds default their template to your
+  event, so the first option isn't a different event.
+
 ## v0.1.7
 
 ### Fixed — data loss (critical)

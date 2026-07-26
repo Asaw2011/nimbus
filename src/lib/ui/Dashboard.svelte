@@ -6,11 +6,10 @@
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
+  import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
 
   let { onopen }: { onopen: () => void } = $props();
-
-  const LS_TEMPLATE = "debate-flow:last-template";
 
   let rounds: RoundMeta[] = $state([]); // app-data flows not yet in a folder
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
@@ -19,10 +18,15 @@
   let status = $state("");
 
   const templates = builtinTemplates();
-  const savedIdx = Number(
-    typeof localStorage !== "undefined" && localStorage.getItem(LS_TEMPLATE),
-  ) || 0;
-  let templateIdx = $state(savedIdx >= 0 && savedIdx < templates.length ? savedIdx : 0);
+  // Default the new-round template to your main event (Settings) so the first
+  // option isn't a different event.
+  function eventIdx(ev: "policy" | "ld" | "pf"): number {
+    const i = templates.findIndex((t) =>
+      ev === "pf" ? t.name.toUpperCase().startsWith("PF") : t.name.toLowerCase() === ev,
+    );
+    return i >= 0 ? i : 0;
+  }
+  let templateIdx = $state(eventIdx(settings.mainEvent));
 
   // New-tournament inline input
   let creatingTourney = $state(false);
@@ -82,7 +86,6 @@
   // ---- create / open flows -------------------------------------------------
 
   function createRound() {
-    localStorage.setItem(LS_TEMPLATE, String(templateIdx));
     store.newRound(structuredClone(templates[templateIdx]) as SpeechTemplate, "New Round");
     onopen();
   }
@@ -222,7 +225,6 @@
           bind:value={templateIdx}
           onclick={(e) => e.stopPropagation()}
           onkeydown={(e) => e.stopPropagation()}
-          onchange={() => localStorage.setItem(LS_TEMPLATE, String(templateIdx))}
         >
           {#each templates as t, i (t.id)}
             <option value={i}>{t.name}</option>

@@ -17,6 +17,7 @@
     ondocitalic = null,
     ondoccolor = null,
     ondocfontsize = null,
+    onmovecursor = null,
   }: {
     spreadMode: "off" | "vertical" | "horizontal";
     onspread: (mode: "vertical" | "horizontal") => void;
@@ -27,6 +28,7 @@
     ondocitalic?: (() => void) | null;
     ondoccolor?: ((hex: string | null) => void) | null;
     ondocfontsize?: ((delta: number) => void) | null;
+    onmovecursor?: ((col: number) => void) | null;
   } = $props();
 
   const km = $derived(settings.keymap);
@@ -144,6 +146,24 @@
     <div class="caption">Rows</div>
   </div>
 
+  {#if onmovecursor && store.round?.template.speeches?.length}
+    <div class="group">
+      <div class="controls">
+        <select
+          class="rb rb-cursor"
+          title="Move your cursor to the TOP of a speech's column — it stays on that column across every flow"
+          onchange={(e) => { const v = e.currentTarget.value; if (v !== "") onmovecursor?.(Number(v)); e.currentTarget.selectedIndex = 0; }}
+        >
+          <option value="">→ speech…</option>
+          {#each store.round.template.speeches as sp, i (i)}
+            <option value={i}>{sp.abbr}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="caption">Cursor</div>
+    </div>
+  {/if}
+
   <div class="group">
     <div class="controls">
       <button class="rb dropped" title="They dropped this argument ({combosLabel(km.markDropped, mac)})" onclick={() => mark("dropped")}>Dropped</button>
@@ -220,6 +240,7 @@
   }
   .zoom-btn { min-width: 22px; padding: 2px 4px; }
   .zoom-pct { min-width: 42px; padding: 2px 4px; font-variant-numeric: tabular-nums; }
+  .rb-cursor { padding: 3px 4px; cursor: pointer; color: var(--accent); font-weight: 600; }
   .caption {
     text-align: center;
     font-size: 9.5px;

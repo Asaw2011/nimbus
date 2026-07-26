@@ -10,6 +10,15 @@
   import { checkForUpdate, type UpdateInfo } from "../updater";
   import { fileIndex } from "../search/file-index.svelte";
 
+  // Timer preset time helpers: seconds <-> "m:ss".
+  const fmtMMSS = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, "0")}`;
+  function parseMMSS(v: string): number | null {
+    const m = v.trim().match(/^(\d+):([0-5]?\d)$/);
+    if (m) return Number(m[1]) * 60 + Number(m[2]);
+    const asNum = Number(v.trim());
+    return Number.isFinite(asNum) && asNum > 0 ? Math.round(asNum) : null; // bare number = seconds
+  }
+
   let { onclose }: { onclose: () => void } = $props();
 
   let rebinding = $state<ActionId | null>(null);
@@ -465,6 +474,41 @@
           onchange={(e) => settings.setWpm((e.currentTarget as HTMLInputElement).valueAsNumber)}
         />
       </div>
+      <div class="row">
+        <label for="main-event">Main event (new rounds default to this template)</label>
+        <select
+          id="main-event"
+          class="num-field"
+          value={settings.mainEvent}
+          onchange={(e) => settings.setMainEvent((e.currentTarget as HTMLSelectElement).value as "policy" | "ld" | "pf")}
+        >
+          <option value="policy">Policy</option>
+          <option value="ld">LD</option>
+          <option value="pf">PF</option>
+        </select>
+      </div>
+      <div class="kb-group-title">Timer presets</div>
+      <p class="hint">Five countdowns shown on the Timer (top bar). Time as <code>m:ss</code>.</p>
+      {#each settings.timerPresets as p, i (i)}
+        <div class="row timer-preset-row">
+          <input
+            class="tp-label-field"
+            value={p.label}
+            placeholder="Label"
+            onchange={(e) => settings.setTimerPreset(i, { label: (e.currentTarget as HTMLInputElement).value })}
+          />
+          <input
+            class="num-field"
+            value={fmtMMSS(p.seconds)}
+            placeholder="m:ss"
+            onchange={(e) => {
+              const s = parseMMSS((e.currentTarget as HTMLInputElement).value);
+              if (s !== null) settings.setTimerPreset(i, { seconds: s });
+              (e.currentTarget as HTMLInputElement).value = fmtMMSS(settings.timerPresets[i].seconds);
+            }}
+          />
+        </div>
+      {/each}
       {#each ACTION_GROUPS as group (group.title)}
         <div class="kb-group-title">{group.title}</div>
         {#each group.actions as action (action)}
@@ -900,6 +944,17 @@
     font-size: 13px;
     padding: 5px 0;
     gap: 12px;
+  }
+  .timer-preset-row { gap: 8px; }
+  .tp-label-field {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
   }
   .doc-preview {
     background: #fff;

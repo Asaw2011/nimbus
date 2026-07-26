@@ -70,6 +70,10 @@ export interface Persisted {
   moveRows?: number;
   /** Speaking pace in words per minute (for the doc's read-time estimate). */
   wpm?: number;
+  /** Main event — default template for new rounds. */
+  mainEvent?: "policy" | "ld" | "pf";
+  /** Timer countdown presets. */
+  timerPresets?: TimerPreset[];
   /** Grid zoom factor (default 1, clamped 0.5–2.5). */
   zoom: number;
   docZoom: number;
@@ -118,6 +122,20 @@ export function clampWpm(n: number): number {
   if (!Number.isFinite(n)) return 200;
   return Math.min(600, Math.max(50, Math.round(n)));
 }
+
+export interface TimerPreset {
+  label: string;
+  seconds: number;
+}
+
+/** Five countdown presets shown on the timer; fully user-editable in Settings. */
+export const DEFAULT_TIMER_PRESETS: TimerPreset[] = [
+  { label: "Constructive", seconds: 6 * 60 },
+  { label: "Rebuttal", seconds: 3 * 60 },
+  { label: "CX", seconds: 3 * 60 },
+  { label: "Prep", seconds: 4 * 60 },
+  { label: "1 min", seconds: 60 },
+];
 
 /** Zoom is clamped to 0.5×–2.5×. */
 export function clampZoom(n: number): number {
@@ -168,6 +186,11 @@ class Settings {
   /** Your speaking pace (words per minute) — the doc uses it to estimate how
    *  long its text takes to read aloud. Debaters "spread" ~200–350 wpm. */
   wpm = $state(200);
+  /** Your main event — the New Round / New Flow template defaults to it so the
+   *  first option isn't a different event. */
+  mainEvent = $state<"policy" | "ld" | "pf">("policy");
+  /** Five adjustable countdown presets for the timer (label + seconds). */
+  timerPresets = $state<TimerPreset[]>(structuredClone(DEFAULT_TIMER_PRESETS));
   zoom = $state(1);
   /** Speech-doc view zoom (pinch-to-zoom), default 1, clamped 0.5–2.5. */
   docZoom = $state(1);
@@ -232,6 +255,17 @@ class Settings {
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.moveRows !== undefined) this.moveRows = clampBulkRows(p.moveRows);
     if (p.wpm !== undefined) this.wpm = clampWpm(p.wpm);
+    if (p.mainEvent) this.mainEvent = p.mainEvent;
+    if (Array.isArray(p.timerPresets) && p.timerPresets.length) {
+      // Keep exactly five slots; sanitize each so bad saves can't break the timer.
+      this.timerPresets = DEFAULT_TIMER_PRESETS.map((d, i) => {
+        const s = p.timerPresets![i];
+        return {
+          label: typeof s?.label === "string" && s.label.trim() ? s.label : d.label,
+          seconds: Number.isFinite(s?.seconds) ? Math.max(1, Math.round(s!.seconds)) : d.seconds,
+        };
+      });
+    }
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
     if (p.sendAtCursor !== undefined) this.sendAtCursor = p.sendAtCursor;
@@ -274,6 +308,8 @@ class Settings {
       bulkRows: this.bulkRows,
       moveRows: this.moveRows,
       wpm: this.wpm,
+      mainEvent: this.mainEvent,
+      timerPresets: $state.snapshot(this.timerPresets),
       zoom: this.zoom,
       docZoom: this.docZoom,
       sendAtCursor: this.sendAtCursor,
@@ -370,6 +406,22 @@ class Settings {
 
   setWpm(n: number): void {
     this.wpm = clampWpm(n);
+    this.save();
+  }
+
+  setMainEvent(e: "policy" | "ld" | "pf"): void {
+    this.mainEvent = e;
+    this.save();
+  }
+
+  setTimerPreset(i: number, patch: Partial<TimerPreset>): void {
+    if (!this.timerPresets[i]) return;
+    const next = [...this.timerPresets];
+    next[i] = {
+      label: patch.label !== undefined ? patch.label : next[i].label,
+      seconds: patch.seconds !== undefined ? Math.max(1, Math.round(patch.seconds)) : next[i].seconds,
+    };
+    this.timerPresets = next;
     this.save();
   }
 
