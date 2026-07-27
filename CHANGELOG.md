@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.1
+
+- **Automatic updates are live.** Nimbus now checks for a new version on launch
+  and shows an in-app **Update available → Install → Restart** banner (also a
+  manual check in Settings) — no more visiting GitHub. Signed builds for macOS
+  and Windows. (Auto-update works from this version forward.)
+
 ## v0.2.0
 
 ### Flow → doc sends (all on the backtick)
