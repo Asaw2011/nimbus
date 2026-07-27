@@ -1,6 +1,7 @@
 <script lang="ts">
   import { store } from "../model/round.svelte";
-  import { sheetAccent } from "../model/types";
+  import { sheetAccent, uid } from "../model/types";
+  import type { Ballot } from "../model/types";
   import { exportRoundFile, exportRoundHtml } from "../model/export";
   import { saveToFile, saveAs, exportExcel, exportNimbus } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature — to remove: delete this import + the marked section
@@ -112,6 +113,49 @@
       r[field] = value;
     }, { coalesceText: true });
   }
+
+  // ---- RFD (reason for decision) -----------------------------------------
+  function addBallot() {
+    store.mutate((r) => {
+      if (!r.rfd) r.rfd = { ballots: [], notes: "" };
+      // First ballot seeds the judge name from the round's judge list.
+      const judge = r.rfd.ballots.length === 0 ? (r.judges ?? "").trim() : "";
+      const b: Ballot = { id: uid(), judge, winner: "", reason: "", feedback: "", points: "" };
+      r.rfd.ballots = [...r.rfd.ballots, b];
+    });
+  }
+  function setBallot(id: string, field: keyof Ballot, value: string, coalesce = true) {
+    store.mutate((r) => {
+      if (!r.rfd) return;
+      r.rfd.ballots = r.rfd.ballots.map((b) => (b.id === id ? { ...b, [field]: value } : b));
+    }, coalesce ? { coalesceText: true } : undefined);
+  }
+  function removeBallot(id: string) {
+    store.mutate((r) => {
+      if (!r.rfd) return;
+      r.rfd.ballots = r.rfd.ballots.filter((b) => b.id !== id);
+    });
+  }
+  function setRfdNotes(value: string) {
+    store.mutate((r) => {
+      if (!r.rfd) r.rfd = { ballots: [], notes: "" };
+      r.rfd.notes = value;
+    }, { coalesceText: true });
+  }
+
+  // "AFF (school) wins 2–1" style summary from the ballots that have a vote.
+  const rfdResult = $derived.by(() => {
+    const bs = round?.rfd?.ballots ?? [];
+    const decided = bs.filter((b) => b.winner);
+    if (!decided.length) return "";
+    const aff = decided.filter((b) => b.winner === "aff").length;
+    const neg = decided.filter((b) => b.winner === "neg").length;
+    if (aff === neg) return `Split ${aff}–${neg}`;
+    const side = aff > neg ? "AFF" : "NEG";
+    const team = (side === "AFF" ? round?.affTeam : round?.negTeam)?.trim();
+    const score = decided.length > 1 ? ` ${Math.max(aff, neg)}–${Math.min(aff, neg)}` : "";
+    return `${side}${team ? ` (${team})` : ""} wins${score}`;
+  });
 </script>
 
 {#if round}
@@ -234,6 +278,74 @@
           </div>
         {/each}
       </div>
+    </section>
+
+    <section class="rfd">
+      <div class="sheets-head">
+        <h2>RFD — result &amp; feedback</h2>
+        {#if rfdResult}<span class="rfd-badge">{rfdResult}</span>{/if}
+      </div>
+      {#if !round.rfd || round.rfd.ballots.length === 0}
+        <p class="hint-line">Record how the round came out — who voted, why, and any feedback. It saves with the flow.</p>
+      {/if}
+
+      {#each round.rfd?.ballots ?? [] as b (b.id)}
+        <div class="ballot">
+          <div class="ballot-top">
+            <input
+              class="ballot-judge"
+              value={b.judge}
+              placeholder="Judge"
+              oninput={(e) => setBallot(b.id, "judge", e.currentTarget.value)}
+            />
+            <div class="vote">
+              <button
+                class="vote-btn aff"
+                class:on={b.winner === "aff"}
+                title="This judge voted AFF"
+                onclick={() => setBallot(b.id, "winner", b.winner === "aff" ? "" : "aff", false)}
+              >AFF</button>
+              <button
+                class="vote-btn neg"
+                class:on={b.winner === "neg"}
+                title="This judge voted NEG"
+                onclick={() => setBallot(b.id, "winner", b.winner === "neg" ? "" : "neg", false)}
+              >NEG</button>
+            </div>
+            <button class="icon danger" title="Remove ballot" onclick={() => removeBallot(b.id)}>×</button>
+          </div>
+          <textarea
+            class="ballot-reason"
+            value={b.reason}
+            placeholder="Reason for decision — why did they vote this way?"
+            oninput={(e) => setBallot(b.id, "reason", e.currentTarget.value)}
+          ></textarea>
+          <textarea
+            class="ballot-feedback"
+            value={b.feedback}
+            placeholder="Feedback / advice for next time"
+            oninput={(e) => setBallot(b.id, "feedback", e.currentTarget.value)}
+          ></textarea>
+          <input
+            class="ballot-points"
+            value={b.points}
+            placeholder="Speaker points (e.g. 1A 28.5 · 2A 29)"
+            oninput={(e) => setBallot(b.id, "points", e.currentTarget.value)}
+          />
+        </div>
+      {/each}
+
+      <div class="setup-row">
+        <button class="chip" onclick={addBallot}>＋ Add ballot{round.rfd && round.rfd.ballots.length ? " (panel)" : ""}</button>
+      </div>
+      {#if round.rfd && round.rfd.ballots.length}
+        <textarea
+          class="rfd-notes"
+          value={round.rfd?.notes ?? ""}
+          placeholder="Other notes about the round…"
+          oninput={(e) => setRfdNotes(e.currentTarget.value)}
+        ></textarea>
+      {/if}
     </section>
 
     <div class="tools">
@@ -368,6 +480,89 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .rfd {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .rfd-badge {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+  .ballot {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 10px;
+  }
+  .ballot-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ballot-judge {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .vote {
+    display: flex;
+    gap: 4px;
+  }
+  .vote-btn {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .vote-btn.aff.on {
+    background: var(--aff);
+    border-color: var(--aff);
+    color: #fff;
+  }
+  .vote-btn.neg.on {
+    background: var(--neg);
+    border-color: var(--neg);
+    color: #fff;
+  }
+  .ballot textarea,
+  .ballot-points,
+  .rfd-notes {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .ballot-reason {
+    min-height: 60px;
+  }
+  .ballot-feedback {
+    min-height: 44px;
+  }
+  .rfd-notes {
+    min-height: 44px;
   }
   .tools {
     display: flex;

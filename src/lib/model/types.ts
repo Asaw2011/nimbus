@@ -163,6 +163,30 @@ export interface Round {
   /** Arguments (cards + analytics) banked from imported docs, for the argument
    *  lookup (⌘J). Field name kept as `cards` for save-file compatibility. */
   cards?: ArgRef[];
+  /** Judge decision(s) for the round — see {@link RFD}. */
+  rfd?: RFD;
+}
+
+/** One judge's ballot: who they voted for and why. A panel has several. */
+export interface Ballot {
+  id: string;
+  /** Judge name (defaults from the round's judge list when added). */
+  judge: string;
+  /** Who this judge voted for. */
+  winner: "aff" | "neg" | "";
+  /** Reason for decision — why they voted the way they did. */
+  reason: string;
+  /** Feedback / advice for improvement. */
+  feedback: string;
+  /** Speaker points, free-form (e.g. "1A 28.5 · 2A 29"). */
+  points: string;
+}
+
+/** The round's result: one ballot per judge (panels supported) + notes. */
+export interface RFD {
+  ballots: Ballot[];
+  /** Any extra notes about the round outcome. */
+  notes: string;
 }
 
 /** Lightweight listing for the dashboard (no sheet contents). */

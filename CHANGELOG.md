@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.2.3
+
+### Fixed — doc data loss (again, for good)
+- **Closing the speech doc no longer wipes it.** The doc pane used to *unmount*
+  the editor on close and rebuild it on reopen from a stored copy that could be
+  stale — so a send/edit/delete right before closing vanished. The editor now
+  **stays mounted and is just hidden**, so there's nothing to rebuild and nothing
+  to lose.
+- **Quick cards keep their body.** Dropping a saved quick card into the doc used
+  to insert the tag but silently drop the card's body (ProseMirror merged the
+  block into the cursor's line and discarded what didn't fit). Whole-block cards
+  now insert as their own block, body intact.
+
+### New — round result (RFD)
+- **RFD panel on a round's home** — record how the round came out: **one ballot
+  per judge** (panels supported) with an **AFF/NEG vote**, **reason for
+  decision**, **feedback**, and **speaker points**, plus round notes. An
+  auto-computed result badge (e.g. *"AFF (school) wins 2–1"*) summarizes the
+  ballots. It all saves with the flow.
+
 ## v0.2.2
 
 - **Auto-update signing fixed.** 0.2.1's `latest.json` shipped unsigned (the

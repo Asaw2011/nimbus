@@ -128,7 +128,10 @@
   // its own saved docs, none bleed across.
   $effect(() => {
     const rid = store.round?.id;
-    if (!docOpen || !rid || rid === docsRoundId) return;
+    // Init on the ROUND (not on opening the pane) so the doc editor can stay
+    // mounted the whole time — closing the pane just HIDES it, so its content
+    // can never be lost to an unmount/remount.
+    if (!rid || rid === docsRoundId) return;
     if (docsRoundId) saveCurrentDoc(); // flush the outgoing flow's doc first
     docsRoundId = rid;
     docsReady = false;
@@ -159,6 +162,13 @@
     const id = docRef?.getDocId() ?? null;
     const json = docRef?.getDocJSON() ?? null;
     if (id && json != null) docsStore.saveContent(id, json);
+  }
+
+  /** Open/close the doc pane. The editor stays MOUNTED (just hidden) so nothing
+   *  is lost; we still flush to disk on close as a belt-and-suspenders. */
+  function toggleDocPane() {
+    if (docOpen) saveCurrentDoc();
+    docOpen = !docOpen;
   }
 
   async function switchDoc(id: string) {
@@ -828,7 +838,7 @@
       settings.zoomOut();
     } else if (matchesAny(e, km.toggleDoc)) {
       e.preventDefault();
-      docOpen = !docOpen;
+      toggleDocPane();
     } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
       const idx = Number(e.key) - 1;
       const target = round?.sheets[idx];
@@ -926,7 +936,7 @@
         {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
       </span>
       <span class="spacer"></span>
-      <button class="bar-btn" class:active={docOpen} onclick={() => (docOpen = !docOpen)} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">Doc</button>
+      <button class="bar-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">Doc</button>
       <button class="bar-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">Quick cards</button>
       <button class="bar-btn" class:active={showBank} onclick={() => (showBank = true)} title="Argument bank — edit banked cards & analytics (⌘J to look them up)">Bank</button>
       <button class="bar-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + speech/prep presets">Timer</button>
@@ -986,12 +996,13 @@
         </div>
       {/if}
 
-      {#if docOpen}
-        {#if !docExpanded}
+      {#if docsReady}
+        {#if docOpen && !docExpanded}
           <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
         {/if}
         <div
           class="doc-pane"
+          class:hidden={!docOpen}
           style={docExpanded ? "flex:1" : `width: ${docWidth}px`}
           role="region"
           ondragover={onDocDragOver}
@@ -1283,6 +1294,8 @@
     min-width: 240px;
     position: relative;
   }
+  /* Closed = hidden, NOT unmounted, so the editor keeps its content. */
+  .doc-pane.hidden { display: none; }
   .doc-drop-overlay {
     position: absolute;
     inset: 6px;

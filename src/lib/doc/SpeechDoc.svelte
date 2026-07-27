@@ -612,8 +612,24 @@
   export function insertQuickCard(contentJson: unknown) {
     if (!view) return;
     try {
+      const st = view.state;
       const slice = Slice.fromJSON(schema, sanitizeCMJson(contentJson) as never);
-      view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+      const resFrom = st.selection.$from;
+      // A captured card is a CLOSED, whole-block slice (tag + body). Merging it
+      // into the cursor's textblock via replaceSelection makes ProseMirror's
+      // fitting drop the card_body — the tag lands but the body vanishes. So for
+      // block-level content, insert it as its OWN block right after the current
+      // top-level block, where a full card (with its body) is schema-valid.
+      const isBlockSlice =
+        slice.openStart === 0 && slice.openEnd === 0 &&
+        slice.content.childCount > 0 && !slice.content.firstChild!.isInline;
+      let tr;
+      if (isBlockSlice && resFrom.depth >= 1) {
+        tr = st.tr.insert(resFrom.after(1), slice.content);
+      } else {
+        tr = st.tr.replaceSelection(slice);
+      }
+      view.dispatch(tr.scrollIntoView());
       view.focus();
     } catch (err) {
       console.error("insertQuickCard failed", err);
