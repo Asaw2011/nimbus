@@ -96,10 +96,6 @@
   blocks, so a saved tag re-inserts as a tag every time (was intermittent).
 - **Uploading a doc splits pages by block/off-case**, never one page per card.
 
-### Credits
-- Prominent acknowledgement of **Anthony Trufanov**, whose **CardMirror** is
-  vendored as Nimbus's entire speech doc (PolyForm Noncommercial).
-
 ## v0.1.8
 
 ### Flowing
