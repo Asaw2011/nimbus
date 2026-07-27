@@ -214,7 +214,7 @@
       <button class="rb analytic" title="This is an analytic — no card ({combosLabel(km.markAnalytic, mac)})" onclick={() => evidence("analytic")}>Analytic</button>
       <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onclick={() => evidence("card")}>Card</button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}>➜ Extend</button>
-      <button class="rb" title="Group arguments into a bracket — select a range, or ⌘-click cells for a non-sequential group (1, 4, 6), then Group ({combosLabel(km.groupArgs, mac)})" onclick={() => store.groupSelected()}>⦃ Group</button>
+      <button class="rb" title="Group arguments into a bracket ({combosLabel(km.groupArgs, mac)}) — drag-select a range, or ⌘-click cells for a non-sequential group (1, 4, 6), then press it" onclick={() => store.groupSelected()}>⦃ Group</button>
       <button class="rb" title="Remove the group bracketing the current cell" onclick={() => store.ungroupAtCursor()}>Ungroup</button>
       {#if onsendspeech}
         <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order — mirrors the flow and de-dupes." onclick={onsendspeech}>↕ Send Entire Row</button>

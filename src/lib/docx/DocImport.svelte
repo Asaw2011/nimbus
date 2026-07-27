@@ -47,16 +47,18 @@
    * Falls back to the single-chain unwrap if no level clears 3 nodes.
    */
   function autoSplit(roots: DocNode[]): DocNode[] {
-    // Prefer position-aware splitting: descend past wrappers and expand an
-    // "OFF" container so each off-case becomes its own sheet (an Adv--- stays
-    // whole). This fixes a 1NC collapsing its whole off-case block into one sheet.
+    // Pages follow the BLOCK heading (H3) — that's where off-case positions live
+    // in a 1NC. One page per block: NOT per pocket/hat (which groups off-cases
+    // together, too coarse) and NOT per tag/card (level 4, too fine).
+    const blocks = nodesAtLevel(roots, 3);
+    if (blocks.length >= 2) return blocks;
+    // No block layer in this doc → an "OFF" container's positions, else the
+    // shallowest structural level (advantages at H1/H2, etc.).
     const positions = positionSections(roots);
-    // A page is a block / off-case / advantage — NEVER a single card. Tags
-    // (level 4) are cards that live INSIDE a page, so never split at that level.
     if (positions.length >= 2 && positions.every((p) => p.level < 4)) return positions;
-    for (const level of [1, 2, 3] as const) {
+    for (const level of [2, 1] as const) {
       const at = nodesAtLevel(roots, level);
-      if (at.length >= 3) return at;
+      if (at.length >= 2) return at;
     }
     // Fewer than 3 nodes at every level — walk down single-child chains.
     let unwrapped = roots;
@@ -239,16 +241,19 @@
             });
             filled++;
           } else {
+            // Don't print the title again as row 1 — if the first flow line IS
+            // the title (the section heading), drop it (the duplication bug).
+            const body = title.trim() && lines[0]?.trim() === title.trim() ? lines.slice(1) : lines;
             const sheet = makeSheet(
               title,
               nCols,
               kind,
               col,
-              Math.max(INITIAL_ROWS, lines.length + 4),
+              Math.max(INITIAL_ROWS, body.length + 4),
             );
             // Row 0 is the LABEL cell; content follows below it.
             sheet.rows[0].cells[col].text = title;
-            lines.forEach((line, i) => {
+            body.forEach((line, i) => {
               while (sheet.rows.length <= i + 1) sheet.rows.push(makeRow(nCols));
               sheet.rows[i + 1].cells[col].text = line;
             });

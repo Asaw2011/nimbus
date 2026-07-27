@@ -251,8 +251,8 @@
     if (e.button !== 0) return;
     const rc = cellAt(e);
     if (!rc) return;
-    // ⌘/Ctrl-click: toggle this cell into the group-in-progress (build a group
-    // from non-sequential arguments, e.g. 1, 4, 6). Then press Group (⌘⇧G).
+    // ⌘/Ctrl-click toggles a cell into a non-sequential group selection (1, 4,
+    // 6); then press Group (⌘R) — the SAME key as a drag-selected range.
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
       e.preventDefault();
       store.activeSheetId = sheet.id;

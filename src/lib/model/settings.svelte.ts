@@ -442,6 +442,12 @@ class Settings {
   setZoomLive(n: number): void { this.zoom = clampZoom(n); }
   setDocZoomLive(n: number): void { this.docZoom = clampZoom(n); }
 
+  /** Keyboard zoom for the speech doc (always works, unlike touchpad pinch). */
+  setDocZoom(n: number): void { this.docZoom = clampZoom(n); this.save(); }
+  docZoomIn(): void { this.setDocZoom(this.docZoom + 0.1); }
+  docZoomOut(): void { this.setDocZoom(this.docZoom - 0.1); }
+  docZoomReset(): void { this.setDocZoom(1); }
+
   /** Human label of whatever a combo is currently bound to, or null. */
   findBinding(combo: Combo): string | null {
     const reserved = findReservedBinding(combo);

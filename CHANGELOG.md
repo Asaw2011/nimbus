@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.2.0
+
+### Flow → doc sends (all on the backtick)
+- **`` ` `` sends the cell**, **`⌘`` ` `` `` sends the whole speech** (flow order),
+  **`⌘⌫` clears the cell + pulls its card out of the doc**. Keyboard versions of
+  the ribbon's Send cell / Send Entire Row / Remove buttons.
+- **"AT: `<argument>`" auto-header** — sending a hand-typed answer cell labels the
+  analytic with the argument it answers (the cell to its left).
+
+### Argument grouping (reworked)
+- Much more **visible**: grouped cells get a tinted background and a bold brace
+  down the **right** edge (opening toward the answer column), with a label pill
+  tucked out of the text.
+- **One key for sequential and non-sequential** — drag-select a range, or
+  **⌘-click** cells (1, 4, 6), then **⌘R**. The cell you're on counts too.
+- A quick hint appears if you try to group fewer than two cells in a column.
+
+### Keybinds — logical defaults
+- Marks moved **off the copy/paste/save family**: Dropped `⌘D`, Star `⌘⇧8`,
+  Analytic `⌘⇧A`, Card `⌘⇧E`.
+- **Extend = `⌘→`**, **Group = `⌘R`** — distinct, memorable keys (no more
+  `⌘G`/`⌘⇧G` confusion). Sheet move is `⌘⇧[` / `⌘⇧]`.
+- All rebindable in Settings.
+
+### Doc & import
+- **Keyboard zoom** in the doc (`⌘=` / `⌘-` / `⌘⇧0`) — always works.
+- **⌘F + Enter** reliably scrolls to the match.
+- **1NC import splits by the Block heading** (one page per off-case), not by
+  pockets/hats or per card; long taglines stay Untitled and don't duplicate.
+
 ## v0.1.9
 
 ### Flowing

@@ -504,6 +504,9 @@
   class:card={cell.marks?.evidence === "card"}
   class:drop-target={dropTarget}
   class:marked
+  class:g-span={!!gspan}
+  class:g-member={!!gspan?.member}
+  style={gspan ? `--gcolor:${gspan.group.color ?? "var(--accent)"}` : undefined}
   data-r={row}
   data-c={col}
 >
@@ -689,36 +692,46 @@
   }
   /* ⌘-clicked, pending group */
   .cell.marked { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent); }
-  /* Argument-group bracket down the left edge */
+  /* Grouped cells get a tinted background so the group reads as one block at a
+     glance (member rows tint stronger than the span passing through). The side
+     ink is on the TEXT, so tinting the cell bg doesn't fight aff/neg colors. */
+  .cell.g-span { background: color-mix(in srgb, var(--gcolor) 6%, var(--cell-bg)); }
+  .cell.g-member { background: color-mix(in srgb, var(--gcolor) 16%, var(--cell-bg)); }
+  /* Bold bracket down the RIGHT edge (it opens toward the answer column) with
+     clear top/bottom caps pointing left. */
   .group-bar {
     position: absolute;
-    left: 1px; top: 0; bottom: 0;
-    width: 2px;
-    background: color-mix(in srgb, var(--gcolor) 32%, transparent);
+    right: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: color-mix(in srgb, var(--gcolor) 45%, transparent);
     pointer-events: none;
     z-index: 2;
   }
-  .group-bar.member { width: 3px; background: var(--gcolor); }
-  .group-bar.g-top { top: 2px; }
+  .group-bar.member { width: 5px; background: var(--gcolor); }
+  .group-bar.g-top { top: 3px; border-top-right-radius: 3px; }
   .group-bar.g-top::before {
-    content: ""; position: absolute; left: 0; top: 0; width: 7px; height: 2px; background: var(--gcolor);
+    content: ""; position: absolute; right: 0; top: 0; width: 12px; height: 4px; border-radius: 2px; background: var(--gcolor);
   }
-  .group-bar.g-bottom { bottom: 2px; }
+  .group-bar.g-bottom { bottom: 3px; border-bottom-right-radius: 3px; }
   .group-bar.g-bottom::after {
-    content: ""; position: absolute; left: 0; bottom: 0; width: 7px; height: 2px; background: var(--gcolor);
+    content: ""; position: absolute; right: 0; bottom: 0; width: 12px; height: 4px; border-radius: 2px; background: var(--gcolor);
   }
+  /* Label sits at the top, just left of the right-side bracket, so it clears
+     both the left-aligned text and the bracket. Translucent at rest. */
   .group-label {
-    position: absolute; left: 6px; top: 1px; z-index: 3;
-    display: inline-flex; align-items: center; gap: 1px;
+    position: absolute; right: 16px; top: 2px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 1px; opacity: 0.7;
   }
+  .cell:hover .group-label, .group-label:focus-within { opacity: 1; }
   .group-label-input {
-    width: 46px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
-    color: var(--gcolor);
-    background: var(--cell-bg);
-    border: 1px solid color-mix(in srgb, var(--gcolor) 45%, transparent);
-    border-radius: 3px; padding: 0 3px; outline: none;
+    width: 42px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+    color: #fff; text-align: center;
+    background: var(--gcolor);
+    border: 1px solid var(--gcolor);
+    border-radius: 4px; padding: 1px 4px; outline: none;
   }
-  .group-label-input:focus { border-color: var(--gcolor); width: 80px; }
+  .group-label-input::placeholder { color: rgba(255,255,255,0.7); }
+  .group-label-input:focus { width: 84px; text-align: left; box-shadow: 0 0 0 2px color-mix(in srgb, var(--gcolor) 35%, transparent); }
   .group-x {
     font-size: 11px; line-height: 1; border: none; background: none;
     color: var(--text-dim); cursor: pointer; padding: 0 2px; opacity: 0;

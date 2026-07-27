@@ -15,7 +15,7 @@
   import { docBridge } from "$lib/doc/docBridge.svelte";
   import { docsStore } from "$lib/doc/docs.svelte";
   import type { DocNode } from "$lib/docx/parse";
-  import type { Cell } from "../model/types";
+  import type { Cell, Sheet } from "../model/types";
   import { pinchZoom } from "$lib/util/pinch";
   import Manual from "./Manual.svelte";
   import QuickCardsPanel from "./QuickCardsPanel.svelte";
@@ -28,6 +28,14 @@
   let showQuickCards = $state(false);
   let showBank = $state(false);
   let showTimer = $state(false);
+  // Transient bottom toast (e.g. why a group didn't form).
+  let flash = $state("");
+  let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  function showFlash(msg: string) {
+    flash = msg;
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => (flash = ""), 1900);
+  }
   // Spread view: several sheets visible at once, stacked or side-by-side.
   let spreadMode = $state<"off" | "vertical" | "horizontal">("off");
   let hiddenInSpread = $state<string[]>([]);
@@ -464,7 +472,17 @@
 
   // The doc content a cell contributes, IN ORDER. A card with a captured
   // CardMirror node keeps its images; typed text is your analysis → an ANALYTIC.
-  function cellDocOps(cell: Cell | undefined): DocOp[] {
+  /** The argument a cell answers: the nearest non-empty cell to its LEFT in the
+   *  same row (an earlier speech). "" if none (e.g. a first-column cell). */
+  function argToLeft(sheet: Sheet, row: number, col: number): string {
+    for (let c = col - 1; c >= 0; c--) {
+      const t = sheet.rows[row]?.cells[c]?.text?.trim();
+      if (t) return t;
+    }
+    return "";
+  }
+
+  function cellDocOps(cell: Cell | undefined, ctx?: { sheet: Sheet; row: number; col: number }): DocOp[] {
     if (!cell) return [];
     const text = cell.text?.trim();
     if (cell.items?.length) {
@@ -481,7 +499,15 @@
     }
     if (cell.cmNode) return [{ cm: cell.cmNode }];
     if (cell.card) return [{ node: cell.card as DocNode }];
-    if (text) return [{ node: stubNode(text, { analytic: true }) }]; // typed cell → analytic
+    if (text) {
+      // A hand-typed answer → analytic, headed by "AT: <the argument it answers>"
+      // (the cell to its left) so the doc reads like a proper answer block.
+      const ops: DocOp[] = [];
+      const at = ctx ? argToLeft(ctx.sheet, ctx.row, ctx.col) : "";
+      if (at) ops.push({ node: stubNode("AT: " + at, { level: 3 }) });
+      ops.push({ node: stubNode(text, { analytic: true }) });
+      return ops;
+    }
     return [];
   }
 
@@ -572,13 +598,13 @@
       const ops: DocOp[] = [];
       for (let r = rect.r0; r <= rect.r1; r++)
         for (let c = rect.c0; c <= rect.c1; c++)
-          ops.push(...cellDocOps(sheet.rows[r]?.cells[c]));
+          ops.push(...cellDocOps(sheet.rows[r]?.cells[c], { sheet, row: r, col: c }));
       sendOpsToDoc(ops, rect.c0, "cursor");
       return;
     }
     if (!store.cursor) return;
     const { row, col } = store.cursor;
-    sendOpsToDoc(cellDocOps(sheet.rows[row]?.cells[col]), col, "cursor");
+    sendOpsToDoc(cellDocOps(sheet.rows[row]?.cells[col], { sheet, row, col }), col, "cursor");
   }
 
   // "Send Entire Row" → FLOW ORDER: every cell in the current column, top to
@@ -590,7 +616,7 @@
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
     docOpen = true;
-    const ops = sheet.rows.flatMap((r) => cellDocOps(r.cells[col]));
+    const ops = sheet.rows.flatMap((r, row) => cellDocOps(r.cells[col], { sheet, row, col }));
     sendOpsToDoc(ops, col, "flow");
   }
   let addingSheet = $state(false);
@@ -733,6 +759,18 @@
     // ⌘1-6 styles, etc.). Don't let flow shortcuts (undo/redo, ⌘1-9 tab switch)
     // also fire off the same keypress.
     if (e.target instanceof HTMLElement && e.target.closest(".speech-doc")) return;
+    // Send-to-doc keys, all on the backtick. `sendCell` is a BARE key (nobody
+    // types a literal ` in a flow cell), so guard real text inputs (round name /
+    // rename boxes) where you might. Not available on the round-home screen.
+    {
+      const t = e.target as HTMLElement | null;
+      const inTextInput = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA";
+      if (!atHome && !inTextInput) {
+        if (matchesAny(e, km.sendCell)) { e.preventDefault(); sendCellToDoc(); return; }
+        if (matchesAny(e, km.sendRow)) { e.preventDefault(); sendSpeechToDoc(); return; }
+        if (matchesAny(e, km.removeCell)) { e.preventDefault(); removeCellAndDoc(); return; }
+      }
+    }
     if (matchesAny(e, km.undo)) {
       e.preventDefault();
       store.undo();
@@ -756,7 +794,7 @@
       reorderCurrent(1);
     } else if (matchesAny(e, km.groupArgs)) {
       e.preventDefault();
-      store.groupSelected();
+      if (!store.groupSelected()) showFlash("Pick 2+ cells in the same column, then group");
     } else if (matchesAny(e, km.toggleSplit)) {
       e.preventDefault();
       setSpread("horizontal"); // Split — flows side by side
@@ -1090,6 +1128,9 @@
       <Timer onclose={() => (showTimer = false)} />
     {/if}
 
+    {#if flash}<div class="flash-toast">{flash}</div>{/if}
+
+
     {#if showManual}
       <Manual onclose={() => (showManual = false)} />
     {/if}
@@ -1181,6 +1222,12 @@
     white-space: nowrap;
   }
   .bar-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+  .flash-toast {
+    position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%);
+    z-index: 60; background: var(--text); color: var(--bg);
+    padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 500;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3); pointer-events: none;
+  }
   .bar-btn.active {
     background: color-mix(in srgb, var(--accent) 16%, transparent);
     border-color: color-mix(in srgb, var(--accent) 40%, transparent);

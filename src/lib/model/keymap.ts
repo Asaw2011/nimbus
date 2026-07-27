@@ -22,6 +22,9 @@ export type ActionId =
   | "markAnalytic"
   | "markCard"
   | "groupArgs"
+  | "sendCell"
+  | "sendRow"
+  | "removeCell"
   | "newSheet"
   | "prevSheet"
   | "nextSheet"
@@ -70,6 +73,9 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   markAnalytic: "Mark as analytic (colors ink)",
   markCard: "Mark as card (colors ink)",
   groupArgs: "Group arguments (bracket the selected / ⌘-clicked cells)",
+  sendCell: "Send cell(s) to the speech doc",
+  sendRow: "Send the whole speech to the doc (flow order)",
+  removeCell: "Clear cell & remove its card from the doc",
   newSheet: "New sheet",
   prevSheet: "Previous sheet (left)",
   nextSheet: "Next sheet (right)",
@@ -113,17 +119,27 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   insertRow3Above: [{ key: "enter", mod: true, alt: true, shift: true }],
   moveDownRows: [{ key: "\\", mod: true }],
   deleteRow: [{ key: "backspace", mod: true, shift: true }],
-  extendArg: [{ key: "g", mod: true }],
+  // Distinct, memorable keys (not the confusing ⌘G / ⌘⇧G pair): extend = ⌘→
+  // (carry the argument to the next speech, rightward), group = ⌘R.
+  extendArg: [{ key: "arrowright", mod: true }],
   markDropped: [{ key: "d", mod: true }],
-  markStarred: [{ key: "s", mod: true, shift: true }],
+  // Marks kept OFF the copy/paste/save family (⌘⇧C / ⌘⇧S) so a mis-hit can't
+  // clobber your clipboard: star = ⌘⇧8 (★ = *), card = ⌘⇧E (Evidence).
+  markStarred: [{ key: "8", mod: true, shift: true }],
   markAnalytic: [{ key: "a", mod: true, shift: true }],
-  markCard: [{ key: "c", mod: true, shift: true }],
-  groupArgs: [{ key: "g", mod: true, shift: true }],
+  markCard: [{ key: "e", mod: true, shift: true }],
+  groupArgs: [{ key: "r", mod: true }],
+  // Send to the speech doc, all on the backtick (nobody types ` in a flow cell):
+  // ` = this cell, ⌘` = the whole speech, ⌘⌫ = clear cell + pull its card out.
+  sendCell: [{ key: "`" }],
+  sendRow: [{ key: "`", mod: true }],
+  removeCell: [{ key: "backspace", mod: true }],
   newSheet: [{ key: "t", mod: true }],
   prevSheet: [{ key: "[", mod: true }],
   nextSheet: [{ key: "]", mod: true }],
-  moveSheetLeft: [{ key: "arrowleft", mod: true, shift: true }],
-  moveSheetRight: [{ key: "arrowright", mod: true, shift: true }],
+  // Pair with prev/next (⌘[ / ⌘]) and avoid ⌘⇧← which is "select to line start".
+  moveSheetLeft: [{ key: "[", mod: true, shift: true }],
+  moveSheetRight: [{ key: "]", mod: true, shift: true }],
   toggleSpread: [{ key: "b", mod: true }],
   toggleSplit: [{ key: "b", mod: true, shift: true }],
   goHome: [{ key: "0", mod: true }],
@@ -171,6 +187,10 @@ export const ACTION_GROUPS: ActionGroup[] = [
   {
     title: "Flowing & marks",
     actions: ["extendArg", "markDropped", "markStarred", "markAnalytic", "markCard", "groupArgs", "authorLookup"],
+  },
+  {
+    title: "Send to speech doc",
+    actions: ["sendCell", "sendRow", "removeCell"],
   },
   {
     title: "Sheets",

@@ -948,6 +948,11 @@
         if (e.shiftKey) void saveAsFile(); else void saveToFile();
         return true;
       }
+      // Keyboard zoom for the doc — always works (touchpad pinch can be eaten by
+      // the OS webview). ⌘= / ⌘- zoom, ⌘⇧0 resets. (⌘0 alone = Body style.)
+      if ((k === "=" || k === "+") && !e.shiftKey) { e.preventDefault(); settings.docZoomIn(); return true; }
+      if (k === "-" && !e.shiftKey) { e.preventDefault(); settings.docZoomOut(); return true; }
+      if (k === "0" && e.shiftKey) { e.preventDefault(); settings.docZoomReset(); return true; }
     }
     const km = settings.keymap;
     const hit = (fn: () => void) => { fn(); return true; };
@@ -1027,6 +1032,17 @@
       tr.setMeta(searchKey, { query: searchQuery, index: searchIndex });
       tr.setMeta("addToHistory", false);
       view.dispatch(tr);
+      // Belt-and-suspenders: also scroll the match's DOM node to the center.
+      // Native scrollIntoView is zoom-safe and works even though focus is in the
+      // find box (PM's own scroll can under-shoot in that case).
+      requestAnimationFrame(() => {
+        try {
+          const at = view?.domAtPos(m.from);
+          const node = at?.node;
+          const el = node?.nodeType === 3 ? node.parentElement : (node as HTMLElement | null);
+          el?.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch { /* position no longer valid */ }
+      });
     }
   }
   function stepSearch(dir: number) {

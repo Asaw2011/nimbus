@@ -19,25 +19,27 @@ import `.docx` speech docs.
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.1.9_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.1.9_x64-setup.exe`
+- **macOS** — `Nimbus_0.2.0_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.2.0_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**
 - Windows: **More info → Run anyway**
 
-## New in 0.1.9
+## New in 0.2.0
 
-- **Group arguments** — bracket several arguments (sequential, or non-sequential
-  like 1, 4, 6 via ⌘-click) to answer them together; ⌘⇧G or the ribbon.
-- **Cursor → speech centers every flow** in the spread, so all flows show that
-  column with its neighbors.
-- **Ribbon auto-fits** the window — compacts to one row on any screen, no scroll.
-- **Separate Stack (⌘B) / Split (⌘⇧B) keybinds**; quick cards drag onto the flow;
-  doc import splits pages by block, not per card.
+- **Flow → doc on the backtick** — `` ` `` sends the cell, `⌘`` ` `` `` the whole
+  speech, `⌘⌫` clears it + pulls its card; hand-typed answers get an
+  **"AT: …"** header naming what they answer.
+- **Grouping, reworked** — clearer right-side brace + tinted cells; **⌘-click**
+  any cells (even 1, 4, 6) then **⌘R**, sequential or not, one key.
+- **Logical default keybinds** — marks off the copy/paste family; Extend `⌘→`,
+  Group `⌘R` (no more ⌘G/⌘⇧G).
+- **Doc keyboard zoom** (`⌘=` / `⌘-`), **⌘F** scrolls to the match, and **1NC
+  import splits by block heading** (one page per off-case).
 
-Earlier: Timer + presets (0.1.8), the doc data-loss fix, Save / Save As, word
-count + read-time, and the argument bank (0.1.7).
+Earlier: argument grouping + ribbon auto-fit (0.1.9), Timer (0.1.8), the doc
+data-loss fix, Save / Save As, and the argument bank (0.1.7).
 
 See the [full changelog](CHANGELOG.md) for details.
 
@@ -186,7 +188,7 @@ npm run check       # typecheck
 Cut a release (builds macOS + Windows in the cloud):
 
 ```sh
-git tag v0.1.9 && git push origin v0.1.9
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 Open the **📖 Manual** in the app for a full feature reference, or press `⌘/`

@@ -338,7 +338,9 @@ export function positionSections(roots: DocNode[]): DocNode[] {
   return out.length ? out : roots;
 }
 
-/** Generic section names (OFF, 1NC) get numbered "Off 1", "Off 2" in order. */
+/** Generic section names (OFF, 1NC) get numbered "Off 1", "Off 2" in order.
+ *  A long phrase is a tagline, NOT a page title, so leave it Untitled rather
+ *  than cram a whole sentence into the tab (and cause a duplicate row). */
 export function sectionTitles(sections: DocNode[]): string[] {
   let offN = 0;
   return sections.map((s) => {
@@ -348,6 +350,8 @@ export function sectionTitles(sections: DocNode[]): string[] {
       offN += 1;
       return `Off ${offN}`;
     }
+    // More than ~4 words → almost certainly a tagline, not a title. Untitled.
+    if (clean.split(/\s+/).filter(Boolean).length > 4) return "";
     return clean;
   });
 }

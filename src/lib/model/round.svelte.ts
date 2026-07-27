@@ -625,15 +625,20 @@ class RoundStore {
 
   /** Group the ⌘-clicked cells if any, else the rectangular selection, else the
    *  cursor cell — into a bracket per column. Rows may be non-sequential. */
-  groupSelected(label = ""): void {
+  /** Returns the number of brackets created (0 if there weren't 2+ cells in any
+   *  one column — the caller can then show a hint). */
+  groupSelected(label = ""): number {
     const sheet = this.activeSheet;
-    if (!sheet) return;
+    if (!sheet) return 0;
     const cells: { row: number; col: number }[] = [];
     if (this.markedCells.size) {
       for (const k of this.markedCells) {
         const [r, c] = k.split(",").map(Number);
         cells.push({ row: r, col: c });
       }
+      // The cell you're ON counts too — so ⌘-clicking ONE other cell already
+      // makes a group of two (you don't have to ⌘-click the current cell).
+      if (this.cursor) cells.push({ row: this.cursor.row, col: this.cursor.col });
     } else {
       const rect = this.selRect;
       if (rect) {
@@ -643,7 +648,7 @@ class RoundStore {
         cells.push({ row: this.cursor.row, col: this.cursor.col });
       }
     }
-    if (cells.length === 0) return;
+    if (cells.length === 0) return 0;
     // One bracket per column (a group lives in a single speech column).
     const byCol = new Map<number, number[]>();
     for (const { row, col } of cells) {
@@ -651,16 +656,19 @@ class RoundStore {
       if (!arr.includes(row)) arr.push(row);
       byCol.set(col, arr);
     }
-    this.mutate(() => {
-      const groups = (sheet.groups ??= []);
-      for (const [col, rows] of byCol) {
-        if (rows.length < 2) continue; // a group needs at least two arguments
-        rows.sort((a, b) => a - b);
-        groups.push({ id: uid(), col, rows, label });
-      }
-    });
+    const added: CellGroup[] = [];
+    for (const [col, rows] of byCol) {
+      if (rows.length < 2) continue; // a group needs at least two arguments
+      rows.sort((a, b) => a - b);
+      added.push({ id: uid(), col, rows, label });
+    }
+    if (added.length === 0) return 0; // nothing groupable — leave marks alone
+    // Reassign the array (not push) so the $state length signal updates and the
+    // brackets actually render — same reactivity gotcha as the argument bank.
+    this.mutate(() => { sheet.groups = [...(sheet.groups ?? []), ...added]; });
     this.clearMarked();
     this.selection = null;
+    return added.length;
   }
 
   removeGroup(id: string): void {
