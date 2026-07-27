@@ -24,6 +24,12 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # Run the platforms ONE AT A TIME. In parallel, both tauri-action jobs
+      # race to create the draft release for the same tag and can end up making
+      # TWO drafts with the assets split between them — which breaks the manifest
+      # job (it only sees one platform's .sig). Sequential = the first job makes
+      # the draft, the second appends to it.
+      max-parallel: 1
       matrix:
         include:
           - platform: macos-latest
