@@ -2,7 +2,7 @@
 // debounced persistence. All mutations go through `mutate()` so history and
 // autosave can never be bypassed.
 
-import type { ArgRef, Cell, CellItem, Round, Sheet, SpeechTemplate } from "./types";
+import type { ArgRef, Cell, CellGroup, CellItem, Round, Sheet, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRound } from "./persist";
 
@@ -27,6 +27,8 @@ class RoundStore {
   docSelSize = $state(11);
   /** Excel-style range selection on the active sheet (anchor→focus corners). */
   selection = $state<{ anchor: Cursor; focus: Cursor } | null>(null);
+  /** Cells ⌘-clicked to build a NON-sequential argument group. Key "row,col". */
+  markedCells = $state<Set<string>>(new Set());
 
   private undoStack: string[] = [];
   private redoStack: string[] = [];
@@ -601,6 +603,106 @@ class RoundStore {
   inSelection(row: number, col: number): boolean {
     const r = this.selRect;
     return r !== null && row >= r.r0 && row <= r.r1 && col >= r.c0 && col <= r.c1;
+  }
+
+  // ---- argument groups (brackets) ----------------------------------------
+
+  isMarked(row: number, col: number): boolean {
+    return this.markedCells.has(row + "," + col);
+  }
+
+  /** ⌘-click toggles a cell into the group-in-progress (for non-sequential). */
+  toggleMarkedCell(row: number, col: number): void {
+    const k = row + "," + col;
+    const next = new Set(this.markedCells);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    this.markedCells = next;
+  }
+
+  clearMarked(): void {
+    if (this.markedCells.size) this.markedCells = new Set();
+  }
+
+  /** Group the ⌘-clicked cells if any, else the rectangular selection, else the
+   *  cursor cell — into a bracket per column. Rows may be non-sequential. */
+  groupSelected(label = ""): void {
+    const sheet = this.activeSheet;
+    if (!sheet) return;
+    const cells: { row: number; col: number }[] = [];
+    if (this.markedCells.size) {
+      for (const k of this.markedCells) {
+        const [r, c] = k.split(",").map(Number);
+        cells.push({ row: r, col: c });
+      }
+    } else {
+      const rect = this.selRect;
+      if (rect) {
+        for (let r = rect.r0; r <= rect.r1; r++)
+          for (let c = rect.c0; c <= rect.c1; c++) cells.push({ row: r, col: c });
+      } else if (this.cursor) {
+        cells.push({ row: this.cursor.row, col: this.cursor.col });
+      }
+    }
+    if (cells.length === 0) return;
+    // One bracket per column (a group lives in a single speech column).
+    const byCol = new Map<number, number[]>();
+    for (const { row, col } of cells) {
+      const arr = byCol.get(col) ?? [];
+      if (!arr.includes(row)) arr.push(row);
+      byCol.set(col, arr);
+    }
+    this.mutate(() => {
+      const groups = (sheet.groups ??= []);
+      for (const [col, rows] of byCol) {
+        if (rows.length < 2) continue; // a group needs at least two arguments
+        rows.sort((a, b) => a - b);
+        groups.push({ id: uid(), col, rows, label });
+      }
+    });
+    this.clearMarked();
+    this.selection = null;
+  }
+
+  removeGroup(id: string): void {
+    const sheet = this.activeSheet;
+    if (!sheet?.groups) return;
+    this.mutate(() => { sheet.groups = sheet.groups!.filter((g) => g.id !== id); });
+  }
+
+  renameGroup(id: string, label: string): void {
+    const sheet = this.activeSheet;
+    if (!sheet?.groups) return;
+    this.mutate(() => { const g = sheet.groups!.find((x) => x.id === id); if (g) g.label = label; });
+  }
+
+  /** Ungroup whatever group brackets the cursor cell (for the Ungroup action). */
+  ungroupAtCursor(): void {
+    const sheet = this.activeSheet;
+    const cur = this.cursor;
+    if (!sheet?.groups || !cur) return;
+    const g = sheet.groups.find(
+      (x) => x.col === cur.col && cur.row >= x.rows[0] && cur.row <= x.rows[x.rows.length - 1],
+    );
+    if (g) this.removeGroup(g.id);
+  }
+
+  /** For rendering: is (row,col) inside a group's span on the given sheet?
+   *  Returns the group + whether this row is a member and the span's ends. */
+  groupSpanAt(
+    sheetId: string,
+    row: number,
+    col: number,
+  ): { group: CellGroup; member: boolean; top: boolean; bottom: boolean } | null {
+    const sheet = this.round?.sheets.find((s) => s.id === sheetId);
+    if (!sheet?.groups) return null;
+    for (const g of sheet.groups) {
+      if (g.col !== col || g.rows.length === 0) continue;
+      const min = g.rows[0];
+      const max = g.rows[g.rows.length - 1];
+      if (row < min || row > max) continue;
+      return { group: g, member: g.rows.includes(row), top: row === min, bottom: row === max };
+    }
+    return null;
   }
 
   /** Extend the selection focus (shift+arrow / drag). */

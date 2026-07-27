@@ -19,23 +19,25 @@ import `.docx` speech docs.
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.1.8_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.1.8_x64-setup.exe`
+- **macOS** — `Nimbus_0.1.9_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.1.9_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**
 - Windows: **More info → Run anyway**
 
-## New in 0.1.8
+## New in 0.1.9
 
-- **Timer** — a draggable stopwatch + five countdown presets (speech / prep
-  times), editable in Settings; beeps at 0:00.
-- **Cursor → speech** in the ribbon — jump your cursor to the top of any speech's
-  column, and it stays on that column across every flow.
-- **Main event setting** (Policy / LD / PF) — new rounds default to your event.
+- **Group arguments** — bracket several arguments (sequential, or non-sequential
+  like 1, 4, 6 via ⌘-click) to answer them together; ⌘⇧G or the ribbon.
+- **Cursor → speech centers every flow** in the spread, so all flows show that
+  column with its neighbors.
+- **Ribbon auto-fits** the window — compacts to one row on any screen, no scroll.
+- **Separate Stack (⌘B) / Split (⌘⇧B) keybinds**; quick cards drag onto the flow;
+  doc import splits pages by block, not per card.
 
-Earlier in 0.1.7: fixed the doc data-loss bug, Save / Save As `.docx`, word count
-+ read-time, the argument bank manager, and paired line-by-line responses.
+Earlier: Timer + presets (0.1.8), the doc data-loss fix, Save / Save As, word
+count + read-time, and the argument bank (0.1.7).
 
 See the [full changelog](CHANGELOG.md) for details.
 
@@ -131,7 +133,8 @@ See the [full changelog](CHANGELOG.md) for details.
 - Themes (five light, plus **Slate** and Dark), custom aff/neg/analytic/card
   colors, adjustable font/size/row height, and **bundled Lexend + Calibri** fonts
   that work offline
-- **Ribbon density** — cycle the toolbar between full, icons, and slim
+- **Ribbon auto-fits** the window (full → icons → slim → micro) so it stays one
+  row on any screen; the density button sets your preferred max verbosity
 - **Pinch-to-zoom** the flow and the doc; tabbed Settings; and a built-in
   **📖 Manual** that explains every feature
 - Everything auto-saves to disk and survives updates; export/import your full
@@ -183,7 +186,7 @@ npm run check       # typecheck
 Cut a release (builds macOS + Windows in the cloud):
 
 ```sh
-git tag v0.1.8 && git push origin v0.1.8
+git tag v0.1.9 && git push origin v0.1.9
 ```
 
 Open the **📖 Manual** in the app for a full feature reference, or press `⌘/`

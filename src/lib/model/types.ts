@@ -88,6 +88,18 @@ export interface Row {
 
 export type SheetKind = "case" | "offcase" | "overview" | "cx" | "custom";
 
+/** A bracket grouping several argument rows in ONE speech column — like drawing
+ *  a brace on paper to answer arguments together. Rows may be non-sequential
+ *  (e.g. 1, 4, 6); the bracket spans min→max and marks the member rows. */
+export interface CellGroup {
+  id: string;
+  col: number;
+  /** The argument rows in the group (sorted; can be non-sequential). */
+  rows: number[];
+  label?: string;
+  color?: string;
+}
+
 export interface Sheet {
   id: string;
   title: string;
@@ -101,6 +113,8 @@ export interface Sheet {
   /** Custom accent color; when unset, the kind default applies (aff blue / neg red). */
   color?: string;
   rows: Row[];
+  /** Argument groups (brackets) on this sheet. */
+  groups?: CellGroup[];
 }
 
 /** A sheet's accent: custom color if set, else the side default by kind. */

@@ -109,9 +109,52 @@
     settings.ribbonMode = order[(i + 1) % order.length];
     settings.save();
   }
+
+  // ── Auto-fit ──────────────────────────────────────────────────────
+  // The ribbon must fit the window WIDTH without scrolling, on any screen. It
+  // starts at the chosen density and automatically compacts (full → icons →
+  // slim → micro) just enough to fit, re-measuring on every resize.
+  let ribbonEl = $state<HTMLDivElement>();
+  // The mode actually shown (bound to the template classes so Svelte keeps the
+  // CSS). Measurement toggles classList transiently; this holds the result.
+  let fitMode = $state<(typeof MODES)[number]>("full");
+  const MODES = ["full", "icons", "slim", "micro"] as const;
+  function applyMode(el: HTMLElement, i: number) {
+    el.classList.toggle("mode-icons", i === 1);
+    el.classList.toggle("mode-slim", i === 2 || i === 3);
+    el.classList.toggle("mode-micro", i === 3);
+  }
+  function refit() {
+    const el = ribbonEl;
+    if (!el) return;
+    const start = Math.max(0, MODES.indexOf(settings.ribbonMode as (typeof MODES)[number]));
+    let best = MODES.length - 1; // micro floor if nothing fits (narrow window)
+    for (let i = start; i < MODES.length; i++) {
+      applyMode(el, i);
+      if (el.scrollWidth <= el.clientWidth + 1) { best = i; break; }
+      best = i;
+    }
+    fitMode = MODES[best];
+  }
+  let rafId = 0;
+  $effect(() => {
+    void settings.ribbonMode; // re-fit when the density preference changes
+    if (!ribbonEl) return;
+    const schedule = () => { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(refit); };
+    const ro = new ResizeObserver(schedule);
+    ro.observe(ribbonEl);
+    schedule();
+    return () => { cancelAnimationFrame(rafId); ro.disconnect(); };
+  });
 </script>
 
-<div class="ribbon" class:mode-icons={settings.ribbonMode === "icons"} class:mode-slim={settings.ribbonMode === "slim"}>
+<div
+  class="ribbon"
+  bind:this={ribbonEl}
+  class:mode-icons={fitMode === "icons"}
+  class:mode-slim={fitMode === "slim" || fitMode === "micro"}
+  class:mode-micro={fitMode === "micro"}
+>
   <div class="group">
     <div class="controls">
       <button class="rb" title="Undo (⌘Z)" onclick={() => store.undo()}>↶ Undo</button>
@@ -171,6 +214,8 @@
       <button class="rb analytic" title="This is an analytic — no card ({combosLabel(km.markAnalytic, mac)})" onclick={() => evidence("analytic")}>Analytic</button>
       <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onclick={() => evidence("card")}>Card</button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}>➜ Extend</button>
+      <button class="rb" title="Group arguments into a bracket — select a range, or ⌘-click cells for a non-sequential group (1, 4, 6), then Group ({combosLabel(km.groupArgs, mac)})" onclick={() => store.groupSelected()}>⦃ Group</button>
+      <button class="rb" title="Remove the group bracketing the current cell" onclick={() => store.ungroupAtCursor()}>Ungroup</button>
       {#if onsendspeech}
         <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order — mirrors the flow and de-dupes." onclick={onsendspeech}>↕ Send Entire Row</button>
       {/if}
@@ -363,4 +408,14 @@
   .ribbon.mode-icons .group { padding: 0 6px; }
   .ribbon.mode-icons .controls { gap: 2px; }
   .ribbon.mode-icons .rb { height: 24px; padding: 0 5px; font-size: 11px; }
+  /* micro — the auto-fit floor for small windows: pack tight so it still fits
+     one row. Applied on top of slim; groups stop spreading and everything
+     shrinks a notch further. */
+  .ribbon.mode-micro { padding: 2px 5px 1px; }
+  .ribbon.mode-micro .group { flex: 0 1 auto; padding: 0 4px; }
+  .ribbon.mode-micro .controls { gap: 1px; }
+  .ribbon.mode-micro .rb { height: 22px; padding: 0 4px; font-size: 10.5px; border-radius: 4px; }
+  .ribbon.mode-micro .zoom-ctl { margin-left: 2px; }
+  .ribbon.mode-micro .zoom-btn { min-width: 17px; padding: 1px 2px; }
+  .ribbon.mode-micro .zoom-pct { min-width: 32px; }
 </style>

@@ -30,7 +30,6 @@
   let showTimer = $state(false);
   // Spread view: several sheets visible at once, stacked or side-by-side.
   let spreadMode = $state<"off" | "vertical" | "horizontal">("off");
-  let lastSpread = $state<"vertical" | "horizontal">("vertical");
   let hiddenInSpread = $state<string[]>([]);
   const spread = $derived(spreadMode !== "off");
   // Tab drag & drop reordering (Excel-style: grab a tab, slide it into place)
@@ -413,6 +412,13 @@
    *  speech's column and open the flow. The column is preserved as you switch
    *  sheets (clamped per sheet's startCol), so it lands on that speech on each. */
   function moveCursorToSpeech(col: number) {
+    // In the spread (stack/split) STAY in the spread — just move the cursor
+    // column so every visible flow re-centers on that speech (the Grid centers
+    // its own column), instead of collapsing back to a single flow.
+    if (spread) {
+      store.cursor = { row: 0, col };
+      return;
+    }
     const target = store.activeSheetId ?? round?.sheets[0]?.id;
     if (!target) return;
     openSheet(target);
@@ -667,10 +673,7 @@
 
   function setSpread(mode: "vertical" | "horizontal") {
     spreadMode = spreadMode === mode ? "off" : mode;
-    if (spreadMode !== "off") {
-      lastSpread = mode;
-      atHome = false;
-    }
+    if (spreadMode !== "off") atHome = false;
   }
 
   function toggleSheetOnDesk(sheetId: string) {
@@ -751,9 +754,15 @@
     } else if (matchesAny(e, km.moveSheetRight)) {
       e.preventDefault();
       reorderCurrent(1);
+    } else if (matchesAny(e, km.groupArgs)) {
+      e.preventDefault();
+      store.groupSelected();
+    } else if (matchesAny(e, km.toggleSplit)) {
+      e.preventDefault();
+      setSpread("horizontal"); // Split — flows side by side
     } else if (matchesAny(e, km.toggleSpread)) {
       e.preventDefault();
-      setSpread(lastSpread);
+      setSpread("vertical"); // Stack — flows stacked, columns aligned
     } else if (matchesAny(e, km.goHome)) {
       e.preventDefault();
       // Save position so returning to this sheet restores it.

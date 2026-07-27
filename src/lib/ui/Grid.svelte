@@ -200,6 +200,31 @@
     best?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  // Keep the cursor's COLUMN centered horizontally so you always see the speech
+  // you're on with the columns on either side. Runs in EVERY Grid — so in the
+  // spread (stack OR split) every flow re-centers on the same speech when you
+  // jump the cursor (e.g. Cursor → 2NR), not just the focused one.
+  let lastCenteredCol = -1;
+  $effect(() => {
+    const col = store.cursor?.col;
+    void store.activeSheetId; // re-run when the active flow changes too
+    if (col == null || !scroller) return;
+    if (col === lastCenteredCol) return; // only on a real column change, not row moves
+    lastCenteredCol = col;
+    const idx = col - colStart;
+    requestAnimationFrame(() => {
+      if (!scroller) return;
+      const headers = scroller.querySelectorAll<HTMLElement>(".header");
+      if (!headers.length) return;
+      // Clamp: a speech whose column is DEAD/absent on this sheet — e.g. 1AC
+      // (col 0) on an off-case, where idx goes negative, or a column past the
+      // end — still orients the view to that edge instead of silently doing
+      // nothing (that was the "1AC doesn't work" bug).
+      const clamped = Math.max(0, Math.min(idx, headers.length - 1));
+      headers[clamped].scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    });
+  });
+
   // Recompute cues whenever the sheet content changes or on first paint.
   $effect(() => {
     void sheet.rows.length;
@@ -226,6 +251,14 @@
     if (e.button !== 0) return;
     const rc = cellAt(e);
     if (!rc) return;
+    // ⌘/Ctrl-click: toggle this cell into the group-in-progress (build a group
+    // from non-sequential arguments, e.g. 1, 4, 6). Then press Group (⌘⇧G).
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
+      e.preventDefault();
+      store.activeSheetId = sheet.id;
+      store.toggleMarkedCell(rc.r, rc.c);
+      return;
+    }
     // Shift+click: extend/create a selection from the cursor.
     if (e.shiftKey && store.cursor && store.activeSheetId === sheet.id) {
       e.preventDefault();

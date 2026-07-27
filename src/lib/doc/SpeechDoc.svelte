@@ -579,7 +579,16 @@
     if (!view) return null;
     const sel = view.state.selection;
     if (sel.empty) return null;
-    const slice = sel.content();
+    // Capture WHOLE blocks the selection touches (a CLOSED slice). The raw
+    // selection (sel.content()) is an OPEN slice when you select INSIDE a tag,
+    // and re-inserting an open slice merges it into the target paragraph — which
+    // strips the tag's block style. That's the intermittent bug: it only broke
+    // when your selection didn't reach the block edges. Whole-block capture makes
+    // the tag survive every time.
+    const rFrom = sel.$from, rTo = sel.$to;
+    const from = rFrom.depth >= 1 ? rFrom.before(1) : sel.from;
+    const to = rTo.depth >= 1 ? rTo.after(1) : sel.to;
+    const slice = view.state.doc.slice(from, to);
     // Default name: the smallest enclosing heading/tag, else the selected text.
     let name = "";
     const at = sel.$from;

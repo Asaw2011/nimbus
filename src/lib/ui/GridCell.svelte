@@ -37,6 +37,10 @@
       store.hasMultiSelection &&
       store.inSelection(row, col),
   );
+  // ⌘-clicked into a group-in-progress, and the argument-group bracket (if any)
+  // spanning this cell.
+  const marked = $derived(store.activeSheetId === sheetId && store.isMarked(row, col));
+  const gspan = $derived(store.groupSpanAt(sheetId, row, col));
 
   let editor: HTMLDivElement | undefined = $state();
   let cellEl = $state<HTMLDivElement>(); // the .cell root (for paired-box focus checks)
@@ -499,9 +503,40 @@
   class:analytic={cell.marks?.evidence === "analytic"}
   class:card={cell.marks?.evidence === "card"}
   class:drop-target={dropTarget}
+  class:marked
   data-r={row}
   data-c={col}
 >
+  {#if gspan}
+    <!-- Argument-group bracket: a vertical brace down the left edge spanning the
+         group, brighter on member rows, with caps at the top/bottom. -->
+    <div
+      class="group-bar"
+      class:member={gspan.member}
+      class:g-top={gspan.top}
+      class:g-bottom={gspan.bottom}
+      style="--gcolor: {gspan.group.color ?? 'var(--accent)'}"
+    ></div>
+    {#if gspan.top}
+      <div class="group-label" style="--gcolor: {gspan.group.color ?? 'var(--accent)'}">
+        <input
+          class="group-label-input"
+          value={gspan.group.label ?? ''}
+          placeholder="group"
+          title="Name this group"
+          onpointerdown={(e) => e.stopPropagation()}
+          onclick={(e) => e.stopPropagation()}
+          onchange={(e) => store.renameGroup(gspan.group.id, (e.currentTarget as HTMLInputElement).value)}
+        />
+        <button
+          class="group-x"
+          title="Ungroup"
+          onpointerdown={(e) => e.stopPropagation()}
+          onclick={(e) => { e.stopPropagation(); store.removeGroup(gspan.group.id); }}
+        >×</button>
+      </div>
+    {/if}
+  {/if}
   {#if cell.ext}
     <span class="ext-arrow" title="Extended from an earlier speech">➜</span>
   {/if}
@@ -652,6 +687,44 @@
     background: var(--cell-bg);
     min-height: var(--row-h, 26px);
   }
+  /* ⌘-clicked, pending group */
+  .cell.marked { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent); }
+  /* Argument-group bracket down the left edge */
+  .group-bar {
+    position: absolute;
+    left: 1px; top: 0; bottom: 0;
+    width: 2px;
+    background: color-mix(in srgb, var(--gcolor) 32%, transparent);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .group-bar.member { width: 3px; background: var(--gcolor); }
+  .group-bar.g-top { top: 2px; }
+  .group-bar.g-top::before {
+    content: ""; position: absolute; left: 0; top: 0; width: 7px; height: 2px; background: var(--gcolor);
+  }
+  .group-bar.g-bottom { bottom: 2px; }
+  .group-bar.g-bottom::after {
+    content: ""; position: absolute; left: 0; bottom: 0; width: 7px; height: 2px; background: var(--gcolor);
+  }
+  .group-label {
+    position: absolute; left: 6px; top: 1px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 1px;
+  }
+  .group-label-input {
+    width: 46px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--gcolor);
+    background: var(--cell-bg);
+    border: 1px solid color-mix(in srgb, var(--gcolor) 45%, transparent);
+    border-radius: 3px; padding: 0 3px; outline: none;
+  }
+  .group-label-input:focus { border-color: var(--gcolor); width: 80px; }
+  .group-x {
+    font-size: 11px; line-height: 1; border: none; background: none;
+    color: var(--text-dim); cursor: pointer; padding: 0 2px; opacity: 0;
+  }
+  .cell:hover .group-x { opacity: 1; }
+  .group-x:hover { color: var(--mark-dropped, #c0392b); }
   .cell.label .editor {
     font-weight: 700;
   }

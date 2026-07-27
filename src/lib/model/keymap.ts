@@ -21,12 +21,14 @@ export type ActionId =
   | "markStarred"
   | "markAnalytic"
   | "markCard"
+  | "groupArgs"
   | "newSheet"
   | "prevSheet"
   | "nextSheet"
   | "moveSheetLeft"
   | "moveSheetRight"
   | "toggleSpread"
+  | "toggleSplit"
   | "goHome"
   | "toggleHelp"
   | "openSettings"
@@ -67,12 +69,14 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   markStarred: "Star (must answer)",
   markAnalytic: "Mark as analytic (colors ink)",
   markCard: "Mark as card (colors ink)",
+  groupArgs: "Group arguments (bracket the selected / ⌘-clicked cells)",
   newSheet: "New sheet",
   prevSheet: "Previous sheet (left)",
   nextSheet: "Next sheet (right)",
   moveSheetLeft: "Move sheet left (reorder)",
   moveSheetRight: "Move sheet right (reorder)",
-  toggleSpread: "Spread view (multiple sheets at once)",
+  toggleSpread: "Stack view (flows stacked, columns aligned)",
+  toggleSplit: "Split view (flows side by side)",
   goHome: "Round home",
   toggleHelp: "Show keybinds",
   openSettings: "Open settings",
@@ -114,12 +118,14 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   markStarred: [{ key: "s", mod: true, shift: true }],
   markAnalytic: [{ key: "a", mod: true, shift: true }],
   markCard: [{ key: "c", mod: true, shift: true }],
+  groupArgs: [{ key: "g", mod: true, shift: true }],
   newSheet: [{ key: "t", mod: true }],
   prevSheet: [{ key: "[", mod: true }],
   nextSheet: [{ key: "]", mod: true }],
   moveSheetLeft: [{ key: "arrowleft", mod: true, shift: true }],
   moveSheetRight: [{ key: "arrowright", mod: true, shift: true }],
   toggleSpread: [{ key: "b", mod: true }],
+  toggleSplit: [{ key: "b", mod: true, shift: true }],
   goHome: [{ key: "0", mod: true }],
   toggleHelp: [{ key: "/", mod: true }],
   openSettings: [{ key: ",", mod: true }],
@@ -164,7 +170,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
   },
   {
     title: "Flowing & marks",
-    actions: ["extendArg", "markDropped", "markStarred", "markAnalytic", "markCard", "authorLookup"],
+    actions: ["extendArg", "markDropped", "markStarred", "markAnalytic", "markCard", "groupArgs", "authorLookup"],
   },
   {
     title: "Sheets",
@@ -172,7 +178,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
   },
   {
     title: "View & zoom",
-    actions: ["toggleSpread", "goHome", "openDocSearch", "zoomIn", "zoomOut", "zoomReset"],
+    actions: ["toggleSpread", "toggleSplit", "goHome", "openDocSearch", "zoomIn", "zoomOut", "zoomReset"],
   },
   {
     title: "App",

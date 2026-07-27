@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.1.9
+
+### Flowing
+- **Group arguments** — bracket several arguments to answer them together, like
+  drawing a brace on paper. Select a range and press **⦃ Group** (ribbon) or
+  **⌘⇧G**; for a **non-sequential** group (1, 4, 6) **⌘-click** the cells first,
+  then group. Renders as a labeled brace down the left edge; **Ungroup** removes it.
+- **Cursor → speech now centers every flow.** Jumping the cursor to a speech
+  (ribbon **Cursor** dropdown or a Home chip) scrolls **all** visible flows so
+  that column is centered with its neighbors — in normal, stack, and split
+  views — and stays in the spread instead of collapsing to one flow.
+- **Fixed 1AC (and other dead columns).** Jumping to a speech whose column is
+  absent on the current sheet (e.g. 1AC on an off-case) now orients to the edge
+  instead of doing nothing.
+- **Separate Stack / Split keybinds** — **⌘B** = Stack, **⌘⇧B** = Split (each
+  rebindable), instead of one key that only reopened the last mode.
+
+### Ribbon
+- **Auto-fits the window** — measures its width and compacts (full → icons →
+  slim → micro) so it fits one row on any screen, re-fitting on resize. No more
+  horizontal scrolling.
+- Cursor → speech moved into a compact **Cursor** group.
+
+### Speech doc & quick cards
+- **Quick cards drop onto the flow** — the panel is non-modal now, so dragging a
+  card onto a cell works (the old backdrop swallowed the drop); click still drops
+  into the current cell.
+- **Quick-card tag style is preserved** — capturing a selection grabs whole
+  blocks, so a saved tag re-inserts as a tag every time (was intermittent).
+- **Uploading a doc splits pages by block/off-case**, never one page per card.
+
+### Credits
+- Prominent acknowledgement of **Anthony Trufanov**, whose **CardMirror** is
+  vendored as Nimbus's entire speech doc (PolyForm Noncommercial).
+
 ## v0.1.8
 
 ### Flowing
