@@ -19,8 +19,8 @@ import `.docx` speech docs.
 Grab the latest installer from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.2.1_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.2.1_x64-setup.exe`
+- **macOS** — `Nimbus_0.2.2_universal.dmg` (Intel + Apple Silicon)
+- **Windows** — `Nimbus_0.2.2_x64-setup.exe`
 
 Builds are currently unsigned, so first launch shows a security warning:
 - macOS: right-click the app → **Open**

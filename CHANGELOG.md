@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.2
+
+- **Auto-update signing fixed.** 0.2.1's `latest.json` shipped unsigned (the
+  bundle was missing `createUpdaterArtifacts`, so the `.sig` files were never
+  uploaded). Enabled updater artifacts and made the release manifest fail if a
+  signature is missing. **0.2.2 is the first build whose updates actually verify
+  and install** — send people this one.
+
 ## v0.2.1
 
 - **Automatic updates are live.** Nimbus now checks for a new version on launch

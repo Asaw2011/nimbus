@@ -83,28 +83,25 @@ jobs:
           VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
           PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-          # Download all .sig files the build jobs uploaded to the release
+          # Download all .sig files the build jobs uploaded, then find each
+          # platform's updater bundle by PATTERN (names vary — the mac bundle is
+          # often unversioned, e.g. Nimbus_universal.app.tar.gz).
           mkdir -p sigs
           gh release download "$TAG" --repo "$GH_REPO" --pattern "*.sig" -D sigs/ 2>/dev/null || true
+          ls -la sigs/ || true
 
-          # Signatures — prefer the .app.tar.gz updater bundle over the .dmg installer
-          APP_SIG=$(cat "sigs/Nimbus_${VERSION}_universal.app.tar.gz.sig" 2>/dev/null || echo "")
-          DMG_SIG=$(cat "sigs/Nimbus_${VERSION}_universal.dmg.sig" 2>/dev/null || echo "")
-          MAC_SIG="${APP_SIG:-$DMG_SIG}"
-          if [ -n "$APP_SIG" ]; then
-            MAC_FILE="Nimbus_${VERSION}_universal.app.tar.gz"
-          else
-            MAC_FILE="Nimbus_${VERSION}_universal.dmg"
-          fi
+          pick() { ls sigs/$1 2>/dev/null | head -1; }
+          MAC_SIG_PATH=$(pick "*.app.tar.gz.sig")
+          WIN_SIG_PATH=$(pick "*-setup.nsis.zip.sig"); [ -z "$WIN_SIG_PATH" ] && WIN_SIG_PATH=$(pick "*_x64-setup.exe.sig")
 
-          # Windows — NSIS zip bundle is the updater payload, exe is the installer
-          NSIS_SIG=$(cat "sigs/Nimbus_${VERSION}_x64-setup.nsis.zip.sig" 2>/dev/null || echo "")
-          EXE_SIG=$(cat "sigs/Nimbus_${VERSION}_x64-setup.exe.sig" 2>/dev/null || echo "")
-          WIN_SIG="${NSIS_SIG:-$EXE_SIG}"
-          if [ -n "$NSIS_SIG" ]; then
-            WIN_FILE="Nimbus_${VERSION}_x64-setup.nsis.zip"
-          else
-            WIN_FILE="Nimbus_${VERSION}_x64-setup.exe"
+          MAC_SIG=$(cat "$MAC_SIG_PATH" 2>/dev/null || echo "")
+          WIN_SIG=$(cat "$WIN_SIG_PATH" 2>/dev/null || echo "")
+          MAC_FILE=$(basename "${MAC_SIG_PATH%.sig}" 2>/dev/null || echo "")
+          WIN_FILE=$(basename "${WIN_SIG_PATH%.sig}" 2>/dev/null || echo "")
+
+          if [ -z "$MAC_SIG" ] || [ -z "$WIN_SIG" ]; then
+            echo "::error::Missing updater signature (mac='$MAC_FILE' win='$WIN_FILE'). Check createUpdaterArtifacts + signing secrets."
+            exit 1
           fi
 
           jq -n \
