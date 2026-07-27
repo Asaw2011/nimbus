@@ -31,7 +31,10 @@
   }
 </script>
 
-<div class="qcp-backdrop" role="presentation" onclick={onclose}></div>
+<!-- Non-modal: NO full-screen backdrop, so the flow stays interactive — you can
+     drag a card onto a cell (a backdrop would swallow the drop) and click cells
+     while the panel is open. Close with the ✕ or Escape. -->
+<svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
 <div class="qcp" role="dialog" aria-label="Quick cards">
   <div class="qcp-head">
     <span class="qcp-title">Quick Cards</span>
@@ -79,7 +82,6 @@
 </div>
 
 <style>
-  .qcp-backdrop { position: fixed; inset: 0; z-index: 39; }
   .qcp {
     position: fixed;
     top: 46px;

@@ -51,8 +51,10 @@
     // "OFF" container so each off-case becomes its own sheet (an Adv--- stays
     // whole). This fixes a 1NC collapsing its whole off-case block into one sheet.
     const positions = positionSections(roots);
-    if (positions.length >= 2) return positions;
-    for (const level of [1, 2, 3, 4] as const) {
+    // A page is a block / off-case / advantage — NEVER a single card. Tags
+    // (level 4) are cards that live INSIDE a page, so never split at that level.
+    if (positions.length >= 2 && positions.every((p) => p.level < 4)) return positions;
+    for (const level of [1, 2, 3] as const) {
       const at = nodesAtLevel(roots, level);
       if (at.length >= 3) return at;
     }

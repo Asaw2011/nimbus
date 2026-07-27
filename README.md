@@ -137,6 +137,23 @@ See the [full changelog](CHANGELOG.md) for details.
 - Everything auto-saves to disk and survives updates; export/import your full
   settings bundle
 
+## Acknowledgements — thank you, Anthony Trufanov 🙏
+
+Nimbus's entire speech doc **is [CardMirror](https://github.com/ant981228/cardmirror)**,
+created by **Anthony Trufanov** — its editor, its `.docx` importer and exporter,
+and its document schema are vendored directly into this app. The highlighting
+(spoken), underline (the cut), emphasis (boxed power word), the tag/analytic card
+structure, and the lossless `.docx` round-trip all behave *exactly* like
+CardMirror **because they are CardMirror's own code.**
+
+Huge, genuine thanks to **Anthony Trufanov** for building CardMirror and sharing
+it openly. Nimbus simply would not have a real, trustworthy speech doc without his
+work — it is the heart of the whole app. CardMirror is used with deep gratitude
+under its **PolyForm Noncommercial** license, and all credit for that engine
+belongs to Anthony. If Nimbus is useful to you, please go star and support
+**[CardMirror by Anthony Trufanov](https://github.com/ant981228/cardmirror)**
+first. ❤️
+
 ## Planned
 
 Not built yet — this is the roadmap.

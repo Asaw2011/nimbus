@@ -328,8 +328,12 @@ export function positionSections(roots: DocNode[]): DocNode[] {
   }
   const out: DocNode[] = [];
   for (const node of level) {
-    if (isOffContainer(node)) out.push(...node.children);
-    else out.push(node);
+    // Expand an "OFF" hat into its positions ONLY when those are block-level
+    // sections (headings that group cards), not the cards themselves — else a
+    // flat "OFF → tags" doc would make one page per card.
+    if (isOffContainer(node) && node.children.every((c) => c.level < 4)) {
+      out.push(...node.children);
+    } else out.push(node);
   }
   return out.length ? out : roots;
 }
