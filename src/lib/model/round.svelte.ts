@@ -306,9 +306,9 @@ class RoundStore {
       .join("   ");
     const onSheet = (c: ArgRef) =>
       sheetText.includes(c.tag.toLowerCase().slice(0, 20));
-    return hits
-      .sort((a, b) => Number(onSheet(b)) - Number(onSheet(a)))
-      .slice(0, 12);
+    // No cap — the ⌘J list is scrollable, so return the whole bank however big
+    // the imported doc was. (Was capped at 12, then 500; both cut off big docs.)
+    return hits.sort((a, b) => Number(onSheet(b)) - Number(onSheet(a)));
   }
 
   /** The whole argument bank (for the manager UI). */

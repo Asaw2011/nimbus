@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.5
+
+### Argument bank (⌘J) — scroll the whole thing
+- **The lookup was capped at 12 results**, so a big imported doc's cards were cut
+  off and you couldn't reach most of them. The cap is **gone** — ⌘J now lists
+  your entire bank, however large.
+- **You can actually scroll it now.** Arrowing through the list keeps the
+  highlighted match in view, the mouse wheel scrolls the list (not the grid
+  behind it), and the dropdown **flips above the cell** when it would otherwise
+  open off the bottom of the screen.
+
+### Under the hood
+- The release workflow now **publishes automatically** and marks the build as
+  the latest release, so updates go live without a manual step.
+
 ## v0.2.4
 
 ### Fixed — auto-update actually works now

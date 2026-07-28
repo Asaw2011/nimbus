@@ -61,11 +61,34 @@
   let lookupOpen = $state(false);
   let lookupQuery = $state("");
   let lookupSel = $state(0);
+  let lookupEl = $state<HTMLElement | null>(null);
   const lookupMatches = $derived(lookupOpen ? store.argMatches(lookupQuery) : []);
 
+  // Keep the highlighted match in view as you arrow through a long bank —
+  // otherwise the selection scrolls off and you "can't scroll through it".
+  $effect(() => {
+    if (!lookupOpen) return;
+    void lookupSel;
+    lookupEl?.querySelector<HTMLElement>(".al-item.sel")?.scrollIntoView({ block: "nearest" });
+  });
+
+  let lookupUp = $state(false);
   function openLookup() {
     lookupQuery = (editor?.textContent ?? "").trim();
     lookupSel = 0;
+    // Flip the list ABOVE the cell when it sits low in the scroll viewport —
+    // otherwise it opens downward past the bottom edge and gets clipped, so the
+    // lower matches are unreachable.
+    const scroller = cellEl?.closest(".grid-scroll") as HTMLElement | null;
+    const cell = cellEl?.getBoundingClientRect();
+    if (cell) {
+      const box = scroller?.getBoundingClientRect();
+      const below = (box?.bottom ?? window.innerHeight) - cell.bottom;
+      const above = cell.top - (box?.top ?? 0);
+      lookupUp = below < 240 && above > below;
+    } else {
+      lookupUp = false;
+    }
     lookupOpen = true;
   }
   function closeLookup() {
@@ -653,7 +676,7 @@
     {/if}
   {/if}
   {#if lookupOpen}
-    <div class="author-lookup" role="listbox">
+    <div class="author-lookup" class:up={lookupUp} role="listbox" bind:this={lookupEl} onwheel={(e) => e.stopPropagation()}>
       <div class="al-hint">↵ full · ⇥ author only · esc</div>
       {#if lookupMatches.length === 0}
         <div class="al-empty">
@@ -758,6 +781,10 @@
     border-radius: 6px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
     padding: 3px;
+  }
+  .author-lookup.up {
+    top: auto;
+    bottom: 100%;
   }
   .al-hint {
     font-size: 10px;

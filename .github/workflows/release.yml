@@ -128,3 +128,14 @@ jobs:
             }' > latest.json
 
           gh release upload "$TAG" latest.json --repo "$GH_REPO" --clobber
+
+          # Publish the draft and mark it latest so the updater endpoint
+          # (releases/latest/download/latest.json) actually points at it.
+          # tauri-action leaves the release as a draft; without this every
+          # release needs a manual publish. The make_latest flag is applied a
+          # second time on its own because a combined patch intermittently
+          # doesn't move the "latest" pointer.
+          RID=$(gh api "repos/${GH_REPO}/releases" --jq ".[] | select(.tag_name==\"$TAG\") | .id" | head -1)
+          gh api -X PATCH "repos/${GH_REPO}/releases/${RID}" -f draft=false -f make_latest=true >/dev/null
+          gh api -X PATCH "repos/${GH_REPO}/releases/${RID}" -f make_latest=true >/dev/null
+          echo "Published $TAG (release $RID) and set as latest."
