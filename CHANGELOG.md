@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.2.6
+
+### Flow → doc sends, fixed (this was badly broken)
+- **No more scrambling.** Sending a whole speech used to rebuild the entire
+  document and sort every block by flow position — which interleaved separate
+  speeches together into gibberish. That's gone: sends now **append to the end
+  of the doc, in order**, and never touch what you've already written.
+- **Sends land predictably.** Cards used to drop at the doc's (often stale)
+  cursor, mid-document, scattering them everywhere. Every send now goes to the
+  bottom of the doc in order.
+- **Focus stays on the flow.** The doc no longer steals the keyboard after a
+  send, so you can send card after card and keep flowing (your next keystroke
+  won't land in the doc).
+- **Editing the doc is stable again.** The editor is no longer built while the
+  pane is hidden — a hidden editor has no layout, so clicks and typing landed in
+  the wrong place ("everything goes everywhere"). It's built when first shown.
+- Re-sending a whole speech still de-dupes (updates in place, no duplicates).
+
+> If a doc got scrambled by an earlier version, this won't un-scramble it —
+> clear that doc (or start a fresh one) and re-send.
+
 ## v0.2.5
 
 ### Argument bank (⌘J) — scroll the whole thing

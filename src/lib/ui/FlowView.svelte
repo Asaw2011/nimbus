@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import { sheetAccent } from "../model/types";
@@ -117,6 +118,13 @@
 
   // ── multiple speech docs (tabs) ──────────────────────────────────
   let docsReady = $state(false);
+  // The doc editor is only MOUNTED once the pane has actually been shown. A
+  // ProseMirror view created inside a display:none container has no layout, so
+  // clicks and typing map to the wrong positions ("editing goes everywhere").
+  // Once opened it stays mounted (hidden on close) so close/reopen can't lose
+  // content — we just never build it while hidden.
+  let docEverOpened = $state(false);
+  $effect(() => { if (docOpen) docEverOpened = true; });
   let activeContent = $state<unknown>(null); // initialDoc for the active instance
   let docKey = $state(0); // bumped to remount the editor for a new/switched doc
   let renamingDocId = $state<string | null>(null);
@@ -532,50 +540,28 @@
     return flat(n).trim();
   }
 
-  /** Map every label in the cursor's column → its flow position, so the doc can
-   *  be reordered to match. Header, then items, row by row, top to bottom. */
-  function columnOrder(col: number): Record<string, number> {
-    const map: Record<string, number> = {};
-    const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
-    let n = 0;
-    for (const row of sheet?.rows ?? []) {
-      const cell = row.cells[col];
-      if (!cell) continue;
-      const t = cell.text?.trim();
-      if (t && !(t in map)) map[t] = n++;
-      for (const it of cell.items ?? []) {
-        const it2 = it.text?.trim();
-        if (it2 && !(it2 in map)) map[it2] = n++;
-      }
-    }
-    return map;
-  }
-
   /** Send a set of doc ops to the docked doc.
    *  - "cursor": drop them where the cursor is, in order, no reordering — for a
    *    cell / range / text grab that you're placing by hand.
-   *  - "flow": de-dup by label (re-send replaces) and reorder the whole doc to
-   *    match the flow — for building the whole speech top-to-bottom. */
-  function sendOpsToDoc(ops: DocOp[], col: number, mode: "flow" | "cursor") {
-    if (mode === "cursor") {
-      for (const op of ops) {
-        if ("cm" in op) docRef?.insertCMAtCursor([op.cm]);
-        else docRef?.insertNodeAtCursor(op.node);
-      }
-      return;
-    }
+   *  - "flow": de-dup by label (re-send replaces) and append in flow order —
+   *    for building the whole speech, without disturbing existing doc content. */
+  function sendOpsToDoc(ops: DocOp[], mode: "flow" | "cursor") {
+    // BOTH cell and row sends APPEND to the END of the doc, in order. Sending
+    // used to drop cards at the doc's (usually stale) cursor — mid-document —
+    // which scattered them through whatever you'd already written. Appending to
+    // the bottom is predictable and never disturbs existing content. "flow"
+    // additionally de-dupes by label so re-sending a speech updates in place
+    // instead of duplicating. (We also no longer reorder the whole doc — that
+    // rebuilt it end-to-end and interleaved separate speeches together.)
     for (const op of ops) {
       if ("cm" in op) {
-        const label = cmNodeLabel(op.cm);
-        if (label) docRef?.removeByText(label);
+        if (mode === "flow") { const label = cmNodeLabel(op.cm); if (label) docRef?.removeByText(label); }
         docRef?.appendCMNodes([op.cm]);
       } else {
-        const label = (op.node.text ?? "").trim();
-        if (label) docRef?.removeByText(label);
+        if (mode === "flow") { const label = (op.node.text ?? "").trim(); if (label) docRef?.removeByText(label); }
         appendToDoc(op.node);
       }
     }
-    docRef?.reorderByFlow(columnOrder(col));
   }
 
   // "Remove": clear the current cell (text/chip/card) AND delete its matching
@@ -595,13 +581,35 @@
     });
   }
 
+  /** Show the doc pane and WAIT for its editor to actually mount before we try
+   *  to insert. A send fired while the pane was closed used to be dropped: we
+   *  only mount the editor once the pane is visible, so docRef is still null on
+   *  the same tick. */
+  async function ensureDocMounted() {
+    docOpen = true;
+    docEverOpened = true;
+    for (let i = 0; !docRef && i < 12; i++) await tick();
+  }
+
+  /** After a flow→doc send, hand the keyboard BACK to the flow cell. The doc
+   *  editor focuses itself on every insert, which would otherwise steal focus
+   *  mid-flow so your next keystroke — or the next `` ` `` — lands in the doc.
+   *  That's what made sending feel like it flings things everywhere. */
+  function restoreFlowFocus(el: HTMLElement | null) {
+    if (el && el.isConnected && el.closest(".cell")) {
+      el.focus();
+      requestAnimationFrame(() => { if (el.isConnected) el.focus(); });
+    }
+  }
+
   // Selection send → AT THE CURSOR: the current cell, or — when a range is
   // selected — every selected cell's content, dropped where the cursor is.
-  function sendCellToDoc() {
+  async function sendCellToDoc() {
     if (!store.activeSheetId) return;
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
-    docOpen = true;
+    const flowEl = document.activeElement as HTMLElement | null;
+    await ensureDocMounted();
     const rect = store.hasMultiSelection ? store.selRect : null;
     if (rect) {
       // All selected cells, row by row, left to right.
@@ -609,25 +617,27 @@
       for (let r = rect.r0; r <= rect.r1; r++)
         for (let c = rect.c0; c <= rect.c1; c++)
           ops.push(...cellDocOps(sheet.rows[r]?.cells[c], { sheet, row: r, col: c }));
-      sendOpsToDoc(ops, rect.c0, "cursor");
-      return;
+      sendOpsToDoc(ops, "cursor");
+    } else if (store.cursor) {
+      const { row, col } = store.cursor;
+      sendOpsToDoc(cellDocOps(sheet.rows[row]?.cells[col], { sheet, row, col }), "cursor");
     }
-    if (!store.cursor) return;
-    const { row, col } = store.cursor;
-    sendOpsToDoc(cellDocOps(sheet.rows[row]?.cells[col], { sheet, row, col }), col, "cursor");
+    restoreFlowFocus(flowEl);
   }
 
   // "Send Entire Row" → FLOW ORDER: every cell in the current column, top to
-  // bottom (de-duped, so re-sending updates rather than duplicates), reordered
-  // to mirror the flow.
-  function sendSpeechToDoc() {
+  // bottom (de-duped, so re-sending updates rather than duplicates), appended
+  // in flow order without disturbing existing doc content.
+  async function sendSpeechToDoc() {
     if (!store.cursor || !store.activeSheetId) return;
     const col = store.cursor.col;
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
-    docOpen = true;
+    const flowEl = document.activeElement as HTMLElement | null;
+    await ensureDocMounted();
     const ops = sheet.rows.flatMap((r, row) => cellDocOps(r.cells[col], { sheet, row, col }));
-    sendOpsToDoc(ops, col, "flow");
+    sendOpsToDoc(ops, "flow");
+    restoreFlowFocus(flowEl);
   }
   let addingSheet = $state(false);
   // Tab right-click menu + inline rename.
@@ -776,8 +786,8 @@
       const t = e.target as HTMLElement | null;
       const inTextInput = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA";
       if (!atHome && !inTextInput) {
-        if (matchesAny(e, km.sendCell)) { e.preventDefault(); sendCellToDoc(); return; }
-        if (matchesAny(e, km.sendRow)) { e.preventDefault(); sendSpeechToDoc(); return; }
+        if (matchesAny(e, km.sendCell)) { e.preventDefault(); void sendCellToDoc(); return; }
+        if (matchesAny(e, km.sendRow)) { e.preventDefault(); void sendSpeechToDoc(); return; }
         if (matchesAny(e, km.removeCell)) { e.preventDefault(); removeCellAndDoc(); return; }
       }
     }
@@ -996,7 +1006,7 @@
         </div>
       {/if}
 
-      {#if docsReady}
+      {#if docsReady && docEverOpened}
         {#if docOpen && !docExpanded}
           <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
         {/if}
