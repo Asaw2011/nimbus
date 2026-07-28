@@ -35,7 +35,10 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
         await relaunch();
       },
     };
-  } catch {
+  } catch (err) {
+    // Don't swallow silently — a blocked capability or a bad manifest looks
+    // exactly like "no update" otherwise. Log it so it's diagnosable.
+    console.error("checkForUpdate failed", err);
     return null;
   }
 }

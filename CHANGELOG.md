@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.4
+
+### Fixed — auto-update actually works now
+- **The updater could never check for updates.** The app's capability file was
+  missing the `updater` and `process` permission grants, so every update check
+  was blocked by Tauri and silently treated as "no update available" — on both
+  macOS and Windows. Granted the permissions.
+- Because the fix has to ship *inside* a build, **install 0.2.4 by hand once**
+  (download below). From 0.2.4 forward, the in-app **Update available → Install →
+  Restart** flow works automatically.
+- The update check now **logs failures** instead of swallowing them, so a
+  blocked permission or bad manifest can't masquerade as "up to date" again.
+
 ## v0.2.3
 
 ### Fixed — doc data loss (again, for good)
