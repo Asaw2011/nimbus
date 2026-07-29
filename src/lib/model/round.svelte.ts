@@ -885,6 +885,22 @@ class RoundStore {
     this.ensureRows(row);
     this.cursor = { row, col };
   }
+
+  /** Jump the cursor to the nearest cell WITH content above (-1) or below (+1)
+   *  in the current column — Excel's ⌘↑/⌘↓ "jump to the data" for reading
+   *  context from the cell you're on. No-op if there's nothing that way. */
+  jumpToFilled(dir: 1 | -1): void {
+    const sheet = this.activeSheet;
+    if (!sheet || !this.cursor) return;
+    const { row, col } = this.cursor;
+    const filled = (r: number) => {
+      const c = sheet.rows[r]?.cells[col];
+      return !!(c && (c.text?.trim() || c.items?.length));
+    };
+    for (let r = row + dir; r >= 0 && r < sheet.rows.length; r += dir) {
+      if (filled(r)) { this.cursor = { row: r, col }; return; }
+    }
+  }
 }
 
 /** Normalize saves from older app versions (missing fields, tree model). */

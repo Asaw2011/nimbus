@@ -265,6 +265,12 @@
       });
       // Land on the first new row directly beneath (not the last one).
       store.cursor = { row: row + 1, col };
+    } else if (matchesAny(e, km.jumpFilledUp)) {
+      e.preventDefault();
+      store.jumpToFilled(-1);
+    } else if (matchesAny(e, km.jumpFilledDown)) {
+      e.preventDefault();
+      store.jumpToFilled(1);
     } else if (matchesAny(e, km.moveDownRows)) {
       // Jump the cursor down N rows (leave space for answers) — does NOT insert
       // rows, just moves over the existing blank paper. Count is configurable.

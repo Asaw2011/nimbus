@@ -137,10 +137,22 @@
     fitMode = MODES[best];
   }
   let rafId = 0;
+  let lastW = -1;
   $effect(() => {
     void settings.ribbonMode; // re-fit when the density preference changes
     if (!ribbonEl) return;
-    const schedule = () => { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(refit); };
+    lastW = -1;
+    // Only refit when the AVAILABLE WIDTH actually changes. Refitting swaps the
+    // ribbon's density, which changes its HEIGHT — and a height change fires the
+    // ResizeObserver again, so reacting to it created a full→micro→full loop that
+    // made the whole screen bounce. Guarding on width breaks that cycle.
+    const schedule = () => {
+      const w = ribbonEl?.clientWidth ?? 0;
+      if (w === lastW) return;
+      lastW = w;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(refit);
+    };
     const ro = new ResizeObserver(schedule);
     ro.observe(ribbonEl);
     schedule();
@@ -166,12 +178,12 @@
   <div class="group">
     <div class="controls">
       <span class="stepper" title={onDoc ? "Selected text size (speech doc)" : "Text size"}>
-        <button class="rb slim" onclick={() => bumpFont(-1)}>−</button>
+        <button class="rb slim" onmousedown={(e) => e.preventDefault()} onclick={() => bumpFont(-1)}>−</button>
         <span class="font-size">{onDoc ? store.docSelSize : settings.fontSize}</span>
-        <button class="rb slim" onclick={() => bumpFont(1)}>+</button>
+        <button class="rb slim" onmousedown={(e) => e.preventDefault()} onclick={() => bumpFont(1)}>+</button>
       </span>
-      <button class="rb b" title="Bold (whole cell)" onclick={() => toggle("bold")}>B</button>
-      <button class="rb i" title="Italic (whole cell)" onclick={() => toggle("italic")}>I</button>
+      <button class="rb b" title="Bold (whole cell)" onmousedown={(e) => e.preventDefault()} onclick={() => toggle("bold")}>B</button>
+      <button class="rb i" title="Italic (whole cell)" onmousedown={(e) => e.preventDefault()} onclick={() => toggle("italic")}>I</button>
       <label class="rb swatch" title="Custom text color — right-click clears it back to automatic ink" oncontextmenu={(e) => { e.preventDefault(); ink(null); }}>
         <span class="ink-a">A</span>
         <input type="color" oninput={(e) => ink(e.currentTarget.value)} />
@@ -217,10 +229,10 @@
       <button class="rb" title="Group arguments into a bracket ({combosLabel(km.groupArgs, mac)}) — drag-select a range, or ⌘-click cells for a non-sequential group (1, 4, 6), then press it" onclick={() => store.groupSelected()}>⦃ Group</button>
       <button class="rb" title="Remove the group bracketing the current cell" onclick={() => store.ungroupAtCursor()}>Ungroup</button>
       {#if onsendspeech}
-        <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order — mirrors the flow and de-dupes." onclick={onsendspeech}>↕ Send Entire Row</button>
+        <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc, appended in flow order — de-dupes." onmousedown={(e) => e.preventDefault()} onclick={onsendspeech}>↕ Send Entire Row</button>
       {/if}
       {#if onsendcell}
-        <button class="rb send-cell" title="Send the selected cell(s) to the doc AT THE CURSOR. Select a range first to send multiple cells." onclick={onsendcell}>⌖ {sendCellLabel}</button>
+        <button class="rb send-cell" title="Send the selected cell(s) to the doc — at your cursor if you're editing the doc, otherwise appended to the end." onmousedown={(e) => e.preventDefault()} onclick={onsendcell}>⌖ {sendCellLabel}</button>
       {/if}
       {#if onremove}
         <button class="rb remove" title="Clear this cell and remove its card from the doc" onclick={onremove}>✕ Remove</button>

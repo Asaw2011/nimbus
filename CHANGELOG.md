@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.2.7
+
+### Flow → doc, rebuilt to just work
+- **Send cell = clean paste at your cursor.** It drops the card/block right where
+  your cursor is in the doc, on its own line, as one intact chunk — and touches
+  nothing else. No scattering, no re-parenting the content below, no stray blank
+  lines. (Cursor defaults to the end of the doc when it opens, so an un-placed
+  send appends to the bottom.)
+- **Blocks send exactly what's on the flow.** A block now sends its heading plus
+  the items it actually shows on the grid — not the original imported copy — so
+  items you deleted or edited don't come back, and nothing lands out of order.
+- **Send Entire Row** appends the whole speech in flow order to the bottom,
+  de-duped.
+
+### Doc editing
+- **Styles/highlights apply to what you selected.** Toolbar and ribbon style
+  buttons no longer steal your selection on click, so a highlight lands on the
+  text you highlighted — not the line above or below.
+- **Backspace at the start of a Hat/Pocket/Block turns it into body text.**
+
+### Flowing
+- **⌘↑ / ⌘↓ jump to the filled cell above / below** in your column (Excel-style
+  "jump to the data") — for grabbing context from a nearby cell. Rebindable.
+
+### Fixed
+- **The screen no longer bounces.** The ribbon's auto-fit could flip between
+  sizes forever (a resize feedback loop), shoving the whole layout up and down.
+
 ## v0.2.6
 
 ### Flow → doc sends, fixed (this was badly broken)

@@ -15,6 +15,8 @@ export type ActionId =
   | "insertRow3Below"
   | "insertRow3Above"
   | "moveDownRows"
+  | "jumpFilledUp"
+  | "jumpFilledDown"
   | "deleteRow"
   | "extendArg"
   | "markDropped"
@@ -66,6 +68,8 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   insertRow3Below: "Insert several rows below",
   insertRow3Above: "Insert several rows above",
   moveDownRows: "Move cursor down several rows",
+  jumpFilledUp: "Jump to filled cell above (in column)",
+  jumpFilledDown: "Jump to filled cell below (in column)",
   deleteRow: "Delete row",
   extendArg: "Extend argument (arrow to next speech)",
   markDropped: "Mark dropped",
@@ -118,6 +122,10 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   insertRow3Below: [{ key: "enter", mod: true, alt: true }],
   insertRow3Above: [{ key: "enter", mod: true, alt: true, shift: true }],
   moveDownRows: [{ key: "\\", mod: true }],
+  // Jump to the nearest cell WITH content above / below in the same column —
+  // like Excel's ⌘↑ / ⌘↓ "jump to the edge of the data".
+  jumpFilledUp: [{ key: "arrowup", mod: true }],
+  jumpFilledDown: [{ key: "arrowdown", mod: true }],
   deleteRow: [{ key: "backspace", mod: true, shift: true }],
   // Distinct, memorable keys (not the confusing ⌘G / ⌘⇧G pair): extend = ⌘→
   // (carry the argument to the next speech, rightward), group = ⌘R.
@@ -182,7 +190,7 @@ export interface ActionGroup { title: string; actions: ActionId[]; }
 export const ACTION_GROUPS: ActionGroup[] = [
   {
     title: "Rows",
-    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "moveDownRows", "deleteRow"],
+    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "moveDownRows", "jumpFilledUp", "jumpFilledDown", "deleteRow"],
   },
   {
     title: "Flowing & marks",

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
+  import { EditorState, TextSelection, type Transaction, type Command } from "prosemirror-state";
   import { EditorView } from "prosemirror-view";
   import { toggleMark, setBlockType, baseKeymap, chainCommands } from "prosemirror-commands";
   // CardMirror's authoritative tag/analytic boundary editing (ported from
@@ -278,6 +278,18 @@
     return json;
   }
 
+  /** Backspace at the very START of a Pocket / Hat / Block heading turns it back
+   *  into normal body text. CardMirror's ported chain only converts TAGS (inside
+   *  cards); the top-level headings had no such rule, so backspacing out of a hat
+   *  did nothing useful. Runs first in the Backspace chain. */
+  const backspaceHeadingToBody: Command = (state, dispatch) => {
+    const sel = state.selection;
+    const at = sel.$from;
+    if (!sel.empty || at.parentOffset !== 0) return false;
+    if (!["pocket", "hat", "block"].includes(at.parent.type.name)) return false;
+    return setBlockType(schema.nodes.paragraph)(state, dispatch);
+  };
+
   /** Build a fresh EditorState (with its own history) from doc JSON. */
   function buildState(json: unknown): EditorState {
     const doc = json
@@ -298,6 +310,7 @@
         // false for the non-tag cases so the base keymap handles them.
         keymap({
           Backspace: chainCommands(
+            backspaceHeadingToBody,
             backspaceAtTagStart, backspaceAtFirstBodyStart,
             keepCursorInLeadingBlockOnBlockedMerge, blockBackspaceNodeSelect,
           ),
@@ -926,6 +939,28 @@
     }
   }
 
+  /** Insert a MIX of card-JSON and DocNode ops as ONE contiguous chunk at the
+   *  cursor — so a whole block (heading + its items) lands together, in order.
+   *  Inserting them one-by-one let the cursor drift into the next existing card
+   *  after the heading, which split the block apart. */
+  export function insertOpsAtCursor(ops: Array<{ cm?: unknown; node?: DocNode }>) {
+    if (!view || !ops.length) return;
+    try {
+      const pm: PMNode[] = [];
+      for (const op of ops) {
+        if (op.cm !== undefined) {
+          stripBlankRunMarks(op.cm);
+          pm.push(schema.nodeFromJSON(sanitizeCMJson(op.cm) as never));
+        } else if (op.node) {
+          pm.push(...nodesFromDocNode(op.node));
+        }
+      }
+      insertPMAtCursor(pm);
+    } catch (err) {
+      console.error("insertOpsAtCursor failed", err);
+    }
+  }
+
   /** Insert top-level PM nodes after the current node, and move the cursor past
    *  them so successive inserts stack in order. */
   function insertPMAtCursor(pm: PMNode[]) {
@@ -1254,6 +1289,53 @@
       console.error("appendCMNodes failed", err);
     }
   }
+
+  /** Append a blank body line at the very end — a separator so successive sends
+   *  don't run together, and a fresh line to keep typing on. */
+  export function appendBlankLine() {
+    if (!view) return;
+    try {
+      const p = schema.nodes.paragraph.createAndFill();
+      if (!p) return;
+      const end = view.state.doc.content.size;
+      // Don't stack blanks: skip if the doc already ends with an empty paragraph.
+      const last = view.state.doc.lastChild;
+      if (last && last.type.name === "paragraph" && last.content.size === 0) return;
+      view.dispatch(view.state.tr.insert(end, p).scrollIntoView());
+    } catch (err) {
+      console.error("appendBlankLine failed", err);
+    }
+  }
+
+  /** Park the cursor at the very END of the doc. Called when the pane opens so
+   *  an un-placed flow send appends to the bottom instead of the top. */
+  export function cursorToEnd() {
+    if (!view) return;
+    try {
+      const end = view.state.doc.content.size;
+      const sel = TextSelection.near(view.state.doc.resolve(end), -1);
+      view.dispatch(view.state.tr.setSelection(sel));
+    } catch (err) {
+      console.error("cursorToEnd failed", err);
+    }
+  }
+
+  /** Insert a blank line at the cursor (after the block it's in) and move into
+   *  it — a separator so a cursor-send doesn't butt against the next block. */
+  export function blankLineAtCursor() {
+    if (!view) return;
+    try {
+      const p = schema.nodes.paragraph.createAndFill();
+      if (!p) return;
+      const at = view.state.selection.$from;
+      const pos = at.depth > 0 ? at.after(1) : view.state.selection.from;
+      const tr = view.state.tr.insert(pos, p);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(pos + 1, tr.doc.content.size))));
+      view.dispatch(tr.scrollIntoView());
+    } catch (err) {
+      console.error("blankLineAtCursor failed", err);
+    }
+  }
 </script>
 
 <div
@@ -1286,6 +1368,7 @@
         <button
           class="pill"
           class:active={blockActive(s.type, selTick)}
+          onmousedown={(e) => e.preventDefault()}
           onclick={() => setBlock(s.type)}
           title="{s.label} ({keyHint(s.action)})"
         >{s.label}<span class="k">{keyHint(s.action)}</span></button>
@@ -1294,6 +1377,7 @@
     <button
       class="pill body"
       class:active={blockActive("paragraph", selTick)}
+      onmousedown={(e) => e.preventDefault()}
       onclick={() => setBlock("paragraph")}
       title="Body ({keyHint('docBody')})"
     >Body<span class="k">{keyHint("docBody")}</span></button>
@@ -1304,22 +1388,23 @@
         <button
           class="pill"
           class:active={markActive(m.mark, selTick)}
+          onmousedown={(e) => e.preventDefault()}
           onclick={() => mark(m.mark)}
           title="{m.label} ({keyHint(m.action)})"
         >{m.label}<span class="k">{keyHint(m.action)}</span></button>
       {/each}
-      <button class="pill" onclick={clearMarks} title="Clear formatting ({keyHint('docClearFormat')})">Clear<span class="k">{keyHint("docClearFormat")}</span></button>
+      <button class="pill" onmousedown={(e) => e.preventDefault()} onclick={clearMarks} title="Clear formatting ({keyHint('docClearFormat')})">Clear<span class="k">{keyHint("docClearFormat")}</span></button>
     </div>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn" class:active={markActive("bold", selTick)} onclick={() => mark("bold")} title="Bold ({keyHint('docBold')})"><b>B</b></button>
-    <button class="tb-btn" class:active={markActive("italic", selTick)} onclick={() => mark("italic")} title="Italic ({keyHint('docItalic')})"><i>I</i></button>
-    <button class="tb-btn" class:active={markActive("strikethrough", selTick)} onclick={() => mark("strikethrough")} title="Strikethrough"><s>S</s></button>
+    <button class="tb-btn" class:active={markActive("bold", selTick)} onmousedown={(e) => e.preventDefault()} onclick={() => mark("bold")} title="Bold ({keyHint('docBold')})"><b>B</b></button>
+    <button class="tb-btn" class:active={markActive("italic", selTick)} onmousedown={(e) => e.preventDefault()} onclick={() => mark("italic")} title="Italic ({keyHint('docItalic')})"><i>I</i></button>
+    <button class="tb-btn" class:active={markActive("strikethrough", selTick)} onmousedown={(e) => e.preventDefault()} onclick={() => mark("strikethrough")} title="Strikethrough"><s>S</s></button>
     <div class="toolbar-sep"></div>
     <span class="hl-label" title="Highlight (spoken text)">Hl</span>
     {#each HL_COLORS as c}
-      <button class="hl-swatch" style="background:{c.css}" onclick={() => setHighlight(c.name)} title="Highlight {c.name}" aria-label="Highlight {c.name}"></button>
+      <button class="hl-swatch" style="background:{c.css}" onmousedown={(e) => e.preventDefault()} onclick={() => setHighlight(c.name)} title="Highlight {c.name}" aria-label="Highlight {c.name}"></button>
     {/each}
-    <button class="hl-swatch clear" onclick={() => setHighlight("none")} title="Clear highlight">⌀</button>
+    <button class="hl-swatch clear" onmousedown={(e) => e.preventDefault()} onclick={() => setHighlight("none")} title="Clear highlight">⌀</button>
     <div class="std-wrap">
       <button class="tb-btn" class:active={stdOpen} onclick={() => (stdOpen = !stdOpen)} title="Standardize highlighting across the doc">Std ▾</button>
       {#if stdOpen}

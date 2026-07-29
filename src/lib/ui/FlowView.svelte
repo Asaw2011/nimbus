@@ -104,6 +104,10 @@
     setDocJSON(j: unknown): void;
     removeByText(t: string): void;
     appendCMNodes(nodes: unknown[]): void;
+    appendBlankLine(): void;
+    cursorToEnd(): void;
+    blankLineAtCursor(): void;
+    insertOpsAtCursor(ops: DocOp[]): void;
     reorderByFlow(order: Record<string, number>): void;
     toggleBold(): void;
     toggleItalic(): void;
@@ -175,8 +179,15 @@
   /** Open/close the doc pane. The editor stays MOUNTED (just hidden) so nothing
    *  is lost; we still flush to disk on close as a belt-and-suspenders. */
   function toggleDocPane() {
-    if (docOpen) saveCurrentDoc();
-    docOpen = !docOpen;
+    if (docOpen) {
+      saveCurrentDoc();
+      docOpen = false;
+    } else {
+      docOpen = true;
+      docEverOpened = true;
+      // Park the cursor at the end on open so sends append until you click.
+      void tick().then(() => docRef?.cursorToEnd());
+    }
   }
 
   async function switchDoc(id: string) {
@@ -504,11 +515,12 @@
     if (!cell) return [];
     const text = cell.text?.trim();
     if (cell.items?.length) {
+      // Send EXACTLY what the block shows on the flow: its heading, then its
+      // current items in order. We build the heading from the cell's own text —
+      // NOT from `cell.card` (the original imported block), which keeps items you
+      // deleted/rearranged on the flow and would drag them back into the doc.
       const out: DocOp[] = [];
-      if (text) {
-        // Header only — its child cards live in `items`, don't duplicate them.
-        out.push({ node: cell.card ? { ...(cell.card as DocNode), children: [] } : stubNode(text, { level: CHIP_LEVEL[cell.chip ?? ""] ?? 3 }) });
-      }
+      if (text) out.push({ node: stubNode(text, { level: CHIP_LEVEL[cell.chip ?? ""] ?? 3 }) });
       for (const it of cell.items) {
         if (it.kind === "card") out.push(it.cmNode ? { cm: it.cmNode } : { node: (it.card as DocNode) ?? stubNode(it.text) });
         else if (it.text?.trim()) out.push({ node: stubNode(it.text.trim(), { analytic: true }) });
@@ -545,14 +557,18 @@
    *    cell / range / text grab that you're placing by hand.
    *  - "flow": de-dup by label (re-send replaces) and append in flow order —
    *    for building the whole speech, without disturbing existing doc content. */
-  function sendOpsToDoc(ops: DocOp[], mode: "flow" | "cursor") {
-    // BOTH cell and row sends APPEND to the END of the doc, in order. Sending
-    // used to drop cards at the doc's (usually stale) cursor — mid-document —
-    // which scattered them through whatever you'd already written. Appending to
-    // the bottom is predictable and never disturbs existing content. "flow"
-    // additionally de-dupes by label so re-sending a speech updates in place
-    // instead of duplicating. (We also no longer reorder the whole doc — that
-    // rebuilt it end-to-end and interleaved separate speeches together.)
+  function sendOpsToDoc(ops: DocOp[], mode: "cursor" | "end" | "flow") {
+    // "cursor" drops the card AT the doc cursor — ONLY used when you're actually
+    // editing the doc and placed one. "end" and "flow" APPEND to the bottom, in
+    // order, so sends while you're flowing never scatter into existing content;
+    // "flow" (whole-speech send) also de-dupes by label so re-sending updates in
+    // place. Nothing reorders the doc.
+    if (mode === "cursor") {
+      // Insert the whole set as ONE chunk at the cursor (on its own new line),
+      // and do NOTHING else — no extra blank lines, no reflowing. A clean paste.
+      docRef?.insertOpsAtCursor(ops);
+      return;
+    }
     for (const op of ops) {
       if ("cm" in op) {
         if (mode === "flow") { const label = cmNodeLabel(op.cm); if (label) docRef?.removeByText(label); }
@@ -562,6 +578,9 @@
         appendToDoc(op.node);
       }
     }
+    // A blank line after the send so successive sends don't run together and you
+    // have a fresh line to keep typing on.
+    docRef?.appendBlankLine();
   }
 
   // "Remove": clear the current cell (text/chip/card) AND delete its matching
@@ -586,9 +605,13 @@
    *  only mount the editor once the pane is visible, so docRef is still null on
    *  the same tick. */
   async function ensureDocMounted() {
+    const wasClosed = !docOpen;
     docOpen = true;
     docEverOpened = true;
     for (let i = 0; !docRef && i < 12; i++) await tick();
+    // Opening fresh → park the cursor at the end so the first send appends. Once
+    // open, we leave the cursor where you put it, so clicking places sends there.
+    if (wasClosed) docRef?.cursorToEnd();
   }
 
   /** After a flow→doc send, hand the keyboard BACK to the flow cell. The doc
@@ -609,6 +632,9 @@
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
     const flowEl = document.activeElement as HTMLElement | null;
+    // Paste at the DOC CURSOR — insert the block on a fresh line right where the
+    // cursor is, as one chunk, and touch nothing else. Cursor defaults to the
+    // end on open, so an un-placed send lands at the bottom; click to place it.
     await ensureDocMounted();
     const rect = store.hasMultiSelection ? store.selRect : null;
     if (rect) {
