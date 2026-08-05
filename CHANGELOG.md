@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.2.8
+
+### CardMirror integration
+- **Send flow cards into the real CardMirror.** A new **Send to** toggle in the
+  top bar routes sends to either the built-in speech Doc or CardMirror. With the
+  companion plugin loaded in CardMirror Desktop, sent cards auto-paste into your
+  open doc with **full fidelity** — highlight, cite, body, and structure intact,
+  and without stealing focus from the flow.
+- Nimbus registers as a CardMirror "flow app" over the local bridge; the Nimbus
+  CardMirror plugin (`nimbus-cardmirror-plugin/`) pulls queued cards and inserts
+  them through CardMirror's own rich-paste path. Cards are also copied to the
+  clipboard as a manual ⌘V fallback.
+
+### Fixes
+- **⌘⌫ no longer double-fires.** A focused cell now consumes the keystroke, so a
+  combo bound to both "delete row" and a window action can't run both at once —
+  fixing rows deleting unexpectedly.
+
 ## v0.2.7
 
 ### Flow → doc, rebuilt to just work
