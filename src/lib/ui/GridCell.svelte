@@ -278,6 +278,10 @@
       store.moveCursor(settings.moveRows, 0);
     } else if (matchesAny(e, km.deleteRow)) {
       e.preventDefault();
+      // A focused cell owns this keypress — stop it bubbling to the window
+      // handler, or a combo double-bound to a window action (e.g. removeCell also
+      // on ⌘⌫) would fire BOTH and delete a row AND clear a cell on one press.
+      e.stopPropagation();
       store.deleteRow(row);
     } else if (matchesAny(e, km.extendArg)) {
       e.preventDefault();

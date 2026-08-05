@@ -83,6 +83,10 @@ export interface Persisted {
   /** Speech-doc display typography (matches CardMirror's per-user settings). */
   docTypography: DocTypography;
   compactDoc?: boolean;
+  /** Where flow cells "send to": the real CardMirror Desktop over the bridge, or
+   *  the built-in offline speech doc. Defaults to CardMirror (falls back to the
+   *  built-in doc automatically when CardMirror Desktop isn't running). */
+  docTarget?: "cardmirror" | "builtin";
 }
 
 export interface DocTypography {
@@ -202,6 +206,8 @@ class Settings {
   libraryRoots = $state<LibraryRoot[]>([]);
   docTypography = $state<DocTypography>({ ...DEFAULT_DOC_TYPOGRAPHY });
   compactDoc = $state(true);
+  /** Send target for flow cells; see Persisted.docTarget. */
+  docTarget = $state<"cardmirror" | "builtin">("cardmirror");
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -270,6 +276,7 @@ class Settings {
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
     if (p.sendAtCursor !== undefined) this.sendAtCursor = p.sendAtCursor;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
+    if (p.docTarget !== undefined) this.docTarget = p.docTarget;
     if (p.keymap) {
       // Missing action = old save → default binds. Empty array = user cleared.
       const merged = structuredClone(DEFAULT_KEYMAP);
@@ -314,6 +321,7 @@ class Settings {
       docZoom: this.docZoom,
       sendAtCursor: this.sendAtCursor,
       compactDoc: this.compactDoc,
+      docTarget: this.docTarget,
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],

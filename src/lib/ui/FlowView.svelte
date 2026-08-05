@@ -15,6 +15,7 @@
   import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
   import { docBridge } from "$lib/doc/docBridge.svelte";
   import { docsStore } from "$lib/doc/docs.svelte";
+  import { sendOpsToCardMirror as queueOpsToCardMirror } from "$lib/doc/cmClipboard";
   import type { DocNode } from "$lib/docx/parse";
   import type { Cell, Sheet } from "../model/types";
   import { pinchZoom } from "$lib/util/pinch";
@@ -583,6 +584,29 @@
     docRef?.appendBlankLine();
   }
 
+  // ── send to the REAL CardMirror (full fidelity, via the clipboard) ───────
+  // CardMirror's bridge /insert is text+role and drops highlight/format/layout.
+  // The lossless path is its OWN rich paste: we serialize the ops to CardMirror
+  // clipboard HTML (shared vendored schema) and the user ⌘V's into CardMirror,
+  // which rebuilds the card exactly. See src/lib/doc/cmClipboard.ts.
+
+  /** True when sends should go to CardMirror rather than the built-in doc. */
+  function usingCardMirror(): boolean {
+    return settings.docTarget === "cardmirror";
+  }
+
+  /** Copy ops as CardMirror-native content for pasting into CardMirror. Always
+   *  "handles" the send (returns true) so we don't also dump into the built-in
+   *  doc; a copy failure just shows a message. */
+  async function sendOpsToCardMirror(ops: DocOp[]): Promise<boolean> {
+    if (!ops.length) return true;
+    // Queue the card for the Nimbus CardMirror plugin to auto-paste into the
+    // real CardMirror Desktop (full fidelity); also copies to the clipboard.
+    const html = await queueOpsToCardMirror(ops);
+    showFlash(html ? "Sent to CardMirror" : "Nothing to send");
+    return true;
+  }
+
   // "Remove": clear the current cell (text/chip/card) AND delete its matching
   // card from the speech doc.
   function removeCellAndDoc() {
@@ -632,22 +656,28 @@
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
     const flowEl = document.activeElement as HTMLElement | null;
+    // Gather the ops first so they can go to either target.
+    const rect = store.hasMultiSelection ? store.selRect : null;
+    const ops: DocOp[] = [];
+    if (rect) {
+      // All selected cells, row by row, left to right.
+      for (let r = rect.r0; r <= rect.r1; r++)
+        for (let c = rect.c0; c <= rect.c1; c++)
+          ops.push(...cellDocOps(sheet.rows[r]?.cells[c], { sheet, row: r, col: c }));
+    } else if (store.cursor) {
+      const { row, col } = store.cursor;
+      ops.push(...cellDocOps(sheet.rows[row]?.cells[col], { sheet, row, col }));
+    }
+    // CardMirror Desktop first; fall back to the built-in doc if it isn't running.
+    if (usingCardMirror() && (await sendOpsToCardMirror(ops))) {
+      restoreFlowFocus(flowEl);
+      return;
+    }
     // Paste at the DOC CURSOR — insert the block on a fresh line right where the
     // cursor is, as one chunk, and touch nothing else. Cursor defaults to the
     // end on open, so an un-placed send lands at the bottom; click to place it.
     await ensureDocMounted();
-    const rect = store.hasMultiSelection ? store.selRect : null;
-    if (rect) {
-      // All selected cells, row by row, left to right.
-      const ops: DocOp[] = [];
-      for (let r = rect.r0; r <= rect.r1; r++)
-        for (let c = rect.c0; c <= rect.c1; c++)
-          ops.push(...cellDocOps(sheet.rows[r]?.cells[c], { sheet, row: r, col: c }));
-      sendOpsToDoc(ops, "cursor");
-    } else if (store.cursor) {
-      const { row, col } = store.cursor;
-      sendOpsToDoc(cellDocOps(sheet.rows[row]?.cells[col], { sheet, row, col }), "cursor");
-    }
+    sendOpsToDoc(ops, "cursor");
     restoreFlowFocus(flowEl);
   }
 
@@ -660,8 +690,12 @@
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
     const flowEl = document.activeElement as HTMLElement | null;
-    await ensureDocMounted();
     const ops = sheet.rows.flatMap((r, row) => cellDocOps(r.cells[col], { sheet, row, col }));
+    if (usingCardMirror() && (await sendOpsToCardMirror(ops))) {
+      restoreFlowFocus(flowEl);
+      return;
+    }
+    await ensureDocMounted();
     sendOpsToDoc(ops, "flow");
     restoreFlowFocus(flowEl);
   }
@@ -971,6 +1005,16 @@
       <span class="meta">
         {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
       </span>
+      <!-- Where sends (` / send-cell / send-row) go: the built-in speech Doc, or
+           the real CardMirror Desktop via the Nimbus plugin. Left-aligned so the
+           right-side button cluster can never clip it off. -->
+      <div class="send-target" title="Where sent cards go">
+        <span class="send-target-label">Send to</span>
+        <button class="seg" class:on={settings.docTarget === "builtin"}
+          onclick={() => { settings.docTarget = "builtin"; settings.save(); }}>Doc</button>
+        <button class="seg" class:on={settings.docTarget === "cardmirror"}
+          onclick={() => { settings.docTarget = "cardmirror"; settings.save(); }}>CardMirror</button>
+      </div>
       <span class="spacer"></span>
       <button class="bar-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">Doc</button>
       <button class="bar-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">Quick cards</button>
@@ -1269,6 +1313,31 @@
     white-space: nowrap;
   }
   .bar-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+  /* Send-target segmented toggle (Doc | CardMirror). */
+  .send-target {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 4px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+  }
+  .send-target-label { font-size: 11px; color: var(--text-dim); padding: 0 4px; }
+  .send-target .seg {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    border-radius: 5px;
+    height: 20px;
+    padding: 0 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .send-target .seg:hover { color: var(--text); }
+  .send-target .seg.on { background: var(--accent); color: #fff; }
   .flash-toast {
     position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%);
     z-index: 60; background: var(--text); color: var(--bg);

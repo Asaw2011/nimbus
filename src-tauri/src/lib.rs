@@ -1,6 +1,8 @@
 // Native persistence: rounds saved as JSON files in the app data dir.
 // Filenames are the round id; contents are the full Round object.
 
+mod cmbridge;
+mod flowapp;
 mod file_index;
 use file_index::scan_library_roots;
 
@@ -302,6 +304,11 @@ pub fn run() {
         .manage(PendingFile(Mutex::new(file_from_args())))
         .setup(|app| {
             migrate_old_data(app.handle());
+            // Register Nimbus as a CardMirror "flow app": a queue + a loopback
+            // server the Nimbus CardMirror plugin pulls cards from.
+            let queue = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+            app.manage(flowapp::FlowQueue(queue.clone()));
+            flowapp::start(app.handle().clone(), queue);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -323,11 +330,23 @@ pub fn run() {
             move_path,
             delete_path,
             dir_exists,
-            scan_library_roots
+            scan_library_roots,
+            cmbridge::cm_ping,
+            cmbridge::cm_list_docs,
+            cmbridge::cm_insert,
+            cmbridge::cm_jump,
+            flowapp::cm_queue_card
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, _event| {
+            // On quit, remove our bridge session file so CardMirror sees Nimbus
+            // as "not running" (identity file is left in place by design).
+            if let tauri::RunEvent::Exit = _event {
+                if let Some(p) = flowapp::session_file(_app_handle) {
+                    let _ = std::fs::remove_file(p);
+                }
+            }
             // macOS delivers "open with" as an Opened event (app cold or warm).
             // The Opened variant doesn't exist on Windows/Linux, so gate it.
             #[cfg(target_os = "macos")]
