@@ -157,6 +157,19 @@ Open the **📖 Manual** in the app for a full feature reference, or press `⌘/
 
 ---
 
+## CardMirror plugin
+
+Nimbus can send cards straight into CardMirror Desktop. That needs a small
+plugin, which lives in its own repo and is **not** part of the Nimbus download:
+
+**<https://github.com/waffleman23165/nimbus-cardmirror-plugin>**
+
+Install it from that repo's latest release, run `__plugins('community-on')` in
+CardMirror's developer console, and restart CardMirror. Nimbus works fine
+without it.
+
+---
+
 ## Credits & license
 
 Nimbus is built together with **[@Asaw2011](https://github.com/Asaw2011)** —
