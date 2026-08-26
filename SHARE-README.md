@@ -20,18 +20,23 @@ That's everything if you only want to flow. The rest is only for the CardMirror 
 **You need CardMirror Desktop `0.1.0-beta.31` or newer.** Older builds don't have the plugin API at
 all and this will silently do nothing.
 
-Copy the **`nimbus-flow`** folder into CardMirror's plugins directory so you end up with:
+The plugin lives in its own repo — it is **not** part of the Nimbus download:
 
-```
-%APPDATA%\@cardmirror\desktop\plugins\nimbus-flow\cardmirror-plugin.json
-%APPDATA%\@cardmirror\desktop\plugins\nimbus-flow\plugin.js
-```
+**<https://github.com/waffleman23165/nimbus-cardmirror-plugin/releases/latest>**
 
-Paste `%APPDATA%\@cardmirror\desktop\plugins` into the File Explorer address bar to get there. If a
-`plugins` folder doesn't exist yet, create it.
+Install it from that release inside CardMirror. Then, until the plugin is on CardMirror's curated
+list, allow community plugins by running this in CardMirror's developer console:
+
+```js
+__plugins('community-on')
+```
 
 **Then fully quit and reopen CardMirror.** Plugins are only read at startup, so a reload isn't
 enough.
+
+> Copying the two files into `%APPDATA%\@cardmirror\desktop\plugins\nimbus-flow\` by hand is the
+> **dev path**, which CardMirror deliberately removes at the end of the session. It's fine for a
+> quick test, but install from GitHub if you want it to stick.
 
 ## 3. Use it
 
