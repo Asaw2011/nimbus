@@ -178,6 +178,11 @@
             (highlight = spoken, underline = the cut, emphasis = boxed power word,
             small = unread). Open it with <kbd>{mod}D</kbd> or the 📄 button.
           </p>
+          <p class="foot">
+            CardMirror is by Anthony Trufanov — Required Notice: Copyright &copy; 2026
+            Anthony Trufanov, used under PolyForm Noncommercial 1.0.0. See
+            <b>Credits &amp; license</b> at the end of this manual.
+          </p>
           <ul>
             <li><b>Structure</b> pills: Pocket <kbd>{mod}1</kbd>, Hat <kbd>{mod}2</kbd>, Block <kbd>{mod}3</kbd>, Tag <kbd>{mod}4</kbd>, Analytic <kbd>{mod}5</kbd>, Undertag <kbd>{mod}6</kbd>, Body <kbd>{mod}0</kbd>.</li>
             <li><b>Read markings</b>: Cite <kbd>{mod}9</kbd>, Emphasis <kbd>{mod}↓</kbd>, Underline <kbd>{mod}↑</kbd>, Clear <kbd>{mod}←</kbd>. Plus B / I / strikethrough and highlight colors.</li>
@@ -295,6 +300,27 @@
             <li><b>Backup</b> — export/import your setup, and check for updates.</li>
           </ul>
           <p class="foot">Reopen this manual anytime from the 📖 button in the top bar.</p>
+        </section>
+
+        <section>
+          <h2>Credits &amp; license</h2>
+          <p>
+            Nimbus is built together with
+            <b>Asaw2011</b> (github.com/Asaw2011/nimbus).
+          </p>
+          <p>
+            The speech doc engine is <b>CardMirror</b> by <b>Anthony Trufanov</b>
+            (github.com/ant981228/cardmirror) — the real schema, importer and
+            exporter, vendored into Nimbus.
+          </p>
+          <p>
+            <b>Required Notice: Copyright &copy; 2026 Anthony Trufanov.</b>
+            CardMirror is used under the PolyForm Noncommercial License 1.0.0
+            (polyformproject.org/licenses/noncommercial/1.0.0). That license
+            forbids commercial use, and because CardMirror is part of Nimbus,
+            that applies to Nimbus as a whole — it is free to use and is meant
+            to stay that way.
+          </p>
         </section>
       </div>
     </div>

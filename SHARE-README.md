@@ -5,7 +5,7 @@ highlighting, cites and formatting intact. That second part needs a small plugin
 
 ## 1. Install Nimbus
 
-Run **`Nimbus_0.1.5_x64-setup.exe`**.
+Run **`Nimbus_1.0.0_x64-setup.exe`**.
 
 - Windows 64-bit only.
 - It installs per-user (into `%LOCALAPPDATA%\Nimbus`), so there is **no admin prompt**.
@@ -52,7 +52,9 @@ if you ever want to force it there are two commands in CardMirror's command pale
   fallback. If `Ctrl+V` pastes correctly but auto-paste doesn't, the problem is the plugin
   (not installed, or CardMirror wasn't restarted), not Nimbus.
 - Nimbus talks to CardMirror over a **local-only** connection (127.0.0.1) with a random per-session
-  token. Nothing leaves your machine and there's no account or login anywhere in this.
+  token. Nothing about the CardMirror link leaves your machine.
+- Nimbus itself does ask you to sign in once with a nimbusdebate.com account the first time you
+  open it. After that it opens offline forever — the sign-in is not part of the CardMirror link.
 
 ## Handy keys
 
@@ -66,3 +68,17 @@ if you ever want to force it there are two commands in CardMirror's command pale
 | `Ctrl+K` | Doc Search — search your prep files |
 | `Ctrl+/` | Show all keybinds |
 | `Ctrl+,` | Settings (every shortcut here is rebindable) |
+
+## Credits & license
+
+Nimbus is built together with **Asaw2011** (github.com/Asaw2011/nimbus).
+
+The speech doc engine is **CardMirror** by **Anthony Trufanov**
+(github.com/ant981228/cardmirror), vendored into Nimbus.
+
+> Required Notice: Copyright (c) 2026 Anthony Trufanov.
+
+Used under the PolyForm Noncommercial License 1.0.0
+(polyformproject.org/licenses/noncommercial/1.0.0). That license forbids
+commercial use; because CardMirror is part of Nimbus, that applies to Nimbus as
+a whole. Nimbus is free to use and is meant to stay that way.
