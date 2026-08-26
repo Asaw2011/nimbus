@@ -2,17 +2,24 @@
 //
 // Bridges Nimbus → CardMirror with FULL fidelity. Nimbus (a registered flow app)
 // queues each sent card as CardMirror-native HTML. This plugin pulls the queue
-// (api.flowApps + api.flowPost) and inserts each card by dispatching a synthetic
+// (api.flowPost) and inserts each card by dispatching a synthetic
 // `paste` event into the active editor — which runs CardMirror's own rich-paste
 // path, so highlight / cite / body / structure all survive. No focus stealing:
 // the paste happens in CardMirror's renderer regardless of which window is front.
 //
-// The plugin API only hands us `api` inside a command's run(), so "Nimbus:
-// start auto-sync" captures it and starts the poller (run once per session, or
-// bind it to a key). "Nimbus: paste now" pulls immediately.
+// Polling starts at load ONLY when Nimbus is already registered on the
+// handshake (one check, at startup). Otherwise "Nimbus: start auto-sync" is the
+// explicit way to turn it on. "Nimbus: paste now" pulls immediately.
+//
+// Poll interval is POLL_MS and there is deliberately NO per-tick flowApps()
+// call -- see pull(). Both exist so this plugin is a good neighbor to other
+// flow apps sharing the same handshake directory.
 (function () {
   "use strict";
   var APP_ID = "nimbus";
+  // 700ms was far too aggressive: this runs for every user who has the plugin
+  // installed, forever. Sends are not latency-critical, so seconds are plenty.
+  var POLL_MS = 3000;
   var api = null;
   var timer = null;
 
@@ -104,13 +111,11 @@
     var b = bridge();
     if (!b) return;
     try {
-      if (typeof b.flowApps === "function") {
-        var apps = await b.flowApps();
-        var nimbus = (apps || []).find(function (a) {
-          return a && (a.appId === APP_ID || a.app === APP_ID || a.id === APP_ID);
-        });
-        if (!nimbus || nimbus.running === false) return;
-      }
+      // No flowApps() pre-check here. It rescanned the handshake directory and
+      // pinged EVERY registered flow app (1.5s timeout each) on every single
+      // tick, so this plugin hammered unrelated apps on machines that have
+      // them. flowPost already reports app-not-running from a local file
+      // check at almost no cost, which is the same information.
       // Identify this window by the uids of the docs it owns, so Nimbus can
       // address a card at one specific doc. Titles are NOT usable for this: an
       // unsaved doc is reported as "Untitled" by the bridge while the window's
@@ -131,7 +136,7 @@
 
   function startPolling() {
     if (timer) return false;
-    timer = setInterval(pull, 700);
+    timer = setInterval(pull, POLL_MS);
     return true;
   }
 
@@ -141,13 +146,27 @@
     say("Nimbus auto-sync on — sends will paste here automatically");
   }
 
-  // Start polling as soon as the plugin loads. CardMirror auto-loads installed
-  // plugins at startup, so this makes auto-sync survive a restart with no manual
-  // step — the old build only began polling when you ran the command by hand,
-  // which meant every send silently queued forever if you forgot. The commands
-  // below still work for turning it on manually or forcing an immediate pull.
-  function boot() {
-    if (!bridge()) return; // no preload bridge — wait for a command to hand us `api`
+  // Start polling at load ONLY if Nimbus is actually registered on the
+  // handshake. Starting unconditionally meant the plugin polled forever for
+  // people who installed it once and never opened Nimbus again. This is the
+  // one and only flowApps() call: once at startup, never per tick.
+  //
+  // If Nimbus isn't registered, "Nimbus: start auto-sync" stays the explicit
+  // way in — so someone who installs the plugin first and Nimbus second isn't
+  // stuck, they just run the command once.
+  async function boot() {
+    var b = bridge();
+    if (!b) return; // no preload bridge — wait for a command to hand us `api`
+    try {
+      if (typeof b.flowApps !== "function") return;
+      var apps = (await b.flowApps()) || [];
+      var nimbus = apps.find(function (a) {
+        return a && (a.appId === APP_ID || a.app === APP_ID || a.id === APP_ID);
+      });
+      if (!nimbus) return;
+    } catch (e) {
+      return; // can't tell — stay quiet rather than poll on spec
+    }
     startPolling();
   }
 
@@ -156,6 +175,7 @@
     return pull();
   }
 
+  // async, deliberately not awaited; it never rejects (see boot).
   boot();
 
   if (window.__registerCardMirrorPlugin) {

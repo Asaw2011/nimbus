@@ -1,7 +1,7 @@
 {
   "id": "nimbus-flow",
   "name": "Nimbus Flow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Auto-paste cards sent from the Nimbus flowing app into the active CardMirror doc.",
   "author": "Nimbus",
   "apiVersion": 1
