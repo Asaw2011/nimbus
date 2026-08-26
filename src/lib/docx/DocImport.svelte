@@ -1,0 +1,478 @@
+<script lang="ts">
+  // DOCX-IMPORT feature (self-contained; delete this folder + the marked
+  // block in RoundHome.svelte + `npm uninstall fflate` to remove it).
+  //
+  // Import an opponent's speech doc: each selected top-level section becomes
+  // a sheet, its heading tree becomes rows in the chosen speech column.
+
+  import { parseDocx, flowLines, flowRows, guessTargetSheet, positionSections, sectionTitles, collectArguments, type ParsedDoc, type DocNode } from "./parse";
+  import { store } from "../model/round.svelte";
+  import { INITIAL_ROWS, makeSheet, makeRow, type Cell } from "../model/types";
+
+  let parsed = $state<ParsedDoc | null>(null); // raw parse result; set once, never rewritten
+  let rawNodes = $state<DocNode[]>([]); // original tree before level-splitting
+  let sections = $state<DocNode[]>([]); // current split (the sheets-to-be)
+  let fileName = $state("");
+  let status = $state("");
+  let checked = $state<boolean[]>([]);
+  /** Per section: "new" = create a sheet, else the id of an existing sheet. */
+  let targets = $state<string[]>([]);
+  /** Cleaned + numbered display titles, one per section (parallel to nodes). */
+  let titles = $state<string[]>([]);
+  /** Import mode: full pages+tags, pages only (bank authors), or bank only. */
+  type ImportMode = "pages_tags" | "pages_only" | "bank_only";
+  let mode = $state<ImportMode>("pages_tags");
+  let speechIdx = $state(0);
+  /** "auto" or a heading level 1–4 chosen by the user. */
+  let splitLevel = $state<"auto" | 1 | 2 | 3 | 4>("auto");
+
+  /** Collect every node at exactly `level`, walking into shallower nodes. */
+  function nodesAtLevel(roots: DocNode[], level: number): DocNode[] {
+    const out: DocNode[] = [];
+    const walk = (ns: DocNode[]) => {
+      for (const n of ns) {
+        if (n.level === level) out.push(n);
+        else if (n.level < level) walk(n.children);
+      }
+    };
+    walk(roots);
+    return out;
+  }
+
+  /**
+   * Auto-detect the argument level: find the shallowest heading level that has
+   * 3+ nodes across the whole doc — that's almost always the "one sheet per
+   * argument" level (H1 for a multi-advantage 1AC, H3 for a 1NC where all
+   * off-case positions live under a single H2 "OFF" hat).
+   * Falls back to the single-chain unwrap if no level clears 3 nodes.
+   */
+  function autoSplit(roots: DocNode[]): DocNode[] {
+    // Prefer position-aware splitting: descend past wrappers and expand an
+    // "OFF" container so each off-case becomes its own sheet (an Adv--- stays
+    // whole). This fixes a 1NC collapsing its whole off-case block into one sheet.
+    const positions = positionSections(roots);
+    if (positions.length >= 2) return positions;
+    for (const level of [1, 2, 3, 4] as const) {
+      const at = nodesAtLevel(roots, level);
+      if (at.length >= 3) return at;
+    }
+    // Fewer than 3 nodes at every level — walk down single-child chains.
+    let unwrapped = roots;
+    while (unwrapped.length === 1 && unwrapped[0].children.length > 0) {
+      unwrapped = unwrapped[0].children;
+    }
+    return unwrapped.length >= 2 ? unwrapped : roots;
+  }
+
+  /** Re-apply the current split level to the raw tree. */
+  function applySplit(roots: DocNode[], level: "auto" | 1 | 2 | 3 | 4): DocNode[] {
+    if (level === "auto") return autoSplit(roots);
+    const at = nodesAtLevel(roots, level);
+    return at.length >= 2 ? at : autoSplit(roots);
+  }
+
+  const speeches = $derived(store.round?.template.speeches ?? []);
+
+  let guessNote = $state("");
+
+  /**
+   * Best signal, independent of how anyone names their docs: the round
+   * itself. If the doc's sections match existing sheets (an answer doc) and
+   * those sheets are filled through some column, the answers belong in the
+   * NEXT column — rounds progress left to right.
+   */
+  function guessColumnFromRound(targetIds: string[]): number | null {
+    const matched = (store.round?.sheets ?? []).filter((s) =>
+      targetIds.includes(s.id),
+    );
+    if (matched.length === 0) return null;
+    let lastUsedCol = -1;
+    for (const sh of matched) {
+      for (const row of sh.rows) {
+        row.cells.forEach((c, ci) => {
+          if (c.text.trim() && ci > lastUsedCol) lastUsedCol = ci;
+        });
+      }
+    }
+    if (lastUsedCol < 0 || lastUsedCol + 1 >= speeches.length) return null;
+    return lastUsedCol + 1;
+  }
+
+  /** Weaker fallback: an abbr in the filename ("...2AC.docx" → 2AC). */
+  function guessColumnFromName(name: string): number | null {
+    const flat = name.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    let best = -1;
+    let bestLen = 0;
+    speeches.forEach((sp, i) => {
+      const ab = sp.abbr.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (ab.length > 1 && ab.length > bestLen && flat.includes(ab)) {
+        best = i;
+        bestLen = ab.length;
+      }
+    });
+    return best >= 0 ? best : null;
+  }
+
+  /** Where a section will land, so there's never a mystery about placement. */
+  function placement(i: number): string {
+    const abbr = speeches[speechIdx]?.abbr ?? "?";
+    const sh = store.round?.sheets.find((s) => s.id === targets[i]);
+    if (!sh) return `new sheet · fills ${abbr}`;
+    const lastUsed = sh.rows.findLastIndex(
+      (r) => r.cells[speechIdx]?.text.trim() !== "",
+    );
+    return `fills ${abbr} from row ${lastUsed + 2}`;
+  }
+
+  function onFile(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    fileName = file.name;
+    status = "";
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const base = parseDocx(reader.result as ArrayBuffer);
+        rawNodes = base.nodes;
+        splitLevel = "auto";
+        parsed = base; // raw result only; the split lives in `sections`
+        const nodes = applySplit(rawNodes, "auto");
+        sections = nodes;
+        checked = nodes.map(() => true);
+        const t = sectionTitles(nodes);
+        titles = t;
+        // Guess where each section belongs: an answer doc ("AT: Cap K")
+        // matches the existing Cap K sheet; unmatched sections make new ones.
+        // Match on the cleaned display title, not the raw "OFF" heading, so
+        // off-cases don't all collapse onto one sheet.
+        const sheets = store.round?.sheets ?? [];
+        targets = nodes.map(
+          (n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new",
+        );
+        // Column guess, strongest signal first. Always overridable.
+        const fromRound = guessColumnFromRound(targets);
+        const fromName = guessColumnFromName(file.name);
+        if (fromRound !== null) {
+          speechIdx = fromRound;
+          guessNote = `guessed — matched sheets are filled up to ${speeches[fromRound - 1]?.abbr ?? "?"}`;
+        } else if (fromName !== null) {
+          speechIdx = fromName;
+          guessNote = "guessed from the filename";
+        } else {
+          const negIdx = speeches.findIndex((s) => s.side === "neg");
+          speechIdx = Math.max(0, negIdx);
+          guessNote = "default — double-check the column";
+        }
+        if (nodes.length === 0) {
+          status = `Read ${base.paragraphCount} paragraphs but found no Heading styles — is this a Verbatim-formatted doc?`;
+          parsed = null;
+        }
+      } catch (err) {
+        status = err instanceof Error ? err.message : String(err);
+        parsed = null;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    input.value = "";
+  }
+
+  // Re-derive the split whenever the user changes the split level. This runs a
+  // plain function on change (not an $effect that writes state it reads), so it
+  // can never self-trigger. `lastSplit` guards against redundant work.
+  let lastSplit: typeof splitLevel | null = null;
+  $effect(() => {
+    const level = splitLevel; // the ONLY tracked dependency
+    if (rawNodes.length === 0 || level === lastSplit) return;
+    lastSplit = level;
+    resplit(level);
+  });
+
+  function resplit(level: typeof splitLevel) {
+    const nodes = applySplit(rawNodes, level);
+    const sheets = store.round?.sheets ?? [];
+    const t = sectionTitles(nodes);
+    sections = nodes;
+    checked = nodes.map(() => true);
+    titles = t;
+    targets = nodes.map((n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new");
+  }
+
+  function apply() {
+    if (!parsed || !store.round) return;
+    // Always bank the doc's cards for author autocomplete (⌘Space), whatever
+    // the mode — this is the point of the "bank only" mode and a free win otherwise.
+    const banked = collectArguments(rawNodes);
+    store.addCards(banked);
+
+    let created = 0;
+    let filled = 0;
+    const writeTags = mode === "pages_tags";
+
+    if (mode !== "bank_only") {
+      const jobs = sections
+        .map((node, i) => ({ node, target: targets[i], title: titles[i] ?? node.text, on: checked[i] }))
+        .filter((j) => j.on);
+      if (jobs.length === 0 && banked.length === 0) return;
+      const col = speechIdx;
+      const side = speeches[col]?.side;
+      const kind = side === "aff" ? "case" : "offcase";
+      const nCols = speeches.length;
+
+      // Stamp the row's evidence kind onto the cell so an imported 1AC/1NC gets
+      // the same card/analytic ink an author-bank insert does. Touches ONLY
+      // `evidence` — a cell being overwritten may carry dropped/starred/color
+      // marks that aren't ours to clear — and clears a stale kind when the new
+      // row has none, so re-importing over a sheet can't leave the old ink.
+      const setEvidence = (cell: Cell, kind?: "analytic" | "card") => {
+        if (kind) (cell.marks ??= {}).evidence = kind;
+        else if (cell.marks) delete cell.marks.evidence;
+      };
+
+      // One mutate = the whole import is a single undo step.
+      store.mutate((r) => {
+        for (const { node, target, title } of jobs) {
+          const rows = writeTags ? flowRows(node) : [];
+          const existing = r.sheets.find((s) => s.id === target);
+          if (existing) {
+            const lastUsed = existing.rows.findLastIndex(
+              (row) => row.cells[col]?.text.trim() !== "",
+            );
+            const start = lastUsed + 1;
+            rows.forEach((fr, i) => {
+              while (existing.rows.length <= start + i) {
+                existing.rows.push(makeRow(nCols));
+              }
+              const cell = existing.rows[start + i].cells[col];
+              cell.text = fr.text;
+              if (fr.author) cell.author = fr.author;
+              else delete cell.author;
+              setEvidence(cell, fr.evidence);
+            });
+            filled++;
+          } else {
+            // When the title was taken from the section's first tagline, that
+            // same line comes back as the first flow row — the label cell would
+            // then print it twice. Drop the exact duplicate. A row whose text
+            // differs (e.g. it carries a cite author, "Zhao '7-14  Hikes…") is
+            // kept: it adds information the label doesn't have.
+            const body =
+              title.trim() && rows[0]?.text.trim() === title.trim() ? rows.slice(1) : rows;
+            const sheet = makeSheet(
+              title,
+              nCols,
+              kind,
+              col,
+              Math.max(INITIAL_ROWS, body.length + 4),
+            );
+            // Row 0 is the LABEL cell; content follows below it.
+            sheet.rows[0].cells[col].text = title;
+            body.forEach((fr, i) => {
+              while (sheet.rows.length <= i + 1) sheet.rows.push(makeRow(nCols));
+              const cell = sheet.rows[i + 1].cells[col];
+              cell.text = fr.text;
+              if (fr.author) cell.author = fr.author;
+              setEvidence(cell, fr.evidence);
+            });
+            r.sheets.push(sheet);
+            created++;
+          }
+        }
+      });
+    }
+    const parts = [
+      created && `created ${created} sheet${created === 1 ? "" : "s"}`,
+      filled && `filled ${filled} existing`,
+      banked.length && `banked ${banked.length} argument${banked.length === 1 ? "" : "s"}`,
+    ].filter(Boolean);
+    status = `${parts.join(", ") || "nothing to import"} from ${fileName} ✓`;
+    parsed = null;
+  }
+</script>
+
+<div class="doc-import">
+  {#if !parsed}
+    <label class="chip file-btn">
+      Import speech doc (.docx)
+      <input type="file" accept=".docx" onchange={onFile} />
+    </label>
+  {:else}
+    <div class="preview">
+      <div class="preview-head">
+        <strong>{fileName}</strong> — {parsed.headingCount} headings.
+        <span class="col-pick">
+          Split at:
+          <select bind:value={splitLevel}>
+            <option value="auto">Auto ({sections.length} sections)</option>
+            <option value={1}>Pocket (H1)</option>
+            <option value={2}>Hat (H2)</option>
+            <option value={3}>Block (H3)</option>
+            <option value={4}>Tag (H4)</option>
+          </select>
+        </span>
+        <span class="col-pick">
+          Fill column:
+          <select bind:value={speechIdx}>
+            {#each speeches as sp, i (sp.id)}
+              <option value={i}>{sp.abbr}</option>
+            {/each}
+          </select>
+        </span>
+        <span class="guess-note">{guessNote}</span>
+      </div>
+      <div class="mode-pick">
+        <label><input type="radio" name="import-mode" value="pages_tags" bind:group={mode} /> Pages + tags</label>
+        <label><input type="radio" name="import-mode" value="pages_only" bind:group={mode} /> Pages only (no tag text)</label>
+        <label><input type="radio" name="import-mode" value="bank_only" bind:group={mode} /> Bank arguments only — no pages</label>
+      </div>
+      {#each sections as node, i (i)}
+        <div class="node" class:dim={mode === "bank_only"}>
+          <input type="checkbox" bind:checked={checked[i]} disabled={mode === "bank_only"} />
+          <span class="node-title">{titles[i] ?? node.text}</span>
+          <span class="node-count">{flowLines(node).length} rows · {placement(i)}</span>
+          <select class="target" bind:value={targets[i]}>
+            <option value="new">＋ new sheet</option>
+            {#each store.round?.sheets ?? [] as sh (sh.id)}
+              <option value={sh.id}>→ {sh.title || "(untitled)"}</option>
+            {/each}
+          </select>
+        </div>
+      {/each}
+      <div class="actions">
+        <button class="chip primary" onclick={apply}>
+          {mode === "bank_only" ? "Bank arguments" : "Create sheets"}
+        </button>
+        <button class="chip" onclick={() => (parsed = null)}>Cancel</button>
+      </div>
+    </div>
+  {/if}
+  {#if status}
+    <p class="status">{status}</p>
+  {/if}
+</div>
+
+<style>
+  .doc-import {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .chip {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 14px;
+    padding: 4px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .chip:hover {
+    border-color: var(--accent);
+  }
+  .chip.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .file-btn {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+  }
+  .file-btn input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .preview {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 340px;
+    max-width: 560px;
+  }
+  .preview-head {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .col-pick {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    color: var(--accent);
+    margin-left: 6px;
+  }
+  .guess-note {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-top: 2px;
+  }
+  .preview-head select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    margin-left: 4px;
+  }
+  .mode-pick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 6px 0 10px;
+    font-size: 12px;
+  }
+  .mode-pick label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .node.dim {
+    opacity: 0.45;
+  }
+  .node-title {
+    font-weight: 600;
+  }
+  .node-count {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .target {
+    margin-left: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    max-width: 180px;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .status {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0;
+  }
+</style>

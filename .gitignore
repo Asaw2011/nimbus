@@ -1,0 +1,29 @@
+.DS_Store
+node_modules
+/build
+/.svelte-kit
+/package
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Rust build output — 6+ GB, never belongs in the repo.
+/src-tauri/target
+
+# Local editor / tooling config.
+/.claude
+/.vscode
+
+# Internal working notes. These name real people (debate partners and
+# opponents), contain local Dropbox paths, and record session-by-session dev
+# history. Kept out of the public repo on purpose.
+/HANDOFF-*.md
+/SESSION-LOG.md
+
+# Cloud build workflow. It fires on every `v*` tag and opens its OWN draft
+# release with the same tag, which collides with a hand-uploaded one, and it
+# needs TAURI_SIGNING_* secrets to be set first. Add it back once signing is
+# configured.
+/.github

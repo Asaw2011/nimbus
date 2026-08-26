@@ -1,0 +1,25 @@
+/* Configurable speech-doc display toggles (Settings → Appearance → Speech Doc
+ * Style). Kept global (not scoped to SpeechDoc) so the settings live-preview
+ * renders them too, even when the doc panel isn't mounted. Sizes/colors are
+ * driven by CSS variables set on the .pmd-document element. */
+
+/* Pocket box thickness + on/off. */
+.pmd-document .pmd-pocket { border-width: var(--pmd-pocket-box-size, 2.25pt); }
+.pmd-document.pmd-no-pocket-box .pmd-pocket {
+  border: none;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* The cut (underline) rendered bold. */
+.pmd-document.pmd-underline-bold .pmd-underline,
+.pmd-document.pmd-underline-bold .pmd-underline-mark { font-weight: bold; }
+
+/* Analytics render at the tag size (an analytic is an argument, like a tag). */
+.pmd-document .pmd-analytic { font-size: var(--pmd-size-tag, 13pt); }
+
+/* Undertag italic / bold. */
+.pmd-document.pmd-undertag-italic .pmd-undertag,
+.pmd-document.pmd-undertag-italic .pmd-undertag-mark { font-style: italic; }
+.pmd-document.pmd-undertag-bold .pmd-undertag,
+.pmd-document.pmd-undertag-bold .pmd-undertag-mark { font-weight: bold; }

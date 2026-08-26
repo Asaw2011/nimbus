@@ -1,0 +1,256 @@
+/* Vendored from CardMirror (PolyForm Noncommercial 1.0.0) — the card-content
+ * rendering rules + the theme variables they depend on. This makes the speech
+ * doc render debate cards exactly like CardMirror: highlighted = spoken,
+ * underline = the cut, emphasis = boxed power words, tiny grey = unread. */
+
+.pmd-document {
+  /* Heading sizes (Verbatim canonical) */
+  --pmd-size-pocket: 26pt;
+  --pmd-size-hat: 22pt;
+  --pmd-size-block: 16pt;
+  --pmd-size-tag: 13pt;
+  --pmd-size-cite: 13pt;
+  --pmd-line-height-heading: 1.2;
+  --pmd-line-height-tag: 1.2;
+  --pmd-line-height-cite: 1.2;
+
+  /* Colours */
+  --pmd-c-band-fg-dark: #fff;
+  --pmd-c-band-fg-light: #000;
+  --pmd-c-emphasis-box: #333;
+  --pmd-c-highlight-default: #ffff66;
+  --pmd-color-analytic: #1f3864;
+  --pmd-color-undertag: #385623;
+  --pmd-c-card-hover: #b9c2cf;
+  --pmd-emphasis-box-size: 1px;
+
+  font-family: "Calibri", "Segoe UI", Arial, sans-serif;
+  font-size: 11pt;
+  line-height: 1.35;
+  color: #111;
+}
+[data-theme="dark"] .pmd-document,
+[data-theme="slate"] .pmd-document {
+  --pmd-c-emphasis-box: #888;
+  color: #e6e6e6;
+}
+/* Imported Verbatim runs carry an explicit font color (often near-black), which
+ * would stay invisible on a dark surface. The schema tags each with a
+ * luminance band; here we force the DARK-band ones to inherit the light body
+ * color. Mid/high-luminance colors (deliberate highlights, blues, etc.) keep
+ * their value. Without this rule, dark-mode doc text renders black-on-black. */
+[data-theme="dark"] .pmd-document span[data-color-band="dark"],
+[data-theme="slate"] .pmd-document span[data-color-band="dark"] {
+  color: inherit !important;
+}
+
+/* ── Structural headings ───────────────────────────────────────── */
+.pmd-document .pmd-pocket {
+  font-size: var(--pmd-size-pocket);
+  line-height: var(--pmd-line-height-heading);
+  font-weight: bold;
+  text-align: center;
+  border: 3px solid var(--pmd-c-emphasis-box);
+  padding: 0.4rem 1rem;
+  margin: 1.4rem 0 0.7rem 0;
+}
+.pmd-document .pmd-hat {
+  font-size: var(--pmd-size-hat);
+  line-height: var(--pmd-line-height-heading);
+  font-weight: bold;
+  text-align: center;
+  text-decoration: underline double;
+  margin: 1.2rem 0 0.5rem 0;
+}
+.pmd-document .pmd-block {
+  font-size: var(--pmd-size-block);
+  line-height: var(--pmd-line-height-heading);
+  font-weight: bold;
+  text-align: center;
+  text-decoration: underline;
+  margin: 1rem 0 0.5rem 0;
+}
+.pmd-document .pmd-tag {
+  font-size: var(--pmd-size-tag);
+  line-height: var(--pmd-line-height-tag);
+  font-weight: bold;
+  margin: 0.7rem 0 0.2rem 0;
+}
+.pmd-document .pmd-cite-para {
+  line-height: var(--pmd-line-height-cite);
+  margin: 0.15rem 0;
+}
+.pmd-document .pmd-analytic {
+  font-weight: bold;
+  color: var(--pmd-color-analytic);
+  margin: 0.5rem 0 0.2rem;
+}
+[data-theme="dark"] .pmd-document .pmd-analytic,
+[data-theme="slate"] .pmd-document .pmd-analytic { color: #8aa9d1; }
+
+/* ── Card container (draggable unit) ───────────────────────────── */
+.pmd-document .pmd-card,
+.pmd-document .pmd-analytic-unit {
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+  margin: 0.35rem 0;
+}
+.pmd-document .pmd-card:hover,
+.pmd-document .pmd-analytic-unit:hover {
+  border-left-color: var(--pmd-c-card-hover);
+}
+
+/* ── Card body (evidence) ──────────────────────────────────────── */
+.pmd-document .pmd-card-body {
+  font-size: 11pt;
+  line-height: 1.4;
+  margin: 0.1rem 0;
+}
+.pmd-document .pmd-undertag {
+  color: var(--pmd-color-undertag);
+  font-size: 11pt;
+  margin: 0.1rem 0;
+}
+
+/* ── Character marks ───────────────────────────────────────────── */
+.pmd-document .pmd-cite {
+  font-weight: bold !important;
+  font-size: var(--pmd-size-cite, 13pt) !important;
+}
+.pmd-document .pmd-underline { text-decoration: underline; text-decoration-thickness: 1px; }
+.pmd-document .pmd-undertag-mark { color: var(--pmd-color-undertag); }
+.pmd-document .pmd-analytic-mark { font-weight: bold; color: var(--pmd-color-analytic); }
+
+/* Inline images / charts. */
+.pmd-document img[data-pmd-image] {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+.pmd-document .pmd-image-placeholder,
+.pmd-document span[data-pmd-image] {
+  display: inline-block;
+  vertical-align: middle;
+  min-width: 60px;
+  min-height: 40px;
+  border: 1px dashed var(--border, #999);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-dim, #888) 12%, transparent);
+  color: var(--text-dim, #777);
+  font-size: 11px;
+  text-align: center;
+  padding: 6px 8px;
+}
+
+/* Highlight = spoken. Word's 15 named colours, OOXML-canonical RGBs. */
+.pmd-document .pmd-highlight { background: var(--pmd-c-highlight-default); }
+.pmd-document .pmd-highlight[data-highlight="yellow"]      { background: #ffff00; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="green"]       { background: #00ff00; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="cyan"]        { background: #00ffff; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="magenta"]     { background: #ff00ff; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="blue"]        { background: #0000ff; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="red"]         { background: #ff0000; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="darkBlue"]    { background: #000080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkCyan"]    { background: #008080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkGreen"]   { background: #008000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkMagenta"] { background: #800080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkRed"]     { background: #800000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkYellow"]  { background: #808000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="darkGray"]    { background: #808080; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="lightGray"]   { background: #c0c0c0; color: #000; }
+.pmd-document .pmd-highlight[data-highlight="black"]       { background: #000000; color: #fff; }
+.pmd-document .pmd-highlight[data-highlight="none"]        { background: transparent; }
+
+/* Emphasis = a distinct character style. Base is underline + its display size;
+ * bold / italic / box are GATED BY DISPLAY-TYPOGRAPHY FLAGS on the document
+ * wrapper — exactly like CardMirror, so each person can match their own setup
+ * (some run emphasis without a box). Plain bold (<strong>) stays just bold. */
+.pmd-document .pmd-emphasis {
+  text-decoration: underline;
+  font-size: var(--pmd-size-emphasis, 11pt);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.pmd-document.pmd-emphasis-bold .pmd-emphasis { font-weight: bold; }
+.pmd-document.pmd-emphasis-italic .pmd-emphasis { font-style: italic; }
+.pmd-document.pmd-emphasis-box .pmd-emphasis {
+  border: var(--pmd-emphasis-box-size, 1px) solid currentColor;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+/* Cite line: bold author at its display size, no box/underline. */
+.pmd-document .pmd-cite {
+  font-weight: bold;
+  font-size: var(--pmd-size-cite, 13pt);
+}
+/* Read mode drops the box (you're reading, not marking). */
+.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
+
+/* Ligatures must not span a formatting boundary */
+.pmd-document .pmd-highlight,
+.pmd-document .pmd-underline,
+.pmd-document .pmd-emphasis { font-variant-ligatures: none; }
+
+/* ProseMirror base */
+/* `white-space: pre-wrap` is REQUIRED by prosemirror-view — its own stylesheet
+ * sets it, and this hand-rolled base block (we never import that sheet) was
+ * missing the line. Without it Chromium substitutes a NBSP for a trailing space
+ * so the space stays visible; that NBSP then disagrees with the plain space in
+ * PM's state, PM's DOM-change diff starts one character early, and a stored
+ * mark applied to the next keystroke lands on the preceding space too — i.e.
+ * hitting ⌘/Ctrl+U after a space underlined the space as well. `break-spaces`
+ * is the modern refinement (trailing spaces wrap rather than overflow); PM's
+ * sheet declares both in this order as a progressive enhancement. */
+.pmd-document .ProseMirror {
+  outline: none;
+  word-break: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+}
+.pmd-document .ProseMirror:focus { outline: none; }
+/* Read mode deliberately COLLAPSES whitespace: its plugin inserts a plain space
+ * after every hidden run and relies on adjacent ones collapsing to a single
+ * space (see the Read mode block below, and the ::after-spacer note there).
+ * Pinned back to `normal` so that surface renders exactly as it did before. */
+.pmd-document.pmd-read-mode .ProseMirror { white-space: normal; }
+.pmd-document .ProseMirror ::selection { background: rgba(26,111,212,0.25); }
+
+/* ── Read mode ──────────────────────────────────────────────────
+ * Shows only the read-aloud (highlighted/spoken) text + structure.
+ * Pure-CSS approach (CardMirror's documented fallback): shrink card
+ * body / cite text to zero, then restore size on highlighted runs and
+ * cite marks. Headings stay visible. */
+/* Read mode = hide the UNREAD (condensed / small) text and stray paragraphs,
+ * keep the read-aloud text exactly as it looks — highlighted (with its colour
+ * band), underlined (the cut), emphasis-boxed, and the bold cite — flowing
+ * inline. This matches how the cut reads in the round. */
+
+/* Unread runs (no read marker) get this class from the read-mode plugin — the
+ * plugin also inserts a plain space after each so read words never jam.
+ * Normal white-space so adjacent separators collapse to a single space. */
+.pmd-document.pmd-read-mode .pmd-rm-hide { display: none; }
+.pmd-document.pmd-read-mode .pmd-rm-sep { text-decoration: none; }
+/* Also hide undertags and stray non-card paragraphs. */
+.pmd-document.pmd-read-mode .pmd-undertag { display: none; }
+.pmd-document.pmd-read-mode .ProseMirror > p { display: none; }
+
+/* Card body paragraphs flow together inline (no per-paragraph breaks). */
+.pmd-document.pmd-read-mode .pmd-card-body {
+  display: inline;
+  margin: 0;
+}
+/* No ::after spacer here — the read-mode plugin inserts exactly one space per
+ * hidden gap (including body boundaries). A CSS `pre` spacer stacked with those
+ * and, being non-collapsing, produced large gaps between surviving words. */
+/* Hide the trailing/hard breaks ProseMirror adds — they cause a stray line
+ * break mid-sentence in read mode. The card should flow as one sentence. */
+.pmd-document.pmd-read-mode .pmd-card-body br,
+.pmd-document.pmd-read-mode .pmd-cite-para br,
+.pmd-document.pmd-read-mode .ProseMirror-trailingBreak {
+  display: none;
+}
+/* Cite line stays on its own line, bold — hide the non-cite bracket detail. */
+.pmd-document.pmd-read-mode .pmd-cite-para .pmd-condensed { display: none; }
+/* Drop emphasis boxes in read mode — you're reading, not marking. */
+.pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }
