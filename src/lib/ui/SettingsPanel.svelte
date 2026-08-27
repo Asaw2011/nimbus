@@ -1001,6 +1001,25 @@
   }
   .color-chip span { font-size: 11px; color: var(--text-dim); }
   .color-reset { align-self: center; background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 2px 4px; }
+
+  /* On/off settings render as a consistent toggle switch. The knob is drawn as
+     a background radial-gradient (works on a bare checkbox in every engine,
+     unlike ::after) and slides right when checked. */
+  input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    box-sizing: border-box; flex-shrink: 0; margin: 0; border: none;
+    width: 40px; height: 22px; border-radius: 999px; cursor: pointer;
+    background-color: var(--border);
+    background-image: radial-gradient(circle 8px at 11px 11px, #fff 100%, transparent 0);
+    background-repeat: no-repeat;
+    transition: background-color 0.15s ease, background-position 0.15s ease;
+    vertical-align: middle;
+  }
+  input[type="checkbox"]:checked {
+    background-color: var(--accent);
+    background-position-x: 18px;
+  }
+  input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .doc-preview {
     background: #fff;
     color: #111;
