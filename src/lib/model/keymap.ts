@@ -60,6 +60,7 @@ export type ActionId =
   | "docItalic"
   | "docFind"
   | "docQuickCards"
+  | "sendToSpeech"
   | "sendToSpeechCursor";
 
 export const ACTION_LABELS: Record<ActionId, string> = {
@@ -112,7 +113,8 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   docItalic: "Italic",
   docFind: "Find in document",
   docQuickCards: "Quick cards (save / insert snippets)",
-  sendToSpeechCursor: "Send card to ★ speech doc at cursor (vs ` = end)",
+  sendToSpeech: "Send card to ★ speech doc (at end)",
+  sendToSpeechCursor: "Send card to ★ speech doc (at cursor)",
 };
 
 /** Each action can have any number of bindings (including none). */
@@ -198,6 +200,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   docItalic: [{ key: "i", mod: true }],
   docFind: [{ key: "f", mod: true }],
   docQuickCards: [{ key: "'", mod: true }],
+  sendToSpeech: [{ key: "`", mod: true, shift: true }],
   sendToSpeechCursor: [{ key: "`", mod: true }],
 };
 
@@ -234,7 +237,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
     actions: [
       "docPocket", "docHat", "docBlock", "docTag", "docAnalytic", "docUndertag", "docBody",
       "docCite", "docEmphasis", "docUnderline", "docClearFormat", "docBold", "docItalic", "docFind", "docQuickCards",
-      "sendToSpeechCursor",
+      "sendToSpeech", "sendToSpeechCursor",
     ],
   },
 ];
