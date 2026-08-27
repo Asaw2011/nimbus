@@ -67,6 +67,8 @@ export interface Persisted {
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: "full" | "icons" | "slim";
+  /** Default speech-format template index for New flow. */
+  defaultTemplate: number;
   /** Default file format when you Save (⌘S / on close). */
   defaultSaveFormat: "nimbus" | "xlsx";
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
@@ -187,6 +189,10 @@ class Settings {
   compactDoc = $state(true);
   ribbonMode = $state<"full" | "icons" | "slim">("full");
   defaultSaveFormat = $state<"nimbus" | "xlsx">("nimbus");
+  /** Default speech format for New flow, as an index into builtinTemplates()
+   *  (0 Policy, 1 LD, 2 PF, 3 PF Con-first). Set it once and every new flow
+   *  starts there. Disk-backed, so it survives a localStorage wipe. */
+  defaultTemplate = $state(0);
   /** Bottom by default — the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
   /** Columns stretch to fill the window but never shrink below this.
@@ -276,6 +282,7 @@ class Settings {
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
     else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "icons";
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
+    if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
@@ -350,6 +357,7 @@ class Settings {
       compactDoc: this.compactDoc,
       ribbonMode: this.ribbonMode,
       defaultSaveFormat: this.defaultSaveFormat,
+      defaultTemplate: this.defaultTemplate,
       bulkRows: this.bulkRows,
       zoom: this.zoom,
       docZoom: this.docZoom,
@@ -381,6 +389,12 @@ class Settings {
     clearTimeout(this.saveTimer);
     this.saveTimer = null;
     saveBlob(BLOB, this.buildPersisted());
+  }
+
+  /** Set the default speech format for New flow and persist it. */
+  setDefaultTemplate(i: number): void {
+    this.defaultTemplate = i;
+    this.save();
   }
 
   addMacro(macro: Macro): void {
