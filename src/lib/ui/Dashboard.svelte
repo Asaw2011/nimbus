@@ -374,26 +374,39 @@
   </div>
 
   <div class="content">
-    <!-- action cards -->
+    <!-- action cards: New flow is the primary action, Open is secondary -->
     <div class="actions">
-      <button class="action-card" onclick={createRound}>
-        <div class="ac-title">New flow</div>
-        <div class="ac-desc">Start flowing a fresh round.</div>
-        <select
-          class="ac-select"
-          value={settings.defaultTemplate}
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
-          onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}
-        >
-          {#each templates as t, i (t.id)}
-            <option value={i}>{t.name}</option>
-          {/each}
-        </select>
-      </button>
-      <button class="action-card" onclick={openFlowFile}>
-        <div class="ac-title">Open…</div>
-        <div class="ac-desc">Open a saved Excel flow from your Mac.</div>
+      <div class="action-card primary">
+        <div class="ac-head">
+          <span class="ac-icon" aria-hidden="true">✦</span>
+          <div>
+            <div class="ac-title">New flow</div>
+            <div class="ac-desc">Start a fresh round in your format.</div>
+          </div>
+        </div>
+        <div class="ac-controls">
+          <select
+            class="ac-select"
+            value={settings.defaultTemplate}
+            aria-label="Format for the new flow"
+            onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}
+          >
+            {#each templates as t, i (t.id)}
+              <option value={i}>{t.name}</option>
+            {/each}
+          </select>
+          <button class="ac-start" onclick={createRound}>Start flowing →</button>
+        </div>
+      </div>
+      <button class="action-card secondary" onclick={openFlowFile}>
+        <div class="ac-head">
+          <span class="ac-icon" aria-hidden="true">↥</span>
+          <div>
+            <div class="ac-title">Open a flow</div>
+            <div class="ac-desc">Open a saved Excel flow from your Mac.</div>
+          </div>
+        </div>
+        <span class="ac-hint">Browse files…</span>
       </button>
     </div>
 
@@ -577,22 +590,38 @@
      windows and centers to ~1060px on large ones — no markup wrapper needed. */
   .content { flex: 1; overflow-y: auto; padding: 48px max(28px, calc((100% - 1060px) / 2)) 72px; }
 
-  .actions { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 40px; }
+  .actions { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 44px; align-items: stretch; }
   .action-card {
     text-align: left; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 22px 24px; flex: 1 1 240px; min-width: 240px; min-height: 118px;
-    cursor: pointer; display: flex; flex-direction: column; gap: 4px;
-    transition: border-color 0.1s, box-shadow 0.1s;
+    border-radius: 14px; padding: 22px 24px; min-width: 260px; min-height: 132px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }
-  .action-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-  .action-card:disabled { opacity: 0.55; cursor: default; }
-  .ac-title { font-size: 18px; font-weight: 700; color: var(--text); }
-  .ac-desc { font-size: 13px; color: var(--text-dim); line-height: 1.35; }
+  /* New flow leads: a touch wider, with a soft accent wash and the only filled
+     button on the screen — the primary action stands out without shouting. */
+  .action-card.primary { flex: 1.7 1 320px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, var(--panel)), var(--panel)); border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); }
+  .action-card.secondary { flex: 1 1 240px; cursor: pointer; }
+  .action-card.secondary:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .ac-head { display: flex; align-items: flex-start; gap: 12px; }
+  .ac-icon {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  }
+  .ac-title { font-size: 17px; font-weight: 700; color: var(--text); }
+  .ac-desc { font-size: 13px; color: var(--text-dim); line-height: 1.35; margin-top: 2px; }
+  .ac-controls { display: flex; align-items: center; gap: 10px; }
   .ac-select {
-    margin-top: 8px; align-self: flex-start; background: var(--bg);
-    border: 1px solid var(--border); color: var(--text); border-radius: 6px;
-    padding: 3px 8px; font-size: 12px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 130px;
   }
+  .ac-start {
+    flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 8px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .ac-start:hover { filter: brightness(1.06); }
+  .ac-hint { font-size: 12.5px; font-weight: 600; color: var(--accent); }
 
   .section {
     font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);
