@@ -259,7 +259,7 @@
 
     {#if tab === "appearance"}
     <section>
-      <h3>Appearance</h3>
+      <h3>Theme &amp; colors</h3>
       <div class="row theme-row">
         Theme
         <div class="swatches">

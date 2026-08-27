@@ -590,11 +590,11 @@
      windows and centers to ~1060px on large ones — no markup wrapper needed. */
   .content { flex: 1; overflow-y: auto; padding: 48px max(28px, calc((100% - 1060px) / 2)) 72px; }
 
-  .actions { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 44px; align-items: stretch; }
+  .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; align-items: stretch; }
   .action-card {
     text-align: left; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 14px; padding: 22px 24px; min-width: 260px; min-height: 132px;
-    display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+    border-radius: 12px; padding: 16px 18px; min-width: 240px;
+    display: flex; flex-direction: column; gap: 14px;
     transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }
   /* New flow leads: a touch wider, with a soft accent wash and the only filled

@@ -180,8 +180,8 @@
     <div class="meta-grid">
       <input value={round.tournament} oninput={(e) => setField("tournament", e.currentTarget.value)} placeholder="Tournament" />
       <input value={round.judges} oninput={(e) => setField("judges", e.currentTarget.value)} placeholder="Judge(s)" />
-      <input class="aff-team" value={round.affTeam} oninput={(e) => setField("affTeam", e.currentTarget.value)} placeholder="AFF — school & code" />
-      <input class="neg-team" value={round.negTeam} oninput={(e) => setField("negTeam", e.currentTarget.value)} placeholder="NEG — school & code" />
+      <input class="aff-team" value={round.affTeam} oninput={(e) => setField("affTeam", e.currentTarget.value)} placeholder="Aff school & code" />
+      <input class="neg-team" value={round.negTeam} oninput={(e) => setField("negTeam", e.currentTarget.value)} placeholder="Neg school & code" />
     </div>
     {#if exportStatus}<p class="export-status">{exportStatus}</p>{/if}
     {#if round.filePath}<p class="export-status">Saved to {round.filePath}</p>{/if}
@@ -203,7 +203,7 @@
         </div>
       </div>
       {#if round.sheets.length === 0}
-        <p class="hint-line">No pages yet — add one above, or import a speech doc below.</p>
+        <p class="hint-line">No pages yet. Add one above, or import a speech doc below.</p>
       {/if}
       <div class="sheet-list">
         {#each round.sheets as s, i (s.id)}
@@ -272,11 +272,11 @@
 
     <section class="rfd">
       <div class="sheets-head">
-        <h2>RFD — result &amp; feedback</h2>
+        <h2>Result &amp; feedback</h2>
         {#if rfdResult}<span class="rfd-badge">{rfdResult}</span>{/if}
       </div>
       {#if !round.rfd || round.rfd.ballots.length === 0}
-        <p class="hint-line">Record how the round came out — who voted, why, and any feedback. It saves with the flow.</p>
+        <p class="hint-line">Record how the round came out: who voted, why, and any feedback. It saves with the flow.</p>
       {/if}
 
       {#each round.rfd?.ballots ?? [] as b (b.id)}
@@ -307,7 +307,7 @@
           <textarea
             class="ballot-reason"
             value={b.reason}
-            placeholder="Reason for decision — why did they vote this way?"
+            placeholder="Reason for decision: why did they vote this way?"
             oninput={(e) => setBallot(b.id, "reason", e.currentTarget.value)}
           ></textarea>
           <textarea
@@ -350,7 +350,7 @@
       <!-- /DOCX-IMPORT -->
 
       <details class="tool">
-        <summary>📤 Export &amp; convert</summary>
+        <summary>📤 Export</summary>
         <div class="tool-body">
           <div class="setup-row">
             <button class="chip" onclick={async () => { if (round && await exportExcel(round)) exportStatus = "Saved as Excel (.xlsx)"; }}>⊞ Excel (.xlsx)</button>
@@ -373,6 +373,7 @@
   }
   .home {
     max-width: 760px;
+    margin: 0 auto;
   }
   .home-head {
     display: flex;
