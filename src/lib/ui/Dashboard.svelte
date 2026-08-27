@@ -613,7 +613,11 @@
     font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);
     font-weight: 600; margin: 40px 0 14px; text-transform: uppercase;
   }
-  .tourney-head { display: flex; align-items: center; gap: 10px; }
+  /* The section heading shares this flex row with the buttons, so its own top
+     margin would offset it and float the buttons above the label. Put the
+     spacing on the row and zero the heading's margin inside it. */
+  .tourney-head { display: flex; align-items: center; gap: 10px; margin: 40px 0 14px; }
+  .tourney-head .section { margin: 0; }
   .mini-btn {
     background: var(--panel); border: 1px solid var(--border); color: var(--accent);
     border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
