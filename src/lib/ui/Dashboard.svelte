@@ -505,7 +505,7 @@
               </div>
             {/each}
             {#if rowsFor(t).length === 0}
-              <p class="empty-hint row-empty">No flows in here yet — drag one in, or use <b>+ New flow</b>.</p>
+              <p class="empty-hint row-empty">No flows here yet. Drag one in, or use New flow.</p>
             {/if}
           </div>
         {/if}
@@ -513,7 +513,7 @@
     {/each}
 
     {#if tournaments.list.length === 0 && !creatingTourney}
-      <p class="empty-hint">No tournaments yet — click <b>+ New tournament</b> to make a folder on your Mac, then add flows into it.</p>
+      <p class="empty-hint">No tournaments yet. Use New tournament to make a folder, then add flows to it.</p>
     {/if}
 
     <!-- unfiled app-data flows (anything already filed shows in its tournament) -->

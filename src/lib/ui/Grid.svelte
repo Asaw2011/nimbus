@@ -39,6 +39,22 @@
   let scroller: HTMLDivElement | undefined = $state();
   let dropTargetCell = $state<{ r: number; c: number } | null>(null);
 
+  // Rename a speech column: double-click its header to edit the label (e.g. LD's
+  // "NR" -> "2NR", or PF's "Pro Reb" -> whatever you call it). Templates are
+  // presets, so this just renames the speech on this round and it persists.
+  let editingCol = $state<number | null>(null);
+  let editText = $state("");
+  function startRenameHeader(col: number, current: string) {
+    editingCol = col;
+    editText = current;
+  }
+  function commitRenameHeader() {
+    if (editingCol !== null) {
+      store.renameSpeech(editingCol, editText);
+      editingCol = null;
+    }
+  }
+
   // ---- Doc Search drag bridge ------------------------------------------
   // Blocks dragged from DocSearch carry a 'text/nimbus-block' MIME type.
   // Drop onto any cell: the header + full card go into the FLOW cell only.
@@ -405,9 +421,26 @@
         class:aff={speech.side === "aff"}
         class:neg={speech.side === "neg"}
         class:dead={colStart + i < sheet.startCol}
-        title={speech.label}
+        class:editing={editingCol === colStart + i}
+        title={editingCol === colStart + i ? "" : `${speech.label} (double-click to rename)`}
+        ondblclick={() => startRenameHeader(colStart + i, speech.abbr)}
       >
-        {speech.abbr}
+        {#if editingCol === colStart + i}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="header-rename"
+            bind:value={editText}
+            autofocus
+            onblur={commitRenameHeader}
+            onkeydown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") { e.preventDefault(); commitRenameHeader(); }
+              else if (e.key === "Escape") { editingCol = null; }
+            }}
+          />
+        {:else}
+          {speech.abbr}
+        {/if}
       </div>
     {/each}
   </div>
@@ -520,6 +553,23 @@
   }
   .header.dead {
     opacity: 0.25;
+  }
+  .header.editing {
+    padding: 0;
+  }
+  .header-rename {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 6px;
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    color: var(--text);
+    background: var(--input-bg, #fff);
+    border: 1px solid var(--blue, #4b94ed);
+    border-radius: 3px;
+    outline: none;
   }
   .dead-cell {
     box-sizing: border-box;
