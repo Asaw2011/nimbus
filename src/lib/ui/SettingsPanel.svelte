@@ -289,58 +289,38 @@
           >Bottom</button>
         </div>
       </label>
-      <label class="row">
-        Aff / Pro color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.affColor || (settings.theme === "dark" ? "#7fb5ff" : "#1a6fd4")}
-            oninput={(e) => { settings.affColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.affColor}
-            <button class="chip" onclick={() => { settings.affColor = ""; settings.save(); }}>reset</button>
+      <div class="row">
+        <span>Colors</span>
+        <div class="color-group">
+          <label class="color-chip">
+            <input type="color"
+              value={settings.affColor || (settings.theme === "dark" ? "#7fb5ff" : "#1a6fd4")}
+              oninput={(e) => { settings.affColor = e.currentTarget.value; settings.save(); }} />
+            <span>Aff</span>
+          </label>
+          <label class="color-chip">
+            <input type="color"
+              value={settings.negColor || (settings.theme === "dark" ? "#ff9a7f" : "#c8442a")}
+              oninput={(e) => { settings.negColor = e.currentTarget.value; settings.save(); }} />
+            <span>Neg</span>
+          </label>
+          <label class="color-chip">
+            <input type="color"
+              value={settings.analyticColor || (settings.theme === "dark" ? "#5fd98a" : "#1e8e4a")}
+              oninput={(e) => { settings.analyticColor = e.currentTarget.value; settings.save(); }} />
+            <span>Analytic</span>
+          </label>
+          <label class="color-chip">
+            <input type="color"
+              value={settings.cardColor || (settings.theme === "dark" ? "#c792ea" : "#7c4dbe")}
+              oninput={(e) => { settings.cardColor = e.currentTarget.value; settings.save(); }} />
+            <span>Card</span>
+          </label>
+          {#if settings.affColor || settings.negColor || settings.analyticColor || settings.cardColor}
+            <button class="color-reset" onclick={() => { settings.affColor = settings.negColor = settings.analyticColor = settings.cardColor = ""; settings.save(); }}>Reset</button>
           {/if}
-        </span>
-      </label>
-      <label class="row">
-        Neg / Con color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.negColor || (settings.theme === "dark" ? "#ff9a7f" : "#c8442a")}
-            oninput={(e) => { settings.negColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.negColor}
-            <button class="chip" onclick={() => { settings.negColor = ""; settings.save(); }}>reset</button>
-          {/if}
-        </span>
-      </label>
-      <label class="row">
-        Analytic ink color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.analyticColor || (settings.theme === "dark" ? "#5fd98a" : "#1e8e4a")}
-            oninput={(e) => { settings.analyticColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.analyticColor}
-            <button class="chip" onclick={() => { settings.analyticColor = ""; settings.save(); }}>reset</button>
-          {/if}
-        </span>
-      </label>
-      <label class="row">
-        Card ink color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.cardColor || (settings.theme === "dark" ? "#c792ea" : "#7c4dbe")}
-            oninput={(e) => { settings.cardColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.cardColor}
-            <button class="chip" onclick={() => { settings.cardColor = ""; settings.save(); }}>reset</button>
-          {/if}
-        </span>
-      </label>
+        </div>
+      </div>
       <label class="row">
         Min column width
         <span class="inline">
@@ -1013,6 +993,14 @@
     background: var(--bg); color: var(--text);
   }
   .speech-input:focus { outline: none; border-color: var(--accent); }
+  .color-group { display: flex; align-items: flex-end; gap: 16px; }
+  .color-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; margin: 0; }
+  .color-chip input[type="color"] {
+    width: 36px; height: 26px; padding: 0; border: 1px solid var(--border);
+    border-radius: 6px; background: none; cursor: pointer;
+  }
+  .color-chip span { font-size: 11px; color: var(--text-dim); }
+  .color-reset { align-self: center; background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 2px 4px; }
   .doc-preview {
     background: #fff;
     color: #111;
