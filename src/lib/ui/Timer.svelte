@@ -235,7 +235,8 @@
     font-size: 12px;
     cursor: pointer;
   }
-  .t-btn.primary { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .t-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .t-btn.primary:hover { filter: brightness(1.06); }
   .t-btn.on { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); border-color: var(--accent); }
   .t-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 0 10px 6px; }
   .t-preset {
