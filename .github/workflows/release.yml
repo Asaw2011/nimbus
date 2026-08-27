@@ -71,8 +71,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
-          releaseName: "Nimbus v__VERSION__"
-          releaseBody: "See the assets below to download and install Nimbus for your platform (macOS Apple Silicon, macOS Intel, Windows, Linux)."
+          releaseName: "Nimbus v__VERSION__ (test build — doc fixes)"
+          releaseBody: "TEST BUILD from the doc-fixes branch. Includes the tilde/backtick typing fix. Not the stable release — see v1.0.0 for that. Download the file for your platform (macOS Apple Silicon, macOS Intel, Windows, Linux)."
           releaseDraft: false
-          prerelease: false
+          prerelease: true
           args: ${{ matrix.args }}
