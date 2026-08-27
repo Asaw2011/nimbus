@@ -9,6 +9,7 @@
   import { uid } from "../model/types";
   import { checkForUpdate, type UpdateInfo } from "../updater";
   import { auth } from "../model/auth.svelte";
+  import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -35,6 +36,13 @@
     { id: "backup", label: "Backup" },
   ] as const;
   let tab = $state<(typeof TABS)[number]["id"]>("appearance");
+
+  // Speech-format (template) editor: rename a format's speeches for all new
+  // rounds, and pick which format new flows start with.
+  const FORMAT_TEMPLATES = builtinTemplates();
+  let fmtIdx = $state(settings.defaultTemplate);
+  const speechAbbr = (format: number, j: number, fallback: string) =>
+    settings.templateAbbrs[format]?.[j] ?? fallback;
 
   // Speech-doc style editor helpers.
   function patchDoc(patch: Partial<DocTypography>) {
@@ -419,6 +427,36 @@
           >Excel</button>
         </div>
       </label>
+    </section>
+
+    <section>
+      <h3>Speech formats</h3>
+      <p class="hint">Pick the format new flows start with, and rename its speeches. Renames apply to every new round of that format.</p>
+      <label class="row">
+        Default format for new flows
+        <select value={settings.defaultTemplate} onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}>
+          {#each FORMAT_TEMPLATES as t, i (t.id)}<option value={i}>{t.name}</option>{/each}
+        </select>
+      </label>
+      <label class="row">
+        Edit speeches for
+        <select value={fmtIdx} onchange={(e) => (fmtIdx = Number(e.currentTarget.value))}>
+          {#each FORMAT_TEMPLATES as t, i (t.id)}<option value={i}>{t.name}</option>{/each}
+        </select>
+      </label>
+      <div class="speech-edit">
+        {#each FORMAT_TEMPLATES[fmtIdx].speeches as sp, j (sp.id)}
+          <label class="speech-row">
+            <span class="speech-full">{sp.label}</span>
+            <input
+              class="speech-input"
+              value={speechAbbr(fmtIdx, j, sp.abbr)}
+              placeholder={sp.abbr}
+              onchange={(e) => settings.setSpeechAbbr(fmtIdx, j, e.currentTarget.value)}
+            />
+          </label>
+        {/each}
+      </div>
     </section>
     {/if}
 
@@ -979,6 +1017,15 @@
     padding: 5px 0;
     gap: 12px;
   }
+  .speech-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .speech-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .speech-full { font-size: 13px; color: var(--text-dim); }
+  .speech-input {
+    width: 150px; padding: 6px 9px; font-size: 13px; text-align: center;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text);
+  }
+  .speech-input:focus { outline: none; border-color: var(--accent); }
   .doc-preview {
     background: #fff;
     color: #111;

@@ -69,6 +69,8 @@ export interface Persisted {
   ribbonMode: "full" | "icons" | "slim";
   /** Default speech-format template index for New flow. */
   defaultTemplate: number;
+  /** Per-format custom speech labels, keyed by format index. */
+  templateAbbrs: Record<number, string[]>;
   /** Default file format when you Save (⌘S / on close). */
   defaultSaveFormat: "nimbus" | "xlsx";
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
@@ -193,6 +195,11 @@ class Settings {
    *  (0 Policy, 1 LD, 2 PF, 3 PF Con-first). Set it once and every new flow
    *  starts there. Disk-backed, so it survives a localStorage wipe. */
   defaultTemplate = $state(0);
+  /** Per-format custom speech column labels, keyed by format index. Each entry
+   *  overrides the built-in abbr by position (e.g. LD position 3 "NR" -> "2NR");
+   *  a missing entry falls back to the built-in label. Applied to every NEW
+   *  round of that format, so you rename a speech once for all rounds. */
+  templateAbbrs = $state<Record<number, string[]>>({});
   /** Bottom by default — the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
   /** Columns stretch to fill the window but never shrink below this.
@@ -283,6 +290,7 @@ class Settings {
     else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "icons";
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
+    if (p.templateAbbrs && typeof p.templateAbbrs === "object") this.templateAbbrs = p.templateAbbrs;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
@@ -358,6 +366,7 @@ class Settings {
       ribbonMode: this.ribbonMode,
       defaultSaveFormat: this.defaultSaveFormat,
       defaultTemplate: this.defaultTemplate,
+      templateAbbrs: this.templateAbbrs,
       bulkRows: this.bulkRows,
       zoom: this.zoom,
       docZoom: this.docZoom,
@@ -394,6 +403,15 @@ class Settings {
   /** Set the default speech format for New flow and persist it. */
   setDefaultTemplate(i: number): void {
     this.defaultTemplate = i;
+    this.save();
+  }
+
+  /** Rename a speech in a format's template (applies to every new round of that
+   *  format). `format` is the template index, `idx` the speech position. */
+  setSpeechAbbr(format: number, idx: number, abbr: string): void {
+    const list = [...(this.templateAbbrs[format] ?? [])];
+    list[idx] = abbr;
+    this.templateAbbrs = { ...this.templateAbbrs, [format]: list };
     this.save();
   }
 

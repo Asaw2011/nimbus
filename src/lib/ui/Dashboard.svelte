@@ -26,7 +26,17 @@
   const templates = builtinTemplates();
   // The default speech format lives in settings (disk-backed), so whatever you
   // pick here is the primary option next time — no re-selecting Policy each run.
-  const defaultTpl = () => templates[settings.defaultTemplate] ?? templates[0];
+  function defaultTpl(): SpeechTemplate {
+    const i = settings.defaultTemplate;
+    const base = (templates[i] ?? templates[0]) as SpeechTemplate;
+    const overrides = settings.templateAbbrs[i] ?? [];
+    const tpl = structuredClone(base) as SpeechTemplate;
+    tpl.speeches.forEach((sp, j) => {
+      const o = overrides[j]?.trim();
+      if (o) sp.abbr = o;
+    });
+    return tpl;
+  }
 
   // New-tournament inline input
   let creatingTourney = $state(false);
@@ -567,7 +577,8 @@
   .dashboard { height: 100vh; display: flex; flex-direction: column; }
   .topbar {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--panel);
+    padding: 14px max(28px, calc((100% - 1060px) / 2));
+    border-bottom: 1px solid var(--border); background: var(--panel);
   }
   .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
   .logo { width: 30px; height: 30px; object-fit: contain; }
@@ -576,12 +587,15 @@
     border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
   }
   .top-btn:hover { border-color: var(--accent); }
-  .content { flex: 1; overflow-y: auto; padding: 24px; }
+  /* Center everything in a calm, fixed-width column instead of crowding the
+     top-left corner. The max() padding keeps a comfortable margin on small
+     windows and centers to ~1060px on large ones — no markup wrapper needed. */
+  .content { flex: 1; overflow-y: auto; padding: 48px max(28px, calc((100% - 1060px) / 2)) 72px; }
 
-  .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .actions { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 40px; }
   .action-card {
     text-align: left; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px 22px; width: 260px; min-height: 108px;
+    border-radius: 12px; padding: 22px 24px; flex: 1 1 240px; min-width: 240px; min-height: 118px;
     cursor: pointer; display: flex; flex-direction: column; gap: 4px;
     transition: border-color 0.1s, box-shadow 0.1s;
   }
@@ -597,7 +611,7 @@
 
   .section {
     font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);
-    font-weight: 600; margin: 18px 0 10px;
+    font-weight: 600; margin: 40px 0 14px; text-transform: uppercase;
   }
   .tourney-head { display: flex; align-items: center; gap: 10px; }
   .mini-btn {
