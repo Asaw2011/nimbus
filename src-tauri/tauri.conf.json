@@ -26,7 +26,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_YOUR_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCQjU1OThCQTdGQzY5QUQKUldTdGFmeW5pMW0xYThNa1BkY0d1SThkd2EvbkZmekVpQ0VXQnhBWDFUclBEV202bkdXU29ZSkIK",
       "endpoints": [
         "https://github.com/Asaw2011/nimbus/releases/latest/download/latest.json"
       ]
@@ -34,6 +34,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
