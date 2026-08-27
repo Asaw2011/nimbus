@@ -12,6 +12,10 @@
   import {
     keepCursorInLeadingBlockOnBlockedMerge, blockBackspaceNodeSelect, blockDeleteNodeSelect,
   } from "$lib/cardmirror/editor/boundary-cursor-keymap";
+  // Core editing normalizer (ARCHITECTURE §14.3): a paragraph typed right after
+  // a card is auto-absorbed into it as a card_body, so bodies stay bound to
+  // their card instead of clumping loose at doc level. A heading breaks the zone.
+  import { absorbPlugin } from "$lib/cardmirror/editor/absorb-plugin";
   import { keymap } from "prosemirror-keymap";
   import { history, undo, redo } from "prosemirror-history";
   import { Fragment, Slice, type Node as PMNode } from "prosemirror-model";
@@ -298,6 +302,7 @@
       schema,
       doc,
       plugins: [
+        absorbPlugin,
         readModePlugin(),
         searchPlugin(),
         history(),
