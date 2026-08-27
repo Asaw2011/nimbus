@@ -2,7 +2,7 @@
   import { store } from "../model/round.svelte";
   import { sheetAccent, uid, type Ballot } from "../model/types";
   import { exportRoundFile, exportRoundHtml } from "../model/export";
-  import { saveToFile, saveAs, exportExcel, exportNimbus, renameFileToMatchTitle } from "../model/filedoc.svelte";
+  import { saveToFile, saveAs, exportExcel, renameFileToMatchTitle } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature — to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
@@ -354,7 +354,6 @@
         <div class="tool-body">
           <div class="setup-row">
             <button class="chip" onclick={async () => { if (round && await exportExcel(round)) exportStatus = "Saved as Excel (.xlsx)"; }}>⊞ Excel (.xlsx)</button>
-            <button class="chip" onclick={async () => { if (round && await exportNimbus(round)) exportStatus = "Saved as Nimbus (.nimbus)"; }}>☁ Nimbus (.nimbus)</button>
             <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
           </div>
         </div>

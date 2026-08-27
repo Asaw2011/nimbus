@@ -5,7 +5,6 @@
 import type { Round } from "./types";
 import { store } from "./round.svelte";
 import { loadRound, saveRound } from "./persist";
-import { settings } from "./settings.svelte";
 import { safeFileName } from "./tournaments.svelte";
 
 function inTauri(): boolean {
@@ -65,22 +64,19 @@ export async function saveToFile(round: Round): Promise<boolean> {
   return writeTo(round, round.filePath);
 }
 
-/** Always prompt for a location. Format defaults to the user's setting. */
-export async function saveAs(
-  round: Round,
-  format?: "nimbus" | "xlsx",
-): Promise<boolean> {
-  const fmt = format ?? settings.defaultSaveFormat;
+/** Always prompt for a location. Flows save as Excel (.xlsx) — the single
+ *  flow format. A Nimbus .xlsx embeds the full round JSON in a hidden sheet,
+ *  so it is lossless; the old native .nimbus format has been retired. */
+export async function saveAs(round: Round): Promise<boolean> {
   if (!inTauri()) {
     triggerDownload(suggestName(round), JSON.stringify(round, null, 2));
     return true;
   }
-  const nimbusFilter = { name: "Nimbus flow", extensions: ["nimbus"] };
   const excelFilter = { name: "Excel workbook", extensions: ["xlsx"] };
   const { save } = await import("@tauri-apps/plugin-dialog");
   const path = await save({
-    defaultPath: fmt === "xlsx" ? excelName(round) : suggestName(round),
-    filters: fmt === "xlsx" ? [excelFilter, nimbusFilter] : [nimbusFilter, excelFilter],
+    defaultPath: excelName(round),
+    filters: [excelFilter],
   });
   if (!path) return false;
   return writeTo(round, path);
@@ -88,10 +84,12 @@ export async function saveAs(
 
 function normalizeExt(path: string): string {
   const low = path.toLowerCase();
-  if (low.endsWith(".nimbus") || low.endsWith(".json") || low.endsWith(".xlsx")) {
+  // Recognize old .nimbus/.json files so they still round-trip, but new saves
+  // default to .xlsx.
+  if (low.endsWith(".xlsx") || low.endsWith(".nimbus") || low.endsWith(".json")) {
     return path;
   }
-  return path + ".nimbus";
+  return path + ".xlsx";
 }
 
 // Throws on a real write failure so the caller can show the user why.
@@ -175,7 +173,7 @@ export async function renameFileToMatchTitle(round: Round | null): Promise<strin
   const cut = path.lastIndexOf(sep);
   const dir = path.slice(0, cut);
   const dot = path.lastIndexOf(".");
-  const ext = dot > cut ? path.slice(dot + 1) : "nimbus";
+  const ext = dot > cut ? path.slice(dot + 1) : "xlsx";
   const safe = safeFileName(round.name);
   if (!safe) return null;
   const newPath = `${dir}${sep}${safe}.${ext}`;
@@ -229,83 +227,22 @@ function excelName(round: Round): string {
   return `${base || "flow"}.xlsx`;
 }
 
-/** Export/convert straight to an Excel workbook. */
+/** Save the round as an Excel workbook (the one flow format). */
 export async function exportExcel(round: Round): Promise<boolean> {
-  return saveAs(round, "xlsx");
+  return saveAs(round);
 }
 
-/** Export/convert straight to a native .nimbus file. */
-export async function exportNimbus(round: Round): Promise<boolean> {
-  return saveAs(round, "nimbus");
-}
 
-// ---- standalone file conversion (doesn't touch the open round) ------------
-
-async function readAnyFlow(path: string): Promise<Round> {
-  if (path.toLowerCase().endsWith(".xlsx")) {
-    const arr = await invoke<number[]>("read_binary_file", { path });
-    const { xlsxToRound } = await import("../xlsx/xlsx");
-    return xlsxToRound(new Uint8Array(arr));
-  }
-  const text = await invoke<string>("read_text_file", { path });
-  return JSON.parse(text) as Round;
-}
-
-async function writeFlowTo(round: Round, path: string): Promise<void> {
-  const toWrite = { ...round, filePath: path };
-  if (path.toLowerCase().endsWith(".xlsx")) {
-    const { roundToXlsx } = await import("../xlsx/xlsx");
-    await invoke("write_binary_file", { path, bytes: Array.from(roundToXlsx(toWrite)) });
-  } else {
-    await invoke("write_text_file", {
-      path,
-      contents: JSON.stringify(toWrite, null, 2),
-    });
-  }
-}
-
-/** Pick a flow file and save it in the other format. Returns a status message. */
-export async function convertFlowFile(): Promise<string> {
-  if (!inTauri()) return "";
-  const { open, save } = await import("@tauri-apps/plugin-dialog");
-  const inPath = await open({
-    multiple: false,
-    filters: [{ name: "Flow files", extensions: ["nimbus", "xlsx", "json"] }],
-  });
-  if (typeof inPath !== "string") return "";
-  let round: Round;
-  try {
-    round = await readAnyFlow(inPath);
-  } catch {
-    return "Couldn't read that file.";
-  }
-  const toExcel = !inPath.toLowerCase().endsWith(".xlsx");
-  const outPath = await save({
-    defaultPath: toExcel ? excelName(round) : suggestName(round),
-    filters: toExcel
-      ? [{ name: "Excel workbook", extensions: ["xlsx"] }]
-      : [{ name: "Nimbus flow", extensions: ["nimbus"] }],
-  });
-  if (!outPath) return "";
-  const finalPath = normalizeExt(outPath);
-  try {
-    await writeFlowTo(round, finalPath);
-  } catch (e) {
-    return "Couldn't save: " + (e instanceof Error ? e.message : e);
-  }
-  return `Converted to ${toExcel ? "Excel (.xlsx)" : "Nimbus (.nimbus)"} ✓`;
-}
-
-/** Open a .nimbus/.json flow file the user picks. */
+/** Open an Excel (.xlsx) flow the user picks. Older .nimbus/.json flows still
+ *  open (secondary filter) so nothing saved before the switch is stranded. */
 export async function openFromFile(): Promise<Round | null> {
   if (!inTauri()) return null;
   const { open } = await import("@tauri-apps/plugin-dialog");
   const path = await open({
     multiple: false,
     filters: [
-      { name: "Flow files", extensions: ["nimbus", "xlsx", "json"] },
-      { name: "Nimbus flow", extensions: ["nimbus"] },
       { name: "Excel workbook", extensions: ["xlsx"] },
+      { name: "All flow files", extensions: ["xlsx", "nimbus", "json"] },
     ],
   });
   if (typeof path !== "string") return null;

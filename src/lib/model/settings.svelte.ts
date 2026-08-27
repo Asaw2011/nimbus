@@ -71,8 +71,6 @@ export interface Persisted {
   defaultTemplate: number;
   /** Per-format custom speech labels, keyed by format index. */
   templateAbbrs: Record<number, string[]>;
-  /** Default file format when you Save (⌘S / on close). */
-  defaultSaveFormat: "nimbus" | "xlsx";
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
   keymap: Partial<Record<ActionId, Combo | Combo[]>>;
   macros: Macro[];
@@ -190,7 +188,6 @@ class Settings {
    *  in the side panel. On by default. */
   compactDoc = $state(true);
   ribbonMode = $state<"full" | "icons" | "slim">("full");
-  defaultSaveFormat = $state<"nimbus" | "xlsx">("nimbus");
   /** Default speech format for New flow, as an index into builtinTemplates()
    *  (0 Policy, 1 LD, 2 PF, 3 PF Con-first). Set it once and every new flow
    *  starts there. Disk-backed, so it survives a localStorage wipe. */
@@ -288,7 +285,6 @@ class Settings {
     if (p.ribbonMode) this.ribbonMode = p.ribbonMode;
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
     else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "icons";
-    if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
     if (p.templateAbbrs && typeof p.templateAbbrs === "object") this.templateAbbrs = p.templateAbbrs;
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
@@ -364,7 +360,6 @@ class Settings {
       compactTopBar: this.compactTopBar,
       compactDoc: this.compactDoc,
       ribbonMode: this.ribbonMode,
-      defaultSaveFormat: this.defaultSaveFormat,
       defaultTemplate: this.defaultTemplate,
       templateAbbrs: this.templateAbbrs,
       bulkRows: this.bulkRows,

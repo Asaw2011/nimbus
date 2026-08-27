@@ -3,7 +3,7 @@
   import type { RoundMeta, SpeechTemplate } from "../model/types";
   import { builtinTemplates } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
-  import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
+  import { openFromFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
@@ -20,7 +20,6 @@
    *  in it. */
   let collapsed = $state<string[]>([]);
   let showSettings = $state(false);
-  let converting = $state(false);
   let status = $state("");
 
   const templates = builtinTemplates();
@@ -268,15 +267,6 @@
     }
   }
 
-  async function convert() {
-    converting = true;
-    try {
-      const msg = await convertFlowFile();
-      if (msg) status = msg;
-    } finally {
-      converting = false;
-    }
-  }
 
   // ---- tournaments ---------------------------------------------------------
 
@@ -403,11 +393,7 @@
       </button>
       <button class="action-card" onclick={openFlowFile}>
         <div class="ac-title">Open…</div>
-        <div class="ac-desc">Open a saved .nimbus or Excel flow from your Mac.</div>
-      </button>
-      <button class="action-card" onclick={convert} disabled={converting}>
-        <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
-        <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
+        <div class="ac-desc">Open a saved Excel flow from your Mac.</div>
       </button>
     </div>
 
@@ -504,7 +490,6 @@
                   >{dupes.length + 1} copies</span>
                 {/if}
                 <span class="row-sp"></span>
-                <span class="ext-badge {file.ext}">{file.ext === 'xlsx' ? 'Excel' : 'Nimbus'}</span>
                 <span class="rdate">{fmtDate(file.modified)}</span>
                 <button class="x row-x" class:confirming={confirmDelete === file.path}
                   onclick={(e) => { e.stopPropagation(); removeFlow(file); }}
@@ -716,12 +701,6 @@
   }
   .x:hover { color: var(--mark-dropped); }
   .x.confirming { background: var(--mark-dropped); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 8px; }
-  .ext-badge {
-    align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
-    padding: 1px 7px; border: 1px solid var(--border); color: var(--text-dim);
-  }
-  .ext-badge.nimbus { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-  .ext-badge.xlsx { color: #1e8e4a; border-color: color-mix(in srgb, #1e8e4a 40%, transparent); }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip-tag {
     font-size: 11px; border-radius: 5px; padding: 2px 8px;

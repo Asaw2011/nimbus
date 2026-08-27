@@ -60,11 +60,12 @@ Builds are currently unsigned, so first launch shows a security warning:
 - Range selection (drag-select, copy as TSV, bulk-mark, drag-move blocks)
 
 **Files & formats**
-- Two formats: **`.nimbus`** (native, full fidelity) and **`.xlsx`** (Excel).
-  Convert between them either way, losslessly — flow in Excel or in Nimbus.
-- **Double-click** a `.nimbus` or `.xlsx` file to open it straight into Nimbus
-  from Finder or Explorer; **⌘S / Ctrl+S** to save; pick your default save
-  format in Settings
+- One flow format: **Excel (`.xlsx`)**. A Nimbus `.xlsx` embeds the full flow
+  (in a hidden sheet) so it is fully lossless, and it still opens in Excel.
+  (The old native `.nimbus` format has been retired; existing `.nimbus` files
+  still open.)
+- **⌘S / Ctrl+S** saves the open flow as an Excel file; reopen it from the
+  dashboard's Open button
 - **Save/Open** flows anywhere on your computer; export an HTML round report
 - **Excel-style multi-cell paste** — paste TSV content and it distributes
   across the target cells correctly

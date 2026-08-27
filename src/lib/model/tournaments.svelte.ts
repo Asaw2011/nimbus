@@ -4,7 +4,6 @@
 
 import type { Round } from "./types";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
-import { settings } from "./settings.svelte";
 
 export interface Tournament {
   id: string;
@@ -144,9 +143,16 @@ class TournamentStore {
         let affTeam = "";
         let negTeam = "";
         let name = f.name;
-        if (f.ext === "nimbus") {
+        if (f.ext === "xlsx" || f.ext === "nimbus") {
           try {
-            const r = JSON.parse(await invoke<string>("read_text_file", { path: f.path }));
+            let r: { opponent?: string; affTeam?: string; negTeam?: string; name?: string };
+            if (f.ext === "xlsx") {
+              const arr = await invoke<number[]>("read_binary_file", { path: f.path });
+              const { xlsxToRound } = await import("../xlsx/xlsx");
+              r = xlsxToRound(new Uint8Array(arr)) as typeof r;
+            } else {
+              r = JSON.parse(await invoke<string>("read_text_file", { path: f.path }));
+            }
             opponent = r.opponent ?? "";
             affTeam = r.affTeam ?? "";
             negTeam = r.negTeam ?? "";
@@ -181,7 +187,7 @@ class TournamentStore {
   async uniqueFlowName(t: Tournament, base: string, ext?: string): Promise<string> {
     const wanted = (base ?? "").trim() || "New Flow";
     if (!inTauri()) return wanted;
-    const want = ext ?? (settings.defaultSaveFormat === "xlsx" ? "xlsx" : "nimbus");
+    const want = ext ?? "xlsx";
     let taken: Set<string>;
     try {
       const files = await invoke<FlowFile[]>("list_flows", { path: t.path });
@@ -210,10 +216,9 @@ class TournamentStore {
     return `${wanted.slice(0, 70)} ${uid()}`;
   }
 
-  /** Save a round into a tournament folder, using the default save format. */
+  /** Save a round into a tournament folder as Excel (.xlsx), the one flow format. */
   async saveRoundInto(t: Tournament, round: Round): Promise<string> {
-    const excel = settings.defaultSaveFormat === "xlsx";
-    const ext = excel ? "xlsx" : "nimbus";
+    const ext = "xlsx";
     // Uniquify the ROUND NAME, not merely the file name. Two flows made with
     // "+ New flow" are both called "New Flow", and both writing to
     // "New Flow.nimbus" made the second overwrite the first outright.
@@ -226,15 +231,8 @@ class TournamentStore {
     const name = await this.uniqueFlowName(t, round.name, ext);
     const path = join(t.path, `${safeFileName(name)}.${ext}`);
     const toWrite = { ...round, name, filePath: path };
-    if (excel) {
-      const { roundToXlsx } = await import("../xlsx/xlsx");
-      await invoke("write_binary_file", { path, bytes: Array.from(roundToXlsx(toWrite)) });
-    } else {
-      await invoke("write_text_file", {
-        path,
-        contents: JSON.stringify(toWrite, null, 2),
-      });
-    }
+    const { roundToXlsx } = await import("../xlsx/xlsx");
+    await invoke("write_binary_file", { path, bytes: Array.from(roundToXlsx(toWrite)) });
     // Keep the caller's in-memory round in step with what actually landed on
     // disk. If it kept the colliding title, the next autosave would rename the
     // file straight back onto the flow we just took care not to overwrite.

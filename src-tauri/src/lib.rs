@@ -27,11 +27,13 @@ fn force_quit(app: tauri::AppHandle) {
     app.exit(0);
 }
 
-/// Windows/Linux pass the opened file as a CLI argument.
+/// Windows/Linux pass the opened file as a CLI argument. Flows are Excel now;
+/// still accept an old .nimbus so existing files keep opening.
 fn file_from_args() -> Option<String> {
-    std::env::args()
-        .skip(1)
-        .find(|a| a.to_lowercase().ends_with(".nimbus"))
+    std::env::args().skip(1).find(|a| {
+        let a = a.to_lowercase();
+        a.ends_with(".xlsx") || a.ends_with(".nimbus")
+    })
 }
 
 /// Renaming the app changes its data dir. On first launch under a new

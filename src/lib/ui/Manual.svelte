@@ -284,7 +284,7 @@
           <h2>Saving & files</h2>
           <ul>
             <li>Everything autosaves to your machine (a heartbeat plus a flush on blur/close). Your work is never only in memory.</li>
-            <li><kbd>{mod}S</kbd> saves the open flow to a <b>.nimbus</b> file; double-click a .nimbus file to open it.</li>
+            <li><kbd>{mod}S</kbd> saves the open flow to an Excel <b>.xlsx</b> file. Open one again from the dashboard's Open button (older <code>.nimbus</code> flows still open too).</li>
             <li>Export an HTML report or a round file from a round's home page. Settings (keybinds, macros, snippets, colors) back up and restore as a bundle.</li>
           </ul>
         </section>

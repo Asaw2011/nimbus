@@ -18,7 +18,7 @@ pub struct LibFile {
     pub size: u64,
 }
 
-/// Recursively walk every enabled root and return all .docx / .nimbus files,
+/// Recursively walk every enabled root and return all .docx files,
 /// sorted by mtime descending (most recent first).
 ///
 /// Safety limits:
@@ -63,7 +63,7 @@ pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
                 None => continue,
             };
 
-            if ext != "docx" && ext != "nimbus" {
+            if ext != "docx" {
                 continue;
             }
 
