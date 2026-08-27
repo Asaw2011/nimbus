@@ -1224,16 +1224,15 @@
     if (matchesAny(e, settings.keymap.zoomReset)) { e.preventDefault(); settings.docZoomReset(); return true; }
     if (matchesAny(e, settings.keymap.zoomIn)) { e.preventDefault(); settings.docZoomIn(); return true; }
     if (matchesAny(e, settings.keymap.zoomOut)) { e.preventDefault(); settings.docZoomOut(); return true; }
-    // Send the current card/selection to the ★ speech doc. This lives ONLY on
-    // a modified key (Cmd/Ctrl-`, rebindable in Settings) so that plain ` and ~
-    // type as normal characters in the doc, exactly like typing in CardMirror —
-    // a bare-backtick intercept meant those characters could never be entered.
-    if (onTildeCursor && matchesAny(e, settings.keymap.sendToSpeechCursor)) {
-      onTildeCursor(captureForTilde());
+    // FIXED (unchangeable) — ` / ~ sends the current card/selection to the
+    // speech doc at the cursor, like CardMirror/Verbatim "send to speech".
+    if (onTilde && (e.key === "`" || e.key === "~") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      onTilde(captureForTilde());
       return true;
     }
-    if (onTilde && matchesAny(e, settings.keymap.sendToSpeech)) {
-      onTilde(captureForTilde());
+    // Rebindable variant — send to the speech doc AT ITS CURSOR (` = end).
+    if (onTildeCursor && matchesAny(e, settings.keymap.sendToSpeechCursor)) {
+      onTildeCursor(captureForTilde());
       return true;
     }
     // Undo/redo — handled explicitly here (this runs before every other keymap)
