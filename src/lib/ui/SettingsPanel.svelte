@@ -1056,13 +1056,14 @@
     gap: 8px;
   }
   .swatches {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
-    flex-wrap: wrap;
+    width: 100%;
   }
   .theme-swatch {
-    width: 74px;
-    height: 46px;
+    width: 100%;
+    height: 48px;
     border: 2px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
@@ -1071,10 +1072,20 @@
     justify-content: center;
     padding: 4px;
     position: relative;
+    transition: border-color 0.12s, box-shadow 0.12s;
   }
+  .theme-swatch:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
   .theme-swatch.on {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  /* A clear checkmark badge marks the active theme, not just a border tint. */
+  .theme-swatch.on::after {
+    content: "✓";
+    position: absolute; top: 3px; right: 4px;
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
   }
   .theme-name {
     font-size: 10px;
