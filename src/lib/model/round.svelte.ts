@@ -2,7 +2,7 @@
 // debounced persistence. All mutations go through `mutate()` so history and
 // autosave can never be bypassed.
 
-import type { ArgRef, Cell, CellItem, Round, Sheet, SpeechTemplate } from "./types";
+import type { ArgRef, Cell, CellItem, Round, Sheet, Side, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRoundJson } from "./persist";
 
@@ -13,6 +13,14 @@ const SAVE_DEBOUNCE_MS = 400;
 export interface Cursor {
   row: number;
   col: number;
+}
+
+/** A document's parked view state and history while another is on screen. */
+interface DocCtx {
+  undo: string[];
+  redo: string[];
+  cursor: Cursor | null;
+  activeSheetId: string | null;
 }
 
 class RoundStore {
@@ -33,6 +41,39 @@ class RoundStore {
   selectAll = $state(false);
   /** Excel-style range selection on the active sheet (anchor→focus corners). */
   selection = $state<{ anchor: Cursor; focus: Cursor } | null>(null);
+  /**
+   * Which partner lane is yours on a split speech. Always 0 while flowing
+   * solo — you own the flow, so you own the first lane. A live partner session
+   * sets it to 1 on the client that joined.
+   */
+  myLane = $state(0);
+  /**
+   * Other rounds open at the same time — your partner's flow in a
+   * separate-flows session. Only {@link round} is rendered; a mirror becomes
+   * the rendered one via {@link switchDoc}, which swaps them over.
+   */
+  mirrors = $state<Round[]>([]);
+  /**
+   * Ids of rounds you do NOT own.
+   *
+   * ⚠ Load-bearing. A foreign round must never be written to a file path on
+   * this machine — that is how one client ends up autosaving another's flow
+   * over its own file, which is the 2026-08-24 shape. `autosaveToFile` refuses
+   * on this, on top of the fact that a mirror carries no `filePath`.
+   */
+  private foreign = new Set<string>();
+  /**
+   * Per-round view state and history. Undo stacks are per DOCUMENT: sharing one
+   * stack across two open flows would let an undo on your page restore a
+   * snapshot of your partner's.
+   */
+  private ctx = new Map<string, DocCtx>();
+  /**
+   * Hide your partner's lane to declutter the flow. Session-only and PURELY
+   * VISUAL — it must never change what the doc export produces, or the same
+   * flow would emit different speech docs depending on a view toggle.
+   */
+  hidePartnerLane = $state(false);
 
   /** Memoized normalized selection rectangle. Every visible cell asks whether
    *  it's in range (twice) on every drag frame, so this must not recompute
@@ -58,7 +99,7 @@ class RoundStore {
 
   // ---- lifecycle ----------------------------------------------------------
 
-  newRound(template: SpeechTemplate, name = "Untitled Round"): void {
+  newRound(template: SpeechTemplate, name = "Untitled Round", mySide?: Side): void {
     // Rounds start with no sheets: the round home page is the landing view,
     // and pages are created from its buttons (advantages, off-case, etc.).
     const round: Round = {
@@ -73,6 +114,7 @@ class RoundStore {
       sheets: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      ...(mySide ? { mySide } : {}),
     };
     this.round = round;
     this.activeSheetId = null;
@@ -110,6 +152,124 @@ class RoundStore {
 
   /** Call when focus leaves a cell so the next keystroke starts a new undo step. */
   endTextSession(): void {
+    this.textSessionOpen = false;
+  }
+
+  // ---- multiple open documents --------------------------------------------
+
+  /** Every open round, active first. Drives the document switcher. */
+  get docs(): Round[] {
+    return this.round ? [this.round, ...this.mirrors] : [...this.mirrors];
+  }
+
+  /** True when this round belongs to your partner, not to you. */
+  isForeign(id: string | undefined): boolean {
+    return !!id && this.foreign.has(id);
+  }
+
+  /**
+   * Open a round alongside the current one — your partner's flow.
+   *
+   * ⚠ `filePath` is stripped. A mirror is a copy of a document that lives on
+   * SOMEONE ELSE'S disk; keeping their path would point our autosave at a file
+   * we have no business writing.
+   */
+  addMirror(round: Round, foreign = true): void {
+    if (!round?.id || round.id === this.round?.id) return;
+    delete round.filePath;
+    if (foreign) this.foreign.add(round.id);
+    const at = this.mirrors.findIndex((m) => m.id === round.id);
+    if (at >= 0) this.mirrors[at] = round;
+    else this.mirrors.push(round);
+  }
+
+  removeMirror(id: string): void {
+    this.mirrors = this.mirrors.filter((m) => m.id !== id);
+    this.foreign.delete(id);
+    this.ctx.delete(id);
+  }
+
+  /** Close every mirror — used when a session ends. Your own round is kept. */
+  clearMirrors(): void {
+    for (const m of this.mirrors) {
+      this.foreign.delete(m.id);
+      this.ctx.delete(m.id);
+    }
+    this.mirrors = [];
+  }
+
+  /** Any open round by id, whether or not it is the one being rendered. */
+  docById(id: string): Round | null {
+    if (this.round?.id === id) return this.round;
+    return this.mirrors.find((m) => m.id === id) ?? null;
+  }
+
+  /**
+   * Render a different open document. The one on screen swaps into `mirrors`
+   * and the target swaps out, each carrying its own cursor, sheet and history
+   * so the two never blend.
+   */
+  switchDoc(id: string): void {
+    if (!this.round || this.round.id === id) return;
+    const target = this.mirrors.find((m) => m.id === id);
+    if (!target) return;
+    // Park the current document's view state and history under its own id.
+    this.ctx.set(this.round.id, {
+      undo: this.undoStack,
+      redo: this.redoStack,
+      cursor: this.cursor,
+      activeSheetId: this.activeSheetId,
+    });
+    const outgoing = this.round;
+    this.mirrors = this.mirrors.map((m) => (m.id === id ? outgoing : m));
+    this.round = target;
+
+    const saved = this.ctx.get(id);
+    this.undoStack = saved?.undo ?? [];
+    this.redoStack = saved?.redo ?? [];
+    this.textSessionOpen = false;
+    this.selection = null;
+    this.selectAll = false;
+    this.activeSheetId =
+      saved?.activeSheetId && target.sheets.some((s) => s.id === saved.activeSheetId)
+        ? saved.activeSheetId
+        : (target.sheets[0]?.id ?? null);
+    const sheet = target.sheets.find((s) => s.id === this.activeSheetId);
+    this.cursor = saved?.cursor ?? (sheet ? { row: 0, col: sheet.startCol } : null);
+  }
+
+  /**
+   * Apply a partner's change to one open document, whichever it is.
+   *
+   * The rendered round goes through {@link applyRemote} so it autosaves and
+   * stays out of your undo stack. A mirror isn't reactive state, so it is
+   * mutated directly and persisted here — otherwise their flow would only be
+   * written to disk on the occasions you happened to be looking at it.
+   */
+  applyRemoteToDoc(id: string, fn: (round: Round) => void): boolean {
+    if (this.round?.id === id) {
+      this.applyRemote(fn);
+      return true;
+    }
+    const mirror = this.mirrors.find((m) => m.id === id);
+    if (!mirror) return false;
+    fn(mirror);
+    mirror.updatedAt = Date.now();
+    void saveRoundJson(mirror.id, JSON.stringify(trimPadding(mirror)));
+    return true;
+  }
+
+  /**
+   * Forget undo history.
+   *
+   * Called when a partner's change lands during a live session. Snapshots hold
+   * the WHOLE round, so undoing to one taken before their edit would restore a
+   * round that never contained their work and silently delete it. Dropping the
+   * history costs you undo; keeping it would cost them their flow.
+   */
+  dropHistory(): void {
+    this.undoStack = [];
+    this.redoStack = [];
     this.textSessionOpen = false;
   }
 
@@ -655,9 +815,58 @@ class RoundStore {
       }
     }
     if (target < 0) return;
+    // Extending INTO a split speech lands in the lane you own rather than
+    // whichever lane happens to sit leftmost — an extension is your own note,
+    // so it belongs on your side of the split. Extending FROM one lane to the
+    // next speech is unaffected: that target isn't a lane.
+    const group = speeches[target].laneGroup;
+    if (group && speeches[col].laneGroup !== group) {
+      const mine = speeches.findIndex(
+        (s) => s.laneGroup === group && s.lane === this.myLane,
+      );
+      if (mine >= 0) target = mine;
+    }
     this.mutate(() => {
       const cell = sheet.rows[row]?.cells[target];
       if (cell) cell.ext = true;
+    });
+    this.cursor = { row, col: target };
+  }
+
+  /**
+   * Answer this argument: jump to the next OPPOSING speech on the same row and
+   * record that the cell you land on is a reply to the one you came from.
+   *
+   * The mirror image of {@link extendCell}, which walks to your own next
+   * speech. The recorded link is what lets the doc export write the right
+   * "AT: …" header instead of guessing from whatever sits to the left — which
+   * on a split speech is your partner's lane, not yours.
+   */
+  replyToCell(row: number, col: number): void {
+    const sheet = this.activeSheet;
+    if (!sheet || !this.round) return;
+    const speeches = this.round.template.speeches;
+    const from = speeches[col];
+    if (!from) return;
+    let target = -1;
+    for (let j = col + 1; j < speeches.length; j++) {
+      if (from.side === "neutral" || speeches[j].side !== from.side) {
+        target = j;
+        break;
+      }
+    }
+    if (target < 0) return;
+    // Landing on a split speech puts you in your own lane, same as extending.
+    const group = speeches[target].laneGroup;
+    if (group && from.laneGroup !== group) {
+      const mine = speeches.findIndex(
+        (s) => s.laneGroup === group && s.lane === this.myLane,
+      );
+      if (mine >= 0) target = mine;
+    }
+    this.mutate(() => {
+      const cell = sheet.rows[row]?.cells[target];
+      if (cell) cell.repliesTo = from.id;
     });
     this.cursor = { row, col: target };
   }

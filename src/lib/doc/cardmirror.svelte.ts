@@ -135,7 +135,37 @@ class CardMirror {
     }
   }
 
-  /** Send a sequence of items. Sets `needsConsent` when CardMirror prompts. */
+  /** Push ONE card into `target` as CardMirror-native HTML (CardMirror >= 1.5.0).
+   *  This is the lossless route: highlights, cites and structure survive, the
+   *  insert lands in the named doc, and it does not steal focus.
+   *
+   *  `target` must come from a `refreshDocs()` in the SAME send — targets are
+   *  session-scoped and a stale one is refused as `target-not-found` rather
+   *  than silently landing somewhere else. There is deliberately no
+   *  "unaddressed" form; with no doc to name, the caller falls back to the
+   *  clipboard instead of guessing. */
+  async insertHtml(
+    html: string,
+    text: string,
+    target: string,
+  ): Promise<CmInsertResp> {
+    if (!inTauri()) return { ok: false, error: "not-tauri" };
+    if (!html) return { ok: true, inserted: false };
+    if (!target) return { ok: false, error: "no-target" };
+    try {
+      const r = await invoke<CmInsertResp>("cm_insert_html", { target, html, text });
+      this.needsConsent = r.pending === "consent";
+      if (r.ok === false) this.lastError = r.error ?? null;
+      return r;
+    } catch (e) {
+      // A throw here is transport-level: no session file, so CardMirror is gone.
+      this.running = false;
+      return { ok: false, error: String(e) };
+    }
+  }
+
+  /** Send a sequence of items. Sets `needsConsent` when CardMirror prompts.
+   *  ⚠ Superseded by `insertHtml` for card sends — this drops formatting. */
   async insert(
     items: CmInsertItem[],
     target?: string | null,

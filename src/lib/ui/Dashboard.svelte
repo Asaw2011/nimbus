@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { RoundMeta, SpeechTemplate } from "../model/types";
-  import { builtinTemplates } from "../model/templates";
+  import type { RoundMeta, Side, SpeechTemplate } from "../model/types";
+  import { builtinTemplates, splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
@@ -11,6 +11,7 @@
   let { onopen }: { onopen: () => void } = $props();
 
   const LS_TEMPLATE = "debate-flow:last-template";
+  const LS_SIDE = "debate-flow:last-side";
 
   let rounds: RoundMeta[] = $state([]); // every flow in app data
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
@@ -29,6 +30,24 @@
     typeof localStorage !== "undefined" && localStorage.getItem(LS_TEMPLATE),
   ) || 0;
   let templateIdx = $state(savedIdx >= 0 && savedIdx < templates.length ? savedIdx : 0);
+
+  // Which side you're flowing from, chosen HERE because it decides how many
+  // columns the round has — every sheet stores a start-column index, so the
+  // count can't change once sheets exist. "neutral" is solo flowing and is the
+  // default: picking a side is opting IN to partner lanes.
+  const savedSide = typeof localStorage !== "undefined" ? localStorage.getItem(LS_SIDE) : null;
+  let mySide = $state<Side>(
+    savedSide === "aff" || savedSide === "neg" ? savedSide : "neutral",
+  );
+  /** The template as the round will actually be created — lanes already split
+   *  in. Also tells the UI whether this template HAS a splittable speech. */
+  const pickedTemplate = $derived(splitForSide(templates[templateIdx], mySide));
+  const splitLabel = $derived.by(() => {
+    if (mySide === "neutral") return "";
+    const at = splitTargetFor(templates[templateIdx], mySide);
+    const sp = templates[templateIdx].speeches[at];
+    return sp ? `${sp.abbr} splits into two lanes` : "nothing to split in this format";
+  });
 
   // New-tournament inline input
   let creatingTourney = $state(false);
@@ -233,7 +252,11 @@
 
   function createRound() {
     localStorage.setItem(LS_TEMPLATE, String(templateIdx));
-    store.newRound(structuredClone(templates[templateIdx]) as SpeechTemplate, "New Round");
+    store.newRound(
+      structuredClone(pickedTemplate) as SpeechTemplate,
+      "New Round",
+      mySide,
+    );
     onopen();
   }
 
@@ -294,7 +317,7 @@
     // round still called "New Flow" would rename itself back on top of the
     // first one's file.
     const name = await tournaments.uniqueFlowName(t, "New Flow");
-    store.newRound(structuredClone(templates[templateIdx]) as SpeechTemplate, name);
+    store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, name, mySide);
     if (store.round) {
       const path = await tournaments.saveRoundInto(t, store.round);
       store.mutate((r) => (r.filePath = path));
@@ -393,6 +416,27 @@
             <option value={i}>{t.name}</option>
           {/each}
         </select>
+        <select
+          class="ac-select"
+          bind:value={mySide}
+          title={splitLabel || "Flow this round on your own"}
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          onchange={() => localStorage.setItem(LS_SIDE, mySide)}
+        >
+          <option value="neutral">Flowing solo</option>
+          <option value="aff">With a partner — I'm Aff</option>
+          <option value="neg">With a partner — I'm Neg</option>
+        </select>
+        {#if splitLabel}
+          <!-- Says only what picking a side DOES. It used to add "both lanes are
+               yours to type in for now; live partner sync isn't built yet" — both
+               halves are now false: sync shipped (👤 in the flow toolbar), and
+               once you're synced your partner owns the other lane, so the lanes
+               are not both yours. Whether they are depends on session state this
+               screen doesn't know about, so it stays out of it. -->
+          <div class="ac-note">{splitLabel}</div>
+        {/if}
       </button>
       <button class="action-card" onclick={openFlowFile}>
         <div class="ac-title">Open…</div>
@@ -597,6 +641,9 @@
     border: 1px solid var(--border); color: var(--text); border-radius: 6px;
     padding: 3px 8px; font-size: 12px;
   }
+  /* Two stacked pickers read as one group; the card's own 4px gap is enough. */
+  .ac-select + .ac-select { margin-top: 2px; }
+  .ac-note { font-size: 11px; color: var(--text-dim); font-style: italic; }
 
   .section {
     font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);

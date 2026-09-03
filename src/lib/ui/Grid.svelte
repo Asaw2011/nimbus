@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Sheet } from "../model/types";
+  import { isOtherLane, sourceCol, type Sheet } from "../model/types";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import { matchesAny } from "../model/keymap";
@@ -21,7 +21,13 @@
   // In spread view every sheet renders the full range so speech columns
   // align vertically across all visible flows; pre-start cells are dead.
   const colStart = $derived(spread ? 0 : sheet.startCol);
-  const visibleSpeeches = $derived(speeches.slice(colStart));
+  // Your partner's lane can be hidden to declutter. Purely a view filter — the
+  // cells still exist and still export; only the rendering skips them.
+  const visibleSpeeches = $derived(
+    speeches
+      .slice(colStart)
+      .filter((s) => !(store.hidePartnerLane && isOtherLane(s, store.myLane))),
+  );
   // Color follows the SPEECH, not the page: aff columns blue, neg columns
   // red on every sheet — like flowing with two pens. Template-driven, so it
   // works for Policy, LD, and PF (either speaking order) automatically.
@@ -32,9 +38,31 @@
   );
   // The column indices each row renders. One shared array beats `.slice()` per
   // row — that allocated a copy of every row's cells on every grid render.
+  // Real column indices, in render order. Derived from the SAME filter as the
+  // headers rather than `colStart + k`, which silently desynced from them the
+  // moment a lane was hidden — the headers would shift left while the cells
+  // stayed put.
   const colIdx = $derived(
-    Array.from({ length: visibleSpeeches.length }, (_, k) => colStart + k),
+    speeches
+      .map((_, c) => c)
+      .filter(
+        (c) =>
+          c >= colStart &&
+          !(store.hidePartnerLane && isOtherLane(speeches[c], store.myLane)),
+      ),
   );
+  // Where each column's block-answer mirror reads from. Normally the column to
+  // the left; a partner lane points past its sibling at the speech both lanes
+  // answer. Computed once per template rather than per cell — every rendered
+  // cell asks for it.
+  const srcCol = $derived.by(() => {
+    const t = store.round?.template;
+    const out: number[] = [];
+    for (let c = 0; c < speeches.length; c++) {
+      out[c] = t ? sourceCol(t, c) : c - 1;
+    }
+    return out;
+  });
 
   let scroller: HTMLDivElement | undefined = $state();
   let dropTargetCell = $state<{ r: number; c: number } | null>(null);
@@ -399,15 +427,28 @@
   ondrop={ondrop_grid}
 >
   <div class="headers" style="grid-template-columns: {colTemplate}">
-    {#each visibleSpeeches as speech, i (speech.id)}
+    {#each colIdx as c (speeches[c].id)}
+      {@const speech = speeches[c]}
+      {@const otherLane = isOtherLane(speech, store.myLane)}
       <div
         class="header"
         class:aff={speech.side === "aff"}
         class:neg={speech.side === "neg"}
-        class:dead={colStart + i < sheet.startCol}
-        title={speech.label}
+        class:dead={c < sheet.startCol}
+        class:lane={!!speech.laneGroup}
+        class:mylane={speech.laneGroup ? speech.lane === store.myLane : false}
+        title={otherLane ? `${speech.label} — click to hide` : speech.label}
       >
         {speech.abbr}
+        {#if otherLane}
+          <!-- Click-to-hide on the lane itself: the ribbon button is the
+               discoverable path, this is the one you reach for mid-round. -->
+          <button
+            class="lane-hide"
+            title="Hide your partner's lane (view only)"
+            onclick={() => (store.hidePartnerLane = true)}
+          >⇤</button>
+        {/if}
       </div>
     {/each}
   </div>
@@ -424,7 +465,8 @@
             sheetId={sheet.id}
             side={speeches[c]?.side ?? "neutral"}
             isLabel={r === 0 && c === sheet.startCol}
-            leftCell={c - 1 >= sheet.startCol ? row.cells[c - 1] : undefined}
+            leftCell={srcCol[c] >= sheet.startCol ? row.cells[srcCol[c]] : undefined}
+            sourceCol={srcCol[c]}
             isLastCol={c === speeches.length - 1}
             dropTarget={dropTargetCell?.r === r && dropTargetCell?.c === c}
           />
@@ -520,6 +562,30 @@
   }
   .header.dead {
     opacity: 0.25;
+  }
+  /* A partner lane is dimmed so the pair reads as one speech split in two,
+     and the lane that is YOURS is the one at full strength — at a glance you
+     can tell which side of the split you should be typing in. The lanes keep
+     their speech's aff/neg colour; only the weight changes. */
+  .header.lane {
+    opacity: 0.55;
+    font-weight: 500;
+  }
+  .header.lane.mylane {
+    opacity: 1;
+    font-weight: 700;
+  }
+  .lane-hide {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0 2px;
+    opacity: 0;
+  }
+  .header.lane:hover .lane-hide {
+    opacity: 0.8;
   }
   .dead-cell {
     box-sizing: border-box;

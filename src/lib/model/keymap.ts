@@ -19,6 +19,7 @@ export type ActionId =
   | "jumpFilledUp"
   | "jumpFilledDown"
   | "extendArg"
+  | "replyToArg"
   | "markDropped"
   | "markStarred"
   | "markAnalytic"
@@ -72,6 +73,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   jumpFilledUp: "Jump to filled cell above (in column)",
   jumpFilledDown: "Jump to filled cell below (in column)",
   extendArg: "Extend argument (arrow to next speech)",
+  replyToArg: "Answer this argument (jump to your reply, linked)",
   markDropped: "Mark dropped",
   markStarred: "Star (must answer)",
   markAnalytic: "Mark as analytic (colors ink)",
@@ -144,6 +146,10 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   jumpFilledUp: [{ key: "arrowup", mod: true }],
   jumpFilledDown: [{ key: "arrowdown", mod: true }],
   extendArg: [{ key: "g", mod: true }],
+  // Pairs with extendArg on Ctrl/⌘+G: same key, shifted, opposite direction
+  // (extend goes to your NEXT speech, reply goes to the opponent’s). Checked
+  // free against every other Ctrl+Shift binding here.
+  replyToArg: [{ key: "g", mod: true, shift: true }],
   markDropped: [{ key: "d", mod: true }],
   markStarred: [{ key: "s", mod: true, shift: true }],
   markAnalytic: [{ key: "a", mod: true, shift: true }],
@@ -211,7 +217,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
   },
   {
     title: "Flowing & marks",
-    actions: ["extendArg", "markDropped", "markStarred", "markAnalytic", "markCard", "authorLookup"],
+    actions: ["extendArg", "replyToArg", "markDropped", "markStarred", "markAnalytic", "markCard", "authorLookup"],
   },
   {
     title: "Send to speech doc",

@@ -441,6 +441,7 @@ pub fn run() {
             cmbridge::cm_ping,
             cmbridge::cm_list_docs,
             cmbridge::cm_insert,
+            cmbridge::cm_insert_html,
             cmbridge::cm_jump,
             flowapp::cm_queue_card
         ])

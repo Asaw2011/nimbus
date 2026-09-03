@@ -112,9 +112,62 @@ pub async fn cm_list_docs(app: tauri::AppHandle) -> Result<Value, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Insert ONE card into `target` as CardMirror-native HTML — the targeted-insert
+/// route added in CardMirror 1.5.0 (sections 4-5 of the plugin API reference,
+/// which Truf has frozen). This is the route that makes the Nimbus plugin
+/// unnecessary.
+///
+/// Why this and not `cm_insert` below: that one is text+role, one HTTP round trip
+/// per line, and it drops highlight, cite and structure. The plugin existed to
+/// work around exactly that, by pushing the same rich HTML through a synthetic
+/// paste — which inserts at wherever the caret happens to be and steals focus.
+/// A targeted insert lands in the named doc without taking focus and picks the
+/// right pane in a multi-pane layout.
+///
+/// ⚠ `target` is REQUIRED and deliberately not `Option`. Probed against a live
+/// CardMirror 1.6.0 on 2026-09-03: a body with NO `target` still inserts into
+/// the focused document (`{ok:true, inserted:true}`) — the untargeted fallback
+/// was NOT removed in 1.5.0, it is simply not what we use. That fallback is the
+/// "card landed in the wrong doc" bug the uid addressing exists to kill, and an
+/// `Option` here puts it one `None` away. Callers with no target must not send
+/// at all; the clipboard fallback covers that case.
+///
+/// A target naming a doc that has since closed answers
+/// `{ok:false, error:"target-not-found"}` — verified in the same probe. It does
+/// NOT redirect to another document, so a stale target is safe: it fails loudly
+/// rather than landing somewhere wrong.
+///
+/// ⚠ Targets are SESSION-SCOPED and do not survive a CardMirror restart. Always
+/// pass one obtained from `cm_list_docs` in the same send, never a cached one.
+///
+/// `html` is the CardMirror clipboard HTML we already build for the queue;
+/// `text` is the plain-text fallback older CardMirrors use.
+#[tauri::command]
+pub async fn cm_insert_html(
+    app: tauri::AppHandle,
+    target: String,
+    html: String,
+    text: String,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
+        let s = read_cm_session(&app)?;
+        cm_request(
+            &s,
+            "POST",
+            "/insert",
+            Some(json!({ "target": target, "html": html, "text": text })),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Insert a sequence of items into `target` (or the focused doc if `None`).
 /// Stops early and returns the response if CardMirror asks for consent or errors,
 /// so the caller can prompt the user exactly once.
+///
+/// ⚠ Superseded by `cm_insert_html` for card sends. Kept because it is the only
+/// route that works against a pre-1.5.0 CardMirror.
 #[tauri::command]
 pub async fn cm_insert(
     app: tauri::AppHandle,

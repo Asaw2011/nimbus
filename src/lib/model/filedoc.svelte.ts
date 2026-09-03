@@ -130,6 +130,12 @@ async function writeTo(round: Round, rawPath: string): Promise<boolean> {
  */
 export async function autosaveToFile(round: Round | null): Promise<boolean> {
   if (!inTauri() || !round?.filePath) return false;
+  // ⚠ Never write a round you don't own to a path on this machine. A mirrored
+  // flow already has its `filePath` stripped when it arrives, so this is the
+  // second lock on the same door — the failure it guards against (one client
+  // autosaving a partner's flow over its own file) is the 2026-08-24 shape,
+  // and one lock is not enough for that.
+  if (store.isForeign(round.id)) return false;
   if (!isDirty(round)) return false;
   // Converge the filename on the title here too, not just on the title field's
   // blur. Blur is easy to miss (closing the window, switching flows, a stray

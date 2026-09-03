@@ -2,15 +2,19 @@
 // rich clipboard HTML, so a plain ⌘V into CardMirror reconstructs the card WITH
 // highlight / cite / body / structure — via its matching schema's parseDOM.
 //
-// This is the only lossless path to the real CardMirror: the bridge /insert is
-// text+role and drops all formatting. We reuse the vendored CardMirror schema
-// (src/lib/cardmirror/schema) and the docx→CM adapter, the same nodes the
-// built-in speech doc renders, so what you paste matches what you flowed.
+// This same HTML is what we hand CardMirror's targeted /insert (>= 1.5.0), so
+// the bridge path and a manual ⌘V reconstruct the identical card. The OLD
+// /insert was text+role and dropped all formatting, which is why this file used
+// to exist purely to feed a clipboard and a plugin; that is no longer true.
+// We reuse the vendored CardMirror schema (src/lib/cardmirror/schema) and the
+// docx→CM adapter, the same nodes the built-in speech doc renders, so what you
+// paste matches what you flowed.
 
 import { DOMSerializer, Fragment, type Node as PMNode } from "prosemirror-model";
 import { schema } from "$lib/cardmirror/schema/index";
 import { nodesFromDocNode } from "$lib/cardmirror/adapter";
 import type { DocNode } from "$lib/docx/parse";
+import { cardmirror, type CmInsertResp } from "$lib/doc/cardmirror.svelte";
 
 /** Same shape as FlowView's DocOp: a verbatim CardMirror node, or a text adapter. */
 export type CmDocOp = { cm: unknown } | { node: DocNode };
@@ -117,31 +121,45 @@ function inTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/** Queue the ops as rich HTML for the Nimbus CardMirror plugin to pull and paste
- *  (auto-insert). Also copies to the clipboard as a manual ⌘V fallback. Returns
- *  the serialized html (empty if nothing serialized).
+/** What a send actually did, so the caller can say something true about it. */
+export interface CmSendResult {
+  /** The serialized clipboard HTML; `""` when nothing serialized. */
+  html: string;
+  /** CardMirror's answer, or `null` when no push was attempted (no target, or
+   *  we're outside Tauri). `null` is not a failure — it means clipboard only. */
+  resp: CmInsertResp | null;
+}
+
+/** Push the ops into CardMirror as rich HTML, and also leave them on the
+ *  clipboard as a manual ⌘V fallback.
  *
- *  `target` is the CardMirror doc UID (the `target` field of its GET /docs), not
- *  a filename. CardMirror runs one plugin instance per window and they all poll
- *  the same queue, so an unaddressed card goes to whichever window asks first —
- *  with several docs open in a round that is effectively random. Addressing by
- *  uid means only the window that owns that doc takes it, and unlike a title it
- *  is well-defined for a doc that has never been saved. */
+ *  `target` is the CardMirror doc UID (the `target` field of its GET /docs),
+ *  never a filename — a title is ambiguous across duplicates and undefined for a
+ *  doc that has never been saved. It must come from a `refreshDocs()` in this
+ *  same send: targets are session-scoped and do not survive a CardMirror restart.
+ *
+ *  ⚠ Was: queue the HTML locally and let the Nimbus CardMirror plugin poll for it
+ *  and synthetic-paste it. CardMirror 1.5.0 added a targeted insert, so Nimbus
+ *  now pushes directly — no poller, no plugin to install or whitelist, and the
+ *  insert no longer lands at wherever the caret happens to be or steals focus.
+ *  `cm_queue_card` and the flow-app queue still exist and still work; nothing
+ *  calls them any more.
+ *
+ *  ⚠ Behaviour change: with CardMirror closed, a card used to sit in the queue
+ *  and land whenever CardMirror next opened. A direct push has nobody to receive
+ *  it, so the send fails to the clipboard instead. Deliberate — Adam chose it
+ *  over a local retry queue, on the grounds that a card silently arriving
+ *  minutes later mid-round is its own surprise. */
 export async function sendOpsToCardMirror(
   ops: CmDocOp[],
   target?: string | null,
-): Promise<string> {
+): Promise<CmSendResult> {
   const { html, text } = opsToCmClipboard(ops);
-  if (!html) return "";
-  if (inTauri()) {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("cm_queue_card", { html, target: target ?? null });
-    } catch (e) {
-      console.warn("cm_queue_card failed", e);
-    }
-  }
-  // Manual fallback: the card is also on the clipboard for ⌘V.
+  if (!html) return { html: "", resp: null };
+  // Clipboard first, and unconditionally: it is the fallback for every failure
+  // below, so it must be primed before any of them can happen.
   void copyHtml(html, text);
-  return html;
+  if (!inTauri() || !target) return { html, resp: null };
+  const resp = await cardmirror.insertHtml(html, text, target);
+  return { html, resp };
 }

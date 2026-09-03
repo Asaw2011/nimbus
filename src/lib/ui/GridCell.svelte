@@ -6,6 +6,7 @@
   import { settings } from "../model/settings.svelte";
   import { runMacro } from "../model/macros";
   import { guard } from "../model/crash";
+  import { session } from "../model/session.svelte";
 
   let {
     cell,
@@ -15,6 +16,7 @@
     side = "neutral",
     isLabel = false,
     leftCell = undefined,
+    sourceCol = col - 1,
     isLastCol = false,
     dropTarget = false,
   }: {
@@ -24,9 +26,14 @@
     sheetId: string;
     side?: "aff" | "neg" | "neutral";
     isLabel?: boolean;
-    /** The cell immediately to the left — so an expanded block's per-part
-     *  responses can render in THIS (next-speech) column, lined up with it. */
+    /** The cell whose expanded block this column answers — so its per-part
+     *  responses can render in THIS column, lined up with it. Normally the cell
+     *  immediately to the left. */
     leftCell?: Cell;
+    /** Which column `leftCell` came from. Responses are stored on that cell's
+     *  items, so every write has to name it: on a partner lane it is NOT
+     *  `col - 1`, which would write into your partner's lane instead. */
+    sourceCol?: number;
     /** No column to the right — a block here shows its responses inline. */
     isLastCol?: boolean;
     dropTarget?: boolean;
@@ -41,6 +48,33 @@
    *  is no next column to push them into. */
   const ownResponsesInline = $derived(isLastCol);
 
+  /** True when your partner's cursor is sitting on THIS cell, on the document
+   *  and sheet you're actually looking at. */
+  const peerHere = $derived.by(() => {
+    const pc = session.peerCursor;
+    if (!pc || !session.peerOnline) return false;
+    return (
+      pc.doc === store.round?.id &&
+      pc.sheet === sheetId &&
+      pc.row === row &&
+      pc.col === col
+    );
+  });
+
+  /** The argument this cell was explicitly linked to answer, if any — shown as
+   *  a small tag so you can see what the doc will write "AT:" against without
+   *  sending anything. Empty when the source cell is blank. */
+  const replyLabel = $derived.by(() => {
+    const id = cell.repliesTo;
+    if (!id) return "";
+    const speeches = store.round?.template.speeches ?? [];
+    const c = speeches.findIndex((s) => s.id === id);
+    if (c < 0) return "";
+    const sheet = store.round?.sheets.find((s) => s.id === sheetId);
+    const src = sheet?.rows[row]?.cells[c];
+    return src?.text?.trim() || "";
+  });
+
   /** Short label for a part, so a response in the next column shows what it answers. */
   function shortPart(text: string): string {
     const t = (text ?? "").trim();
@@ -50,7 +84,7 @@
   }
 
   function addLeftResponse(itemId: string) {
-    const idx = store.addItemResponse(row, col - 1, itemId);
+    const idx = store.addItemResponse(row, sourceCol, itemId);
     if (idx >= 0) pendingResp = `${itemId}:${idx}`;
   }
 
@@ -406,6 +440,9 @@
     } else if (matchesAny(e, km.extendArg)) {
       e.preventDefault();
       store.extendCell(row, col);
+    } else if (matchesAny(e, km.replyToArg)) {
+      e.preventDefault();
+      store.replyToCell(row, col);
     } else if (matchesAny(e, km.markDropped)) {
       e.preventDefault();
       store.toggleMark(row, col, "dropped");
@@ -654,6 +691,20 @@
   {#if cell.ext}
     <span class="ext-arrow" title="Extended from an earlier speech">➜</span>
   {/if}
+  {#if peerHere}
+    <!-- The OUTLINE is the indicator; this is only a label for it.
+         Parked, it is a dot — the name isn't what you need to know, the
+         position is, and a word sitting in the corner of a cell you're reading
+         is just clutter. It grows into "Partner" while they're actually
+         typing, when knowing who is writing is worth the corner. Never
+         reserves height, never takes pointer events. -->
+    <span class="peer-tag" class:typing={session.peerCursor?.typing}>
+      {#if session.peerCursor?.typing}Partner{/if}
+    </span>
+  {/if}
+  {#if replyLabel}
+    <span class="reply-tag" title="Answers “{replyLabel}” — this is the argument the speech doc will head with “AT: …”">↩ {shortPart(replyLabel)}</span>
+  {/if}
   {#if cell.chip}
     <span class="cell-chip chip-{cell.chip}">{cell.chip}</span>
   {/if}
@@ -803,7 +854,7 @@
                     data-ph="response…"
                     data-resp={`${lit.id}:${ri}`}
                     use:respBox={{ text: resp, key: `${lit.id}:${ri}` }}
-                    oninput={(e) => store.updateItemResponse(row, col - 1, lit.id, ri, (e.currentTarget as HTMLElement).textContent ?? "")}
+                    oninput={(e) => store.updateItemResponse(row, sourceCol, lit.id, ri, (e.currentTarget as HTMLElement).textContent ?? "")}
                     onkeydown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); mirrorEnter(lit.id); } }}
                     onfocus={onfocus}
                     onblur={() => store.endTextSession()}
@@ -812,7 +863,7 @@
                     class="ir-del"
                     title="Remove response"
                     onmousedown={(e) => e.preventDefault()}
-                    onclick={() => store.removeItemResponse(row, col - 1, lit.id, ri)}
+                    onclick={() => store.removeItemResponse(row, sourceCol, lit.id, ri)}
                   >×</button>
                 </div>
               {/each}
@@ -965,6 +1016,62 @@
   /* accent edge on the receiving cell so the extension reads at a glance */
   .cell:has(.ext-arrow) {
     border-left: 3px solid var(--accent);
+  }
+  /* The tag needs its own strip: floating it over the cell put it straight on
+     top of the text on a single-line row (measured — an 11px tag at y=16 in a
+     28px cell whose text ran to y=26). Reserve the height instead. */
+  .cell:has(.reply-tag) {
+    padding-bottom: 14px;
+  }
+  /* Partner presence. A distinct hue on purpose: aff is blue, neg is red, the
+     accent is the app's own, and a marker that borrowed any of those would
+     read as a property of the argument rather than as a person. */
+  .cell:has(.peer-tag) {
+    box-shadow: inset 0 0 0 2px var(--peer, #8b5cf6);
+    border-radius: 2px;
+  }
+  .peer-tag {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    z-index: 3;
+    /* Parked: a 7px dot in the corner. Small enough that it cannot obscure a
+       cell you are trying to read, which was the whole requirement. */
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--peer, #8b5cf6);
+    opacity: 0.7;
+    pointer-events: none;
+    user-select: none;
+  }
+  /* Writing: grow into a name. Worth the corner only while it is live. */
+  .peer-tag.typing {
+    width: auto;
+    height: auto;
+    border-radius: 3px;
+    padding: 1px 3px;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: #fff;
+    opacity: 0.95;
+  }
+  .reply-tag {
+    position: absolute;
+    bottom: 1px;
+    left: 4px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    opacity: 0.75;
+    pointer-events: none;
+    max-width: calc(100% - 10px);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .cell-chip {
     position: absolute;

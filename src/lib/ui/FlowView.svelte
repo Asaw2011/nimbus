@@ -1,7 +1,7 @@
 <script lang="ts">
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
-  import { sheetAccent } from "../model/types";
+  import { isOtherLane, sheetAccent } from "../model/types";
   import { matchesAny, combosLabel } from "../model/keymap";
   import Grid from "./Grid.svelte";
   import Ribbon from "./Ribbon.svelte";
@@ -20,6 +20,8 @@
   import QuickCardsPanel from "./QuickCardsPanel.svelte";
   import Timer from "./Timer.svelte";
   import ArgBank from "./ArgBank.svelte";
+  import PartnerPanel from "./PartnerPanel.svelte";
+  import { session } from "$lib/model/session.svelte";
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
   import { cardmirror } from "$lib/doc/cardmirror.svelte";
 
@@ -76,6 +78,13 @@
   let showTimer = $state(false);
   /** The argument-bank manager (edit what ⌘J draws from). */
   let showBank = $state(false);
+  let showPartner = $state(false);
+  /** Just the local part of the partner's email — a top-bar tab has no room
+   *  for "reian@nimbusdebate.com's". */
+  const peerFirstName = $derived.by(() => {
+    const raw = (session.peerEmail || "Partner").split("@")[0].split(/[._]/)[0];
+    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Partner";
+  });
   /** Transient confirmation for a CardMirror send — the card lands in another
    *  app's window, so without this there's no on-screen sign anything happened. */
   let sendFlash = $state("");
@@ -521,15 +530,37 @@
     return !!cell?.text?.trim() && !cell.items?.length && !cell.card && !cell.cmNode;
   }
 
-  /** The label of the argument this cell answers: the nearest non-empty cell to
-   *  the LEFT in the same row (an argument from an earlier speech), within the
-   *  sheet's visible columns. "" if this is an original argument (nothing to its
-   *  left) — so only genuine responses get an "AT:" header. */
+  /** The label of the argument this cell answers: an explicit reply link if one
+   *  was set, otherwise the nearest non-empty cell to the LEFT in the same row
+   *  (an argument from an earlier speech), within the sheet's visible columns.
+   *  "" if this is an original argument (nothing to its left) — so only genuine
+   *  responses get an "AT:" header.
+   *
+   *  ⚠ The left-walk SKIPS your partner's lane. On a split speech their lane is
+   *  physically nearer than your own, so the plain walk stopped there and every
+   *  answer came out headed with THEIR argument instead of yours. It reads
+   *  `store.myLane`, never the hide-partner-lane toggle: what you send to the
+   *  doc must not depend on a view setting. */
   function argBeingAnswered(sheet: Sheet, row: number, col: number): string {
+    const speeches = store.round?.template.speeches ?? [];
+    const cellText = (c: number): string => {
+      const prev = sheet.rows[row]?.cells[c];
+      return prev?.text?.trim() || (prev?.card as { text?: string } | undefined)?.text?.trim() || "";
+    };
+    // An explicit "answer this" link wins over any guess — including a link to
+    // your partner's lane, which is the whole point of being able to set it.
+    const linked = sheet.rows[row]?.cells[col]?.repliesTo;
+    if (linked) {
+      const c = speeches.findIndex((s) => s.id === linked);
+      if (c >= 0) {
+        const label = cellText(c);
+        if (label) return label;
+      }
+    }
     const startCol = sheet.startCol ?? 0;
     for (let c = col - 1; c >= startCol; c--) {
-      const prev = sheet.rows[row]?.cells[c];
-      const label = prev?.text?.trim() || (prev?.card as { text?: string } | undefined)?.text?.trim();
+      if (isOtherLane(speeches[c], store.myLane)) continue;
+      const label = cellText(c);
       if (label) return label;
     }
     return "";
@@ -627,23 +658,33 @@
     // of them. Deliberately BEFORE ensureDocOpen(): when you're sending to
     // CardMirror the built-in doc pane must NOT pop open — the two targets are
     // alternatives, and the built-in doc stays exactly as it was.
-    // The bridge's /insert is text+role and loses highlight/cite/layout, so the
-    // lossless path is CardMirror's OWN rich paste: we serialize to CardMirror
-    // clipboard HTML, queue it for the plugin to auto-paste, and also leave it on
-    // the clipboard for a manual ⌘V if the plugin isn't running.
+    // We serialize to CardMirror's own rich clipboard HTML and push it straight
+    // into the addressed doc via the targeted /insert (CardMirror >= 1.5.0),
+    // which keeps highlight/cite/layout and does not steal focus. The card also
+    // lands on the clipboard every time, as the ⌘V fallback for every failure.
     if (settings.docTarget === "cardmirror" && ops.length) {
       // Ask CardMirror which doc is the speech doc RIGHT NOW rather than
-      // trusting a cached answer — you re-designate it between speeches, and a
-      // stale target would silently park cards in a queue nobody drains.
+      // trusting a cached answer — you re-designate it between speeches, and
+      // targets are session-scoped, so a cached one dies with a restart.
       await cardmirror.prepare();
       const doc = cardmirror.speechDoc;
       // Address by CardMirror's doc UID, never the title — an unsaved doc has no
       // usable title on either side. The title is only for the message below.
-      const html = await sendOpsToCardMirror(ops, doc?.target ?? null);
+      const { html, resp } = await sendOpsToCardMirror(ops, doc?.target ?? null);
+      const where = doc?.title ?? "CardMirror";
       if (!html) flashSend("Nothing to send");
       else if (!cardmirror.running) flashSend("CardMirror isn't running — card copied, ⌘V to paste");
       else if (!doc) flashSend("No CardMirror doc open — card copied, ⌘V to paste");
-      else flashSend(`Sent to ${doc.title ?? "CardMirror"}`);
+      else if (resp?.pending === "consent")
+        flashSend("Approve Nimbus in CardMirror → Settings → Plugins — card copied, ⌘V to paste");
+      // The doc was open when we listed it and gone by the time we pushed. The
+      // insert is refused outright rather than redirected into another document,
+      // so nothing landed anywhere and the clipboard is the whole recovery.
+      else if (resp?.error === "target-not-found")
+        flashSend(`${where} closed mid-send — card copied, ⌘V to paste`);
+      else if (resp && resp.ok === false)
+        flashSend(`CardMirror refused the card (${resp.error ?? "unknown"}) — copied, ⌘V to paste`);
+      else flashSend(`Sent to ${where}`);
       return;
     }
     // The editor has to exist before we can insert into it — with the pane
@@ -1050,6 +1091,21 @@
           {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
         </span>
       {/if}
+      <!-- Document switcher: only exists when a partner's flow is open beside
+           yours (a "a flow each" session). Shown even in the compact top bar —
+           knowing WHOSE page you are typing on matters more than the space. -->
+      {#if store.mirrors.length}
+        <div class="docsw" title="Which flow you're looking at. Both are editable.">
+          {#each store.docs as d (d.id)}
+            <button
+              class="seg"
+              class:on={d.id === round.id}
+              class:theirs={store.isForeign(d.id)}
+              onclick={() => store.switchDoc(d.id)}
+            >{store.isForeign(d.id) ? `${peerFirstName}'s` : "Mine"}</button>
+          {/each}
+        </div>
+      {/if}
       <span class="spacer"></span>
       <button
         class="icon-btn"
@@ -1093,6 +1149,15 @@
       </div>
       <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})">⏱</button>
       <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers">🗃</button>
+      <button
+        class="icon-btn"
+        class:active={showPartner}
+        class:live={session.status === "connected"}
+        onclick={() => (showPartner = !showPartner)}
+        title={session.active
+          ? `Partner session ${session.code} — ${session.peerOnline ? "connected" : "reconnecting"}`
+          : "Flow with a partner — share this flow live"}
+      >{session.status === "connected" ? "👥" : "👤"}</button>
       <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works">📖</button>
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙</button>
       <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?</button>
@@ -1281,6 +1346,17 @@
       <ArgBank onclose={() => (showBank = false)} />
     {/if}
 
+    {#if showPartner}
+      <PartnerPanel onclose={() => (showPartner = false)} />
+    {/if}
+
+    <!-- A partner asking to be let in must be seen even with the panel shut. -->
+    {#if session.pending && !showPartner}
+      <button class="join-toast" onclick={() => (showPartner = true)}>
+        <strong>{session.pending.email}</strong> wants to join your flow — review
+      </button>
+    {/if}
+
     {#if sendFlash}
       <div class="send-flash">{sendFlash}</div>
     {/if}
@@ -1302,6 +1378,7 @@
             <tr><td><kbd>{combosLabel(km.jumpFilledUp, mac)}</kbd></td><td>Jump to filled cell above</td></tr>
             <tr><td><kbd>{combosLabel(km.jumpFilledDown, mac)}</kbd></td><td>Jump to filled cell below</td></tr>
             <tr><td><kbd>{combosLabel(km.extendArg, mac)}</kbd></td><td>Extend argument → next speech</td></tr>
+            <tr><td><kbd>{combosLabel(km.replyToArg, mac)}</kbd></td><td>Answer argument → your reply, linked for “AT:”</td></tr>
             <tr><td><kbd>{combosLabel(km.markDropped, mac)}</kbd></td><td>Mark dropped</td></tr>
             <tr><td><kbd>{combosLabel(km.markStarred, mac)}</kbd></td><td>Star (must answer)</td></tr>
             <tr><td><kbd>{combosLabel(km.markAnalytic, mac)}</kbd></td><td>Mark analytic (ink color)</td></tr>
@@ -1355,6 +1432,21 @@
     color: var(--text-dim);
     font-size: 16px;
     cursor: pointer;
+  }
+  .docsw {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: 10px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+  }
+  /* A foreign flow reads differently when it is the one selected, so you can
+     never be unsure whose page a keystroke is going onto. */
+  .docsw .seg.on.theirs {
+    background: color-mix(in srgb, #2e8b57 22%, transparent);
+    border-color: #2e8b57;
+    color: #2e8b57;
   }
   .round-name {
     font-weight: 600;
@@ -1434,6 +1526,27 @@
     justify-content: center;
     padding: 0;
     line-height: 1;
+  }
+  /* A live partner session is worth seeing without opening anything. */
+  .icon-btn.live {
+    border-color: #2e8b57;
+    color: #2e8b57;
+    background: color-mix(in srgb, #2e8b57 16%, transparent);
+  }
+  .join-toast {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 70;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
   }
   .icon-btn.active {
     background: color-mix(in srgb, var(--accent) 18%, transparent);

@@ -17,6 +17,27 @@ export interface Speech {
   abbr: string;
   label: string;
   side: Side;
+  /**
+   * Partner lanes. When one speech is split so both partners can flow it side
+   * by side, each lane is a real column carrying the same `laneGroup` id and a
+   * different `lane` index. Absent on every ordinary column — a template with
+   * no lanes behaves exactly as it did before lanes existed.
+   */
+  laneGroup?: string;
+  lane?: number;
+  /**
+   * Which column this one's block-answer mirror reads from, as a speech id.
+   * Unset means "the column immediately to my left", which is the original
+   * behaviour. Lanes point past their sibling at the column before the group,
+   * so both partners answer the same speech instead of one answering the other.
+   */
+  answersId?: string;
+  /**
+   * Lane owner, for live partner sessions. Unset means anyone may type here.
+   * Nothing reads this yet — it exists so a shared session can assign lanes
+   * without migrating rounds created before that shipped.
+   */
+  owner?: string;
 }
 
 export interface SpeechTemplate {
@@ -70,6 +91,17 @@ export interface Cell {
   marks?: CellMarks;
   /** Extension arrow: this cell continues an argument from an earlier speech. */
   ext?: boolean;
+  /**
+   * "This answers THAT argument" — the id of the speech whose cell on this same
+   * row this one is a response to. Set by the reply action.
+   *
+   * Without it, the doc export guesses by walking left to the nearest non-empty
+   * cell, which picks your partner's lane over your own whenever both are
+   * filled. This makes the link explicit, so the "AT: …" header names the
+   * argument you actually meant. Stored as a SPEECH ID, not a column index, so
+   * it survives any future column reordering.
+   */
+  repliesTo?: string;
   /** Source type chip (POC/HAT/BLK/TAG/ANL) when dragged in from Doc Search. */
   chip?: string;
   /** The full card (DocNode) this cell was filled from, so "Send to Doc"
@@ -114,6 +146,55 @@ export function sheetAccent(sheet: Sheet): string {
   return "var(--text-dim)";
 }
 
+// ---- partner lanes ---------------------------------------------------------
+//
+// A split speech is TWO real columns sharing a `laneGroup`. Everything that
+// makes the grid work — one row per argument, row inserts spanning every
+// column — is untouched by this, so lanes stay lined up with the speech they
+// answer for free. These helpers exist so the few places that reason about
+// "the column to my left" don't have to know about lanes individually.
+
+/**
+ * True when this column is a partner lane that ISN'T yours.
+ *
+ * Two things key off this and they must agree: hiding your partner's lane, and
+ * deciding which argument a response answers. If they disagreed you could
+ * collapse a column and silently change what your speech doc says.
+ */
+export function isOtherLane(sp: Speech | undefined, myLane: number): boolean {
+  return !!sp?.laneGroup && sp.lane !== myLane;
+}
+
+/** The lane columns of a group, in lane order. Empty when `id` isn't a group. */
+export function laneCols(template: SpeechTemplate, laneGroup: string): number[] {
+  const out: number[] = [];
+  template.speeches.forEach((s, i) => {
+    if (s.laneGroup === laneGroup) out.push(i);
+  });
+  return out;
+}
+
+/**
+ * The column whose expanded block this column writes responses into — i.e. the
+ * source of its block-answer mirror.
+ *
+ * Ordinary columns read the one to their left, exactly as before. A lane reads
+ * whatever its `answersId` names, which `splitForSide` sets to the column
+ * before the lane group — so partner B answers the same speech partner A does
+ * instead of answering partner A. Returns -1 when there is no source.
+ */
+export function sourceCol(template: SpeechTemplate, col: number): number {
+  const sp = template.speeches[col];
+  if (!sp) return -1;
+  if (sp.answersId) {
+    const i = template.speeches.findIndex((s) => s.id === sp.answersId);
+    // A dangling answersId (hand-edited template) falls back to the default
+    // rather than silently disabling the mirror.
+    if (i >= 0) return i;
+  }
+  return col - 1;
+}
+
 /**
  * A banked argument — either a carded tag (has an author) or an analytic (no
  * card behind it). Both are arguments someone made; the argument bank holds
@@ -147,6 +228,12 @@ export interface Round {
   sheets: Sheet[];
   createdAt: number;
   updatedAt: number;
+  /**
+   * Which side you are flowing this round from. Chosen when the round is
+   * created; it decides which speech gets split into partner lanes. Absent on
+   * every round made before lanes existed, and on rounds flowed solo.
+   */
+  mySide?: Side;
   /** Where this flow is saved on disk, if the user chose a location (Save As). */
   filePath?: string;
   /** Arguments (cards + analytics) banked from imported docs, for the argument
