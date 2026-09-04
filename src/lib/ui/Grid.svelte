@@ -51,6 +51,26 @@
           !(store.hidePartnerLane && isOtherLane(speeches[c], store.myLane)),
       ),
   );
+
+  // Rename a speech column: double-click its header to edit the label (e.g. LD's
+  // "NR" -> "2NR", or PF's "Pro Reb" -> whatever you call it). Templates are
+  // presets, so this just renames the speech on this round and it persists.
+  //
+  // ⚠ Keyed on the REAL column index from `colIdx`, never a loop position. With
+  // a partner lane hidden the two disagree, and a loop-position key would rename
+  // whatever column happened to sit at that spot.
+  let editingCol = $state<number | null>(null);
+  let editText = $state("");
+  function startRenameHeader(col: number, current: string) {
+    editingCol = col;
+    editText = current;
+  }
+  function commitRenameHeader() {
+    if (editingCol !== null) {
+      store.renameSpeech(editingCol, editText);
+      editingCol = null;
+    }
+  }
   // Where each column's block-answer mirror reads from. Normally the column to
   // the left; a partner lane points past its sibling at the speech both lanes
   // answer. Computed once per template rather than per cell — every rendered
@@ -437,17 +457,38 @@
         class:dead={c < sheet.startCol}
         class:lane={!!speech.laneGroup}
         class:mylane={speech.laneGroup ? speech.lane === store.myLane : false}
-        title={otherLane ? `${speech.label} — click to hide` : speech.label}
+        class:editing={editingCol === c}
+        title={editingCol === c
+          ? ""
+          : otherLane
+            ? `${speech.label} — click to hide, double-click to rename`
+            : `${speech.label} (double-click to rename)`}
+        ondblclick={() => startRenameHeader(c, speech.abbr)}
       >
-        {speech.abbr}
-        {#if otherLane}
-          <!-- Click-to-hide on the lane itself: the ribbon button is the
-               discoverable path, this is the one you reach for mid-round. -->
-          <button
-            class="lane-hide"
-            title="Hide your partner's lane (view only)"
-            onclick={() => (store.hidePartnerLane = true)}
-          >⇤</button>
+        {#if editingCol === c}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="header-rename"
+            bind:value={editText}
+            autofocus
+            onblur={commitRenameHeader}
+            onkeydown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") { e.preventDefault(); commitRenameHeader(); }
+              else if (e.key === "Escape") { editingCol = null; }
+            }}
+          />
+        {:else}
+          {speech.abbr}
+          {#if otherLane}
+            <!-- Click-to-hide on the lane itself: the ribbon button is the
+                 discoverable path, this is the one you reach for mid-round. -->
+            <button
+              class="lane-hide"
+              title="Hide your partner's lane (view only)"
+              onclick={() => (store.hidePartnerLane = true)}
+            >⇤</button>
+          {/if}
         {/if}
       </div>
     {/each}
@@ -586,6 +627,26 @@
   }
   .header.lane:hover .lane-hide {
     opacity: 0.8;
+  }
+  /* While renaming, the input fills the header cell — a lane's dimming must not
+     wash out the field you're typing in, so opacity is reset here too. */
+  .header.editing {
+    padding: 0;
+    opacity: 1;
+  }
+  .header-rename {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 6px;
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    color: var(--text);
+    background: var(--input-bg, #fff);
+    border: 1px solid var(--blue, #4b94ed);
+    border-radius: 3px;
+    outline: none;
   }
   .dead-cell {
     box-sizing: border-box;

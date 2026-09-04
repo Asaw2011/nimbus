@@ -6,12 +6,10 @@
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
+  import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
 
   let { onopen }: { onopen: () => void } = $props();
-
-  const LS_TEMPLATE = "debate-flow:last-template";
-  const LS_SIDE = "debate-flow:last-side";
 
   let rounds: RoundMeta[] = $state([]); // every flow in app data
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
@@ -25,11 +23,22 @@
   let converting = $state(false);
   let status = $state("");
 
+  const LS_SIDE = "debate-flow:last-side";
+
   const templates = builtinTemplates();
-  const savedIdx = Number(
-    typeof localStorage !== "undefined" && localStorage.getItem(LS_TEMPLATE),
-  ) || 0;
-  let templateIdx = $state(savedIdx >= 0 && savedIdx < templates.length ? savedIdx : 0);
+  // The default speech format lives in settings (disk-backed), so whatever you
+  // pick here is the primary option next time — no re-selecting Policy each run.
+  function defaultTpl(): SpeechTemplate {
+    const i = settings.defaultTemplate;
+    const base = (templates[i] ?? templates[0]) as SpeechTemplate;
+    const overrides = settings.templateAbbrs[i] ?? [];
+    const tpl = structuredClone(base) as SpeechTemplate;
+    tpl.speeches.forEach((sp, j) => {
+      const o = overrides[j]?.trim();
+      if (o) sp.abbr = o;
+    });
+    return tpl;
+  }
 
   // Which side you're flowing from, chosen HERE because it decides how many
   // columns the round has — every sheet stores a start-column index, so the
@@ -39,13 +48,15 @@
   let mySide = $state<Side>(
     savedSide === "aff" || savedSide === "neg" ? savedSide : "neutral",
   );
-  /** The template as the round will actually be created — lanes already split
-   *  in. Also tells the UI whether this template HAS a splittable speech. */
-  const pickedTemplate = $derived(splitForSide(templates[templateIdx], mySide));
+  /** The template as the round will actually be created — the chosen format's
+   *  speech renames applied by `defaultTpl()`, then lanes split in. Also tells
+   *  the UI whether this format HAS a splittable speech. */
+  const pickedTemplate = $derived.by(() => splitForSide(defaultTpl(), mySide));
   const splitLabel = $derived.by(() => {
     if (mySide === "neutral") return "";
-    const at = splitTargetFor(templates[templateIdx], mySide);
-    const sp = templates[templateIdx].speeches[at];
+    const tpl = defaultTpl();
+    const at = splitTargetFor(tpl, mySide);
+    const sp = tpl.speeches[at];
     return sp ? `${sp.abbr} splits into two lanes` : "nothing to split in this format";
   });
 
@@ -251,7 +262,6 @@
   // ---- create / open flows -------------------------------------------------
 
   function createRound() {
-    localStorage.setItem(LS_TEMPLATE, String(templateIdx));
     store.newRound(
       structuredClone(pickedTemplate) as SpeechTemplate,
       "New Round",
@@ -265,6 +275,16 @@
     if (round) {
       store.loadRound(round);
       onopen();
+    }
+  }
+
+  async function convert() {
+    converting = true;
+    try {
+      const msg = await convertFlowFile();
+      if (msg) status = msg;
+    } finally {
+      converting = false;
     }
   }
 
@@ -284,15 +304,6 @@
     }
   }
 
-  async function convert() {
-    converting = true;
-    try {
-      const msg = await convertFlowFile();
-      if (msg) status = msg;
-    } finally {
-      converting = false;
-    }
-  }
 
   // ---- tournaments ---------------------------------------------------------
 
@@ -400,34 +411,40 @@
   </div>
 
   <div class="content">
-    <!-- action cards -->
+    <!-- action cards: New flow is the primary action, Open is secondary -->
     <div class="actions">
-      <button class="action-card" onclick={createRound}>
-        <div class="ac-title">New flow</div>
-        <div class="ac-desc">Start flowing a fresh round.</div>
-        <select
-          class="ac-select"
-          bind:value={templateIdx}
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
-          onchange={() => localStorage.setItem(LS_TEMPLATE, String(templateIdx))}
-        >
-          {#each templates as t, i (t.id)}
-            <option value={i}>{t.name}</option>
-          {/each}
-        </select>
-        <select
-          class="ac-select"
-          bind:value={mySide}
-          title={splitLabel || "Flow this round on your own"}
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
-          onchange={() => localStorage.setItem(LS_SIDE, mySide)}
-        >
-          <option value="neutral">Flowing solo</option>
-          <option value="aff">With a partner — I'm Aff</option>
-          <option value="neg">With a partner — I'm Neg</option>
-        </select>
+      <div class="action-card primary">
+        <div class="ac-head">
+          <span class="ac-icon" aria-hidden="true">✦</span>
+          <div>
+            <div class="ac-title">New flow</div>
+            <div class="ac-desc">Start a fresh round in your format.</div>
+          </div>
+        </div>
+        <div class="ac-controls">
+          <select
+            class="ac-select"
+            value={settings.defaultTemplate}
+            aria-label="Format for the new flow"
+            onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}
+          >
+            {#each templates as t, i (t.id)}
+              <option value={i}>{t.name}</option>
+            {/each}
+          </select>
+          <select
+            class="ac-select"
+            bind:value={mySide}
+            aria-label="Which side you are flowing"
+            title={splitLabel || "Flow this round on your own"}
+            onchange={() => localStorage.setItem(LS_SIDE, mySide)}
+          >
+            <option value="neutral">Flowing solo</option>
+            <option value="aff">With a partner — I'm Aff</option>
+            <option value="neg">With a partner — I'm Neg</option>
+          </select>
+          <button class="ac-start" onclick={createRound}>Start flowing →</button>
+        </div>
         {#if splitLabel}
           <!-- Says only what picking a side DOES. It used to add "both lanes are
                yours to type in for now; live partner sync isn't built yet" — both
@@ -437,14 +454,26 @@
                screen doesn't know about, so it stays out of it. -->
           <div class="ac-note">{splitLabel}</div>
         {/if}
+      </div>
+      <button class="action-card secondary" onclick={openFlowFile}>
+        <div class="ac-head">
+          <span class="ac-icon" aria-hidden="true">↥</span>
+          <div>
+            <div class="ac-title">Open a flow</div>
+            <div class="ac-desc">Open a saved .nimbus or Excel flow from your Mac.</div>
+          </div>
+        </div>
+        <span class="ac-hint">Browse files…</span>
       </button>
-      <button class="action-card" onclick={openFlowFile}>
-        <div class="ac-title">Open…</div>
-        <div class="ac-desc">Open a saved .nimbus or Excel flow from your Mac.</div>
-      </button>
-      <button class="action-card" onclick={convert} disabled={converting}>
-        <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
-        <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
+      <button class="action-card secondary" onclick={convert} disabled={converting}>
+        <div class="ac-head">
+          <span class="ac-icon" aria-hidden="true">⇄</span>
+          <div>
+            <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
+            <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
+          </div>
+        </div>
+        <span class="ac-hint">Pick a file…</span>
       </button>
     </div>
 
@@ -549,7 +578,7 @@
               </div>
             {/each}
             {#if rowsFor(t).length === 0}
-              <p class="empty-hint row-empty">No flows in here yet — drag one in, or use <b>+ New flow</b>.</p>
+              <p class="empty-hint row-empty">No flows here yet. Drag one in, or use New flow.</p>
             {/if}
           </div>
         {/if}
@@ -557,7 +586,7 @@
     {/each}
 
     {#if tournaments.list.length === 0 && !creatingTourney}
-      <p class="empty-hint">No tournaments yet — click <b>+ New tournament</b> to make a folder on your Mac, then add flows into it.</p>
+      <p class="empty-hint">No tournaments yet. Use New tournament to make a folder, then add flows to it.</p>
     {/if}
 
     <!-- unfiled app-data flows (anything already filed shows in its tournament) -->
@@ -614,7 +643,8 @@
   .dashboard { height: 100vh; display: flex; flex-direction: column; }
   .topbar {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--panel);
+    padding: 14px max(28px, calc((100% - 1060px) / 2));
+    border-bottom: 1px solid var(--border); background: var(--panel);
   }
   .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
   .logo { width: 30px; height: 30px; object-fit: contain; }
@@ -623,33 +653,63 @@
     border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
   }
   .top-btn:hover { border-color: var(--accent); }
-  .content { flex: 1; overflow-y: auto; padding: 24px; }
+  /* Center everything in a calm, fixed-width column instead of crowding the
+     top-left corner. The max() padding keeps a comfortable margin on small
+     windows and centers to ~1060px on large ones — no markup wrapper needed. */
+  .content { flex: 1; overflow-y: auto; padding: 48px max(28px, calc((100% - 1060px) / 2)) 72px; }
 
-  .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; align-items: stretch; }
   .action-card {
     text-align: left; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px 22px; width: 260px; min-height: 108px;
-    cursor: pointer; display: flex; flex-direction: column; gap: 4px;
-    transition: border-color 0.1s, box-shadow 0.1s;
+    border-radius: 12px; padding: 16px 18px; min-width: 240px;
+    display: flex; flex-direction: column; gap: 14px;
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }
-  .action-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-  .action-card:disabled { opacity: 0.55; cursor: default; }
-  .ac-title { font-size: 18px; font-weight: 700; color: var(--text); }
-  .ac-desc { font-size: 13px; color: var(--text-dim); line-height: 1.35; }
+  /* New flow leads: a touch wider, with a soft accent wash and the only filled
+     button on the screen — the primary action stands out without shouting. */
+  .action-card.primary { flex: 1.7 1 320px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, var(--panel)), var(--panel)); border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); }
+  .action-card.secondary { flex: 1 1 240px; cursor: pointer; }
+  .action-card.secondary:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .action-card.secondary:disabled { opacity: 0.55; cursor: default; transform: none; border-color: var(--border); box-shadow: none; }
+  .ac-head { display: flex; align-items: flex-start; gap: 12px; }
+  .ac-icon {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  }
+  .ac-title { font-size: 17px; font-weight: 700; color: var(--text); }
+  .ac-desc { font-size: 13px; color: var(--text-dim); line-height: 1.35; margin-top: 2px; }
+  /* Format picker, side picker and Start share a row; they wrap on a narrow
+     window rather than squeezing the selects down to nothing. */
+  .ac-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ac-note { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: -4px; }
+  .ext-badge {
+    align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
+    padding: 1px 7px; border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .ext-badge.nimbus { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .ext-badge.xlsx { color: #1e8e4a; border-color: color-mix(in srgb, #1e8e4a 40%, transparent); }
   .ac-select {
-    margin-top: 8px; align-self: flex-start; background: var(--bg);
-    border: 1px solid var(--border); color: var(--text); border-radius: 6px;
-    padding: 3px 8px; font-size: 12px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 130px;
   }
-  /* Two stacked pickers read as one group; the card's own 4px gap is enough. */
-  .ac-select + .ac-select { margin-top: 2px; }
-  .ac-note { font-size: 11px; color: var(--text-dim); font-style: italic; }
+  .ac-start {
+    flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 8px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .ac-start:hover { filter: brightness(1.06); }
+  .ac-hint { font-size: 12.5px; font-weight: 600; color: var(--accent); }
 
   .section {
     font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);
-    font-weight: 600; margin: 18px 0 10px;
+    font-weight: 600; margin: 40px 0 14px; text-transform: uppercase;
   }
-  .tourney-head { display: flex; align-items: center; gap: 10px; }
+  /* The section heading shares this flex row with the buttons, so its own top
+     margin would offset it and float the buttons above the label. Put the
+     spacing on the row and zero the heading's margin inside it. */
+  .tourney-head { display: flex; align-items: center; gap: 10px; margin: 40px 0 14px; }
+  .tourney-head .section { margin: 0; }
   .mini-btn {
     background: var(--panel); border: 1px solid var(--border); color: var(--accent);
     border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
@@ -748,12 +808,6 @@
   }
   .x:hover { color: var(--mark-dropped); }
   .x.confirming { background: var(--mark-dropped); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 8px; }
-  .ext-badge {
-    align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
-    padding: 1px 7px; border: 1px solid var(--border); color: var(--text-dim);
-  }
-  .ext-badge.nimbus { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-  .ext-badge.xlsx { color: #1e8e4a; border-color: color-mix(in srgb, #1e8e4a 40%, transparent); }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip-tag {
     font-size: 11px; border-radius: 5px; padding: 2px 8px;

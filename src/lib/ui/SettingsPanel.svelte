@@ -9,6 +9,7 @@
   import { uid } from "../model/types";
   import { checkForUpdate, type UpdateInfo } from "../updater";
   import { auth } from "../model/auth.svelte";
+  import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -35,6 +36,13 @@
     { id: "backup", label: "Backup" },
   ] as const;
   let tab = $state<(typeof TABS)[number]["id"]>("appearance");
+
+  // Speech-format (template) editor: rename a format's speeches for all new
+  // rounds, and pick which format new flows start with.
+  const FORMAT_TEMPLATES = builtinTemplates();
+  let fmtIdx = $state(settings.defaultTemplate);
+  const speechAbbr = (format: number, j: number, fallback: string) =>
+    settings.templateAbbrs[format]?.[j] ?? fallback;
 
   // Speech-doc style editor helpers.
   function patchDoc(patch: Partial<DocTypography>) {
@@ -251,7 +259,7 @@
 
     {#if tab === "appearance"}
     <section>
-      <h3>Appearance</h3>
+      <h3>Theme &amp; colors</h3>
       <div class="row theme-row">
         Theme
         <div class="swatches">
@@ -281,58 +289,38 @@
           >Bottom</button>
         </div>
       </label>
-      <label class="row">
-        Aff / Pro color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.affColor || (settings.theme === "dark" ? "#7fb5ff" : "#1a6fd4")}
-            oninput={(e) => { settings.affColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.affColor}
-            <button class="chip" onclick={() => { settings.affColor = ""; settings.save(); }}>reset</button>
+      <div class="row">
+        <span>Colors</span>
+        <div class="color-group">
+          <label class="color-chip">
+            <input type="color"
+              value={settings.affColor || (settings.theme === "dark" ? "#7fb5ff" : "#1a6fd4")}
+              oninput={(e) => { settings.affColor = e.currentTarget.value; settings.save(); }} />
+            <span>Aff</span>
+          </label>
+          <label class="color-chip">
+            <input type="color"
+              value={settings.negColor || (settings.theme === "dark" ? "#ff9a7f" : "#c8442a")}
+              oninput={(e) => { settings.negColor = e.currentTarget.value; settings.save(); }} />
+            <span>Neg</span>
+          </label>
+          <label class="color-chip">
+            <input type="color"
+              value={settings.analyticColor || (settings.theme === "dark" ? "#5fd98a" : "#1e8e4a")}
+              oninput={(e) => { settings.analyticColor = e.currentTarget.value; settings.save(); }} />
+            <span>Analytic</span>
+          </label>
+          <label class="color-chip">
+            <input type="color"
+              value={settings.cardColor || (settings.theme === "dark" ? "#c792ea" : "#7c4dbe")}
+              oninput={(e) => { settings.cardColor = e.currentTarget.value; settings.save(); }} />
+            <span>Card</span>
+          </label>
+          {#if settings.affColor || settings.negColor || settings.analyticColor || settings.cardColor}
+            <button class="color-reset" onclick={() => { settings.affColor = settings.negColor = settings.analyticColor = settings.cardColor = ""; settings.save(); }}>Reset</button>
           {/if}
-        </span>
-      </label>
-      <label class="row">
-        Neg / Con color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.negColor || (settings.theme === "dark" ? "#ff9a7f" : "#c8442a")}
-            oninput={(e) => { settings.negColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.negColor}
-            <button class="chip" onclick={() => { settings.negColor = ""; settings.save(); }}>reset</button>
-          {/if}
-        </span>
-      </label>
-      <label class="row">
-        Analytic ink color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.analyticColor || (settings.theme === "dark" ? "#5fd98a" : "#1e8e4a")}
-            oninput={(e) => { settings.analyticColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.analyticColor}
-            <button class="chip" onclick={() => { settings.analyticColor = ""; settings.save(); }}>reset</button>
-          {/if}
-        </span>
-      </label>
-      <label class="row">
-        Card ink color
-        <span class="inline">
-          <input
-            type="color"
-            value={settings.cardColor || (settings.theme === "dark" ? "#c792ea" : "#7c4dbe")}
-            oninput={(e) => { settings.cardColor = e.currentTarget.value; settings.save(); }}
-          />
-          {#if settings.cardColor}
-            <button class="chip" onclick={() => { settings.cardColor = ""; settings.save(); }}>reset</button>
-          {/if}
-        </span>
-      </label>
+        </div>
+      </div>
       <label class="row">
         Min column width
         <span class="inline">
@@ -419,6 +407,36 @@
           >Excel</button>
         </div>
       </label>
+    </section>
+
+    <section>
+      <h3>Speech formats</h3>
+      <p class="hint">Pick the format new flows start with, and rename its speeches. Renames apply to every new round of that format.</p>
+      <label class="row">
+        Default format for new flows
+        <select value={settings.defaultTemplate} onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}>
+          {#each FORMAT_TEMPLATES as t, i (t.id)}<option value={i}>{t.name}</option>{/each}
+        </select>
+      </label>
+      <label class="row">
+        Edit speeches for
+        <select value={fmtIdx} onchange={(e) => (fmtIdx = Number(e.currentTarget.value))}>
+          {#each FORMAT_TEMPLATES as t, i (t.id)}<option value={i}>{t.name}</option>{/each}
+        </select>
+      </label>
+      <div class="speech-edit">
+        {#each FORMAT_TEMPLATES[fmtIdx].speeches as sp, j (sp.id)}
+          <label class="speech-row">
+            <span class="speech-full">{sp.label}</span>
+            <input
+              class="speech-input"
+              value={speechAbbr(fmtIdx, j, sp.abbr)}
+              placeholder={sp.abbr}
+              onchange={(e) => settings.setSpeechAbbr(fmtIdx, j, e.currentTarget.value)}
+            />
+          </label>
+        {/each}
+      </div>
     </section>
     {/if}
 
@@ -979,6 +997,42 @@
     padding: 5px 0;
     gap: 12px;
   }
+  .speech-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .speech-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .speech-full { font-size: 13px; color: var(--text-dim); }
+  .speech-input {
+    width: 150px; padding: 6px 9px; font-size: 13px; text-align: center;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text);
+  }
+  .speech-input:focus { outline: none; border-color: var(--accent); }
+  .color-group { display: flex; align-items: flex-end; gap: 16px; }
+  .color-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; margin: 0; }
+  .color-chip input[type="color"] {
+    width: 36px; height: 26px; padding: 0; border: 1px solid var(--border);
+    border-radius: 6px; background: none; cursor: pointer;
+  }
+  .color-chip span { font-size: 11px; color: var(--text-dim); }
+  .color-reset { align-self: center; background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 2px 4px; }
+
+  /* On/off settings render as a consistent toggle switch. The knob is drawn as
+     a background radial-gradient (works on a bare checkbox in every engine,
+     unlike ::after) and slides right when checked. */
+  input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    box-sizing: border-box; flex-shrink: 0; margin: 0; border: none;
+    width: 40px; height: 22px; border-radius: 999px; cursor: pointer;
+    background-color: var(--border);
+    background-image: radial-gradient(circle 8px at 11px 11px, #fff 100%, transparent 0);
+    background-repeat: no-repeat;
+    transition: background-color 0.15s ease, background-position 0.15s ease;
+    vertical-align: middle;
+  }
+  input[type="checkbox"]:checked {
+    background-color: var(--accent);
+    background-position-x: 18px;
+  }
+  input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .doc-preview {
     background: #fff;
     color: #111;
@@ -1015,13 +1069,14 @@
     gap: 8px;
   }
   .swatches {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
-    flex-wrap: wrap;
+    width: 100%;
   }
   .theme-swatch {
-    width: 74px;
-    height: 46px;
+    width: 100%;
+    height: 48px;
     border: 2px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
@@ -1030,10 +1085,20 @@
     justify-content: center;
     padding: 4px;
     position: relative;
+    transition: border-color 0.12s, box-shadow 0.12s;
   }
+  .theme-swatch:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
   .theme-swatch.on {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  /* A clear checkmark badge marks the active theme, not just a border tint. */
+  .theme-swatch.on::after {
+    content: "✓";
+    position: absolute; top: 3px; right: 4px;
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
   }
   .theme-name {
     font-size: 10px;

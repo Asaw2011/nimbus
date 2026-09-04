@@ -12,6 +12,10 @@
   import {
     keepCursorInLeadingBlockOnBlockedMerge, blockBackspaceNodeSelect, blockDeleteNodeSelect,
   } from "$lib/cardmirror/editor/boundary-cursor-keymap";
+  // Core editing normalizer (ARCHITECTURE §14.3): a paragraph typed right after
+  // a card is auto-absorbed into it as a card_body, so bodies stay bound to
+  // their card instead of clumping loose at doc level. A heading breaks the zone.
+  import { absorbPlugin } from "$lib/cardmirror/editor/absorb-plugin";
   import { keymap } from "prosemirror-keymap";
   import { history, undo, redo } from "prosemirror-history";
   import { Fragment, Slice, type Node as PMNode } from "prosemirror-model";
@@ -298,6 +302,7 @@
       schema,
       doc,
       plugins: [
+        absorbPlugin,
         readModePlugin(),
         searchPlugin(),
         history(),
@@ -365,6 +370,23 @@
       // text controls (B / I / color / size) act on the doc.
       handleDOMEvents: {
         focus: () => { store.activeSurface = "doc"; syncDocSelSize(); return false; },
+        // macOS "smart dashes" (System Settings → Keyboard → Text Input) rewrites
+        // "--"/"---" into a single em/en dash INSIDE the webview, before the app
+        // ever sees the keystrokes. Debate docs are written with literal "---" as
+        // the Verbatim separator (Plan---1AC, 1NC---K, Adv---Costs) and our own
+        // importer keys off it, so that substitution silently corrupts every tag.
+        // The OS delivers it as a cancelable insertReplacementText beforeinput;
+        // cancel the ones whose replacement is an em/en dash so the hyphens the
+        // user actually typed survive. (Real typed em dashes are unaffected — they
+        // arrive as normal insertText, not a replacement.)
+        beforeinput: (_v, e) => {
+          const ie = e as InputEvent;
+          if (ie.inputType === "insertReplacementText" && /[–—]/.test(ie.data ?? "")) {
+            e.preventDefault();
+            return true;
+          }
+          return false;
+        },
       },
       dispatchTransaction(tr: Transaction) {
         if (!view) return;

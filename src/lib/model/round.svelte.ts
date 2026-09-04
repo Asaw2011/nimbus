@@ -404,6 +404,18 @@ class RoundStore {
     if (this.dirty && this.round) await this.saveNow();
   }
 
+  /** Rename a speech's column label (its short header, e.g. "NR" -> "2NR" or
+   *  "Negative Rebuttal"). Templates are presets, not constraints, so this edits
+   *  the round in place and persists on the normal save debounce. */
+  renameSpeech(col: number, abbr: string): void {
+    const sp = this.round?.template.speeches[col];
+    if (!sp) return;
+    const next = abbr.trim();
+    if (!next || next === sp.abbr) return;
+    sp.abbr = next;
+    this.scheduleSave();
+  }
+
   // ---- lookup -------------------------------------------------------------
 
   get activeSheet(): Sheet | null {
