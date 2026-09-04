@@ -6,6 +6,7 @@
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import { combosLabel } from "../model/keymap";
+  import { prep, type PrepSide } from "../model/prep.svelte";
 
   let {
     spreadMode,
@@ -110,9 +111,39 @@
   const hasLanes = $derived(
     (store.round?.template.speeches ?? []).some((s) => !!s.laneGroup),
   );
+
+  // ---- prep clocks ---------------------------------------------------------
+  // Click the time to correct it by hand. That is the point of the field, not a
+  // nicety: the common failure in a real round is nobody stopping the clock
+  // when a team finishes prepping, and there is no way to recover that except
+  // typing what it should say.
+  const SIDES: PrepSide[] = ["aff", "neg"];
+  let editingSide = $state<PrepSide | null>(null);
+  let prepText = $state("");
+
+  // Re-attach whenever the open round changes. A clock that was running when
+  // the app closed is still running — its elapsed time is real wall time — so
+  // this restarts the repaint pulse rather than the clock itself.
+  $effect(() => {
+    store.round?.id;
+    prep.attach();
+  });
+
+  function startEditPrep(side: PrepSide) {
+    // Freeze it first, or the number moves while you're typing over it.
+    prep.pause(side);
+    editingSide = side;
+    prepText = prep.label(side);
+  }
+  function commitEditPrep() {
+    if (!editingSide) return;
+    const ms = prep.parse(prepText);
+    if (ms !== null) prep.setRemainingMs(editingSide, ms);
+    editingSide = null;
+  }
 </script>
 
-<div class="ribbon" class:compact-icons={settings.ribbonMode === "icons"} class:compact-slim={settings.ribbonMode === "slim"}>
+<div class="ribbon" class:compact={settings.ribbonMode === "compact"}>
   <div class="group">
     <div class="controls">
       <button class="rb" title="Undo (⌘Z)" onclick={() => store.undo()}><span class="lbl">↶ Undo</span><span class="ico">↶</span></button>
@@ -192,75 +223,157 @@
   </div>
 
   <span class="ribbon-spacer"></span>
+
+  <!-- Prep clocks, pinned to the right end in BOTH densities so they never
+       shift as the conditional buttons (partner lane, send, remove) come and
+       go. Each team's clock: click the time to correct it, the button to
+       start/stop, right-click to reset to a full allotment. -->
+  <div class="prep-group">
+    {#each SIDES as side (side)}
+      <div class="prep" class:aff={side === "aff"} class:neg={side === "neg"} class:live={prep.running(side)} class:spent={prep.spent(side)}>
+        <span class="prep-tag">{side === "aff" ? "AFF" : "NEG"}</span>
+        {#if editingSide === side}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="prep-time prep-edit"
+            bind:value={prepText}
+            autofocus
+            onblur={commitEditPrep}
+            onkeydown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") { e.preventDefault(); commitEditPrep(); }
+              else if (e.key === "Escape") { editingSide = null; }
+            }}
+          />
+        {:else}
+          <button
+            class="prep-time"
+            title="{side === 'aff' ? 'Aff' : 'Neg'} prep remaining — click to correct it by hand"
+            onclick={() => startEditPrep(side)}
+          >{prep.label(side)}</button>
+        {/if}
+        <button
+          class="prep-go"
+          title={prep.running(side)
+            ? `Stop ${side === "aff" ? "aff" : "neg"} prep`
+            : prep.spent(side)
+              ? "No prep left — right-click to reset"
+              : `Start ${side === "aff" ? "aff" : "neg"} prep (stops the other team's clock)`}
+          disabled={prep.spent(side) && !prep.running(side)}
+          onclick={() => prep.toggle(side)}
+          oncontextmenu={(e) => { e.preventDefault(); prep.reset(side); }}
+        >{prep.running(side) ? "⏸" : "▶"}</button>
+      </div>
+    {/each}
+  </div>
+
   <button
-    class="rb compact-toggle"
-    title={"Toolbar density: " + settings.ribbonMode + " — click to cycle (full → icons → slim)"}
+    class="rb density-toggle"
+    title={settings.ribbonMode === "full"
+      ? "Condense the toolbar — fits a splitscreen half"
+      : "Expand the toolbar to full width"}
     onclick={() => {
-      settings.ribbonMode = settings.ribbonMode === "full" ? "icons" : settings.ribbonMode === "icons" ? "slim" : "full";
+      settings.ribbonMode = settings.ribbonMode === "full" ? "compact" : "full";
       settings.save();
     }}
-  >{settings.ribbonMode === "full" ? "⤡" : settings.ribbonMode === "icons" ? "⤢" : "⇔"}</button>
+  >{settings.ribbonMode === "full" ? "⇥⇤" : "⇤⇥"}</button>
 </div>
 
 <style>
+  /* One bar, two densities, ONE height. `full` fills the window; `compact`
+     fits a splitscreen half. Both are icon-only and both are 46px tall, so
+     switching never reflows the grid underneath.
+
+     ⚠ `overflow: hidden`, not `auto`. The old bar scrolled horizontally, which
+     is the thing being fixed — a toolbar you have to scroll is a toolbar whose
+     right-hand buttons you never find. Everything here is sized so it fits;
+     if a future button breaks that, the fix is to shrink the set, not to bring
+     the scrollbar back. */
   .ribbon {
+    --rb-size: 32px;   /* icon button box — scaled down in compact */
+    --rb-font: 16px;
+    --rb-gap: 3px;
     display: flex;
-    align-items: stretch;
-    padding: 4px 8px 2px;
+    align-items: center;
+    gap: var(--rb-gap);
+    height: 46px;
+    box-sizing: border-box;
+    padding: 0 8px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
-    overflow-x: auto;
+    overflow: hidden;
     flex-shrink: 0;
   }
-  /* Each labeled button carries a full-text .lbl (default) and a single-glyph
-     .ico (compact only), so normal mode is unchanged and compact is icon-only. */
-  .ico { display: none; }
-  .ribbon-spacer { flex: 1; }
-  .compact-toggle { align-self: center; }
-  /* ---- icons mode: icons only, no captions, tighter (grouped left) ---- */
-  .ribbon.compact-icons {
-    padding: 2px 6px;
-    align-items: center;
-    gap: 2px;
-  }
-  .ribbon.compact-icons .caption { display: none; }
-  .ribbon.compact-icons .group {
-    padding: 0 6px;
-    justify-content: center;
-  }
-  .ribbon.compact-icons .lbl { display: none; }
-  .ribbon.compact-icons .ico { display: inline; }
-  .ribbon.compact-icons .rb {
-    padding: 3px 6px;
-    font-size: 12px;
-  }
-  /* ---- slim mode: keep labels, hide captions, minimum height, and spread the
-     groups evenly across the full width so it looks balanced. ---- */
-  .ribbon.compact-slim {
-    padding: 1px 8px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-  }
-  .ribbon.compact-slim .caption { display: none; }
-  .ribbon.compact-slim .group {
+  /* Compact is sized against a real target, not by eye: half of a 1366 laptop
+     is 683px, and that is the splitscreen case this mode exists for. */
+  .ribbon.compact {
+    --rb-size: 22px;
+    --rb-font: 12px;
+    --rb-gap: 0px;
     padding: 0 4px;
-    border-right: none;
-    justify-content: center;
   }
-  .ribbon.compact-slim .rb {
-    padding: 2px 7px;
-    font-size: 12px;
+  .ribbon.compact .rb { padding: 0 2px; }
+  /* The two multi-part readouts (text size −13+, zoom −70%+) are ~150px of the
+     bar between them, which is the difference between "narrower" and "about
+     half". Compact is the space-saving mode, so they go here too, not only at
+     narrow widths. Zoom keeps its keybinds and pinch; text size is in Settings. */
+  .ribbon.compact .zoom-ctl,
+  .ribbon.compact .stepper { display: none; }
+  /* Narrower still — a 1280 screen's half, or a dragged-in window. The bar
+     clips rather than scrolls, so it has to keep shrinking or buttons become
+     unreachable. The side TAG goes first: the clocks are already colour-coded
+     aff-blue and neg-red, so the letters are the redundant part. */
+  /* ⚠ These narrow-width steps apply to BOTH densities, not just compact. The
+     bar clips instead of scrolling, so a full-mode bar in a 640px window would
+     silently lose its right-hand buttons — worse than the scrollbar this
+     replaced. Below these widths there is no room for full mode anyway, so it
+     degrades into the same thing rather than breaking. */
+  /* ⚠ Each selector is repeated at `.ribbon.compact` specificity. A media query
+     adds NO specificity, so a bare `.ribbon` rule here loses to the
+     `.ribbon.compact` block above it and compact would come out LARGER than
+     full at the same width — which is exactly what happened. */
+  @media (max-width: 720px) {
+    .ribbon, .ribbon.compact { --rb-size: 20px; --rb-font: 11px; padding: 0 2px; }
+    .ribbon .group, .ribbon.compact .group { padding: 0 1px; }
+    .ribbon .prep-tag { display: none; }
+    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 26px; }
+    .ribbon .prep, .ribbon.compact .prep { padding: 0 1px 0 3px; }
+    .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 3px; gap: 2px; }
+    /* Measured: 24 buttons plus two clocks need ~794px here, and a 1366 laptop's
+       splitscreen half is 683. The two multi-part READOUTS are what gets cut —
+       together they are ~150px, and both have another way in: zoom has its
+       keybinds and pinch-zoom, text size is in Settings. Cutting actual debate
+       actions instead would be the wrong trade. */
+    .ribbon .zoom-ctl,
+    .ribbon .stepper { display: none; }
   }
-  /* The flex spacer would eat the free space and defeat even spreading. */
-  .ribbon.compact-slim .ribbon-spacer { display: none; }
+  /* A 1280 laptop's splitscreen half is 640, which the step above only just
+     clears. One more notch keeps real headroom there. */
+  @media (max-width: 660px) {
+    .ribbon, .ribbon.compact { --rb-size: 19px; --rb-font: 10.5px; --rb-gap: 0px; }
+    .ribbon .group, .ribbon.compact .group { padding: 0; }
+    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 24px; }
+  }
+  /* Every labeled button carries a full-text .lbl and a single-glyph .ico.
+     The bar is icon-only in both densities now, so .lbl is always hidden and
+     .ico always shown — the wording survives in each button's `title`, which
+     is where it was already duplicated. Kept as two spans rather than deleting
+     the labels so bringing text back is a CSS change, not a rewrite. */
+  .lbl { display: none; }
+  .ico { display: inline; }
+  /* Group captions (EDIT / TEXT / ROWS / …) stacked under the controls and are
+     what made the bar tall enough to need two rows. Icon-only has no room for
+     them; the group separators carry the grouping instead. */
+  .caption { display: none; }
+  .ribbon-spacer { flex: 1; min-width: 4px; }
   .group {
     display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 0 10px;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 6px;
     border-right: 1px solid var(--border);
   }
+  .ribbon.compact .group { padding: 0 3px; }
   .group:first-child {
     padding-left: 0;
   }
@@ -289,14 +402,18 @@
     padding: 2px 0 1px;
     user-select: none;
   }
+  /* A square box scaled off the bar's own --rb-size, so an icon fills the bar's
+     height in full mode and shrinks as one piece in compact. */
   .rb {
     background: transparent;
     border: 1px solid transparent;
     color: var(--text);
     border-radius: 5px;
-    height: 26px;
-    padding: 0 8px;
-    font-size: 12px;
+    height: var(--rb-size);
+    min-width: var(--rb-size);
+    padding: 0 4px;
+    font-size: var(--rb-font);
+    line-height: 1;
     cursor: pointer;
     white-space: nowrap;
     display: inline-flex;
@@ -307,6 +424,84 @@
     background: color-mix(in srgb, var(--accent) 12%, var(--panel));
     border-color: var(--border);
   }
+
+  /* ---- prep clocks ---- */
+  .prep-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .ribbon.compact .prep-group { gap: 3px; padding-left: 5px; }
+  .prep {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: var(--rb-size);
+    padding: 0 4px 0 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+  .ribbon.compact .prep { padding: 0 2px 0 4px; }
+  /* Each clock wears its own side's colour, the same blue/red the flow uses, so
+     you can tell them apart without reading the tag. */
+  .prep.aff { border-color: color-mix(in srgb, var(--aff, #1a6fd4) 45%, var(--border)); }
+  .prep.neg { border-color: color-mix(in srgb, var(--neg, #c8442a) 45%, var(--border)); }
+  /* A running clock is the one thing on this bar you must be able to spot from
+     across a room mid-round, so it gets a filled wash, not a border tint. */
+  .prep.live.aff { background: color-mix(in srgb, var(--aff, #1a6fd4) 16%, var(--bg)); }
+  .prep.live.neg { background: color-mix(in srgb, var(--neg, #c8442a) 16%, var(--bg)); }
+  .prep.spent { opacity: 0.55; }
+  .prep-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    user-select: none;
+  }
+  .ribbon.compact .prep-tag { font-size: 8px; }
+  .prep.aff .prep-tag { color: var(--aff, #1a6fd4); }
+  .prep.neg .prep-tag { color: var(--neg, #c8442a); }
+  /* Tabular figures: without them the digits change width as the clock counts
+     and the whole bar twitches once a second. */
+  .prep-time {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: calc(var(--rb-font) - 1px);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 0 3px;
+    min-width: 40px;
+    text-align: center;
+    cursor: text;
+  }
+  .ribbon.compact .prep-time { min-width: 33px; padding: 0 1px; }
+  .prep-time:hover { text-decoration: underline dotted; }
+  .prep-edit {
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--panel);
+    outline: none;
+    cursor: text;
+  }
+  .prep-edit:hover { text-decoration: none; }
+  .prep-go {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: calc(var(--rb-font) - 3px);
+    line-height: 1;
+    padding: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .prep-go:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .prep-go:disabled { opacity: 0.4; cursor: default; }
+  .density-toggle { flex-shrink: 0; margin-left: 4px; }
   .rb.on {
     background: var(--accent);
     color: #fff;

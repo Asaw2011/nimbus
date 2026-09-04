@@ -146,6 +146,31 @@ export function sheetAccent(sheet: Sheet): string {
   return "var(--text-dim)";
 }
 
+// ---- prep time -------------------------------------------------------------
+
+/**
+ * One team's prep clock.
+ *
+ * ⚠ `startedAt` is a WALL-CLOCK stamp, not an accumulated count, and the
+ * remaining time is always derived as `remainingMs - (now - startedAt)`. That is
+ * deliberate: the tick that drives the display is a `setInterval`, and a
+ * backgrounded or minimised window has its timers throttled to roughly once a
+ * minute. Counting down per tick would lose real minutes of a team's prep every
+ * time the window went behind something. Deriving from the clock means the tick
+ * only decides how often the number is REPAINTED, never what it says.
+ */
+export interface PrepClock {
+  /** Prep unspent as of `startedAt` (or right now, when not running). */
+  remainingMs: number;
+  /** `Date.now()` when this clock was last started; absent while paused. */
+  startedAt?: number;
+}
+
+export interface RoundPrep {
+  aff: PrepClock;
+  neg: PrepClock;
+}
+
 // ---- partner lanes ---------------------------------------------------------
 //
 // A split speech is TWO real columns sharing a `laneGroup`. Everything that
@@ -234,6 +259,12 @@ export interface Round {
    * every round made before lanes existed, and on rounds flowed solo.
    */
   mySide?: Side;
+  /**
+   * Each team's remaining prep, saved with the flow so it survives a reload or
+   * a crash mid-round. Absent on every round made before prep tracking existed,
+   * which reads as "untouched" and seeds from the configured default.
+   */
+  prep?: RoundPrep;
   /** Where this flow is saved on disk, if the user chose a location (Save As). */
   filePath?: string;
   /** Arguments (cards + analytics) banked from imported docs, for the argument

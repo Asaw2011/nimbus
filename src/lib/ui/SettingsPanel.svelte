@@ -2,7 +2,7 @@
   import { settings } from "../model/settings.svelte";
   import type { ActionId, Combo } from "../model/keymap";
   import { ACTION_GROUPS, actionLabel, comboFromEvent, comboLabel } from "../model/keymap";
-  import { THEMES, DEFAULT_DOC_TYPOGRAPHY, type DocTypography } from "../model/settings.svelte";
+  import { THEMES, DEFAULT_DOC_TYPOGRAPHY, clampPrepMinutes, type DocTypography } from "../model/settings.svelte";
   import { loadSnippets, saveSnippets } from "../model/snippets";
   import { validateMacroCode } from "../model/macros";
   import { exportSettings, importSettings } from "../model/backup";
@@ -393,6 +393,24 @@
           checked={settings.showTutorial}
           onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
         />
+      </label>
+      <label class="row">
+        Prep time per team
+        <span class="inline">
+          <input
+            type="number"
+            min="0"
+            max="60"
+            style="width: 66px"
+            value={settings.prepMinutes}
+            onchange={(e) => {
+              settings.prepMinutes = clampPrepMinutes(Number(e.currentTarget.value));
+              e.currentTarget.value = String(settings.prepMinutes);
+              settings.save();
+            }}
+          />
+          <span class="hint-inline">minutes</span>
+        </span>
       </label>
       <label class="row">
         Default save format
@@ -997,6 +1015,7 @@
     padding: 5px 0;
     gap: 12px;
   }
+  .hint-inline { font-size: 12px; color: var(--text-dim); }
   .speech-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
   .speech-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .speech-full { font-size: 13px; color: var(--text-dim); }

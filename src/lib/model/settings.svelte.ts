@@ -66,7 +66,9 @@ export interface Persisted {
   compactDoc: boolean;
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
-  ribbonMode: "full" | "icons" | "slim";
+  ribbonMode: RibbonMode;
+  /** Minutes of prep each team starts a round with. */
+  prepMinutes: number;
   /** Default file format when you Save (⌘S / on close). */
   defaultSaveFormat: "nimbus" | "xlsx";
   /** Default speech-format template index for New flow. */
@@ -163,6 +165,25 @@ export function clampZoom(n: number): number {
   return Math.min(2.5, Math.max(0.5, Math.round(n * 100) / 100));
 }
 
+/** Prep is clamped to 0–60 minutes; 0 is legitimate (some formats have none). */
+export function clampPrepMinutes(n: number): number {
+  if (!Number.isFinite(n)) return 8;
+  return Math.min(60, Math.max(0, Math.round(n)));
+}
+
+/**
+ * Ribbon density. Two options, on purpose: `full` fills the window, `compact`
+ * fits a splitscreen half. Both are icon-only and the SAME HEIGHT — the only
+ * difference is scale and spacing, so switching never moves the grid.
+ */
+export type RibbonMode = "full" | "compact";
+
+/** Anything that isn't "full" — including the retired "icons"/"slim" — is
+ *  compact. Keeps an old save's intent instead of resetting it to full. */
+export function normalizeRibbonMode(m: string): RibbonMode {
+  return m === "full" ? "full" : "compact";
+}
+
 export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
   sizePocket: 26,
   sizeHat: 22,
@@ -189,7 +210,10 @@ class Settings {
   /** Denser speech-doc chrome (toolbar + outline) so the document reads bigger
    *  in the side panel. On by default. */
   compactDoc = $state(true);
-  ribbonMode = $state<"full" | "icons" | "slim">("full");
+  ribbonMode = $state<RibbonMode>("full");
+  /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
+   *  a setting rather than a constant. Editable per round from the ribbon. */
+  prepMinutes = $state(8);
   defaultSaveFormat = $state<"nimbus" | "xlsx">("nimbus");
   /** Default speech format for New flow, as an index into builtinTemplates()
    *  (0 Policy, 1 LD, 2 PF, 3 PF Con-first). Set it once and every new flow
@@ -285,9 +309,14 @@ class Settings {
     if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
-    if (p.ribbonMode) this.ribbonMode = p.ribbonMode;
+    // The ribbon used to have three densities (full / icons / slim) cycled with
+    // one button. It is two now — full width, and a condensed half-width one for
+    // splitscreen — so both retired names load as "compact" rather than falling
+    // back to "full" and silently undoing someone's choice.
+    if (p.ribbonMode) this.ribbonMode = normalizeRibbonMode(p.ribbonMode);
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
-    else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "icons";
+    else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "compact";
+    if (typeof p.prepMinutes === "number") this.prepMinutes = clampPrepMinutes(p.prepMinutes);
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
     if (p.templateAbbrs && typeof p.templateAbbrs === "object") this.templateAbbrs = p.templateAbbrs;
@@ -364,6 +393,7 @@ class Settings {
       compactTopBar: this.compactTopBar,
       compactDoc: this.compactDoc,
       ribbonMode: this.ribbonMode,
+      prepMinutes: this.prepMinutes,
       defaultSaveFormat: this.defaultSaveFormat,
       defaultTemplate: this.defaultTemplate,
       templateAbbrs: this.templateAbbrs,
