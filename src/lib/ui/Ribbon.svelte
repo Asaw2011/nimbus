@@ -143,6 +143,14 @@
   }
 </script>
 
+<!-- The size container. The ribbon sits inside `.flow-pane`, so opening the
+     built-in doc narrows it while the WINDOW stays exactly as wide as it was.
+     Width-based media queries can't see that — they only fire when the OS
+     window itself shrinks — so the bar kept full-size icons in a half-width
+     column and clipped. Everything below queries THIS element instead, which
+     narrows for any reason: OS splitscreen, the doc pane, or the doc pane
+     inside a splitscreened window. -->
+<div class="ribbon-wrap">
 <div class="ribbon" class:compact={settings.ribbonMode === "compact"}>
   <div class="group">
     <div class="controls">
@@ -278,6 +286,7 @@
     }}
   >{settings.ribbonMode === "full" ? "⇥⇤" : "⇤⇥"}</button>
 </div>
+</div>
 
 <style>
   /* One bar, two densities, ONE height. `full` fills the window; `compact`
@@ -289,6 +298,11 @@
      right-hand buttons you never find. Everything here is sized so it fits;
      if a future button breaks that, the fix is to shrink the set, not to bring
      the scrollbar back. */
+  .ribbon-wrap {
+    container-type: inline-size;
+    container-name: ribbon;
+    flex-shrink: 0;
+  }
   .ribbon {
     --rb-size: 32px;   /* icon button box — scaled down in compact */
     --rb-font: 16px;
@@ -301,7 +315,14 @@
     padding: 0 8px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
-    overflow: hidden;
+    /* Last-resort only. The size steps below shrink the bar to fit the space it
+       actually has, so this should never engage in normal use — but there is a
+       width at which 24 buttons genuinely cannot fit, and scrolling to reach a
+       button beats the button not existing. `thin` so the scrollbar can't eat
+       into the 46px. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
     flex-shrink: 0;
   }
   /* Compact is sized against a real target, not by eye: half of a 1366 laptop
@@ -319,41 +340,6 @@
      narrow widths. Zoom keeps its keybinds and pinch; text size is in Settings. */
   .ribbon.compact .zoom-ctl,
   .ribbon.compact .stepper { display: none; }
-  /* Narrower still — a 1280 screen's half, or a dragged-in window. The bar
-     clips rather than scrolls, so it has to keep shrinking or buttons become
-     unreachable. The side TAG goes first: the clocks are already colour-coded
-     aff-blue and neg-red, so the letters are the redundant part. */
-  /* ⚠ These narrow-width steps apply to BOTH densities, not just compact. The
-     bar clips instead of scrolling, so a full-mode bar in a 640px window would
-     silently lose its right-hand buttons — worse than the scrollbar this
-     replaced. Below these widths there is no room for full mode anyway, so it
-     degrades into the same thing rather than breaking. */
-  /* ⚠ Each selector is repeated at `.ribbon.compact` specificity. A media query
-     adds NO specificity, so a bare `.ribbon` rule here loses to the
-     `.ribbon.compact` block above it and compact would come out LARGER than
-     full at the same width — which is exactly what happened. */
-  @media (max-width: 720px) {
-    .ribbon, .ribbon.compact { --rb-size: 20px; --rb-font: 11px; padding: 0 2px; }
-    .ribbon .group, .ribbon.compact .group { padding: 0 1px; }
-    .ribbon .prep-tag { display: none; }
-    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 26px; }
-    .ribbon .prep, .ribbon.compact .prep { padding: 0 1px 0 3px; }
-    .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 3px; gap: 2px; }
-    /* Measured: 24 buttons plus two clocks need ~794px here, and a 1366 laptop's
-       splitscreen half is 683. The two multi-part READOUTS are what gets cut —
-       together they are ~150px, and both have another way in: zoom has its
-       keybinds and pinch-zoom, text size is in Settings. Cutting actual debate
-       actions instead would be the wrong trade. */
-    .ribbon .zoom-ctl,
-    .ribbon .stepper { display: none; }
-  }
-  /* A 1280 laptop's splitscreen half is 640, which the step above only just
-     clears. One more notch keeps real headroom there. */
-  @media (max-width: 660px) {
-    .ribbon, .ribbon.compact { --rb-size: 19px; --rb-font: 10.5px; --rb-gap: 0px; }
-    .ribbon .group, .ribbon.compact .group { padding: 0; }
-    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 24px; }
-  }
   /* Every labeled button carries a full-text .lbl and a single-glyph .ico.
      The bar is icon-only in both densities now, so .lbl is always hidden and
      .ico always shown — the wording survives in each button's `title`, which
@@ -426,6 +412,11 @@
   }
 
   /* ---- prep clocks ---- */
+  /* Sticky to the right edge so that in the last-resort scrolling case the
+     clocks stay put while the buttons scroll under them. Prep time is the one
+     thing on this bar you need at a glance mid-round; it should never be the
+     part that scrolls out of sight. The panel background stops buttons showing
+     through as they pass beneath. */
   .prep-group {
     display: flex;
     align-items: center;
@@ -433,6 +424,10 @@
     padding-left: 8px;
     border-left: 1px solid var(--border);
     flex-shrink: 0;
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--panel);
   }
   .ribbon.compact .prep-group { gap: 3px; padding-left: 5px; }
   .prep {
@@ -576,5 +571,81 @@
     inset: 0;
     opacity: 0;
     cursor: pointer;
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     SIZE STEPS — deliberately LAST in this file.
+
+     ⚠ Two rules decide which of these wins, and both bit once:
+       1. Specificity. A container query adds NONE, so every selector below is
+          repeated at `.ribbon.compact` specificity — a bare `.ribbon` rule
+          loses to the `.ribbon.compact` block above and compact came out
+          LARGER than full at the same width.
+       2. Source order. At EQUAL specificity the later rule wins, so these must
+          sit after the base `.ribbon.compact …` declarations. When they sat
+          above them, compact silently kept its base padding and overflowed a
+          510px column by 69px while full only overflowed by 39px.
+     ────────────────────────────────────────────────────────────────────────── */
+  /* Narrower still — a 1280 screen's half, or a dragged-in window. The bar
+     clips rather than scrolls, so it has to keep shrinking or buttons become
+     unreachable. The side TAG goes first: the clocks are already colour-coded
+     aff-blue and neg-red, so the letters are the redundant part. */
+  /* ⚠ These narrow-width steps apply to BOTH densities, not just compact. The
+     bar clips instead of scrolling, so a full-mode bar in a 640px window would
+     silently lose its right-hand buttons — worse than the scrollbar this
+     replaced. Below these widths there is no room for full mode anyway, so it
+     degrades into the same thing rather than breaking. */
+  /* ⚠ Each selector is repeated at `.ribbon.compact` specificity. A media query
+     adds NO specificity, so a bare `.ribbon` rule here loses to the
+     `.ribbon.compact` block above it and compact would come out LARGER than
+     full at the same width — which is exactly what happened. */
+  /* Full mode needs ~1145px, so the first step has to fire not far below that —
+     otherwise opening the speech doc (which takes 380px by default) drops the
+     bar to a 980px column while it is still drawing 32px icons, and it clips.
+     That was the reported bug. Each step is measured, not guessed. */
+  @container ribbon (max-width: 1160px) {
+    .ribbon, .ribbon.compact { --rb-size: 27px; --rb-font: 14px; }
+  }
+  @container ribbon (max-width: 1020px) {
+    .ribbon, .ribbon.compact { --rb-size: 23px; --rb-font: 12.5px; }
+    .ribbon .group, .ribbon.compact .group { padding: 0 2px; }
+  }
+  /* The two multi-part readouts go here rather than later: together they are
+     ~150px, which buys several steps' worth of room in one move, and both have
+     another way in (zoom keybinds and pinch; text size in Settings). */
+  @container ribbon (max-width: 900px) {
+    .ribbon, .ribbon.compact { --rb-size: 22px; --rb-font: 12px; }
+    .ribbon .zoom-ctl, .ribbon .stepper { display: none; }
+  }
+  @container ribbon (max-width: 720px) {
+    .ribbon, .ribbon.compact { --rb-size: 20px; --rb-font: 11px; padding: 0 2px; }
+    .ribbon .group, .ribbon.compact .group { padding: 0 1px; }
+    .ribbon .prep-tag { display: none; }
+    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 26px; }
+    .ribbon .prep, .ribbon.compact .prep { padding: 0 1px 0 3px; }
+    .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 3px; gap: 2px; }
+    /* Measured: 24 buttons plus two clocks need ~794px here, and a 1366 laptop's
+       splitscreen half is 683. The two multi-part READOUTS are what gets cut —
+       together they are ~150px, and both have another way in: zoom has its
+       keybinds and pinch-zoom, text size is in Settings. Cutting actual debate
+       actions instead would be the wrong trade. */
+    .ribbon .zoom-ctl,
+    .ribbon .stepper { display: none; }
+  }
+  /* A 1280 laptop's splitscreen half is 640, which the step above only just
+     clears. One more notch keeps real headroom there. */
+  @container ribbon (max-width: 660px) {
+    .ribbon, .ribbon.compact { --rb-size: 19px; --rb-font: 10.5px; --rb-gap: 0px; }
+    .ribbon .group, .ribbon.compact .group { padding: 0; }
+    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 24px; }
+  }
+  /* The doc pane can take far more than half. Keep shrinking rather than
+     handing someone a scrollbar the moment they open a speech doc. */
+  @container ribbon (max-width: 560px) {
+    .ribbon, .ribbon.compact { --rb-size: 17px; --rb-font: 9.5px; }
+    .ribbon .group, .ribbon.compact .group { border-right: none; }
+    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 21px; font-size: 9.5px; }
+    .ribbon .prep, .ribbon.compact .prep { padding: 0 0 0 2px; }
+    .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 2px; gap: 1px; }
   }
 </style>
