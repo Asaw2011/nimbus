@@ -22,15 +22,23 @@ Two design pillars, in priority order:
 
 ## Download
 
-Grab the latest installer from the
+Grab the installer for your system from the
 [**Releases**](https://github.com/Asaw2011/nimbus/releases) page:
 
-- **macOS** — `Nimbus_0.1.4_universal.dmg` (Intel + Apple Silicon)
-- **Windows** — `Nimbus_0.1.4_x64-setup.exe`
+| Your system | Download |
+| --- | --- |
+| Mac (Apple Silicon: M1/M2/M3/M4) | `Nimbus_<version>_aarch64.dmg` |
+| Mac (Intel) | `Nimbus_<version>_x64.dmg` |
+| Windows (64-bit) | `Nimbus_<version>_x64-setup.exe` |
+| Linux | `Nimbus_<version>_amd64.AppImage` |
 
-Builds are currently unsigned, so first launch shows a security warning:
-- macOS: right-click the app → **Open**
-- Windows: **More info → Run anyway**
+Builds are not notarized, so first launch shows a security warning:
+- **macOS**: right-click the app → **Open**, then confirm. If it says the app is
+  damaged, run `xattr -cr /Applications/Nimbus.app` and open it again.
+- **Windows**: **More info → Run anyway**.
+
+Updating is manual for now — grab the installer above. Nimbus tells you what
+changed the first time you open a new version.
 
 ## What's in it today
 
@@ -45,6 +53,26 @@ Builds are currently unsigned, so first launch shows a security warning:
   (e.g. Con-first PF)
 - LABEL cell that auto-names a flow as you type its tag
 
+**Flow with your partner** (live, two computers)
+- Pair with a **6-character code** — the host approves explicitly, with the
+  joiner's email shown
+- **One flow, together**, or **a flow each**: keep your own flow while you see
+  and *edit* your partner's, so you can drop a block onto their page mid-round.
+  A doc switcher moves between them, each with its own cursor, sheet and undo
+- **Partner cursor** — see which cell they're working in
+- **Partner lanes** — pick your side when you make a flow and the opponent's
+  second speech splits into a column each, so you aren't typing over each other
+- **Your file stays yours.** Two people auto-saving one file is how flows get
+  destroyed, so Nimbus won't do it — you each save your own copy, always
+- Flowing solo is untouched: no session means no connection and no background
+  work of any kind. Nothing about a flow is stored on a server
+
+**Prep time**
+- A **clock for each team** in the toolbar, counting down from 8 minutes
+  (configurable). Starting one stops the other
+- **Click the time to correct it** when nobody stopped the clock; prep is saved
+  with the flow, so it survives a reload
+
 **The spread** (what no other flowing tool has)
 - See multiple flows at once — **stack** them (speech columns aligned across
   flows) or lay them **side by side**
@@ -52,7 +80,13 @@ Builds are currently unsigned, so first launch shows a security warning:
 
 **Power tools**
 - **Excel-style ribbon** — font, size, bold/italic, ink color, rows, debate
-  marks, view
+  marks, view. Two densities (full width, or condensed for splitscreen) that
+  resize themselves to the space available instead of scrolling
+- **Answer this argument** (`Ctrl+Shift+G`) — jumps to your reply in the next
+  opposing speech and records the link, so the speech doc gets "AT: *that*
+  argument" instead of guessing
+- **Editable speech formats** — rename any speech for a format in Settings
+  (LD `NR` → `2NR`), or double-click a column header to rename it in one round
 - **Custom keybinds** — multiple binds per action, conflict warnings; includes
   sheet navigation (prev/next, reorder, hover) and all other actions
 - **Macros** — write your own in JavaScript via a `flow` API (e.g. a one-key
@@ -75,15 +109,6 @@ Builds are currently unsigned, so first launch shows a security warning:
   the folder; **link** any existing folder to use it as a tournament
 - Flows live inside as files; **drag a flow between tournaments** to move the
   file on disk — organize in Nimbus or in Finder/Explorer, it's the same files
-
-**Scouting & opponent research**
-- **Scouting hub** — track opposing teams organized as
-  School → Team → Tournament → Round
-- Upload their `.docx` speech docs per round alongside your own answers and
-  round notes; every block stays attached to the speech it came from
-- Flows auto-link to the matching team by code (e.g. `Greenhill LL`) — no
-  manual attaching; tournament folders from the main dashboard surface in
-  scouting automatically
 
 **The speech doc — CardMirror, inside Nimbus**
 - A full CardMirror-schema editor: highlight (spoken), underline (the cut),
@@ -114,6 +139,10 @@ Builds are currently unsigned, so first launch shows a security warning:
 
 Not built yet — this is the roadmap.
 
+- **Scouting hub** — track opposing teams organized as
+  School → Team → Tournament → Round; upload their `.docx` speech docs per round
+  alongside your own answers and notes, with flows auto-linking to the matching
+  team by code (e.g. `Greenhill LL`)
 - **AI layer** (the "smart" half), all optional and with a hard **Tournament
   Mode** off-switch that disables every AI/network feature for rules compliance:
   - Row-level argument alignment — line up 2AC answers with the 1NC arguments
@@ -157,16 +186,21 @@ Open the **📖 Manual** in the app for a full feature reference, or press `⌘/
 
 ---
 
-## CardMirror plugin
+## Sending cards to CardMirror
 
-Nimbus can send cards straight into CardMirror Desktop. That needs a small
-plugin, which lives in its own repo and is **not** part of the Nimbus download:
+Nimbus sends cards straight into **CardMirror Desktop** over its local bridge.
+**There is nothing to install** — no plugin, no community-plugin whitelist, no
+console commands. It needs **CardMirror 1.5.0 or newer**.
 
-**<https://github.com/waffleman23165/nimbus-cardmirror-plugin>**
+Tags, cites, underlining, highlighting, emphasis and block structure all
+survive, identical to pasting by hand. The card lands in the speech doc you
+designated **without stealing focus**, and picks the right pane in a split
+layout. If that document was closed, the send is refused rather than dropped
+into some other document — and every send also copies the card, so `Ctrl+V` is
+always there as a fallback.
 
-Install it from that repo's latest release, run `__plugins('community-on')` in
-CardMirror's developer console, and restart CardMirror. Nimbus works fine
-without it.
+> Nimbus used to need a small CardMirror plugin for this. **It doesn't any
+> more** — if you installed it, you can remove it.
 
 ---
 
