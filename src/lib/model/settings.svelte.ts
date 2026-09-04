@@ -69,6 +69,8 @@ export interface Persisted {
   ribbonMode: RibbonMode;
   /** Minutes of prep each team starts a round with. */
   prepMinutes: number;
+  /** Last app version whose patch notes were shown. "" = never shown. */
+  lastSeenVersion: string;
   /** Default file format when you Save (⌘S / on close). */
   defaultSaveFormat: "nimbus" | "xlsx";
   /** Default speech-format template index for New flow. */
@@ -214,6 +216,10 @@ class Settings {
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
   prepMinutes = $state(8);
+  /** Drives the "what's new" panel: when this doesn't match the running build,
+   *  the notes for everything in between are shown once, then this is updated.
+   *  Disk-backed, so it survives the installer replacing the app. */
+  lastSeenVersion = $state("");
   defaultSaveFormat = $state<"nimbus" | "xlsx">("nimbus");
   /** Default speech format for New flow, as an index into builtinTemplates()
    *  (0 Policy, 1 LD, 2 PF, 3 PF Con-first). Set it once and every new flow
@@ -317,6 +323,7 @@ class Settings {
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
     else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "compact";
     if (typeof p.prepMinutes === "number") this.prepMinutes = clampPrepMinutes(p.prepMinutes);
+    if (typeof p.lastSeenVersion === "string") this.lastSeenVersion = p.lastSeenVersion;
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
     if (p.templateAbbrs && typeof p.templateAbbrs === "object") this.templateAbbrs = p.templateAbbrs;
@@ -394,6 +401,7 @@ class Settings {
       compactDoc: this.compactDoc,
       ribbonMode: this.ribbonMode,
       prepMinutes: this.prepMinutes,
+      lastSeenVersion: this.lastSeenVersion,
       defaultSaveFormat: this.defaultSaveFormat,
       defaultTemplate: this.defaultTemplate,
       templateAbbrs: this.templateAbbrs,

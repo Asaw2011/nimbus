@@ -3,6 +3,8 @@
   import Dashboard from "$lib/ui/Dashboard.svelte";
   import FlowView from "$lib/ui/FlowView.svelte";
   import Tutorial from "$lib/ui/Tutorial.svelte";
+  import WhatsNew from "$lib/ui/WhatsNew.svelte";
+  import { hasUnseenNotes } from "$lib/model/whatsnew";
   import { store } from "$lib/model/round.svelte";
   import { settings } from "$lib/model/settings.svelte";
   import {
@@ -19,7 +21,7 @@
   import { reportError } from "$lib/model/crash";
   import { auth } from "$lib/model/auth.svelte";
   import LoginGate from "$lib/ui/LoginGate.svelte";
-  import { checkMinimumVersion, type VersionBlock } from "$lib/model/minversion";
+  import { APP_VERSION, checkMinimumVersion, type VersionBlock } from "$lib/model/minversion";
 
   // Pop-out window mode: render ONLY the speech-doc editor.
   const isDocWindow =
@@ -31,6 +33,7 @@
   let authChecked = $state(false);
   let versionBlock = $state<VersionBlock | null>(null);
   let showTutorial = $state(false);
+  let showWhatsNew = $state(false);
   let pendingUpdate = $state<UpdateInfo | null>(null);
   let updateState = $state<"idle" | "downloading" | "done">("idle");
   let updatePct = $state(0);
@@ -86,6 +89,22 @@
 
     // First-open (or re-enabled) welcome tutorial.
     if (settings.showTutorial) showTutorial = true;
+    // Patch notes, once, when the running build is newer than the last one whose
+    // notes were shown — whether it got here by the auto-updater or by someone
+    // downloading the installer.
+    //
+    // ⚠ Never stacked on top of the tutorial. A brand-new machine gets the
+    // tutorial, which is the better first thing to read and explains the app
+    // rather than what changed in it; the version is still recorded below so
+    // that user doesn't then get a changelog for the build they started on.
+    if (hasUnseenNotes(settings.lastSeenVersion)) {
+      if (showTutorial) {
+        settings.lastSeenVersion = APP_VERSION;
+        settings.save();
+      } else {
+        showWhatsNew = true;
+      }
+    }
     setupCloseGuard();
     setupFileOpen();
     const teardownAutosave = setupAutosave();
@@ -293,6 +312,14 @@
      reachable before the user is through the gate. -->
 {#if showTutorial && auth.signedIn && !versionBlock && !isDocWindow}
   <Tutorial onclose={() => (showTutorial = false)} />
+{/if}
+
+<!-- Same gate as the tutorial, for the same reason: nothing overlays the app
+     until the user is through sign-in. `!showTutorial` is belt-and-braces —
+     onMount already picks one or the other — so a future change to either can't
+     stack two modals on a first run. -->
+{#if showWhatsNew && !showTutorial && auth.signedIn && !versionBlock && !isDocWindow}
+  <WhatsNew onclose={() => (showWhatsNew = false)} />
 {/if}
 
 {#if closePrompt}
