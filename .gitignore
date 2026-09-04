@@ -22,8 +22,15 @@ vite.config.ts.timestamp-*
 /HANDOFF-*.md
 /SESSION-LOG.md
 
-# Cloud build workflow. It fires on every `v*` tag and opens its OWN draft
-# release with the same tag, which collides with a hand-uploaded one, and it
-# needs TAURI_SIGNING_* secrets to be set first. Add it back once signing is
-# configured.
-/.github
+# NOTE: `.github/` is deliberately NOT ignored any more.
+#
+# It was, back when releases here were hand-uploaded to a separate repo — the
+# workflow fires on every `v*` tag and publishes its own release with that tag,
+# which collided with a hand-built one. On the shared Asaw2011/nimbus repo that
+# workflow IS the release mechanism: it builds macOS (arm64 + Intel), Windows
+# and Linux and publishes all four installers, which is why that repo's releases
+# have .dmg and .AppImage assets a Windows-only local build cannot produce.
+#
+# ⚠ Ignoring it meant a push from here would have DELETED it from his repo and
+# silently broken cross-platform releases. Leave it tracked. Tag a release
+# rather than hand-uploading, and let the workflow build it.
