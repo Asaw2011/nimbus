@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { isOtherLane, sourceCol, type Sheet } from "../model/types";
+  import { isOtherLane, sourceCol, type Row, type Sheet } from "../model/types";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import { matchesAny } from "../model/keymap";
@@ -26,7 +26,7 @@
   const visibleSpeeches = $derived(
     speeches
       .slice(colStart)
-      .filter((s) => !(store.hidePartnerLane && isOtherLane(s, store.myLane))),
+      .filter((s) => !(store.hidePartnerLane && isOtherLane(s, store.laneHere))),
   );
   // Color follows the SPEECH, not the page: aff columns blue, neg columns
   // red on every sheet — like flowing with two pens. Template-driven, so it
@@ -48,9 +48,34 @@
       .filter(
         (c) =>
           c >= colStart &&
-          !(store.hidePartnerLane && isOtherLane(speeches[c], store.myLane)),
+          !(store.hidePartnerLane && isOtherLane(speeches[c], store.laneHere)),
       ),
   );
+
+  /**
+   * How many grid rows one flow row needs.
+   *
+   * One, as it always was — unless a block is expanded somewhere in the row.
+   * Then each of its parts gets a track of its own (plus a last track for the
+   * block's "+ response" button), and the block and the column answering it
+   * both lay themselves out against those tracks with `subgrid`. That is what
+   * makes an answer tile start exactly level with the part it answers, with no
+   * measuring and no height-syncing between two sibling components.
+   *
+   * Two expanded blocks in one row simply take the larger count; each pair
+   * still lines up with itself, because both sides of a pair place their
+   * children from track 2 onward in the same order.
+   */
+  function rowTracks(row: Row): number {
+    let parts = 0;
+    for (const c of colIdx) {
+      const cell = row.cells[c];
+      if (cell?.expanded && cell.items?.length) {
+        parts = Math.max(parts, cell.items.length + 1);
+      }
+    }
+    return 1 + parts;
+  }
 
   // Rename a speech column: double-click its header to edit the label (e.g. LD's
   // "NR" -> "2NR", or PF's "Pro Reb" -> whatever you call it). Templates are
@@ -83,6 +108,28 @@
     }
     return out;
   });
+
+  /**
+   * For each column in one row, the column holding the open block whose parts it
+   * carries — the nearest one to its LEFT, or -1.
+   *
+   * ⚠ Not `srcCol`. A part of a block isn't answered once and finished: the
+   * answer gets answered, and that gets answered, out to the last speech. So
+   * every column after a block carries that block's parts, not just the one
+   * column that directly answers it. A block carries nobody else's parts — it
+   * is busy laying out its own.
+   */
+  function blockColFor(row: Row): number[] {
+    const out: number[] = [];
+    let open = -1;
+    for (const c of colIdx) {
+      const cell = row.cells[c];
+      const isBlock = !!cell?.expanded && !!cell.items?.length;
+      out[c] = isBlock ? -1 : open;
+      if (isBlock) open = c;
+    }
+    return out;
+  }
 
   let scroller: HTMLDivElement | undefined = $state();
   let dropTargetCell = $state<{ r: number; c: number } | null>(null);
@@ -449,14 +496,14 @@
   <div class="headers" style="grid-template-columns: {colTemplate}">
     {#each colIdx as c (speeches[c].id)}
       {@const speech = speeches[c]}
-      {@const otherLane = isOtherLane(speech, store.myLane)}
+      {@const otherLane = isOtherLane(speech, store.laneHere)}
       <div
         class="header"
         class:aff={speech.side === "aff"}
         class:neg={speech.side === "neg"}
         class:dead={c < sheet.startCol}
         class:lane={!!speech.laneGroup}
-        class:mylane={speech.laneGroup ? speech.lane === store.myLane : false}
+        class:mylane={speech.laneGroup ? speech.lane === store.laneHere : false}
         class:editing={editingCol === c}
         title={editingCol === c
           ? ""
@@ -494,7 +541,12 @@
     {/each}
   </div>
   {#each sheet.rows as row, r (row.id)}
-    <div class="row" style="grid-template-columns: {colTemplate}">
+    {@const tracks = rowTracks(row)}
+    {@const blockCols = blockColFor(row)}
+    <div
+      class="row"
+      style="grid-template-columns: {colTemplate}; grid-template-rows: repeat({tracks}, auto)"
+    >
       {#each colIdx as c (c)}
         {#if c < sheet.startCol}
           <div class="dead-cell"></div>
@@ -506,8 +558,10 @@
             sheetId={sheet.id}
             side={speeches[c]?.side ?? "neutral"}
             isLabel={r === 0 && c === sheet.startCol}
-            leftCell={srcCol[c] >= sheet.startCol ? row.cells[srcCol[c]] : undefined}
-            sourceCol={srcCol[c]}
+            blockCell={blockCols[c] >= sheet.startCol ? row.cells[blockCols[c]] : undefined}
+            blockCol={blockCols[c]}
+            firstAnswerCol={blockCols[c] >= 0 && srcCol[c] === blockCols[c]}
+            speechId={speeches[c]?.id ?? ""}
             isLastCol={c === speeches.length - 1}
             dropTarget={dropTargetCell?.r === r && dropTargetCell?.c === c}
           />
@@ -650,6 +704,10 @@
   }
   .dead-cell {
     box-sizing: border-box;
+    /* Rows can carry several tracks now (see rowTracks). Anything that isn't
+       laying itself out against them spans the lot, exactly as it looked when
+       every row had a single track. */
+    grid-row: 1 / -1;
     border-right: 1px solid var(--grid-line);
     border-bottom: 1px solid var(--grid-line);
     background: repeating-linear-gradient(

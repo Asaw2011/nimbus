@@ -16,6 +16,10 @@
     { id: "marks", label: "Marks & colors" },
     { id: "spread", label: "Spread view" },
     { id: "cells", label: "Multi-item cells" },
+    { id: "partner", label: "Flowing with a partner" },
+    { id: "prep", label: "Prep clocks & timer" },
+    { id: "bank", label: "The argument bank" },
+    { id: "answer", label: "Linking an answer" },
     { id: "search", label: "Doc search (library)" },
     { id: "doc", label: "The speech doc" },
     { id: "quick", label: "Quick cards" },
@@ -26,6 +30,8 @@
     { id: "macros", label: "Macros & snippets" },
     { id: "import", label: "Importing .docx" },
     { id: "files", label: "Saving & files" },
+    { id: "tournaments", label: "Tournaments & dashboard" },
+    { id: "toolbar", label: "Toolbar & top bar" },
     { id: "settings", label: "Settings" },
   ];
 
@@ -154,6 +160,92 @@
             <li><b>×</b> removes a card or response; <b>clear</b> (on the header) drops the whole block.</li>
             <li>Click anywhere in the cell to start editing its header.</li>
           </ul>
+
+          <h3>Answering a block part by part</h3>
+          <p>
+            Expand a block and <b>every speech after it</b> gets its own tile for
+            each part, lined up exactly with the part it answers. So you answer
+            the 1NC's third card in the 2AC, they answer that in the block, you
+            answer that in the 1AR — the argument keeps its own row all the way
+            to the last speech.
+          </p>
+          <ul>
+            <li>Each tile is a real flow cell: mark it a <b>card</b> or an <b>analytic</b>, colour it, bold it, star it — the ribbon buttons and the keyboard shortcuts both work while your cursor is in one.</li>
+            <li><b>Enter</b> drops to the next part's tile, so you can flow straight down a block.</li>
+            <li><kbd>{combosLabel(km.insertRowBelow, mac)}</kbd> / <kbd>{combosLabel(km.insertRowAbove, mac)}</kbd> insert a blank row <b>into the block</b>, below or above the argument you're on, and put the cursor in it — the same keys that make a row anywhere else on the flow. Rows you add are answerable down the flow like any other.</li>
+            <li>Each partner lane keeps its <b>own</b> answers, so you and your partner aren't typing in the same box.</li>
+            <li><b>Collapse the block and the whole chain folds away</b> with it — the header keeps a <b>· N resp</b> badge and a read-only summary. Expand it again and everything is where you left it.</li>
+          </ul>
+        </section>
+
+        <section id="sec-partner">
+          <h2>Flowing with a partner</h2>
+          <p>
+            <b>👤 Partner flow</b> in the top bar pairs two copies of Nimbus over
+            the internet so you and your partner see each other type. One of you
+            starts and reads out the <b>6-character code</b>; the other types it
+            in; the first approves, with the joiner's email shown.
+          </p>
+          <ul>
+            <li><b>One flow, together</b> — you both work on the same flow.</li>
+            <li><b>A flow each</b> — you keep your own flow and open your partner's beside it. Both are live and <b>both are editable</b>, so you can drop a block onto their page while they're speaking. The <b>Mine / Theirs</b> switcher in the top bar says whose page you're typing on, and their flow renders in a different colour so you can't mistake it.</li>
+            <li>A small outline and a <b>Partner</b> pill show where their cursor is.</li>
+            <li><b>You always save to your own file.</b> Your partner's flow is never written to your disk under your file's name — that rule is not adjustable.</li>
+            <li>Nothing about a flow is stored on a server; the connection is only a relay. Close the panel and flowing carries on.</li>
+          </ul>
+
+          <h3>Partner lanes</h3>
+          <p>
+            Pick <b>I'm Aff</b> or <b>I'm Neg</b> when you make a flow and the
+            opponent's second speech splits into two columns — one for you, one
+            for your partner — so you are never typing over each other.
+          </p>
+          <ul>
+            <li>Both lanes answer the <b>same</b> speech, not each other.</li>
+            <li><b>⇤</b> on the lane header (or <b>Hide partner</b> in the ribbon) hides your partner's lane to declutter. It is purely visual — it never changes what your speech doc says.</li>
+            <li>The side is chosen when the flow is created and can't be switched later.</li>
+          </ul>
+        </section>
+
+        <section id="sec-prep">
+          <h2>Prep clocks &amp; the timer</h2>
+          <ul>
+            <li>Both teams' prep sits in the <b>ribbon</b>, on the right. Press ▶ to run one — starting one stops the other, and it stops itself at 0:00.</li>
+            <li>Click the time to correct it by hand when nobody stopped the clock; right-click to reset it.</li>
+            <li>Prep length is in Settings (8 minutes by default).</li>
+            <li><b>⏱ Timer</b> in the top bar (<kbd>{combosLabel(km.toggleTimer, mac)}</kbd>) is the separate speech stopwatch, with countdown presets.</li>
+          </ul>
+        </section>
+
+        <section id="sec-bank">
+          <h2>The argument bank</h2>
+          <p>
+            <kbd>{combosLabel(km.authorLookup, mac)}</kbd> in a cell opens the
+            bank: start typing an author or a tag and it completes the argument
+            for you, with the author in bold, so a card you've read before takes
+            a couple of keystrokes.
+          </p>
+          <ul>
+            <li><b>Enter</b> takes the author; <b>Tab</b> takes the author and the tag.</li>
+            <li>The bank fills up from the docs you import, and holds analytics as well as carded arguments.</li>
+            <li><b>🗃 Arguments</b> in the top bar edits what it offers.</li>
+          </ul>
+        </section>
+
+        <section id="sec-answer">
+          <h2>Linking an answer to an argument</h2>
+          <p>
+            <kbd>{combosLabel(km.replyToArg, mac)}</kbd> (or <b>↩ Answer</b> in
+            the ribbon) jumps to your reply in the next opposing speech and
+            records what it answers, so sending it to the speech doc writes
+            <b>“AT: the argument you actually meant”</b> instead of guessing at
+            whatever sits to the left.
+          </p>
+          <ul>
+            <li>The cell shows a small <b>↩</b> tag naming the argument it answers.</li>
+            <li>It's stored as the speech, not the column, so it survives renaming and reordering.</li>
+            <li>Use it to answer your <b>partner's</b> lane deliberately — that's the case the left-to-right guess can't get right on its own.</li>
+          </ul>
         </section>
 
         <section id="sec-search">
@@ -242,6 +334,18 @@
             <li>A plain typed cell sends as an <b>analytic</b>; a card sends as a card; a multi-item cell sends its header, cards, and responses in order.</li>
             <li>The ribbon's <b>B / I / A color / font-size</b> act on the doc whenever the doc is the surface you last clicked into.</li>
           </ul>
+          <h3>Sending to CardMirror instead</h3>
+          <p>
+            <b>Send to</b> in the top bar chooses between Nimbus's own speech doc
+            and <b>CardMirror Desktop</b>. Cards go straight across — highlighting,
+            cites, images and structure all survive, and it doesn't steal your
+            focus mid-round.
+          </p>
+          <ul>
+            <li>Needs <b>CardMirror 1.5.0 or newer</b> running. <b>There is no plugin to install</b> — earlier versions of Nimbus needed one and no longer do.</li>
+            <li>The dropdown beside it picks which CardMirror document receives sends; leave it on <b>Auto</b> to use whichever one CardMirror has starred as the speech doc.</li>
+            <li>If CardMirror isn't running, the card goes to your <b>clipboard</b> instead so nothing is lost — paste it wherever you meant it to go.</li>
+          </ul>
         </section>
 
         <section id="sec-fonts">
@@ -285,7 +389,34 @@
           <ul>
             <li>Everything autosaves to your machine (a heartbeat plus a flush on blur/close). Your work is never only in memory.</li>
             <li><kbd>{mod}S</kbd> saves the open flow to a <b>.nimbus</b> file; double-click a .nimbus file to open it.</li>
+            <li><b>Excel (.xlsx)</b> works too — save as either, and convert between them from the dashboard. Both formats are first-class; neither is going away.</li>
+            <li>Renaming a flow renames its file, and renaming the file's round retitles it — the name on the dashboard is the round's own title, not the filename.</li>
             <li>Export an HTML report or a round file from a round's home page. Settings (keybinds, macros, snippets, colors) back up and restore as a bundle.</li>
+          </ul>
+        </section>
+
+        <section id="sec-tournaments">
+          <h2>Tournaments &amp; the dashboard</h2>
+          <p>
+            The dashboard groups your flows by tournament. <b>Link a folder</b>
+            points a tournament at a folder on disk — a Dropbox folder is fine —
+            and every flow inside it, <b>including ones in per-round subfolders</b>,
+            shows up under it.
+          </p>
+          <ul>
+            <li>A flow that exists in more than one place collapses to a single row with an <b>N copies</b> badge; hover it to see the other paths. Nothing is deleted or hidden without a trace.</li>
+            <li>Tournaments start collapsed; one you make during a session stays open.</li>
+            <li>Flows that aren't under any linked folder sit under <b>Not in a tournament</b>.</li>
+          </ul>
+        </section>
+
+        <section id="sec-toolbar">
+          <h2>The toolbar &amp; top bar</h2>
+          <ul>
+            <li>The <b>top bar</b> carries the panels — speech doc, quick cards, timer, arguments, partner flow, manual, settings. <b>⤡</b> condenses it to icons when you want the vertical room; it does that on its own in a narrow window.</li>
+            <li>The <b>ribbon</b> below it has two densities — full and condensed — cycled by the <b>⇥⇤</b> button on its right. Both are the same height, so switching never shifts the grid.</li>
+            <li>It resizes itself to fit whatever room it has, including when the speech doc is open beside it. The prep clocks stay pinned to the right so they're always reachable.</li>
+            <li>In the condensed ribbon the text-size and zoom readouts are hidden — zoom keeps its shortcuts and pinch, and text size is in Settings.</li>
           </ul>
         </section>
 
@@ -404,6 +535,13 @@
     margin: 0 0 8px;
     padding-bottom: 6px;
     border-bottom: 1px solid var(--border);
+  }
+  /* Sub-heading inside a section — no rule under it, so it reads as part of the
+     section rather than starting a new one. */
+  h3 {
+    font-size: 13.5px;
+    margin: 14px 0 6px;
+    color: var(--text);
   }
   p { font-size: 13.5px; line-height: 1.55; color: var(--text); margin: 0 0 10px; }
   ul { margin: 0 0 10px; padding-left: 20px; }

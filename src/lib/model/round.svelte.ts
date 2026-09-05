@@ -15,6 +15,22 @@ export interface Cursor {
   col: number;
 }
 
+/**
+ * One part-of-a-block's cell in one speech.
+ *
+ * `row`/`col` locate the BLOCK (the cell the part lives in) and `item` the part;
+ * `speech` is the id of the column the tile is drawn in, which is what the
+ * answer is stored under. `primary` marks the first column answering the block —
+ * the only one allowed to absorb a pre-tiles `responses` list.
+ */
+export interface AnswerRef {
+  row: number;
+  col: number;
+  item: string;
+  speech: string;
+  primary?: boolean;
+}
+
 /** A document's parked view state and history while another is on screen. */
 interface DocCtx {
   undo: string[];
@@ -45,6 +61,10 @@ class RoundStore {
    * Which partner lane is yours on a split speech. Always 0 while flowing
    * solo — you own the flow, so you own the first lane. A live partner session
    * sets it to 1 on the client that joined.
+   *
+   * ⚠ This is a property of the SESSION, not of a document. Read
+   * {@link laneHere} instead anywhere the answer is "which column on screen is
+   * mine" — see the note there.
    */
   myLane = $state(0);
   /**
@@ -74,6 +94,36 @@ class RoundStore {
    * flow would emit different speech docs depending on a view toggle.
    */
   hidePartnerLane = $state(false);
+  /**
+   * The answer tile the caret is in, if any — `col` is the BLOCK's column and
+   * `item` the part being answered.
+   *
+   * ⚠ Exists so the card/analytic buttons and their keybinds can act on a tile
+   * without going anywhere near cell key routing, which has two parked bugs in
+   * it. The grid cursor is left exactly where it was: this is read FIRST by
+   * those few actions and is otherwise inert. Cleared on blur.
+   */
+  focusedAnswer = $state<AnswerRef | null>(null);
+
+  /**
+   * Which lane is yours in the document currently ON SCREEN.
+   *
+   * ⚠ Not the same question as {@link myLane}. Lane numbers belong to the flow
+   * they were created in: `splitForSide` always makes lane 0 "You" and lane 1
+   * "Partner" from the point of view of whoever created that round. So on a
+   * partner's mirrored flow the numbering is THEIRS — they are lane 0, you are
+   * lane 1 — and a session-level `myLane` of 0 points the hide toggle, the
+   * "mylane" highlight and the "AT:" left-walk at your own column instead of
+   * theirs.
+   *
+   * Reproduced live in a separate-flows session: on the guest, viewing the
+   * host's flow, ⇤ hid "Neg Block · Partner" — the guest's own lane — and left
+   * the host's standing. A foreign round is always someone else's, so on one
+   * of those you are always the second lane.
+   */
+  get laneHere(): number {
+    return this.isForeign(this.round?.id) ? 1 : this.myLane;
+  }
 
   /** Memoized normalized selection rectangle. Every visible cell asks whether
    *  it's in range (twice) on every drag frame, so this must not recompute
@@ -187,6 +237,26 @@ class RoundStore {
     this.mirrors = this.mirrors.filter((m) => m.id !== id);
     this.foreign.delete(id);
     this.ctx.delete(id);
+  }
+
+  /**
+   * Put a document you own back on screen, if the one being rendered is your
+   * partner's.
+   *
+   * ⚠ Call this BEFORE {@link clearMirrors} when a session ends. `clearMirrors`
+   * closes the partner's flow, but "closing" it cannot unrender it while it is
+   * the round on screen — your own flow is sitting in `mirrors` and gets wiped
+   * instead, leaving you looking at a document that is no longer open, with no
+   * switcher to get back. Nothing is lost (your flow is still in app data), but
+   * it is a bad place to land after clicking Leave.
+   *
+   * A no-op when you are already on your own flow, which includes every shared
+   * session — an adopted round is yours to edit, not a mirror.
+   */
+  returnToOwnDoc(): void {
+    if (!this.isForeign(this.round?.id)) return;
+    const mine = this.mirrors.find((m) => !this.isForeign(m.id));
+    if (mine) this.switchDoc(mine.id);
   }
 
   /** Close every mirror — used when a session ends. Your own round is kept. */
@@ -693,6 +763,60 @@ class RoundStore {
     });
   }
 
+  // ---- per-part answer tiles ----------------------------------------------
+  // A real flow cell per part of a block PER SPEECH, stored ON the part so the
+  // whole chain collapses, moves and saves with it. An {@link AnswerRef}'s `col`
+  // is the BLOCK's column — never the column the tile is drawn in, which is what
+  // `speech` identifies.
+
+  /**
+   * Run a mutation against one part's cell in one speech, creating it if needed.
+   *
+   * ⚠ `ref.primary` marks the first column that answers the block, and is the
+   * ONLY place a legacy `responses` list is converted. The conversion happens on
+   * the first EDIT rather than on load: rewriting every old flow the moment it
+   * was opened would touch files the user only meant to read.
+   */
+  private editAnswer(
+    ref: AnswerRef,
+    fn: (answer: Cell) => void,
+    opts?: { coalesceText?: boolean },
+  ): void {
+    const cell = this.cellAt(ref.row, ref.col);
+    const item = cell?.items?.find((i) => i.id === ref.item);
+    if (!item) return;
+    this.mutate(() => {
+      const answers = (item.answers ??= {});
+      if (!answers[ref.speech]) {
+        const legacy = ref.primary
+          ? (item.responses ?? []).map((r) => r.trim()).filter(Boolean)
+          : [];
+        answers[ref.speech] = { text: legacy.join(" / ") };
+        if (ref.primary) delete item.responses;
+      }
+      fn(answers[ref.speech]);
+    }, opts);
+  }
+
+  setAnswerText(ref: AnswerRef, text: string): void {
+    this.editAnswer(ref, (a) => { a.text = text; }, { coalesceText: true });
+  }
+
+  /** Tag a part's answer as analytic or card; same tag again clears it. */
+  toggleAnswerEvidence(ref: AnswerRef, kind: "analytic" | "card"): void {
+    this.editAnswer(ref, (a) => {
+      const marks = (a.marks ??= {});
+      marks.evidence = marks.evidence === kind ? undefined : kind;
+    });
+  }
+
+  toggleAnswerMark(ref: AnswerRef, mark: "dropped" | "starred"): void {
+    this.editAnswer(ref, (a) => {
+      const marks = (a.marks ??= {});
+      marks[mark] = !marks[mark];
+    });
+  }
+
   removeCellItem(row: number, col: number, id: string): void {
     const cell = this.cellAt(row, col);
     if (!cell?.items) return;
@@ -980,12 +1104,26 @@ class RoundStore {
     });
   }
 
-  /** Apply to the multi-selection if there is one, else the cursor cell. */
+  /**
+   * Apply to the answer tile you are typing in, else the multi-selection if
+   * there is one, else the cursor cell.
+   *
+   * ⚠ The tile comes first, and ONLY when there is no range selected. A tile
+   * has the caret but the grid cursor still sits on the cell around it, so
+   * without this the Analytic and Card buttons would mark the whole answering
+   * column's cell while you were typing inside one tile of it. Dragging out a
+   * range is a deliberate act on cells and still wins.
+   */
   applyToTargets(
     fn: (cell: Round["sheets"][number]["rows"][number]["cells"][number]) => void,
   ): void {
     if (this.hasMultiSelection) {
       this.applyToSelection(fn);
+      return;
+    }
+    const tile = this.focusedAnswer;
+    if (tile) {
+      this.editAnswer(tile, fn);
       return;
     }
     const sheet = this.activeSheet;

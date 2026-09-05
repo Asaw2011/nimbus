@@ -539,8 +539,13 @@
    *  ⚠ The left-walk SKIPS your partner's lane. On a split speech their lane is
    *  physically nearer than your own, so the plain walk stopped there and every
    *  answer came out headed with THEIR argument instead of yours. It reads
-   *  `store.myLane`, never the hide-partner-lane toggle: what you send to the
-   *  doc must not depend on a view setting. */
+   *  `store.laneHere`, never the hide-partner-lane toggle: what you send to the
+   *  doc must not depend on a view setting.
+   *
+   *  ⚠ `laneHere`, not `myLane`, so this stays in step with the grid's own
+   *  "which column is mine" — session 9's rule that the two left-walk sites
+   *  must never diverge. On your own flow the two are identical; they differ
+   *  only on a partner's mirrored flow, where lane 1 is you. */
   function argBeingAnswered(sheet: Sheet, row: number, col: number): string {
     const speeches = store.round?.template.speeches ?? [];
     const cellText = (c: number): string => {
@@ -559,7 +564,7 @@
     }
     const startCol = sheet.startCol ?? 0;
     for (let c = col - 1; c >= startCol; c--) {
-      if (isOtherLane(speeches[c], store.myLane)) continue;
+      if (isOtherLane(speeches[c], store.laneHere)) continue;
       const label = cellText(c);
       if (label) return label;
     }
@@ -1112,8 +1117,8 @@
         onclick={() => { settings.compactTopBar = !settings.compactTopBar; settings.save(); }}
         title={settings.compactTopBar ? "Show the full top bar" : "Compact top bar (hide the words)"}
       >{settings.compactTopBar ? "⤢" : "⤡"}</button>
-      <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">📄</button>
-      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">★</button>
+      <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">📄<span class="btn-lbl">Speech doc</span></button>
+      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">★<span class="btn-lbl">Quick cards</span></button>
       <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop running with the Nimbus plugin; the built-in doc always works offline.">
         <span class="send-to-label">Send to</span>
         <button
@@ -1147,8 +1152,8 @@
           </select>
         {/if}
       </div>
-      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})">⏱</button>
-      <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers">🗃</button>
+      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})">⏱<span class="btn-lbl">Timer</span></button>
+      <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers">🗃<span class="btn-lbl">Arguments</span></button>
       <button
         class="icon-btn"
         class:active={showPartner}
@@ -1157,10 +1162,12 @@
         title={session.active
           ? `Partner session ${session.code} — ${session.peerOnline ? "connected" : "reconnecting"}`
           : "Flow with a partner — share this flow live"}
-      >{session.status === "connected" ? "👥" : "👤"}</button>
-      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works">📖</button>
-      <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙</button>
-      <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?</button>
+      >{session.status === "connected" ? "👥" : "👤"}<span class="btn-lbl"
+        >{session.status === "connected" ? "Partner · live" : "Partner flow"}</span
+      ></button>
+      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works">📖<span class="btn-lbl">Manual</span></button>
+      <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙<span class="btn-lbl">Settings</span></button>
+      <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">Keys</span></button>
     </div>
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
@@ -1425,6 +1432,8 @@
     width: 20px;
     height: 20px;
     font-size: 11px;
+    padding: 0;
+    border-radius: 50%;
   }
   .back {
     background: none;
@@ -1448,13 +1457,31 @@
     border-color: #2e8b57;
     color: #2e8b57;
   }
+  /* The round name and its meta line are the ELASTIC part of the bar: they give
+     way first, because a truncated tournament name still tells you where you
+     are, while a clipped button cannot be clicked at all. Everything to the
+     right of the spacer refuses to shrink for the same reason. */
   .round-name {
     font-weight: 600;
     font-size: 14px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .meta {
     color: var(--text-dim);
     font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar .icon-btn,
+  .topbar .send-to,
+  .topbar .docsw,
+  .topbar .back {
+    flex-shrink: 0;
   }
   .spacer {
     flex: 1;
@@ -1513,20 +1540,39 @@
     font-size: 11px;
   }
   .topbar.compact .send-to-label { display: none; }
+  /* Icon + word. The bar had a great deal of unused width in the middle and a
+     row of unlabelled glyphs on the right, so nobody found partner flowing
+     without being told what 👤 was. The word is the discoverable part; the icon
+     is what you aim at once you know. Compact mode drops back to circles. */
   .icon-btn {
     background: none;
     border: 1px solid var(--border);
     color: var(--text-dim);
-    border-radius: 50%;
-    width: 24px;
+    border-radius: 999px;
     height: 24px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0;
+    gap: 5px;
+    padding: 0 9px 0 8px;
     line-height: 1;
+    white-space: nowrap;
   }
+  /* No label (the compact toggle): stays a circle at both sizes. */
+  .icon-btn:not(:has(.btn-lbl)) {
+    width: 24px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .btn-lbl {
+    font-size: 11px;
+    letter-spacing: 0.01em;
+  }
+  /* ⚠ Compact is a splitscreen/second-monitor size — the words go, and every
+     button returns to the 20px circle it was before labels existed. Measured at
+     1366 and 1024 wide; see the note on .topbar.compact. */
+  .topbar.compact .btn-lbl { display: none; }
   /* A live partner session is worth seeing without opening anything. */
   .icon-btn.live {
     border-color: #2e8b57;
@@ -1909,5 +1955,27 @@
     border-radius: 3px;
     padding: 1px 5px;
     font-size: 11px;
+  }
+
+  /* ⚠ LAST IN THE FILE, deliberately. These re-state `.icon-btn` at the same
+     specificity as the base rule above, so source order is the only thing that
+     makes them win — move this block up and the labelled sizing takes over again
+     at every width. (Same trap the ribbon's size steps hit twice.)
+
+     A plain width query is correct HERE, unlike the ribbon: the top bar sits
+     above the panes and spans the whole window, so opening the speech doc does
+     not narrow it. Measured both ways — 1280px with the doc open and closed.
+
+     The breakpoint is measured, not guessed. Labelled, the bar needs ~1100px for
+     a short round name; at 1024 it overflowed by 49px and the last button sat
+     off the right edge where nothing could reach it. 1200px leaves headroom for
+     a long tournament name and the partner document switcher. */
+  @media (max-width: 1200px) {
+    .btn-lbl { display: none; }
+    .icon-btn {
+      width: 24px;
+      padding: 0;
+      border-radius: 50%;
+    }
   }
 </style>

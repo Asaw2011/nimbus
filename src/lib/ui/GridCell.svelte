@@ -1,6 +1,7 @@
 <script lang="ts">
-  import type { Cell, CellItem } from "../model/types";
-  import { store } from "../model/round.svelte";
+  import { answerOf, isAnswered, type Cell, type CellItem } from "../model/types";
+  import { nodeAuthor, type DocNode } from "../docx/parse";
+  import { store, type AnswerRef } from "../model/round.svelte";
   import { expand, loadSnippets } from "../model/snippets";
   import { matches, matchesAny } from "../model/keymap";
   import { settings } from "../model/settings.svelte";
@@ -15,8 +16,10 @@
     sheetId,
     side = "neutral",
     isLabel = false,
-    leftCell = undefined,
-    sourceCol = col - 1,
+    blockCell = undefined,
+    blockCol = -1,
+    firstAnswerCol = false,
+    speechId = "",
     isLastCol = false,
     dropTarget = false,
   }: {
@@ -26,27 +29,50 @@
     sheetId: string;
     side?: "aff" | "neg" | "neutral";
     isLabel?: boolean;
-    /** The cell whose expanded block this column answers — so its per-part
-     *  responses can render in THIS column, lined up with it. Normally the cell
-     *  immediately to the left. */
-    leftCell?: Cell;
-    /** Which column `leftCell` came from. Responses are stored on that cell's
-     *  items, so every write has to name it: on a partner lane it is NOT
-     *  `col - 1`, which would write into your partner's lane instead. */
-    sourceCol?: number;
-    /** No column to the right — a block here shows its responses inline. */
+    /** The open block somewhere to the left whose parts this column carries —
+     *  the nearest one, not necessarily the neighbour. Every speech after a
+     *  block gets a tile per part, because an answer gets answered too. */
+    blockCell?: Cell;
+    /** Which column `blockCell` came from. Answers are stored on THAT cell's
+     *  items, so every write has to name it. -1 when there is no open block. */
+    blockCol?: number;
+    /** True on the first column that answers the block — the only one allowed
+     *  to absorb a pre-tiles `responses` list, so old text appears once rather
+     *  than repeating in every later speech. */
+    firstAnswerCol?: boolean;
+    /** This column's speech id — the key an answer is stored under, so each
+     *  speech (and each partner lane) keeps its own. */
+    speechId?: string;
+    /** No column to the right — a block here shows its answers inline. */
     isLastCol?: boolean;
     dropTarget?: boolean;
   } = $props();
 
-  /** The left neighbor when it's an expanded block — its parts' responses render
-   *  here (the opponent's answers sit in the next column, next to the block). */
+  /** The open block this column carries the parts of, if any. */
   const leftBlock = $derived(
-    leftCell && leftCell.items?.length && leftCell.expanded ? leftCell : null,
+    blockCell && blockCell.items?.length && blockCell.expanded ? blockCell : null,
   );
-  /** A block renders its own responses inline (under its parts) only when there
+  /** A block renders its own answers inline (under its parts) only when there
    *  is no next column to push them into. */
   const ownResponsesInline = $derived(isLastCol);
+  /** This cell is an open block, so IT owns the row's tracks — one per part. */
+  const ownBlock = $derived(!!cell.items?.length && !!cell.expanded);
+  /**
+   * Whether to draw answer tiles here.
+   *
+   * ⚠ Not when this cell is an open block itself. Both sides place their
+   * children into the same tracks, so a cell that is simultaneously a block and
+   * an answering column would want the same track for its own part 1 and for
+   * its tile answering someone else's part 1. Two open blocks in one row is
+   * rare; showing no tiles on the second is the graceful version of that
+   * collision, and expanding either one alone still works.
+   */
+  const showTiles = $derived(!!leftBlock && !ownBlock);
+
+  /** Where one part's cell in THIS speech lives, for the store. */
+  function refFor(itemId: string, atCol = blockCol, primary = firstAnswerCol) {
+    return { row, col: atCol, item: itemId, speech: speechId, primary };
+  }
 
   /** True when your partner's cursor is sitting on THIS cell, on the document
    *  and sheet you're actually looking at. */
@@ -83,34 +109,127 @@
     return t.length > 16 ? t.slice(0, 15) + "…" : t;
   }
 
-  function addLeftResponse(itemId: string) {
-    const idx = store.addItemResponse(row, sourceCol, itemId);
-    if (idx >= 0) pendingResp = `${itemId}:${idx}`;
+  /** A part's answers in SPEAKING order, skipping speeches nobody typed into —
+   *  the read-only cue shown under a collapsed block. */
+  function answerChain(item: CellItem): { speech: string; text: string }[] {
+    const speeches = store.round?.template.speeches ?? [];
+    const out: { speech: string; text: string }[] = [];
+    for (const sp of speeches) {
+      const t = item.answers?.[sp.id]?.text?.trim();
+      if (t) out.push({ speech: sp.id, text: t });
+    }
+    if (out.length) return out;
+    // Answers typed before tiles existed belong to no speech in particular.
+    return (item.responses ?? [])
+      .map((r) => r.trim())
+      .filter(Boolean)
+      .map((text, i) => ({ speech: `legacy-${i}`, text }));
   }
 
-  /** Enter in a next-column response box jumps to the next part's response
-   *  (creating one if that part has none), so you flow straight down the block. */
+  /** Enter in an answer tile drops to the next part's tile, so you flow straight
+   *  down a block the way you would down a column. Every part has a tile now,
+   *  so there is never one to create first. */
   function mirrorEnter(currentItemId: string) {
-    const parts = (leftBlock?.items ?? []).filter((i) => i.kind === "card");
+    // Every part has a tile now, typed ones included, so Enter walks the parts
+    // in order rather than skipping the ones you wrote yourself.
+    const parts = leftBlock?.items ?? [];
     const next = parts[parts.findIndex((i) => i.id === currentItemId) + 1];
     if (!next) return;
-    if (!next.responses?.length) {
-      addLeftResponse(next.id); // respBox auto-focuses the new box via pendingResp
-    } else {
-      const key = `${next.id}:0`;
-      queueMicrotask(() => {
-        const el = document.querySelector(
-          `.cell[data-r="${row}"][data-c="${col}"] .ir-text[data-resp="${CSS.escape(key)}"]`,
-        ) as HTMLElement | null;
-        if (!el) return;
-        el.focus();
-        const r = document.createRange();
-        r.selectNodeContents(el);
-        r.collapse(false);
-        const s = window.getSelection();
-        s?.removeAllRanges();
-        s?.addRange(r);
-      });
+    const key = `tile:${next.id}`;
+    queueMicrotask(() => {
+      const el = document.querySelector(
+        `.cell[data-r="${row}"][data-c="${col}"] .at-text[data-resp="${CSS.escape(key)}"]`,
+      ) as HTMLElement | null;
+      if (!el) return;
+      el.focus();
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      r.collapse(false);
+      const s = window.getSelection();
+      s?.removeAllRanges();
+      s?.addRange(r);
+    });
+  }
+
+  /**
+   * A tile took the caret. The grid cursor still moves to this cell — the tile
+   * lives in this column and arrow keys should behave — but `focusedAnswer`
+   * records WHICH tile, so the card/analytic actions can act on the tile rather
+   * than on the cell around it without touching cell key routing.
+   */
+  function onTileFocus(itemId: string) {
+    store.focusedAnswer = refFor(itemId);
+    onfocus();
+  }
+
+  /** Same, for a block's own inline tiles in the last column, where the parts
+   *  and the tiles live in the SAME cell — so the block column is this one, and
+   *  it is the only place the part gets answered. */
+  function onOwnTileFocus(itemId: string) {
+    store.focusedAnswer = refFor(itemId, col, true);
+    onfocus();
+  }
+
+  function onTileBlur(itemId: string) {
+    store.endTextSession();
+    if (
+      store.focusedAnswer?.item === itemId &&
+      store.focusedAnswer?.speech === speechId
+    ) {
+      store.focusedAnswer = null;
+    }
+  }
+
+  /**
+   * Keys inside a tile. Enter drops to the next part; the card/analytic and
+   * dropped/starred binds mark the TILE, because that is what the caret is in.
+   *
+   * ⚠ Deliberately no `stopPropagation` — the response boxes this replaces
+   * didn't have one either, and the global handler in FlowView doesn't bind any
+   * of these, so there is nothing to double-fire. Adding one on a hunch is on
+   * the do-not list for exactly this kind of handler.
+   */
+  /**
+   * Insert a blank part into the block, above or below the one this tile
+   * answers, and put the caret in the new part's tile IN THIS COLUMN.
+   *
+   * ⚠ This is the in-block reading of "insert a row", and it is the right one:
+   * a part of a block already behaves like a row of its own — every speech
+   * carries a cell for it — so the analogue of Ctrl+Enter is another part, not
+   * another grid row. Inserting a grid row from here would push a blank line
+   * under the entire block instead of under the argument you were answering.
+   */
+  function insertPart(ref: AnswerRef, below: boolean) {
+    const items = leftBlock?.items ?? cell.items ?? [];
+    const at = items.findIndex((i) => i.id === ref.item);
+    if (at < 0) return;
+    const id = store.addCellItem(row, ref.col, "response", "", at + (below ? 1 : 0));
+    if (id) pendingResp = `tile:${id}`; // respBox focuses the new tile when it mounts
+  }
+
+  function onTileKeydown(ref: AnswerRef, e: KeyboardEvent) {
+    const km = settings.keymap;
+    if (matchesAny(e, km.insertRowAbove)) {
+      e.preventDefault();
+      insertPart(ref, false);
+    } else if (matchesAny(e, km.insertRowBelow)) {
+      e.preventDefault();
+      insertPart(ref, true);
+    } else if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      mirrorEnter(ref.item);
+    } else if (matchesAny(e, km.markAnalytic)) {
+      e.preventDefault();
+      store.toggleAnswerEvidence(ref, "analytic");
+    } else if (matchesAny(e, km.markCard)) {
+      e.preventDefault();
+      store.toggleAnswerEvidence(ref, "card");
+    } else if (matchesAny(e, km.markDropped)) {
+      e.preventDefault();
+      store.toggleAnswerMark(ref, "dropped");
+    } else if (matchesAny(e, km.markStarred)) {
+      e.preventDefault();
+      store.toggleAnswerMark(ref, "starred");
     }
   }
 
@@ -548,8 +667,29 @@
 
   /** Set an item editor's text once, and repaint on external change while it's
    *  not focused (same caret-safe rule as the main editor). */
+  /**
+   * A part reads like a card in an ordinary cell: author first, in bold, then
+   * the tag.
+   *
+   * ⚠ Only for CARD parts, which are read-only — the author is drawn from the
+   * node the part carries and never written into `it.text`, so nothing has to
+   * be migrated and nothing can be typed over. A response part is editable, so
+   * it stays plain `textContent`; painting markup into a box someone types in
+   * is how you lose a caret.
+   */
+  function paintItem(node: HTMLElement, it: CellItem) {
+    const author = it.kind === "card" ? nodeAuthor(it.card as DocNode | undefined) : "";
+    if (!author) {
+      node.textContent = it.text;
+      return;
+    }
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    node.innerHTML = `<b class="author">${esc(author)}</b>  ${esc(it.text)}`;
+  }
+
   function itemText(node: HTMLElement, it: CellItem) {
-    node.textContent = it.text;
+    paintItem(node, it);
     if (pendingFocusItem === it.id) {
       pendingFocusItem = null;
       queueMicrotask(() => {
@@ -564,9 +704,13 @@
     }
     return {
       update(next: CellItem) {
-        if (document.activeElement !== node && node.textContent !== next.text) {
-          node.textContent = next.text;
-        }
+        if (document.activeElement === node) return;
+        // Compare against what the box SHOULD read, author included — comparing
+        // to `next.text` alone would repaint on every update once an author is
+        // prepended, since the two can never match.
+        const author = next.kind === "card" ? nodeAuthor(next.card as DocNode | undefined) : "";
+        const want = author ? `${author}  ${next.text}` : next.text;
+        if (node.textContent !== want) paintItem(node, next);
       },
     };
   }
@@ -580,19 +724,15 @@
     pendingFocusItem = store.addCellItem(row, col, "response", "", at);
   }
 
-  // ---- per-item responses (answer each part of a block individually) --------
-  /** Total responses across all sub-items — shown as a badge, and the "hidden"
-   *  cue when the block is collapsed. */
+  // ---- per-part answer tiles (answer each part of a block individually) -----
+  /** How many parts of this block have been answered — the badge, and the cue
+   *  that there is something to come back to when the block is collapsed.
+   *  Counts pre-tiles `responses` too, via `answerOf`. */
   const respCount = $derived(
-    cell.items?.reduce((n, it) => n + (it.responses?.length ?? 0), 0) ?? 0,
+    cell.items?.reduce((n, it) => n + (isAnswered(it) ? 1 : 0), 0) ?? 0,
   );
 
-  let pendingResp = $state<string | null>(null); // `${itemId}:${idx}` to auto-focus
-
-  function addItemResponse(itemId: string) {
-    const idx = store.addItemResponse(row, col, itemId);
-    if (idx >= 0) pendingResp = `${itemId}:${idx}`;
-  }
+  let pendingResp = $state<string | null>(null); // `tile:${itemId}` to auto-focus
 
   /** Set a response box's text once; repaint on external change while unfocused;
    *  auto-focus a freshly added one. */
@@ -621,7 +761,17 @@
 
   /** Enter (no shift) inside a response adds a sibling right below it. */
   function onItemKeydown(index: number, e: KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    const km = settings.keymap;
+    // The same row binds a cell has, meaning a part of this block — so the
+    // keystroke does the same thing whether you are in the part or in one of
+    // the tiles answering it.
+    if (matchesAny(e, km.insertRowAbove)) {
+      e.preventDefault();
+      addResponse(index);
+    } else if (matchesAny(e, km.insertRowBelow)) {
+      e.preventDefault();
+      addResponse(index + 1);
+    } else if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       addResponse(index + 1);
     }
@@ -634,7 +784,7 @@
   function onCellClick(e: MouseEvent) {
     if (!editor) return;
     const t = e.target as HTMLElement;
-    if (t.closest(".editor, .item-text.editable, .item-del, .item-add, .items-toggle, .items-clear, .item-gap, .author-lookup, .ir-text, .ir-del, .ir-add")) return;
+    if (t.closest(".editor, .item-text.editable, .item-del, .item-add, .items-toggle, .items-clear, .item-gap, .author-lookup, .answer-tile")) return;
     // Dead-space click: honor the same select-first rule as a click on the cell.
     editor.focus();
     if (active && store.selectAll) selectAllText();
@@ -674,6 +824,7 @@
   class="cell"
   onclick={onCellClick}
   onmousedown={onCellMouseDown}
+  class:paired={ownBlock || showTiles}
   class:active
   class:selecting={active && store.selectAll}
   class:in-range={inRange}
@@ -708,6 +859,13 @@
   {#if cell.chip}
     <span class="cell-chip chip-{cell.chip}">{cell.chip}</span>
   {/if}
+  <!-- Everything that isn't a part of a block lives in ONE box, because when a
+       block is open the cell lays itself out against the row's tracks and every
+       in-flow child takes a track of its own. This is track 1; the parts follow
+       it, one per track, so the answering column's tiles can sit level with
+       them. The decorations (chip, reply tag, peer tag, ext arrow) are all
+       absolutely positioned and so take no track at all. -->
+  <div class="cell-head">
   <div
     bind:this={editor}
     class="editor"
@@ -744,9 +902,33 @@
         onclick={() => store.clearCell(row, col)}
       >clear</button>
     </div>
-    {#if cell.expanded}
+    {#if !cell.expanded && respCount > 0}
+      <!-- Collapsed: the whole chain of answers folds away with the block. This
+           is only a cue that there is something there — every speech's answer to
+           a part, in order, read-only. Expand to edit them. -->
+      <div class="collapsed-responses" title="Answers to this block, by speech (expand to edit)">
+        {#each cell.items as it (it.id)}
+          {#if isAnswered(it)}
+            <div class="cr-group">
+              <span class="cr-part">{shortPart(it.text)}</span>
+              {#each answerChain(it) as ans (ans.speech)}
+                <span class="cr-text">↳ {ans.text}</span>
+              {/each}
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+  {/if}
+  </div>
+  {#if cell.items?.length && cell.expanded}
       <div class="items">
         {#each cell.items as it, i (it.id)}
+        <!-- One part = one slot = one grid track. The insert strip lives INSIDE
+             the slot, pinned to its top edge, rather than sitting between slots
+             as its own element: a sibling would claim a track of its own and
+             every answer tile would come out one part low. -->
+        <div class="item-slot">
           <button
             class="item-gap"
             title="Insert response here"
@@ -754,7 +936,12 @@
             onclick={() => addResponse(i)}
             aria-label="Insert response here"
           ><span class="gap-plus">+</span></button>
-          <div class="item" class:response={it.kind === "response"}>
+          <div
+            class="item"
+            class:response={it.kind === "response"}
+            class:analytic={it.chip === "ANL"}
+            class:card={it.chip === "CARD"}
+          >
             {#if it.chip}
               <span class="item-chip chip-{it.chip}">{it.chip}</span>
             {/if}
@@ -765,7 +952,6 @@
               role="textbox"
               tabindex={it.kind === "response" ? 0 : -1}
               spellcheck="false"
-              data-ph={it.kind === "response" ? "your response…" : ""}
               use:itemText={it}
               oninput={(e) => onItemInput(it.id, e)}
               onkeydown={(e) => onItemKeydown(i, e)}
@@ -780,38 +966,37 @@
             >×</button>
           </div>
           {#if it.kind === "card" && ownResponsesInline}
-            <div class="item-responses">
-              {#each it.responses ?? [] as resp, ri (ri)}
-                <div class="item-response">
-                  <span class="ir-arrow">↳</span>
-                  <div
-                    class="ir-text"
-                    contenteditable="true"
-                    role="textbox"
-                    tabindex="0"
-                    spellcheck="false"
-                    data-ph="response…"
-                    use:respBox={{ text: resp, key: `${it.id}:${ri}` }}
-                    oninput={(e) => store.updateItemResponse(row, col, it.id, ri, (e.currentTarget as HTMLElement).textContent ?? "")}
-                    onfocus={onfocus}
-                    onblur={() => store.endTextSession()}
-                  ></div>
-                  <button
-                    class="ir-del"
-                    title="Remove response"
-                    onmousedown={(e) => e.preventDefault()}
-                    onclick={() => store.removeItemResponse(row, col, it.id, ri)}
-                  >×</button>
-                </div>
-              {/each}
-              <button
-                class="ir-add"
-                title="Respond to this part"
-                onmousedown={(e) => e.preventDefault()}
-                onclick={() => addItemResponse(it.id)}
-              >+ respond</button>
+            <!-- Last column: there is no next column to put the tile in, so it
+                 sits under the part instead. Same tile, same storage — only the
+                 place it is drawn differs. -->
+            {@const ownRef = refFor(it.id, col, true)}
+            {@const own = answerOf(it, speechId, true)}
+            <div
+              class="answer-tile inline"
+              class:analytic={own.marks?.evidence === "analytic"}
+              class:card={own.marks?.evidence === "card"}
+              class:dropped={own.marks?.dropped}
+              class:starred={own.marks?.starred}
+            >
+              <div
+                class="at-text"
+                class:bold={own.marks?.bold}
+                class:italic={own.marks?.italic}
+                contenteditable="true"
+                role="textbox"
+                tabindex="0"
+                spellcheck="false"
+                data-resp={`tile:${it.id}`}
+                style={own.marks?.color ? `color: ${own.marks.color}` : ""}
+                use:respBox={{ text: own.text, key: `tile:${it.id}` }}
+                oninput={(e) => store.setAnswerText(ownRef, (e.currentTarget as HTMLElement).textContent ?? "")}
+                onkeydown={(e) => onTileKeydown(ownRef, e)}
+                onfocus={() => onOwnTileFocus(it.id)}
+                onblur={() => onTileBlur(it.id)}
+              ></div>
             </div>
           {/if}
+          </div>
         {/each}
         <button
           class="item-add"
@@ -819,63 +1004,50 @@
           onclick={() => addResponse()}
         >+ response</button>
       </div>
-    {/if}
-    {#if !cell.expanded && respCount > 0}
-      <div class="collapsed-responses" title="Responses (expand to edit; they move to the next column)">
-        {#each cell.items as it (it.id)}
-          {#if it.kind === "card" && it.responses?.length}
-            <div class="cr-group">
-              <span class="cr-part">{shortPart(it.text)}</span>
-              {#each it.responses as resp, ri (ri)}
-                <span class="cr-text">↳ {resp || "…"}</span>
-              {/each}
-            </div>
-          {/if}
-        {/each}
-      </div>
-    {/if}
   {/if}
-  {#if leftBlock}
-    <div class="block-answers">
-      {#each leftBlock.items ?? [] as lit (lit.id)}
-        {#if lit.kind === "card"}
-          <div class="ba-row">
-            <span class="ba-part" title={lit.text}>{shortPart(lit.text)}</span>
-            <div class="ba-resps">
-              {#each lit.responses ?? [] as resp, ri (ri)}
-                <div class="item-response">
-                  <span class="ir-arrow">↳</span>
-                  <div
-                    class="ir-text"
-                    contenteditable="true"
-                    role="textbox"
-                    tabindex="0"
-                    spellcheck="false"
-                    data-ph="response…"
-                    data-resp={`${lit.id}:${ri}`}
-                    use:respBox={{ text: resp, key: `${lit.id}:${ri}` }}
-                    oninput={(e) => store.updateItemResponse(row, sourceCol, lit.id, ri, (e.currentTarget as HTMLElement).textContent ?? "")}
-                    onkeydown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); mirrorEnter(lit.id); } }}
-                    onfocus={onfocus}
-                    onblur={() => store.endTextSession()}
-                  ></div>
-                  <button
-                    class="ir-del"
-                    title="Remove response"
-                    onmousedown={(e) => e.preventDefault()}
-                    onclick={() => store.removeItemResponse(row, sourceCol, lit.id, ri)}
-                  >×</button>
-                </div>
-              {/each}
-              <button
-                class="ir-add"
-                title="Respond to this part"
-                onmousedown={(e) => e.preventDefault()}
-                onclick={() => addLeftResponse(lit.id)}
-              >+ respond</button>
+  {#if showTiles}
+    <!-- One tile per part of the block, in that part's own grid track so it
+         starts exactly level with it. EVERY speech after the block gets these,
+         not just the one that answers it first — an answer gets answered, and
+         that gets answered, out to the last speech. A part you have not answered
+         still takes its track: the empty tile IS the invitation to answer, and
+         dropping it would slide every tile below out of line. -->
+    <div class="answers">
+      {#each leftBlock?.items ?? [] as lit (lit.id)}
+        <!-- ⚠ EVERY part gets a tile, not just the cards. A part you typed
+             yourself is still an argument on the flow, and a blank row inserted
+             with Ctrl+Enter would otherwise come out unanswerable — a dead row
+             nobody could reply to, which is the opposite of what inserting it
+             was for. -->
+        {@const ref = refFor(lit.id)}
+        {@const ans = answerOf(lit, speechId, firstAnswerCol)}
+        <div class="answer-slot">
+            <div
+              class="answer-tile"
+              class:analytic={ans.marks?.evidence === "analytic"}
+              class:card={ans.marks?.evidence === "card"}
+              class:dropped={ans.marks?.dropped}
+              class:starred={ans.marks?.starred}
+              title={firstAnswerCol ? `Answers “${lit.text}”` : `On “${shortPart(lit.text)}”`}
+            >
+              <div
+                class="at-text"
+                class:bold={ans.marks?.bold}
+                class:italic={ans.marks?.italic}
+                contenteditable="true"
+                role="textbox"
+                tabindex="0"
+                spellcheck="false"
+                data-resp={`tile:${lit.id}`}
+                style={ans.marks?.color ? `color: ${ans.marks.color}` : ""}
+                use:respBox={{ text: ans.text, key: `tile:${lit.id}` }}
+                oninput={(e) => store.setAnswerText(ref, (e.currentTarget as HTMLElement).textContent ?? "")}
+                onkeydown={(e) => onTileKeydown(ref, e)}
+                onfocus={() => onTileFocus(lit.id)}
+                onblur={() => onTileBlur(lit.id)}
+              ></div>
             </div>
-          </div>
-        {/if}
+        </div>
       {/each}
     </div>
   {/if}
@@ -922,6 +1094,24 @@
     border-bottom: 1px solid var(--grid-line);
     background: var(--cell-bg);
     min-height: var(--row-h, 26px);
+    /* A row carries one track per part of the widest open block in it (see
+       Grid's rowTracks). A cell that isn't laying itself out against those
+       tracks spans all of them, which is exactly how it looked when every row
+       had a single track. */
+    grid-row: 1 / -1;
+  }
+  /* An open block and the column answering it BOTH map their children onto the
+     row's tracks, which is what makes a tile start level with the part it
+     answers — no measuring, no height syncing between two sibling components.
+     `subgrid` adds no tracks of its own; it borrows the row's. */
+  .cell.paired {
+    display: grid;
+    grid-template-rows: subgrid;
+  }
+  /* Track 1 on both sides of a pair: the cell's own text and its block bar. */
+  .cell-head {
+    grid-row: 1;
+    min-width: 0;
   }
   .cell.label .editor {
     font-weight: 700;
@@ -1143,14 +1333,28 @@
     font-size: 8px;
   }
   .items {
-    display: flex;
-    flex-direction: column;
+    /* Parts occupy the row's tracks from 2 onward — one each, in order — so the
+       answering column can place its tiles into the same ones. The last track
+       holds the "+ response" button. */
+    display: grid;
+    grid-row: 2 / -1;
+    grid-template-rows: subgrid;
     gap: 0;
     padding: 0 6px 5px 10px;
   }
-  /* Thin hover strip between items — click to insert a response at that spot. */
-  .item-gap {
+  /* One part, one track. The insert strip is pinned inside it rather than
+     sitting between slots, where it would take a track of its own. */
+  .item-slot {
     position: relative;
+    min-width: 0;
+  }
+  /* Thin hover strip at the top of an item — click to insert a response there. */
+  .item-gap {
+    position: absolute;
+    top: -2px;
+    left: 0;
+    right: 0;
+    z-index: 2;
     height: 4px;
     margin: 0;
     padding: 0;
@@ -1197,48 +1401,79 @@
   .item-gap:hover::before {
     opacity: 0.5;
   }
-  .item {
+  /* A part of a block, and an answer to one, are ordinary flow cells. Same
+     ground, same ink, same card/analytic bar down the left edge, same corner
+     chip — the ONLY thing marking them out is a faint halo saying they belong
+     to the block above them, and the fact that the block can be folded shut.
+     They used to be tinted boxes with their own colour language, which read as
+     a different kind of object living inside a cell. */
+  .item,
+  .answer-tile {
+    position: relative;
     display: flex;
     align-items: flex-start;
     gap: 5px;
-    padding: 2px 4px;
-    border-radius: 4px;
-    border-left: 2px solid color-mix(in srgb, var(--card) 55%, transparent);
-    background: color-mix(in srgb, var(--card) 7%, transparent);
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: var(--cell-bg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent);
   }
-  .item.response {
-    border-left-color: color-mix(in srgb, var(--accent) 60%, transparent);
-    background: color-mix(in srgb, var(--accent) 7%, transparent);
+  /* Evidence reads exactly as it does on a cell: a 3px bar down the left, not
+     recoloured text. `.item` takes its kind from the chip the block came in
+     with; a tile takes it from its own marks. */
+  .item.analytic::after,
+  .item.card::after,
+  .answer-tile.analytic::after,
+  .answer-tile.card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+    z-index: 2;
+    pointer-events: none;
   }
+  .item.analytic::after,
+  .answer-tile.analytic::after { background: var(--analytic); }
+  .item.card::after,
+  .answer-tile.card::after { background: var(--card); }
+  /* In the corner, exactly like a cell's own chip — not inline, where it pushed
+     the text in and made a part look like a list entry rather than a cell. */
   .item-chip {
-    flex-shrink: 0;
-    margin-top: 1px;
+    position: absolute;
+    top: 1px;
+    right: 2px;
     font-size: 7px;
     font-weight: 800;
     letter-spacing: 0.03em;
     color: #fff;
     border-radius: 3px;
     padding: 0 3px;
-    line-height: 1.6;
+    line-height: 1.5;
+    z-index: 2;
     user-select: none;
     -webkit-user-select: none;
+    pointer-events: none;
   }
   .item-text {
     flex: 1;
     outline: none;
-    font-size: calc(var(--cell-size, 13px) - 1px);
+    font-size: var(--cell-size, 13px);
     line-height: 1.3;
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--text);
     min-width: 0;
   }
-  .item-text.editable:empty::before {
-    content: attr(data-ph);
-    color: var(--text-dim);
-    opacity: 0.6;
-    font-style: italic;
+  /* The cite author leads a part, bold, the way it does in a cell. */
+  .item-text :global(b.author) {
+    font-weight: 700;
   }
+  /* No placeholder on an empty part — an empty row inside a block reads like any
+     other empty cell, which is the whole point of the halo. The rule is gone
+     rather than blanked so nothing re-grows a hint here by setting `data-ph`. */
   .item-del {
     flex-shrink: 0;
     background: transparent;
@@ -1271,65 +1506,62 @@
     color: var(--text);
     border-color: var(--accent);
   }
-  /* ---- per-item responses (answer each part of a block) ---- */
+  /* ---- per-part answer tiles (answer each part of a block) ---- */
   .resp-badge { color: var(--accent); font-weight: 600; margin-left: 3px; }
-  .item-responses {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    margin: 1px 0 3px 16px;
+  /* The answering column's tiles, one per track of the block beside them. */
+  .answers {
+    display: grid;
+    grid-row: 2 / -1;
+    grid-template-rows: subgrid;
+    padding: 0 4px 5px;
   }
-  .item-response {
+  /* Present even for an unanswered part: an empty track here is what keeps the
+     tile below it level with the part IT answers. */
+  .answer-slot {
+    min-width: 0;
     display: flex;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 1px 4px;
-    border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
-    background: color-mix(in srgb, var(--accent) 6%, transparent);
-    border-radius: 3px;
+    align-items: stretch;
   }
-  .ir-arrow { color: var(--accent); font-size: 11px; line-height: 1.4; flex-shrink: 0; }
-  .ir-text {
+  .answer-tile {
+    flex: 1;
+    min-width: 0;
+    /* Bottom margin ONLY. Consecutive tiles would otherwise sit edge to edge and
+       three answers would read as one box; this gutters them. It has to be on
+       the bottom — a top margin would push the tile off the top edge of the part
+       it answers, which is the one thing the whole layout is for. */
+    margin-bottom: 3px;
+  }
+  /* Last column: no next column to hold the tile, so it sits under its part. */
+  .answer-tile.inline {
+    margin: 2px 0 0 16px;
+  }
+  /* Same type as a cell's own editor, so a tile and the cell above it read as
+     one surface rather than two sizes of text. */
+  .at-text {
     flex: 1;
     min-width: 0;
     outline: none;
-    font-size: calc(var(--cell-size, 13px) - 1px);
+    min-height: calc(var(--cell-size, 13px) + 3px);
+    font-size: var(--cell-size, 13px);
     line-height: 1.3;
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--text);
   }
-  .ir-text:empty::before {
-    content: attr(data-ph);
-    color: var(--text-dim);
-    opacity: 0.6;
-    font-style: italic;
+  .at-text.bold { font-weight: 700; }
+  .at-text.italic { font-style: italic; }
+  /* Dropped / starred keep the cell's own left-and-right split, layered over the
+     halo rather than replacing it. */
+  .answer-tile.dropped {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent),
+      inset 3px 0 0 var(--mark-dropped, #c0392b);
   }
-  .ir-del {
-    flex-shrink: 0;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    font-size: 12px;
-    line-height: 1;
-    padding: 0 2px;
-    cursor: pointer;
-    opacity: 0;
+  .answer-tile.starred {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent),
+      inset -3px 0 0 var(--mark-star);
   }
-  .item-response:hover .ir-del { opacity: 1; }
-  .ir-del:hover { color: var(--mark-dropped, #c0392b); }
-  .ir-add {
-    align-self: flex-start;
-    margin: 0 0 0 16px;
-    padding: 0 5px;
-    background: transparent;
-    border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--border));
-    border-radius: 4px;
-    font-size: 9px;
-    color: var(--text-dim);
-    cursor: pointer;
-  }
-  .ir-add:hover { color: var(--accent); border-color: var(--accent); }
   /* Collapsed block: responses stay stacked under the header (read-only cue). */
   .collapsed-responses {
     display: flex;
@@ -1348,22 +1580,6 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
-  /* Next column: the opponent's per-part answers, lined up next to the block. */
-  .block-answers {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 2px 4px 4px;
-  }
-  .ba-row { display: flex; flex-direction: column; gap: 1px; }
-  .ba-part {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.03em;
-    color: var(--accent);
-    text-transform: none;
-  }
-  .ba-resps { display: flex; flex-direction: column; gap: 1px; padding-left: 4px; }
   .editor[data-ph]:not([data-ph=""]):empty::before {
     content: attr(data-ph);
     color: var(--text-dim);
@@ -1420,10 +1636,16 @@
     font-style: italic;
   }
   /* Ink color follows the speech side — like flowing with two pens */
-  .cell.aff .editor {
+  /* Parts and answer tiles take the column's ink too — a 2AC tile is 2AC text,
+     the same as anything else typed in that column. */
+  .cell.aff .editor,
+  .cell.aff .item-text,
+  .cell.aff .at-text {
     color: color-mix(in srgb, var(--aff) 80%, var(--text));
   }
-  .cell.neg .editor {
+  .cell.neg .editor,
+  .cell.neg .item-text,
+  .cell.neg .at-text {
     color: color-mix(in srgb, var(--neg) 80%, var(--text));
   }
   /* Analytic / card evidence shows as a colored bar on the LEFT edge — like the

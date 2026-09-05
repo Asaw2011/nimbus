@@ -496,6 +496,20 @@ export function normalizeAuthor(raw: string): string {
   return t.replace(/^[\s,;:.]+|[\s,;:.]+$/g, "").trim();
 }
 
+/**
+ * The tidied cite author of a card node ("Pestaina 24"), or "" when it has no
+ * cite — an analytic, or a tag whose cite we could not parse.
+ *
+ * Exported so a block's parts can render author-first with the author bold, the
+ * way a card inserted straight into a cell already does. Derived on demand from
+ * the node the part already carries rather than stored on the part, so blocks
+ * inserted before this existed pick it up with no migration.
+ */
+export function nodeAuthor(node: DocNode | undefined): string {
+  if (!node || node.isAnalytic) return "";
+  return normalizeAuthor(citeTextOf(node));
+}
+
 /** The cite text (bold author-date runs) of a card node, concatenated. */
 function citeTextOf(node: DocNode): string {
   for (const runs of node.bodyRuns ?? []) {

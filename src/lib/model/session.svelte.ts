@@ -391,6 +391,11 @@ class SessionStore {
     // Close the partner's flow. It is still saved in app data under its own
     // id, so it stays reachable from the dashboard — this just stops rendering
     // a document whose owner is no longer connected.
+    //
+    // ⚠ Order matters. If their flow is the one on screen, clearing the mirrors
+    // first would wipe YOUR flow (which is the mirror at that moment) and leave
+    // you stranded on theirs with no switcher. Swap back to your own first.
+    store.returnToOwnDoc();
     store.clearMirrors();
     this.mode = "shared";
     this.peerDocId = "";

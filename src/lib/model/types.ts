@@ -78,8 +78,30 @@ export interface CellItem {
    *  verbatim so images survive, unlike the text-only `card` adapter path. */
   cmNode?: unknown;
   /** Your responses to THIS part of the block, shown beneath it when the cell
-   *  is expanded (and hidden — with a count badge — when collapsed). */
+   *  is expanded (and hidden — with a count badge — when collapsed).
+   *
+   *  ⚠ SUPERSEDED by {@link answer}, and kept so flows written before tiles
+   *  still read. Nothing writes it any more; {@link answerOf} folds it into the
+   *  tile's text the first time you edit one. */
   responses?: string[];
+  /**
+   * This part's row across the rest of the flow — one real cell per speech,
+   * keyed by SPEECH ID.
+   *
+   * A block part isn't answered once; it gets answered, then that answer gets
+   * answered, all the way to the last speech. So a part behaves like a row of
+   * its own: every column after the block holds its own cell for it, and each
+   * is a full flow cell that marks cards and analytics, takes colour and
+   * highlighting, and reads like any other tile.
+   *
+   * ⚠ Keyed by speech id, not column index, for the same reason `repliesTo` is:
+   * columns move. It also gives each partner lane its OWN answer to a part —
+   * with a single shared field both lanes were editing one box.
+   *
+   * Optional and additive: a round with none behaves as it always did, and an
+   * older Nimbus opening the file shows the block and ignores the tiles.
+   */
+  answers?: Record<string, Cell>;
 }
 
 export interface Cell {
@@ -218,6 +240,32 @@ export function sourceCol(template: SpeechTemplate, col: number): number {
     if (i >= 0) return i;
   }
   return col - 1;
+}
+
+/**
+ * One part's cell in one speech, AS RENDERED.
+ *
+ * ⚠ `foldLegacy` folds a pre-tiles `responses` list into the text so answers
+ * typed before tiles existed still show up instead of silently vanishing. Only
+ * the FIRST answering column passes it — otherwise the same old text would
+ * appear again in every later speech. This is a read-time view: the fold is
+ * written back the first time you actually edit that tile (see
+ * `store.editAnswer`), so opening an old flow never rewrites it.
+ */
+export function answerOf(item: CellItem, speechId: string, foldLegacy = false): Cell {
+  const a = item.answers?.[speechId];
+  if (a) return a;
+  if (foldLegacy) {
+    const legacy = (item.responses ?? []).map((r) => r.trim()).filter(Boolean);
+    if (legacy.length) return { text: legacy.join(" / ") };
+  }
+  return { text: "" };
+}
+
+/** True when any speech holds an answer to this part — the collapsed-block cue. */
+export function isAnswered(item: CellItem): boolean {
+  if (item.responses?.some((r) => r.trim())) return true;
+  return Object.values(item.answers ?? {}).some((a) => a.text?.trim());
 }
 
 /**

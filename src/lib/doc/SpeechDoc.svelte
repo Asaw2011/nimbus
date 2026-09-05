@@ -573,21 +573,42 @@
     items?: { text: string; kind: "card" | "response"; chip?: string; card?: unknown }[];
   } {
     const CHIP: Record<string, string> = { pocket: "POC", hat: "HAT", block: "BLK", tag: "TAG" };
+    // Heading level, so a heading kept as an item still carries a real node and
+    // can be sent to the doc rather than arriving as bare text.
+    const LEVEL: Record<string, number> = { pocket: 1, hat: 2, block: 3, tag: 4 };
     let header = "";
     let chip = "";
     const items: { text: string; kind: "card" | "response"; chip?: string; card?: unknown }[] = [];
     slice.content.forEach((node) => {
       const t = node.type.name;
-      if (CHIP[t] && !header) {
-        header = node.textContent.trim();
-        chip = CHIP[t];
-      } else if (t === "card") {
+      const txt = node.textContent.trim();
+      if (CHIP[t]) {
+        // ⚠ The FIRST heading names the capture; every later one is kept as a
+        // part of it. This used to be `CHIP[t] && !header`, with no other branch
+        // for a heading — so selecting two blocks put the first one's title on
+        // the cell and quietly demoted the second to a typed "response", losing
+        // its BLK chip and its node. Anything highlighted comes back.
+        if (!header) {
+          header = txt;
+          chip = CHIP[t];
+          return;
+        }
+        if (txt) {
+          items.push({
+            text: txt,
+            kind: "card",
+            chip: CHIP[t],
+            card: { level: LEVEL[t] ?? 3, isAnalytic: false, text: txt, runs: [], children: [], body: [], bodyRuns: [] },
+          });
+        }
+        return;
+      }
+      if (t === "card") {
         items.push({ text: node.firstChild?.textContent.trim() ?? "", kind: "card", chip: "CARD", card: pmToDocNode(node) });
       } else if (t === "analytic_unit") {
         items.push({ text: node.firstChild?.textContent.trim() ?? "", kind: "card", chip: "ANL", card: pmToDocNode(node) });
-      } else {
-        const txt = node.textContent.trim();
-        if (txt) items.push({ text: txt, kind: "response" });
+      } else if (txt) {
+        items.push({ text: txt, kind: "response" });
       }
     });
     // A lone card with no surrounding heading → a plain carded cell.

@@ -13,7 +13,7 @@
 
   const laneName = $derived(
     (store.round?.template.speeches ?? []).find(
-      (s) => !!s.laneGroup && s.lane === store.myLane,
+      (s) => !!s.laneGroup && s.lane === store.laneHere,
     )?.abbr ?? "",
   );
   const hasLanes = $derived(

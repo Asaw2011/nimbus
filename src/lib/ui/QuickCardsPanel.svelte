@@ -10,11 +10,23 @@
 
   let query = $state("");
   const results = $derived(quickCards.match(query));
+  /**
+   * True only while a card is being dragged out of this panel.
+   *
+   * ⚠ The close-on-click-outside backdrop is `position: fixed; inset: 0`, so it
+   * covers the ENTIRE grid — every dragover and drop landed on it and the flow
+   * never saw them, which is why dragging a quick card onto the flow did
+   * nothing at all. Verified with elementFromPoint over a cell: the backdrop was
+   * what was there, and `.grid-scroll` was unreachable. The backdrop goes inert
+   * for the duration of a drag and comes back on dragend.
+   */
+  let dragging = $state(false);
 
   onMount(() => void quickCards.init());
 
   function onDragStart(e: DragEvent, card: QuickCard) {
     if (!e.dataTransfer) return;
+    dragging = true;
     // Structured payload → the grid builds the same cell a real card would.
     if (card.flow) e.dataTransfer.setData("text/nimbus-quickcard", JSON.stringify(card.flow));
     // Plain-text fallback for any drop target that only knows nimbus-block.
@@ -31,7 +43,7 @@
   }
 </script>
 
-<div class="qcp-backdrop" role="presentation" onclick={onclose}></div>
+<div class="qcp-backdrop" class:dragging role="presentation" onclick={onclose}></div>
 <div class="qcp" role="dialog" aria-label="Quick cards">
   <div class="qcp-head">
     <span class="qcp-title">Quick Cards</span>
@@ -55,6 +67,7 @@
           draggable="true"
           title="Drag onto the flow, or click to drop in the current cell"
           ondragstart={(e) => onDragStart(e, c)}
+          ondragend={() => (dragging = false)}
           onclick={() => drop(c)}
         >
           <span class="qcp-grip">⋮⋮</span>
@@ -80,6 +93,9 @@
 
 <style>
   .qcp-backdrop { position: fixed; inset: 0; z-index: 39; }
+  /* Inert while a card is in flight, so the drop reaches the flow underneath.
+     Restored on dragend — the panel still closes on an outside click. */
+  .qcp-backdrop.dragging { pointer-events: none; }
   .qcp {
     position: fixed;
     top: 46px;

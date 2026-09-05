@@ -188,10 +188,17 @@
 
   <div class="group">
     <div class="controls">
-      <button class="rb dropped" title="They dropped this argument ({combosLabel(km.markDropped, mac)})" onclick={() => mark("dropped")}><span class="lbl">Dropped</span><span class="ico">⊘</span></button>
-      <button class="rb star" title="Must answer in your next speech ({combosLabel(km.markStarred, mac)})" onclick={() => mark("starred")}><span class="lbl">★ Star</span><span class="ico">★</span></button>
-      <button class="rb analytic" title="This is an analytic — no card ({combosLabel(km.markAnalytic, mac)})" onclick={() => evidence("analytic")}><span class="lbl">Analytic</span><span class="ico">An</span></button>
-      <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onclick={() => evidence("card")}><span class="lbl">Card</span><span class="ico">Cd</span></button>
+      <!-- ⚠ `onmousedown` preventDefault on all four: without it, pressing the
+           button BLURS whatever you were typing in first. That is invisible for
+           a cell (the grid cursor stays put) but fatal for an answer tile, whose
+           identity lives in `store.focusedAnswer` and was cleared on blur — so
+           the mark landed on the whole cell around the tile instead of the tile
+           you were in. The keyboard shortcuts never blur, which is why they
+           worked and these did not. -->
+      <button class="rb dropped" title="They dropped this argument ({combosLabel(km.markDropped, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("dropped")}><span class="lbl">Dropped</span><span class="ico">⊘</span></button>
+      <button class="rb star" title="Must answer in your next speech ({combosLabel(km.markStarred, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("starred")}><span class="lbl">★ Star</span><span class="ico">★</span></button>
+      <button class="rb analytic" title="This is an analytic — no card ({combosLabel(km.markAnalytic, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("analytic")}><span class="lbl">Analytic</span><span class="ico">An</span></button>
+      <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("card")}><span class="lbl">Card</span><span class="ico">Cd</span></button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}><span class="lbl">➜ Extend</span><span class="ico">➜</span></button>
       <button class="rb reply" title="Answer this argument — jumps to your reply and links it, so sending to the doc writes “AT: this argument” ({combosLabel(km.replyToArg, mac)})" onclick={reply}><span class="lbl">↩ Answer</span><span class="ico">↩</span></button>
       {#if hasLanes}
