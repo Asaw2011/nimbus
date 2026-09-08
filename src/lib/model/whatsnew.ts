@@ -24,11 +24,10 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "1.2.2",
-    headline: "The first release Nimbus can install for you.",
+    version: "1.2.3",
+    headline: "Small fixes.",
     items: [
-      "**Nothing has changed in the app.** This release exists so automatic updating gets exercised end to end for the first time — 1.2.1 was the first build that could receive an update, and this is the first one it can receive. If you are reading this panel because Nimbus updated itself, the whole path worked.",
-      "**Updates are signed.** Nimbus checks the signature before it installs anything and refuses a download that doesn't match.",
+      "**The what's-new panel only appears once.** It came back on every launch until you explicitly closed it, so quitting Nimbus while it was still open meant seeing it again the next time you opened the app.",
     ],
   },
   {

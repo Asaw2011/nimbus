@@ -7,20 +7,34 @@
   // The tutorial's backdrop once rendered straight over the sign-in screen; an
   // overlay that can appear before someone is through the gate is a bug, not a
   // z-index question.
+  import { onMount } from "svelte";
   import { settings } from "../model/settings.svelte";
   import { APP_VERSION } from "../model/minversion";
   import { notesSince } from "../model/whatsnew";
 
   let { onclose }: { onclose: () => void } = $props();
 
-  // Snapshot at construction: `close()` writes lastSeenVersion, which would
-  // otherwise empty the list out from under the render.
+  // Snapshot at construction: recording the version below would otherwise empty
+  // the list out from under the render.
   const notes = notesSince(settings.lastSeenVersion);
   const isFirstRun = !settings.lastSeenVersion;
 
-  function close() {
+  // ⚠ The version is recorded when the panel is SHOWN, not when it is
+  // dismissed. Adam's spec is "first launch after an update, then never again".
+  // Writing it in close() meant that quitting with the panel still open left it
+  // unrecorded, so it came back on the next launch — and the one after that —
+  // until someone explicitly clicked it away. He hit exactly that on 1.2.2.
+  //
+  // ⚠ flushSave() as well as save(): save() debounces by 200ms and nothing else
+  // flushes it, so quitting immediately after launch would drop the write and
+  // reintroduce the same bug in a narrower window.
+  onMount(() => {
     settings.lastSeenVersion = APP_VERSION;
     settings.save();
+    settings.flushSave();
+  });
+
+  function close() {
     onclose();
   }
 
