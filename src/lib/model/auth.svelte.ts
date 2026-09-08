@@ -88,6 +88,28 @@ class AuthStore {
   }
 
   /**
+   * A currently-valid access token, refreshing first if it is about to expire.
+   * Empty string when there isn't one (signed out, or offline with a stale
+   * token and no way to renew it).
+   *
+   * ⚠ For the partner relay, which has to prove WHO is connecting — the flow
+   * itself never needs this. Unlike {@link revalidate} on the launch path, a
+   * failure here is not a sign-out: it just means we cannot vouch for this
+   * client right now, and the caller decides what that's worth. Keep it that
+   * way; a paywall check must never be able to log somebody out of the app.
+   */
+  async freshAccessToken(): Promise<string> {
+    const s = this.session;
+    if (!s?.accessToken) return "";
+    // 60s of headroom: a token that expires mid-handshake is refused, and the
+    // socket would retry against the same dead token forever.
+    if (s.expiresAt - Date.now() > 60_000) return s.accessToken;
+    await this.revalidate();
+    const next = this.session;
+    return next && next.expiresAt - Date.now() > 0 ? next.accessToken : "";
+  }
+
+  /**
    * Load the durable copy and re-verify in the background.
    *
    * Never throws and never blocks first paint: the app is already rendering off

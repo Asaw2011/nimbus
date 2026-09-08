@@ -43,6 +43,8 @@ export type RealtimeStatus =
   | "connecting"
   | "joined"
   | "reconnecting"
+  /** The relay refused us and retrying won't help — a dead end, not a wait. */
+  | "refused"
   | "closed";
 
 export interface PresencePeer {
@@ -57,6 +59,13 @@ interface Handlers {
   onMessage?: (event: string, payload: unknown) => void;
   /** The full peer list, recomputed on every presence change. */
   onPresence?: (peers: PresencePeer[]) => void;
+  /**
+   * The relay refused to let us join, and retrying without a token didn't help
+   * either. Today that only happens if the project itself is misconfigured;
+   * once the relay requires a subscription it is how "you aren't allowed on
+   * this" reaches the UI, instead of an endless silent retry.
+   */
+  onRejected?: (response: unknown) => void;
 }
 
 /**
@@ -89,7 +98,48 @@ export class Channel {
     private presenceKey: string,
     private presenceMeta: Record<string, unknown>,
     private handlers: Handlers,
+    /**
+     * Supplies a currently-valid access token, or "" when there isn't one.
+     *
+     * ⚠ Sent so the RELAY can tell who is connecting. Nothing checks it yet —
+     * the server currently accepts the publishable key alone — but a token
+     * cannot be added to a build that is already on someone's disk, so it ships
+     * ahead of the check. When authorization is switched on, every client that
+     * has updated by then keeps working and only genuinely old builds are cut
+     * off; ship it late and the cutover strands everybody at once.
+     *
+     * Called before each connect, so a reconnect after a long round carries a
+     * fresh token rather than the one from when the session started.
+     */
+    private getToken: () => Promise<string> = async () => "",
   ) {}
+
+  /** The token sent on the current socket, so the heartbeat can notice when it
+   *  has been rotated and tell the server about it mid-session. */
+  private sentToken = "";
+
+  /**
+   * Which kind of channel we are joining. The ladder is: **public first, then
+   * private if the relay refuses.**
+   *
+   * ⚠ This order is what makes the paywall a purely SERVER-SIDE switch, with no
+   * new build and no coordinated release:
+   *
+   * - Today, public is allowed, so the first attempt succeeds and this costs
+   *   exactly nothing — the behaviour is identical to before it existed.
+   * - Turn "Allow public access to channels" off on the project, and the first
+   *   attempt is refused. This client then retries privately with the user's
+   *   token, which the RLS policy answers: subscribers are let in, everybody
+   *   else is refused and told why.
+   * - Builds without this ladder only ever ask for a public channel, so the
+   *   same switch locks them out for good.
+   *
+   * Try-private-first would be tidier to read and worse to run: it would put an
+   * extra round trip in front of every session today, for a check nothing is
+   * making yet. Once a private join succeeds we stay private for the rest of
+   * the session, so reconnects don't walk the ladder again.
+   */
+  private mode: "public" | "private" = "public";
 
   /** Oldest queued broadcasts are dropped past this; the peer resyncs instead. */
   static readonly OUTBOX_LIMIT = 500;
@@ -111,7 +161,21 @@ export class Channel {
     }
     this.ws = ws;
 
-    ws.onopen = () => {
+    ws.onopen = async () => {
+      // ⚠ The token is fetched HERE rather than before opening the socket, so a
+      // slow or failed refresh can't stop us connecting — it only decides
+      // whether a private join can prove who we are.
+      let token = "";
+      if (this.mode === "private") {
+        try {
+          token = await this.getToken();
+        } catch {
+          token = ""; // Refused below, which is the honest outcome.
+        }
+      }
+      // The socket can be torn down while that await was in flight.
+      if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return;
+      this.sentToken = token;
       this.send({
         topic: this.topic,
         event: "phx_join",
@@ -121,7 +185,12 @@ export class Channel {
             // already applied them, and re-applying would fight the cursor.
             broadcast: { self: false },
             presence: { key: this.presenceKey },
+            // Public today. See the note on `mode`.
+            private: this.mode === "private",
           },
+          // Only a private channel is authorised, and an empty token would be a
+          // malformed credential rather than no credential.
+          ...(token ? { access_token: token } : {}),
         },
       });
     };
@@ -161,7 +230,7 @@ export class Channel {
     if (m.topic !== this.topic && m.event !== "phx_reply") return;
     switch (m.event) {
       case "phx_reply": {
-        const p = m.payload as { status?: string } | undefined;
+        const p = m.payload as { status?: string; response?: unknown } | undefined;
         if (m.topic === this.topic && p?.status === "ok" && !this.joined) {
           this.joined = true;
           this.lastFrameAt = Date.now();
@@ -170,6 +239,8 @@ export class Channel {
           this.startHeartbeat();
           this.track();
           this.flushOutbox();
+        } else if (m.topic === this.topic && p?.status === "error" && !this.joined) {
+          this.onJoinRejected(p.response);
         }
         break;
       }
@@ -270,7 +341,62 @@ export class Channel {
     this.stopHeartbeat();
     this.heartbeat = setInterval(() => {
       this.send({ topic: "phoenix", event: "heartbeat", payload: {} });
+      // ⚠ Access tokens expire inside an hour; a round plus prep can outlast
+      // one. Phoenix keeps the socket open either way, but once the relay
+      // starts checking the token, an expired one makes the channel go quiet
+      // rather than error — the worst possible failure mid-round. Rotate it on
+      // the heartbeat we already send, and only when it has actually changed.
+      void this.refreshToken();
     }, HEARTBEAT_MS);
+  }
+
+  /**
+   * The relay refused the join.
+   *
+   * ⚠ Measured, not assumed: Supabase Realtime rejects a malformed or expired
+   * JWT outright — the channel never joins and the socket just sits there. So
+   * attaching a token is NOT free, and a client whose token is bad for a reason
+   * it can't see (a rotated project secret, a skewed clock) would silently lose
+   * partner flowing with no message.
+   *
+   * While nothing checks the token, one retry WITHOUT it restores exactly the
+   * old behaviour, so a bad token can never be worse than no token. Once the
+   * relay starts requiring one, that retry is refused too — which is the
+   * correct outcome, and the point at which this should surface a real message
+   * rather than a silent retry.
+   */
+  private onJoinRejected(response: unknown): void {
+    if (this.mode === "public") {
+      // Public is closed on this project — climb to a private, authorised join.
+      this.mode = "private";
+      this.forceReconnect();
+      return;
+    }
+    // Private was refused too: this account genuinely isn't allowed on. Stop —
+    // retrying forever would just look like a connection that never comes up.
+    this.closed = true;
+    this.stopHeartbeat();
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
+    this.handlers.onRejected?.(response);
+    this.setStatus("refused");
+  }
+
+  /** Hand the relay a newer token if ours has been rotated since we joined. */
+  private async refreshToken(): Promise<void> {
+    // A public channel isn't authorised, so there is nothing to keep fresh —
+    // and asking for a token on every heartbeat would be pure waste today.
+    if (this.mode !== "private") return;
+    let token = "";
+    try {
+      token = await this.getToken();
+    } catch {
+      return; // Keep the socket on the token it has; a retry follows in 25s.
+    }
+    if (!token || token === this.sentToken) return;
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    this.sentToken = token;
+    this.send({ topic: this.topic, event: "access_token", payload: { access_token: token } });
   }
 
   private stopHeartbeat(): void {
@@ -342,8 +468,9 @@ export function openChannel(
   presenceKey: string,
   presenceMeta: Record<string, unknown>,
   handlers: Handlers,
+  getToken?: () => Promise<string>,
 ): Channel {
-  const ch = new Channel(`realtime:${name}`, presenceKey, presenceMeta, handlers);
+  const ch = new Channel(`realtime:${name}`, presenceKey, presenceMeta, handlers, getToken);
   ch.connect();
   return ch;
 }

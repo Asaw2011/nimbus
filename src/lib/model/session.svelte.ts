@@ -431,6 +431,25 @@ class SessionStore {
       this.clientId,
       { email: auth.email, role: this.role },
       {
+        /**
+         * The relay refused this account, publicly and privately.
+         *
+         * ⚠ Today this can only mean the project is misconfigured. Once partner
+         * flowing is subscriber-only it is the normal "you don't have this"
+         * path, which is why it ends the session with a message rather than
+         * retrying: a paywall that presents as a connection which never comes
+         * up is worse than one that says no.
+         *
+         * Nothing local is touched. The flow on screen, the file it came from
+         * and the rest of the app carry on exactly as they were.
+         */
+        onRejected: () => {
+          // ⚠ Order matters: reset() clears `error`, so the message goes on
+          // afterwards or it never reaches the panel.
+          this.reset();
+          this.error =
+            "Partner flowing isn't available on this account. Everything else in Nimbus works as normal.";
+        },
         onStatus: (s) => {
           if (s === "reconnecting" && this.status === "connected") this.status = "reconnecting";
           if (s === "joined" && this.status === "reconnecting") {
@@ -457,6 +476,9 @@ class SessionStore {
           }
         },
       },
+      // Identifies this client to the relay. Nothing checks it yet; see the note
+      // on Channel's `getToken`.
+      () => auth.freshAccessToken(),
     );
   }
 
