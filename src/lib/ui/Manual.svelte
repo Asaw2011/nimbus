@@ -202,6 +202,11 @@
           </p>
           <ul>
             <li>Both lanes answer the <b>same</b> speech, not each other.</li>
+            <li>
+              In a live session each of you sees <b>your own</b> lane headed
+              <b>You</b> and the other headed <b>Partner</b> — so the same column
+              is labelled differently on each computer, on purpose.
+            </li>
             <li><b>⇤</b> on the lane header (or <b>Hide partner</b> in the ribbon) hides your partner's lane to declutter. It is purely visual — it never changes what your speech doc says.</li>
             <li>The side is chosen when the flow is created and can't be switched later.</li>
           </ul>
@@ -430,6 +435,13 @@
             <li><b>Library</b> — folders Doc Search indexes.</li>
             <li><b>Backup</b> — export/import your setup, and check for updates.</li>
           </ul>
+          <h3>Updating</h3>
+          <p>
+            From 1.2.1 onward Nimbus checks for a new version on its own shortly
+            after it starts, and offers to install it. You can also check any time
+            from <b>Settings → Backup</b>. Updates are signed, so Nimbus will
+            refuse anything that didn't come from us.
+          </p>
           <p class="foot">Reopen this manual anytime from the 📖 button in the top bar.</p>
         </section>
 

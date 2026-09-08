@@ -37,8 +37,10 @@ Builds are not notarized, so first launch shows a security warning:
   damaged, run `xattr -cr /Applications/Nimbus.app` and open it again.
 - **Windows**: **More info → Run anyway**.
 
-Updating is manual for now — grab the installer above. Nimbus tells you what
-changed the first time you open a new version.
+**1.2.1 is the last version you have to install by hand.** From it onward Nimbus
+checks for new versions itself and offers to install them, and every update is
+signed. If you are on 1.2.0 or earlier, grab the installer above once and you
+are done. Nimbus tells you what changed the first time you open a new version.
 
 ## What's in it today
 
@@ -52,6 +54,11 @@ changed the first time you open a new version.
 - Templates for Policy / LD / PF — fully editable, side order flippable
   (e.g. Con-first PF)
 - LABEL cell that auto-names a flow as you type its tag
+- **Answer a block part by part** — expand an inserted block and every part keeps
+  its own row across the whole flow, so each speech after it gets a real cell for
+  that part. You answer their third card, they answer that, you answer that, out
+  to the last speech. The tiles are ordinary flow cells: mark them card or
+  analytic, color them, star them. `Ctrl+Enter` inserts a row inside the block
 
 **Flow with your partner** (live, two computers)
 - Pair with a **6-character code** — the host approves explicitly, with the
@@ -61,7 +68,8 @@ changed the first time you open a new version.
   A doc switcher moves between them, each with its own cursor, sheet and undo
 - **Partner cursor** — see which cell they're working in
 - **Partner lanes** — pick your side when you make a flow and the opponent's
-  second speech splits into a column each, so you aren't typing over each other
+  second speech splits into a column each, so you aren't typing over each other.
+  Each of you sees your own lane headed **You** and the other **Partner**
 - **Your file stays yours.** Two people auto-saving one file is how flows get
   destroyed, so Nimbus won't do it — you each save your own copy, always
 - Flowing solo is untouched: no session means no connection and no background

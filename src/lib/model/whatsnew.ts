@@ -27,6 +27,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "1.2.1",
     headline: "Answer a block part by part, all the way down the flow.",
     items: [
+      "**Automatic updates are switched on.** This is the last build you have to install by hand — from here on Nimbus checks for a new version on its own and can install it for you.",
       "**Every part of a block gets its own row.** Expand an inserted block and each part gets a proper flow tile in *every* speech after it, lined up exactly with the part it answers — so you answer their third card, they answer that, you answer that, out to the last speech. The tiles mark as cards or analytics like any other cell, each partner lane keeps its own, and the whole chain folds away when you collapse the block and comes back untouched when you open it.",
       "**Ctrl+Enter works inside a block.** It inserts a blank row into the block — below the argument you're on, or above it with Ctrl+Shift+Enter — and puts your cursor straight in it, the same way it makes a row on the rest of the flow. Every speech gets a tile for the new row, including rows you type yourself, so nothing you add is a dead end.",
       "**A block's parts read like flow cells now.** Same ink as the column they sit in, the card/analytic bar down the left edge, the chip in the corner, and the cite author leading in bold the way an inserted card does. The only thing marking a part or an answer out is a faint halo saying it belongs to the block.",
@@ -35,6 +36,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**The toolbar says what its buttons do.** Speech doc, Quick cards, Timer, Arguments, Partner flow, Manual, Settings and Keys now carry their names instead of being unlabelled icons. The condensed bar and narrow windows still get the compact icons.",
       "**Analytic / Card from the toolbar works inside a block tile.** It was marking the whole cell around the tile; only the keyboard shortcuts did the right thing.",
       "**Hiding your partner's lane hides THEIRS.** When you were looking at your partner's flow in an \"a flow each\" session, ⇤ and the Hide partner button hid your own column instead of theirs, and your partner's lane was the one highlighted as yours.",
+      "**Your own lane says \"You\" on both computers.** On a split speech you both saw \"You\" on the *same* column — whoever created the flow — so the person who joined had their own lane labelled \"Partner\". Each of you now sees your own column as \"You\" and your partner's as \"Partner\".",
       "**Leaving a session leaves you on your own flow.** Clicking Leave while you were reading your partner's page used to close your flow and leave you sitting on theirs.",
       "**The manual covers the rest of the app now** — partner flowing and lanes, prep clocks, the argument bank, the answer link, tournaments, and the toolbar.",
     ],
