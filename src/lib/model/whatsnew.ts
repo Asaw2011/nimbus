@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.2",
+    headline: "The first release Nimbus can install for you.",
+    items: [
+      "**Nothing has changed in the app.** This release exists so automatic updating gets exercised end to end for the first time — 1.2.1 was the first build that could receive an update, and this is the first one it can receive. If you are reading this panel because Nimbus updated itself, the whole path worked.",
+      "**Updates are signed.** Nimbus checks the signature before it installs anything and refuses a download that doesn't match.",
+    ],
+  },
+  {
     version: "1.2.1",
     headline: "Answer a block part by part, all the way down the flow.",
     items: [
