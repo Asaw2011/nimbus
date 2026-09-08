@@ -19,7 +19,7 @@
   import { keymap } from "prosemirror-keymap";
   import { history, undo, redo } from "prosemirror-history";
   import { Fragment, Slice, type Node as PMNode } from "prosemirror-model";
-  import type { DocNode } from "$lib/docx/parse";
+  import type { DocNode, DocRun } from "$lib/docx/parse";
   import { cardmirrorSchema as schema, nodesFromDocNode } from "$lib/cardmirror/adapter";
   import { readModePlugin, readModeKey } from "./readMode";
   import { searchPlugin, searchKey } from "./docSearch";
@@ -554,14 +554,76 @@
   }
 
   // ── quick cards (capture / insert reusable snippets) ─────────────
-  /** A minimal DocNode built from a PM card/analytic_unit node (for send-to-doc
-   *  from the flow later). Text only — image bytes don't survive this path. */
+  /**
+   * One paragraph's inline content → DocRun[], the INVERSE of the adapter's
+   * `bodyMarks`/`headingMarks`.
+   *
+   * ⚠ This is where a quick card's formatting lives. `pmToDocNode` used to
+   * return `runs: []` and `bodyRuns: []` unconditionally and read only
+   * `.textContent`, so every quick card captured came back as flat text —
+   * dragging or clicking one onto the flow dropped the underlining (the cut),
+   * the highlighting, emphasis and the cite style, and sending that cell on to
+   * the speech doc or CardMirror emitted an unmarked card. Reported from a real
+   * round. Keep this in step with `bodyMarks` in `cardmirror/adapter.ts`: any
+   * mark added there needs its inverse here or it is silently lost.
+   */
+  function pmRuns(para: PMNode): DocRun[] {
+    const runs: DocRun[] = [];
+    para.forEach((child) => {
+      if (!child.isText || !child.text) return;
+      const run: DocRun = { text: child.text };
+      for (const m of child.marks) {
+        switch (m.type.name) {
+          case "highlight": run.hl = m.attrs.color; break;
+          // ⚠ BOTH underline marks. CardMirror stores underline two ways — the
+          // named `underline_mark` (card bodies) and a direct <u>
+          // `underline_direct` (HEADINGS) — see toggleUnderline below. Handling
+          // only the named one silently loses the underlining on every tag and
+          // heading, which is most of what a quick card is.
+          case "underline_mark":
+          case "underline_direct": run.u = true; break;
+          case "emphasis_mark": run.emph = true; break;
+          case "cite_mark": run.cite = true; break;
+          case "bold": run.b = true; break;
+          case "italic": run.i = true; break;
+          case "font_size": {
+            const hp = Number(m.attrs.halfPoints);
+            if (Number.isFinite(hp)) {
+              run.sz = hp;
+              // Matches the adapter's own threshold for "condensed / unread".
+              if (hp < 22) run.sm = true;
+            }
+            break;
+          }
+        }
+      }
+      runs.push(run);
+    });
+    return runs;
+  }
+
+  /** A DocNode built from a PM card/analytic_unit node (for send-to-doc from the
+   *  flow later). Image bytes still don't survive this path; formatting does. */
   function pmToDocNode(node: PMNode): unknown {
     const isAnalytic = node.type.name === "analytic_unit";
-    const head = node.firstChild?.textContent.trim() ?? "";
+    const headNode = node.firstChild;
+    const head = headNode?.textContent.trim() ?? "";
     const body: string[] = [];
-    node.forEach((child, _o, i) => { if (i > 0) body.push(child.textContent); });
-    return { level: 4, isAnalytic, text: head, runs: [], children: [], body, bodyRuns: [] };
+    const bodyRuns: DocRun[][] = [];
+    node.forEach((child, _o, i) => {
+      if (i === 0) return;
+      body.push(child.textContent);
+      bodyRuns.push(pmRuns(child));
+    });
+    return {
+      level: 4,
+      isAnalytic,
+      text: head,
+      runs: headNode ? pmRuns(headNode) : [],
+      children: [],
+      body,
+      bodyRuns,
+    };
   }
 
   /** Build the flow-cell form of the selection so a dragged quick card lands as
@@ -598,7 +660,10 @@
             text: txt,
             kind: "card",
             chip: CHIP[t],
-            card: { level: LEVEL[t] ?? 3, isAnalytic: false, text: txt, runs: [], children: [], body: [], bodyRuns: [] },
+            // ⚠ Real runs, not `[]` — a heading carries its own underlining and
+            // highlighting, and hardcoding empty runs threw them away. Same bug
+            // as pmToDocNode had; see pmRuns.
+            card: { level: LEVEL[t] ?? 3, isAnalytic: false, text: txt, runs: pmRuns(node), children: [], body: [], bodyRuns: [] },
           });
         }
         return;
