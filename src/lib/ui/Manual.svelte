@@ -460,9 +460,7 @@
             <b>Required Notice: Copyright &copy; 2026 Anthony Trufanov.</b>
             CardMirror is used under the PolyForm Noncommercial License 1.0.0
             (polyformproject.org/licenses/noncommercial/1.0.0). That license
-            forbids commercial use, and because CardMirror is part of Nimbus,
-            that applies to Nimbus as a whole — it is free to use and is meant
-            to stay that way.
+            forbids commercial use.
           </p>
         </section>
       </div>

@@ -85,5 +85,4 @@ The speech doc engine is **CardMirror** by **Anthony Trufanov**
 
 Used under the PolyForm Noncommercial License 1.0.0
 (polyformproject.org/licenses/noncommercial/1.0.0). That license forbids
-commercial use; because CardMirror is part of Nimbus, that applies to Nimbus as
-a whole. Nimbus is free to use and is meant to stay that way.
+commercial use.

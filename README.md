@@ -224,8 +224,6 @@ The speech doc engine is **CardMirror** by **Anthony Trufanov**
 
 > Required Notice: Copyright (c) 2026 Anthony Trufanov.
 
-The full required notice and what the license means for Nimbus are in
+The full required notice is in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). In short: **PolyForm
-Noncommercial forbids commercial use**, and because CardMirror is vendored
-here, that applies to Nimbus as a whole. Nimbus is free to use and is meant to
-stay that way.
+Noncommercial forbids commercial use**.
