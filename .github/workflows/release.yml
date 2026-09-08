@@ -75,4 +75,9 @@ jobs:
           releaseBody: "Pick the one file for your system below. macOS: right-click the app and choose Open the first time. Windows: More info → Run anyway. See the release notes for details."
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          # tauri.updater.conf.json only sets bundle.createUpdaterArtifacts, and
+          # it is applied HERE rather than in tauri.conf.json on purpose: Tauri
+          # refuses to build updater artifacts without TAURI_SIGNING_PRIVATE_KEY,
+          # which exists only as a repo secret. In the main config it would break
+          # every local `npm run tauri build`.
+          args: ${{ matrix.args }} --config src-tauri/tauri.updater.conf.json
