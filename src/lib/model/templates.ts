@@ -67,23 +67,37 @@ export function builtinTemplates(): SpeechTemplate[] {
 // ---- partner lanes ---------------------------------------------------------
 
 /**
- * Which speech gets split when you flow a round from `side` with a partner.
+ * Which speeches get split into partner lanes when you flow from `side`.
  *
- * You split the OPPONENT'S SECOND speech — the long one you have to flow while
- * your partner is prepping. Flowing neg that's the 2AC (while the 2N builds the
- * block); flowing aff it's the neg block. Deriving it from speaking order
- * rather than matching on "2AC" keeps it working for edited templates and for
- * PF either way round, instead of only for the built-in Policy preset.
+ * Every OPPONENT speech you actually have to flow while your partner preps —
+ * flowing neg that is the 2AC and the 1AR, flowing aff the 1NC and the neg
+ * block. Derived from speaking order, never by matching on "2AC", so it keeps
+ * working for renamed speeches, for LD, and for PF either way round.
  *
- * Returns -1 when the opponent doesn't have a second speech to split.
+ * Two exclusions, both of them the reason this isn't just "all their speeches":
+ *  - their LAST speech is the final rebuttal. Nobody is prepping through it.
+ *  - their first speech only gets lanes if it is not the very first speech of
+ *    the round. A 1AC is read off a prepared document; a 1NC is not, which is
+ *    exactly why the 1NC wants two lanes and the 1AC does not.
+ *
+ * Returns the indices ascending. Empty when there is nothing worth splitting.
  */
-export function splitTargetFor(template: SpeechTemplate, side: Side): number {
+export function splitTargetsFor(template: SpeechTemplate, side: Side): number[] {
+  if (side === "neutral") return [];
   const opponent: Side = side === "aff" ? "neg" : "aff";
-  let seen = 0;
-  for (let i = 0; i < template.speeches.length; i++) {
-    if (template.speeches[i].side === opponent && ++seen === 2) return i;
-  }
-  return -1;
+  const idx: number[] = [];
+  template.speeches.forEach((s, i) => {
+    if (s.side === opponent) idx.push(i);
+  });
+  if (!idx.length) return [];
+  idx.pop(); // their final rebuttal
+  if (idx[0] === 0) idx.shift(); // a 1AC, i.e. the round's opening speech
+  return idx;
+}
+
+/** First split target, or -1. Kept for the dashboard's one-line preview. */
+export function splitTargetFor(template: SpeechTemplate, side: Side): number {
+  return splitTargetsFor(template, side)[0] ?? -1;
 }
 
 /**
@@ -97,15 +111,12 @@ export function splitTargetFor(template: SpeechTemplate, side: Side): number {
  * `side` of "neutral" (or a template with nothing to split) returns the
  * template untouched, which is what solo flowing gets.
  */
-export function splitForSide(template: SpeechTemplate, side: Side): SpeechTemplate {
-  if (side === "neutral") return template;
-  const at = splitTargetFor(template, side);
-  if (at < 0) return template;
-
-  const target = template.speeches[at];
+/** Split ONE speech at `at` into its two partner lanes. Pure. */
+function splitOne(speeches: Speech[], at: number): Speech[] {
+  const target = speeches[at];
   // Both lanes answer whatever sat before the GROUP — so partner B answers the
   // same speech partner A does, instead of answering partner A's lane.
-  const before = template.speeches[at - 1]?.id;
+  const before = speeches[at - 1]?.id;
   const lane = (n: number, suffix: string): Speech => ({
     id: uid(),
     abbr: `${target.abbr} · ${suffix}`,
@@ -117,7 +128,7 @@ export function splitForSide(template: SpeechTemplate, side: Side): SpeechTempla
   });
   const lanes = [lane(0, "You"), lane(1, "Partner")];
 
-  const rest = template.speeches.slice(at + 1);
+  const rest = speeches.slice(at + 1);
   // The column AFTER the group would otherwise mirror the lane physically to
   // its left — your partner's. Point it at your own lane instead. Replace the
   // object rather than assigning to it: these are the built-in preset's own
@@ -127,8 +138,28 @@ export function splitForSide(template: SpeechTemplate, side: Side): SpeechTempla
     rest[0] = { ...rest[0], answersId: lanes[0].id };
   }
 
-  return {
-    ...template,
-    speeches: [...template.speeches.slice(0, at), ...lanes, ...rest],
-  };
+  return [...speeches.slice(0, at), ...lanes, ...rest];
+}
+
+/**
+ * Split every speech in {@link splitTargetsFor} into two partner lanes.
+ *
+ * The lanes are ORDINARY COLUMNS — the grid is template-driven, and rows span
+ * every column, so a lane lines up with the speech it answers automatically and
+ * cannot drift out of alignment. Nothing else in the app has to know they are
+ * special.
+ *
+ * `side` of "neutral" (or a template with nothing to split) returns the
+ * template untouched, which is what solo flowing gets.
+ *
+ * ⚠ Splits are applied HIGHEST INDEX FIRST. Splicing two lanes in where one
+ * speech was shifts every later index by one, so ascending order would make the
+ * second target point at the wrong speech.
+ */
+export function splitForSide(template: SpeechTemplate, side: Side): SpeechTemplate {
+  const targets = splitTargetsFor(template, side);
+  if (!targets.length) return template;
+  let speeches = template.speeches;
+  for (const at of [...targets].sort((a, b) => b - a)) speeches = splitOne(speeches, at);
+  return { ...template, speeches };
 }

@@ -98,13 +98,41 @@
     return lastUsedCol + 1;
   }
 
+  /**
+   * A speech's abbr without its partner-lane suffix ("1NC · You" → "1NC").
+   *
+   * ⚠ On a lane-split speech the column is literally named "1NC · You", so
+   * matching a "…1NC.docx" filename against the full abbr found nothing at all
+   * — the plain "1NC" column does not exist once the speech is split.
+   */
+  function baseAbbr(abbr: string): string {
+    const i = abbr.lastIndexOf(" · ");
+    return i > 0 ? abbr.slice(0, i) : abbr;
+  }
+
+  /**
+   * Resolve a column onto YOUR OWN lane when it lands on a split speech.
+   *
+   * ⚠ This is what keeps two partners importing the same 1NC from both writing
+   * into lane 0. Whoever imports fills the lane that is theirs on this document
+   * ({@link store.laneHere}), and their partner's stays untouched.
+   */
+  function myLaneOf(col: number): number {
+    const sp = speeches[col];
+    if (!sp?.laneGroup) return col;
+    const mine = speeches.findIndex(
+      (s) => s.laneGroup === sp.laneGroup && s.lane === store.laneHere,
+    );
+    return mine >= 0 ? mine : col;
+  }
+
   /** Weaker fallback: an abbr in the filename ("...2AC.docx" → 2AC). */
   function guessColumnFromName(name: string): number | null {
     const flat = name.toUpperCase().replace(/[^A-Z0-9]/g, "");
     let best = -1;
     let bestLen = 0;
     speeches.forEach((sp, i) => {
-      const ab = sp.abbr.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const ab = baseAbbr(sp.abbr).toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (ab.length > 1 && ab.length > bestLen && flat.includes(ab)) {
         best = i;
         bestLen = ab.length;
@@ -153,15 +181,17 @@
         // Column guess, strongest signal first. Always overridable.
         const fromRound = guessColumnFromRound(targets);
         const fromName = guessColumnFromName(file.name);
+        // Every branch resolves through myLaneOf: on a split speech the import
+        // lands in YOUR lane, never your partner's.
         if (fromRound !== null) {
-          speechIdx = fromRound;
+          speechIdx = myLaneOf(fromRound);
           guessNote = `guessed — matched sheets are filled up to ${speeches[fromRound - 1]?.abbr ?? "?"}`;
         } else if (fromName !== null) {
-          speechIdx = fromName;
+          speechIdx = myLaneOf(fromName);
           guessNote = "guessed from the filename";
         } else {
           const negIdx = speeches.findIndex((s) => s.side === "neg");
-          speechIdx = Math.max(0, negIdx);
+          speechIdx = myLaneOf(Math.max(0, negIdx));
           guessNote = "default — double-check the column";
         }
         if (nodes.length === 0) {

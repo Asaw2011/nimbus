@@ -196,18 +196,40 @@
 
           <h3>Partner lanes</h3>
           <p>
-            Pick <b>I'm Aff</b> or <b>I'm Neg</b> when you make a flow and the
-            opponent's second speech splits into two columns — one for you, one
-            for your partner — so you are never typing over each other.
+            Pick <b>I'm Aff</b> or <b>I'm Neg</b> when you make a flow and every
+            opponent speech you have to flow while your partner preps splits into
+            two columns — one for you, one for them — so you are never typing
+            over each other.
           </p>
           <ul>
+            <li>
+              Flowing <b>neg</b> you get two <b>2AC</b> columns and two
+              <b>1AR</b> columns. Flowing <b>aff</b>, two <b>1NC</b> columns and
+              two <b>Neg Block</b> columns.
+            </li>
+            <li>
+              Their first speech and their last rebuttal are never split — a 1AC
+              is read off a prepared document, and nobody is prepping through a
+              2NR.
+            </li>
             <li>Both lanes answer the <b>same</b> speech, not each other.</li>
             <li>
               In a live session each of you sees <b>your own</b> lane headed
               <b>You</b> and the other headed <b>Partner</b> — so the same column
               is labelled differently on each computer, on purpose.
             </li>
-            <li><b>⇤</b> on the lane header (or <b>Hide partner</b> in the ribbon) hides your partner's lane to declutter. It is purely visual — it never changes what your speech doc says.</li>
+            <li>
+              <b>⇤</b> on any lane header collapses <em>that</em> lane — your own
+              as readily as your partner's — and <b>⇥</b> on the one still
+              showing brings it back. Collapsing is purely visual: it never
+              changes what your speech doc says. A group always keeps one lane on
+              screen, so there is always a header to click.
+            </li>
+            <li>
+              <b>Importing a speech doc</b> fills <em>your</em> lane, not your
+              partner's — so you can both import the same 1NC without landing on
+              top of each other.
+            </li>
             <li>The side is chosen when the flow is created and can't be switched later.</li>
           </ul>
         </section>
@@ -293,7 +315,6 @@
             <li><b>Pop out</b> (⇱ on a tab) opens a doc in its own window — you can have several out at once. The <b>main</b> doc (the flow-linked one) is always the docked tab; click a tab to make it the main.</li>
             <li><b>The speech doc</b> (<b>★</b>): click the star on any doc's tab to mark it as your speech doc — the one you're building. The star turns gold. Setting it makes that doc the docked/main doc so sends always land in it.</li>
             <li><b>Send to speech</b> (<kbd>`</kbd> / <kbd>~</kbd>, fixed): from any other doc (typically a source doc popped out into its own window), press this to send the current card/selection to your <b>★ speech doc</b> at its cursor — like Verbatim/CardMirror. If the speech doc isn't open, the card is appended to it.</li>
-            <li><b>Em dash</b>: typing <kbd>---</kbd> in the speech doc or a flow cell collapses to a single long dash (—).</li>
             <li><b>Where sends land</b> — no toggle, the app follows what you select: a <b>highlight, one cell, or a range of cells</b> drops <b>at your cursor</b>; the <b>↕ Send Entire Row</b> button sends the whole speech in <b>flow order</b> (mirrors the flow, de-dupes).</li>
             <li>All doc shortcuts are rebindable in <b>Settings → Keyboard → Speech doc</b>.</li>
           </ul>

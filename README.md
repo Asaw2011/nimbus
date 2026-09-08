@@ -67,9 +67,13 @@ are done. Nimbus tells you what changed the first time you open a new version.
   and *edit* your partner's, so you can drop a block onto their page mid-round.
   A doc switcher moves between them, each with its own cursor, sheet and undo
 - **Partner cursor** — see which cell they're working in
-- **Partner lanes** — pick your side when you make a flow and the opponent's
-  second speech splits into a column each, so you aren't typing over each other.
-  Each of you sees your own lane headed **You** and the other **Partner**
+- **Partner lanes** — pick your side when you make a flow and every opponent
+  speech you have to flow while your partner preps splits into a column each, so
+  you aren't typing over each other. Flowing neg that's two 2AC columns and two
+  1AR columns; flowing aff, two 1NC and two Neg Block. Each of you sees your own
+  lane headed **You** and the other **Partner**, and **⇤** on any lane header
+  collapses that lane — yours or theirs — without changing a thing you send to
+  the speech doc. Importing a speech doc fills *your* lane, not your partner's
 - **Your file stays yours.** Two people auto-saving one file is how flows get
   destroyed, so Nimbus won't do it — you each save your own copy, always
 - Flowing solo is untouched: no session means no connection and no background

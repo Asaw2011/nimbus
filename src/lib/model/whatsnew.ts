@@ -25,8 +25,12 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.3",
-    headline: "Small fixes.",
+    headline: "A lane for every speech you have to flow, and either one collapses.",
     items: [
+      "**Two columns for every opponent speech you flow.** Flowing neg you now get two **2AC** columns *and* two **1AR** columns; flowing aff, two **1NC** and two **Neg Block**. Their first speech and their last rebuttal are left alone — a 1AC is read off a prepared document, and nobody is prepping through a 2NR.",
+      "**Collapse either lane, from the lane itself.** **⇤** on any lane header folds *that* column away — your own as readily as your partner's — and **⇥** on the one still showing brings it back. The toolbar's Hide partner button is gone: with two split speeches on a flow it could no longer say which lane it meant. A group always keeps one lane on screen, so there is always a header to click. Collapsing stays purely visual and never changes what you send to the speech doc.",
+      "**Importing a speech doc fills your lane, not your partner's.** You can both import the same 1NC without landing on top of each other. Matching a doc to its column by filename works on split speeches again too.",
+      "**Quick cards keep their formatting.** Dragging or clicking one onto the flow dropped the underlining, the highlighting, emphasis and cite — everything arrived as flat text, and sending that cell on to the speech doc gave you an unmarked card. All of it survives now.",
       "**The what's-new panel only appears once.** It came back on every launch until you explicitly closed it, so quitting Nimbus while it was still open meant seeing it again the next time you opened the app.",
     ],
   },

@@ -2,7 +2,7 @@
 // debounced persistence. All mutations go through `mutate()` so history and
 // autosave can never be bypassed.
 
-import type { ArgRef, Cell, CellItem, Round, Sheet, Side, SpeechTemplate } from "./types";
+import type { ArgRef, Cell, CellItem, Round, Sheet, Side, Speech, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRoundJson } from "./persist";
 
@@ -89,11 +89,51 @@ class RoundStore {
    */
   private ctx = new Map<string, DocCtx>();
   /**
-   * Hide your partner's lane to declutter the flow. Session-only and PURELY
+   * Lane columns collapsed out of view, by SPEECH ID. Session-only and PURELY
    * VISUAL — it must never change what the doc export produces, or the same
    * flow would emit different speech docs depending on a view toggle.
+   * `argBeingAnswered` reads {@link laneHere}, never this.
+   *
+   * ⚠ Either lane collapses — yours as readily as your partner's. It used to be
+   * one boolean meaning "hide whichever lane isn't mine", which could not
+   * express "collapse my own and give their column the room".
    */
-  hidePartnerLane = $state(false);
+  hiddenLanes = $state<string[]>([]);
+
+  isLaneHidden(id: string): boolean {
+    return this.hiddenLanes.includes(id);
+  }
+
+  /** Lanes of `id`'s group that are still on screen. */
+  private visibleSiblings(sp: Speech): Speech[] {
+    return (this.round?.template.speeches ?? []).filter(
+      (s) => s.laneGroup === sp.laneGroup && !this.isLaneHidden(s.id),
+    );
+  }
+
+  /**
+   * Collapse this lane, or bring the group's hidden lanes back.
+   *
+   * ⚠ Refuses to hide a group's LAST visible lane. Hiding every lane of a group
+   * would take its headers off screen with them, leaving nothing to click to
+   * get any of it back — the column would be unreachable for the rest of the
+   * session. One lane always stays, and its header is what restores the other.
+   */
+  toggleLane(id: string): void {
+    const speeches = this.round?.template.speeches ?? [];
+    const sp = speeches.find((s) => s.id === id);
+    if (!sp?.laneGroup) return;
+    const hiddenInGroup = speeches.filter(
+      (s) => s.laneGroup === sp.laneGroup && this.isLaneHidden(s.id),
+    );
+    if (hiddenInGroup.length) {
+      const back = new Set(hiddenInGroup.map((s) => s.id));
+      this.hiddenLanes = this.hiddenLanes.filter((x) => !back.has(x));
+      return;
+    }
+    if (this.visibleSiblings(sp).length <= 1) return;
+    this.hiddenLanes = [...this.hiddenLanes, id];
+  }
   /**
    * The answer tile the caret is in, if any — `col` is the BLOCK's column and
    * `item` the part being answered.

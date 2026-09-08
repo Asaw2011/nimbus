@@ -107,11 +107,6 @@
     if (cur) store.replyToCell(cur.row, cur.col);
   }
 
-  /** Only meaningful on a round whose template actually has partner lanes. */
-  const hasLanes = $derived(
-    (store.round?.template.speeches ?? []).some((s) => !!s.laneGroup),
-  );
-
   // ---- prep clocks ---------------------------------------------------------
   // Click the time to correct it by hand. That is the point of the field, not a
   // nicety: the common failure in a real round is nobody stopping the clock
@@ -201,16 +196,10 @@
       <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("card")}><span class="lbl">Card</span><span class="ico">Cd</span></button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}><span class="lbl">➜ Extend</span><span class="ico">➜</span></button>
       <button class="rb reply" title="Answer this argument — jumps to your reply and links it, so sending to the doc writes “AT: this argument” ({combosLabel(km.replyToArg, mac)})" onclick={reply}><span class="lbl">↩ Answer</span><span class="ico">↩</span></button>
-      {#if hasLanes}
-        <button
-          class="rb lanetoggle"
-          class:on={store.hidePartnerLane}
-          title={store.hidePartnerLane
-            ? "Show your partner's lane again"
-            : "Hide your partner's lane — view only, it changes nothing you send to the doc"}
-          onclick={() => (store.hidePartnerLane = !store.hidePartnerLane)}
-        ><span class="lbl">{store.hidePartnerLane ? "Show partner" : "Hide partner"}</span><span class="ico">⇤</span></button>
-      {/if}
+      <!-- The lane collapse toggle used to live here. It moved onto each lane's
+           own column header: a flow can now carry TWO split speeches, and one
+           toolbar button cannot say which lane it means. Removing a button only
+           frees width, so the ribbon budget is unaffected. -->
       {#if onsendspeech}
         <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order — mirrors the flow and de-dupes. ({combosLabel(km.sendRowToDoc, mac)})" onclick={onsendspeech}><span class="lbl">↕ Send Entire Row</span><span class="ico">↕</span></button>
       {/if}

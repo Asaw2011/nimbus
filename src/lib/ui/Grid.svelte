@@ -21,12 +21,10 @@
   // In spread view every sheet renders the full range so speech columns
   // align vertically across all visible flows; pre-start cells are dead.
   const colStart = $derived(spread ? 0 : sheet.startCol);
-  // Your partner's lane can be hidden to declutter. Purely a view filter — the
-  // cells still exist and still export; only the rendering skips them.
+  // Either lane can be collapsed to declutter. Purely a view filter — the cells
+  // still exist and still export; only the rendering skips them.
   const visibleSpeeches = $derived(
-    speeches
-      .slice(colStart)
-      .filter((s) => !(store.hidePartnerLane && isOtherLane(s, store.laneHere))),
+    speeches.slice(colStart).filter((s) => !store.isLaneHidden(s.id)),
   );
   // Color follows the SPEECH, not the page: aff columns blue, neg columns
   // red on every sheet — like flowing with two pens. Template-driven, so it
@@ -45,11 +43,7 @@
   const colIdx = $derived(
     speeches
       .map((_, c) => c)
-      .filter(
-        (c) =>
-          c >= colStart &&
-          !(store.hidePartnerLane && isOtherLane(speeches[c], store.laneHere)),
-      ),
+      .filter((c) => c >= colStart && !store.isLaneHidden(speeches[c].id)),
   );
 
   /**
@@ -498,6 +492,12 @@
       {@const speech = speeches[c]}
       {@const otherLane = isOtherLane(speech, store.laneHere)}
       {@const abbrHere = laneAbbr(speech, store.laneHere)}
+      <!-- Lane collapse lives on the lane itself, not the ribbon: with more than
+           one split speech on a flow, a single toolbar button cannot say WHICH
+           lane it means. `restores` is the group's other lane already being
+           hidden, in which case this header is the only way back. -->
+      {@const restores = !!speech.laneGroup
+        && speeches.some((s) => s.laneGroup === speech.laneGroup && store.isLaneHidden(s.id))}
       <div
         class="header"
         class:aff={speech.side === "aff"}
@@ -508,8 +508,8 @@
         class:editing={editingCol === c}
         title={editingCol === c
           ? ""
-          : otherLane
-            ? `${laneLabel(speech, store.laneHere)} — click to hide, double-click to rename`
+          : speech.laneGroup
+            ? `${laneLabel(speech, store.laneHere)} (double-click to rename)`
             : `${laneLabel(speech, store.laneHere)} (double-click to rename)`}
         ondblclick={() => startRenameHeader(c, abbrHere)}
       >
@@ -528,14 +528,15 @@
           />
         {:else}
           {abbrHere}
-          {#if otherLane}
-            <!-- Click-to-hide on the lane itself: the ribbon button is the
-                 discoverable path, this is the one you reach for mid-round. -->
+          {#if speech.laneGroup}
             <button
               class="lane-hide"
-              title="Hide your partner's lane (view only)"
-              onclick={() => (store.hidePartnerLane = true)}
-            >⇤</button>
+              class:restoring={restores}
+              title={restores
+                ? "Bring the other lane back"
+                : `Collapse ${otherLane ? "your partner's" : "your"} lane — view only, it changes nothing you send to the doc`}
+              onclick={(e) => { e.stopPropagation(); store.toggleLane(speech.id); }}
+            >{restores ? "⇥" : "⇤"}</button>
           {/if}
         {/if}
       </div>
