@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { isOtherLane, sourceCol, type Row, type Sheet } from "../model/types";
+  import { isOtherLane, laneAbbr, laneLabel, sourceCol, type Row, type Sheet } from "../model/types";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import { matchesAny } from "../model/keymap";
@@ -497,6 +497,7 @@
     {#each colIdx as c (speeches[c].id)}
       {@const speech = speeches[c]}
       {@const otherLane = isOtherLane(speech, store.laneHere)}
+      {@const abbrHere = laneAbbr(speech, store.laneHere)}
       <div
         class="header"
         class:aff={speech.side === "aff"}
@@ -508,9 +509,9 @@
         title={editingCol === c
           ? ""
           : otherLane
-            ? `${speech.label} — click to hide, double-click to rename`
-            : `${speech.label} (double-click to rename)`}
-        ondblclick={() => startRenameHeader(c, speech.abbr)}
+            ? `${laneLabel(speech, store.laneHere)} — click to hide, double-click to rename`
+            : `${laneLabel(speech, store.laneHere)} (double-click to rename)`}
+        ondblclick={() => startRenameHeader(c, abbrHere)}
       >
         {#if editingCol === c}
           <!-- svelte-ignore a11y_autofocus -->
@@ -526,7 +527,7 @@
             }}
           />
         {:else}
-          {speech.abbr}
+          {abbrHere}
           {#if otherLane}
             <!-- Click-to-hide on the lane itself: the ribbon button is the
                  discoverable path, this is the one you reach for mid-round. -->

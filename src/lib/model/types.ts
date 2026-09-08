@@ -212,6 +212,51 @@ export function isOtherLane(sp: Speech | undefined, myLane: number): boolean {
   return !!sp?.laneGroup && sp.lane !== myLane;
 }
 
+/**
+ * A lane column's name from the point of view of whoever is looking at it.
+ *
+ * ⚠ `splitForSide` bakes "You" and "Partner" into the lane's stored `abbr` and
+ * `label` when the round is CREATED, so they carry the creator's point of view
+ * and travel unchanged to a partner in the join snapshot. That left both
+ * clients showing "You" on the host's column and "Partner" on the guest's own —
+ * reported from a real round. The lane a client owns is `laneHere`, so the
+ * suffix is resolved against that HERE, at render time.
+ *
+ * ⚠ Display only. The stored string is deliberately left alone: `abbr` is
+ * shared state, so rewriting it to suit one client would push that client's
+ * point of view onto the other. Two clients seeing different text for the same
+ * column is the correct outcome, not a bug.
+ *
+ * A header the user has renamed no longer matches the generated shape and is
+ * returned verbatim — an explicit rename outranks the swap.
+ */
+function lanePov(
+  sp: Speech | undefined,
+  laneHere: number,
+  text: string,
+  sep: string,
+  mine: string,
+  theirs: string,
+): string {
+  if (!sp) return "";
+  if (!sp.laneGroup) return text;
+  const at = text.lastIndexOf(sep);
+  if (at < 0) return text;
+  const suffix = text.slice(at + sep.length);
+  if (suffix !== mine && suffix !== theirs) return text; // renamed — leave it
+  return text.slice(0, at) + sep + (sp.lane === laneHere ? mine : theirs);
+}
+
+/** Column header text for `sp`, with any lane suffix in the reader's terms. */
+export function laneAbbr(sp: Speech | undefined, laneHere: number): string {
+  return lanePov(sp, laneHere, sp?.abbr ?? "", " · ", "You", "Partner");
+}
+
+/** Full speech name for `sp`, with any lane suffix in the reader's terms. */
+export function laneLabel(sp: Speech | undefined, laneHere: number): string {
+  return lanePov(sp, laneHere, sp?.label ?? "", " — ", "you", "partner");
+}
+
 /** The lane columns of a group, in lane order. Empty when `id` isn't a group. */
 export function laneCols(template: SpeechTemplate, laneGroup: string): number[] {
   const out: number[] = [];

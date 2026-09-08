@@ -4,6 +4,7 @@
   // round, then forget about. Live status lives in the ribbon instead.
   import { session, type SessionMode } from "$lib/model/session.svelte";
   import { store } from "$lib/model/round.svelte";
+  import { laneAbbr } from "$lib/model/types";
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -11,10 +12,15 @@
   let hostMode = $state<SessionMode>("shared");
   let copied = $state(false);
 
+  // Names YOUR lane, so it has to read from your point of view - the stored
+  // abbr is the round creator's. See laneAbbr.
   const laneName = $derived(
-    (store.round?.template.speeches ?? []).find(
-      (s) => !!s.laneGroup && s.lane === store.laneHere,
-    )?.abbr ?? "",
+    laneAbbr(
+      (store.round?.template.speeches ?? []).find(
+        (s) => !!s.laneGroup && s.lane === store.laneHere,
+      ),
+      store.laneHere,
+    ),
   );
   const hasLanes = $derived(
     (store.round?.template.speeches ?? []).some((s) => !!s.laneGroup),
