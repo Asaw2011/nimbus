@@ -204,13 +204,15 @@
           <ul>
             <li>
               Flowing <b>neg</b> you get two <b>2AC</b> columns and two
-              <b>1AR</b> columns. Flowing <b>aff</b>, two <b>1NC</b> columns and
-              two <b>Neg Block</b> columns.
+              <b>1AR</b> columns. Flowing <b>aff</b>, two <b>1NC</b>, two
+              <b>Neg Block</b> and two <b>2NR</b> columns.
             </li>
             <li>
-              Their first speech and their last rebuttal are never split — a 1AC
-              is read off a prepared document, and nobody is prepping through a
-              2NR.
+              Two speeches never split: a <b>1AC</b>, because it is read off a
+              prepared document, and whichever speech <em>closes the round</em>,
+              because there is nothing left to prep behind it. That is why the
+              2NR gets lanes and the 2AR does not — flowing aff you are taking
+              the 2NR down while your partner writes the 2AR.
             </li>
             <li>Both lanes answer the <b>same</b> speech, not each other.</li>
             <li>

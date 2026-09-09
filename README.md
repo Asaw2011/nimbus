@@ -70,7 +70,8 @@ are done. Nimbus tells you what changed the first time you open a new version.
 - **Partner lanes** — pick your side when you make a flow and every opponent
   speech you have to flow while your partner preps splits into a column each, so
   you aren't typing over each other. Flowing neg that's two 2AC columns and two
-  1AR columns; flowing aff, two 1NC and two Neg Block. Each of you sees your own
+  1AR columns; flowing aff, two 1NC, two Neg Block and two 2NR. Only a 1AC and
+  the speech that closes the round stay single. Each of you sees your own
   lane headed **You** and the other **Partner**, and **⇤** on any lane header
   collapses that lane — yours or theirs — without changing a thing you send to
   the speech doc. Importing a speech doc fills *your* lane, not your partner's

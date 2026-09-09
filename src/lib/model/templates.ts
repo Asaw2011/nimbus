@@ -75,10 +75,17 @@ export function builtinTemplates(): SpeechTemplate[] {
  * working for renamed speeches, for LD, and for PF either way round.
  *
  * Two exclusions, both of them the reason this isn't just "all their speeches":
- *  - their LAST speech is the final rebuttal. Nobody is prepping through it.
  *  - their first speech only gets lanes if it is not the very first speech of
  *    the round. A 1AC is read off a prepared document; a 1NC is not, which is
  *    exactly why the 1NC wants two lanes and the 1AC does not.
+ *  - their last speech only loses its lanes if it CLOSES THE ROUND.
+ *
+ * ⚠ That second rule is not "drop their final rebuttal", which is what it said
+ * first and which was wrong. Flowing aff you flow the 2NR while your partner is
+ * writing the 2AR — that is exactly the case lanes exist for, and it was being
+ * excluded. Flowing neg the 2AR is the last thing that happens in the round and
+ * there is nothing left to prep behind it, so that one really does not want
+ * lanes. The asymmetry is real, not an oversight.
  *
  * Returns the indices ascending. Empty when there is nothing worth splitting.
  */
@@ -90,7 +97,8 @@ export function splitTargetsFor(template: SpeechTemplate, side: Side): number[] 
     if (s.side === opponent) idx.push(i);
   });
   if (!idx.length) return [];
-  idx.pop(); // their final rebuttal
+  // Closes the round → nobody is prepping behind it.
+  if (idx[idx.length - 1] === template.speeches.length - 1) idx.pop();
   if (idx[0] === 0) idx.shift(); // a 1AC, i.e. the round's opening speech
   return idx;
 }

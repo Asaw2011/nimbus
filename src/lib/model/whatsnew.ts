@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.4",
+    headline: "The 2NR gets partner lanes too.",
+    items: [
+      "**Two 2NR columns when you flow aff.** 1.2.3 left the 2NR out, which was wrong: flowing aff you are taking the 2NR down while your partner writes the 2AR, which is exactly what lanes are for. Flowing aff now splits the **1NC**, the **Neg Block** *and* the **2NR**.",
+      "**The 2AR still doesn't split, on purpose.** The only speeches left single are a 1AC — read off a prepared document — and whichever speech closes the round, because there is nothing left to prep behind it. Both new columns collapse from their own header like every other lane.",
+    ],
+  },
+  {
     version: "1.2.3",
     headline: "A lane for every speech you have to flow, and either one collapses.",
     items: [
