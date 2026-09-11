@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.6",
+    headline: "Partner flowing survives a dropped connection.",
+    items: [
+      "**Edits made while your connection is down now arrive when it comes back.** If you lost wifi for a few seconds and kept flowing — importing a 1NC, say — that work could be dropped without ever reaching your partner, and nothing would re-send it. Your partner's edits still reached you, so it looked like a one-way connection rather than lost work. Anything you flow while the connection is down is now sent the moment it returns.",
+      "**The partner button tells you when you're not connected.** It only showed \"live\" or nothing, so a session that had *dropped* looked exactly like no session at all. A live session that isn't currently connected now turns amber and says so on the toolbar, and \"live\" means your partner is actually there — not just that the server answered.",
+      "**Reopen a flow and you can jump straight back into its session.** Closing Nimbus or stepping out of a flow used to lose the room, so someone had to read the six-character code out again. The partner panel now offers **Rejoin** on the flow you were sharing. Hosting resumes the same code, so your partner reconnects on their own. It never reconnects by itself — joining replaces your flow with your partner's copy, so that stays your decision.",
+    ],
+  },
+  {
     version: "1.2.5",
     headline: "Two fixes from real rounds.",
     items: [

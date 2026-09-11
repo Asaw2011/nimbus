@@ -233,6 +233,19 @@
               top of each other.
             </li>
             <li>The side is chosen when the flow is created and can't be switched later.</li>
+            <li>
+              <b>If the connection drops</b>, the partner button turns amber and
+              says <b>reconnecting</b> — keep flowing, and everything you write
+              is sent as soon as it comes back. It only says <b>live</b> when
+              your partner is actually there.
+            </li>
+            <li>
+              <b>Rejoining.</b> Reopen a flow you were sharing and the partner
+              panel offers the room back. Hosting resumes the same code, so your
+              partner reconnects on their own; joining needs their approval
+              again. It never reconnects by itself — joining replaces your flow
+              with their copy, so that stays your call.
+            </li>
           </ul>
         </section>
 
