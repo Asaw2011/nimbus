@@ -29,7 +29,39 @@
 import { store } from "./round.svelte";
 import { auth } from "./auth.svelte";
 import { openChannel, makeRoomCode, normalizeCode, type Channel, type PresencePeer } from "./realtime";
+import { loadBlobCached, saveBlob } from "./blobs";
 import type { Cell, Round, Sheet, SheetKind } from "./types";
+
+/** Where the last room is remembered, so reopening a flow can offer it back. */
+const RESUME_BLOB = "partner-resume";
+/**
+ * How long a room stays worth offering.
+ *
+ * A tournament day, not a week: the point is walking back into the round you
+ * were just in, and an offer to rejoin something from yesterday is noise at
+ * best and confusing at worst.
+ */
+const RESUME_TTL_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * The room a flow was last shared in.
+ *
+ * ⚠ A HINT, NEVER AN ACTION. Nothing in here reconnects on its own. Sync must
+ * not run without an explicit act, and it must never reach the launch path —
+ * so this is only ever read to draw a button, and `resume()` is only ever
+ * reached from a click. Two reasons that matters beyond the rule: a shared
+ * session arrives as "adopt", which REPLACES the joiner's flow, so a silent
+ * reconnect could overwrite work you had just reopened; and rejoining announces
+ * you to whoever is in that room.
+ */
+interface ResumeHint {
+  code: string;
+  mode: SessionMode;
+  role: "host" | "guest";
+  /** The flow it was attached to — the offer only appears on that flow. */
+  roundId: string;
+  at: number;
+}
 
 /** Diff cadence. Fast enough to feel live, slow enough that a burst of typing
  *  is one message rather than one per keystroke. */
@@ -293,16 +325,86 @@ class SessionStore {
   // ---- lifecycle ----------------------------------------------------------
 
   /** Start a session and become lane 0. Returns the code to read out. */
-  host(mode: SessionMode = "shared"): string {
+  /**
+   * Start hosting. `code` re-opens a specific room instead of making a new one,
+   * which is what resuming needs — a fresh code would leave the partner
+   * knocking on a room number that no longer exists.
+   */
+  host(mode: SessionMode = "shared", code?: string): string {
     if (!store.round) return "";
     this.reset();
     this.mode = mode;
-    this.code = makeRoomCode();
+    this.code = code ?? makeRoomCode();
     this.role = "host";
     this.status = "hosting";
     store.myLane = 0;
     this.open();
+    this.remember();
     return this.code;
+  }
+
+  // ---- resuming a room -----------------------------------------------------
+
+  /** Remember the room against the flow it is attached to. */
+  private remember(): void {
+    const roundId = store.round?.id;
+    if (!roundId || !this.code || !this.role) return;
+    const hint: ResumeHint = {
+      code: this.code,
+      mode: this.mode,
+      role: this.role,
+      roundId,
+      at: Date.now(),
+    };
+    this.hint = hint;
+    void saveBlob(RESUME_BLOB, hint);
+  }
+
+  /** In-memory mirror of the stored hint, so the UI needn't hit disk. */
+  private hint = $state<ResumeHint | null>(
+    typeof window === "undefined" ? null : loadBlobCached<ResumeHint>(RESUME_BLOB),
+  );
+
+  /**
+   * The room this flow can be put back into, or null.
+   *
+   * ⚠ Deliberately narrow. It has to be THIS flow, recent, and there must be no
+   * session already running — otherwise the panel would offer to rejoin a room
+   * you are sitting in.
+   */
+  get resumable(): ResumeHint | null {
+    if (this.active) return null;
+    const h = this.hint;
+    if (!h?.code || !h.roundId) return null;
+    if (h.roundId !== store.round?.id) return null;
+    if (Date.now() - (h.at ?? 0) > RESUME_TTL_MS) return null;
+    return h;
+  }
+
+  /**
+   * Put this flow back in its room. Only ever called from a click.
+   *
+   * Runs the ordinary host/join paths rather than anything bespoke, so the
+   * pairing, approval and snapshot rules are exactly the ones already proven —
+   * this is a shortcut for typing the code, not a second way in. A dead room
+   * therefore fails the way a wrong code fails.
+   *
+   * ⚠ The host re-opens the SAME code. Guests keep knocking every few seconds
+   * while they wait, so a host who restarts is found again without anyone
+   * re-reading a code aloud. The guest is still approved by hand: that prompt
+   * is what stops a stranger walking into the room.
+   */
+  resume(): void {
+    const h = this.resumable;
+    if (!h) return;
+    if (h.role === "host") this.host(h.mode, h.code);
+    else this.join(h.code);
+  }
+
+  /** Forget the room — used when a session is ended on purpose. */
+  private forget(): void {
+    this.hint = null;
+    void saveBlob(RESUME_BLOB, null);
   }
 
   /** Join a partner's session as lane 1. */
@@ -317,6 +419,7 @@ class SessionStore {
     this.role = "guest";
     this.status = "joining";
     this.open();
+    this.remember();
     this.sayHello();
     // Ask again on a timer. Covers a hello lost before the channel finished
     // joining AND, more importantly, a snapshot that was sent while this
@@ -368,8 +471,17 @@ class SessionStore {
   }
 
   /** End the session. The flow stays exactly as it is, on both sides. */
+  /**
+   * End the session on purpose.
+   *
+   * ⚠ Forgets the room, so "End session" means ended — no offer to rejoin it
+   * afterwards. That is the whole distinction the resume hint turns on: closing
+   * Nimbus, or stepping out of the flow, leaves the room on offer; pressing
+   * this says you are done with it.
+   */
   leave(): void {
     this.ch?.broadcast("bye", { clientId: this.clientId });
+    this.forget();
     this.reset();
   }
 

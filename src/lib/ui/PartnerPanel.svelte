@@ -61,6 +61,29 @@
         </div>
       {/if}
 
+      <!-- This flow was in a room recently and isn't now — because Nimbus was
+           closed, or you stepped out of the flow. Offered, never automatic:
+           a shared session REPLACES the joiner's flow, so reconnecting on its
+           own could overwrite the work you just reopened. -->
+      {#if session.resumable}
+        {@const r = session.resumable}
+        <div class="pp-resume">
+          <div>
+            <strong>Pick up where you left off</strong>
+            <div class="pp-sub">
+              This flow was shared in room <strong>{r.code}</strong>
+              {r.role === "host" ? "— you were hosting" : "— you joined it"}.
+              {r.role === "host"
+                ? "Reopening it puts you back on the same code, so your partner reconnects on their own."
+                : "You'll need your partner to approve you again."}
+            </div>
+          </div>
+          <button class="pp-primary" onclick={() => session.resume()}>
+            Rejoin {r.code}
+          </button>
+        </div>
+      {/if}
+
       <div class="pp-two">
         <div class="pp-card">
           <div class="pp-card-t">Start a session</div>
@@ -206,4 +229,16 @@
   .pp-err { border: 1px solid var(--mark-dropped, #c0392b); color: var(--mark-dropped, #c0392b); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
   .pp-warn { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--text-dim); line-height: 1.45; }
   .pp-fine { margin: 0; font-size: 11px; color: var(--text-dim); }
+  .pp-resume {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .pp-resume .pp-sub { margin-top: 2px; }
+  .pp-resume button { flex: none; }
 </style>
