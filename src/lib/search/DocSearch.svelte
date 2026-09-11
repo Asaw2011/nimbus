@@ -139,16 +139,41 @@
     onclose();
   }
 
+  /**
+   * Last line of defence for the keyed lists below.
+   *
+   * ⚠ Both `{#each}`s here key on the file path, and in Svelte 5 a repeated key
+   * is a FATAL error (`each_key_duplicate`) — not a warning, not a double row:
+   * the panel throws and Doc Search will not open at all. A Mac user hit exactly
+   * that because his library roots overlapped, so the same file was indexed
+   * twice under a byte-identical path.
+   *
+   * The scanner and the index both de-duplicate now, so this should never fire.
+   * It stays because the consequence is so out of proportion to the cause: no
+   * arrangement of someone's folders, and no index cached by an older build,
+   * should be able to make a whole feature unreachable.
+   */
+  function uniqueByPath<T>(rows: T[], pathOf: (row: T) => string): T[] {
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      const p = pathOf(r);
+      if (seen.has(p)) return false;
+      seen.add(p);
+      return true;
+    });
+  }
+
   // ── file list ──────────────────────────────────────────────────
-  const fileResults = $derived(fileIndex.search(query, 200));
+  const fileResults = $derived(uniqueByPath(fileIndex.search(query, 200), (f) => f.path));
 
   // ── content results (by-content search) ────────────────────────
   // Reference contentIndex.version so this recomputes as the index builds.
   const contentResults = $derived.by(() => {
     contentIndex.version;
-    return searchBy === "content" && query.trim()
+    const hits = searchBy === "content" && query.trim()
       ? contentIndex.search(query, 100)
       : [];
+    return uniqueByPath(hits, (h) => h.file.path);
   });
 
   // Kick off the (incremental, cached) content build when the user switches to

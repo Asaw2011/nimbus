@@ -16,6 +16,22 @@ export interface LibFile {
 
 const CACHE_BLOB = "file-index";
 
+/**
+ * Drop repeated paths.
+ *
+ * ⚠ The result lists are keyed on `file.path`, and a duplicate key is a FATAL
+ * Svelte render error — the whole Doc Search panel refuses to open rather than
+ * showing one row twice. The scanner no longer emits repeats, but an index
+ * CACHED BY AN EARLIER BUILD still contains them and is loaded straight off
+ * disk at startup, so filtering only in Rust would leave anyone already
+ * affected broken until something happened to trigger a rescan. Cheap enough to
+ * run on every assignment and it makes the crash unreachable from stored data.
+ */
+function byUniquePath(files: LibFile[]): LibFile[] {
+  const seen = new Set<string>();
+  return files.filter((f) => (seen.has(f.path) ? false : (seen.add(f.path), true)));
+}
+
 class FileIndexStore {
   files = $state<LibFile[]>([]);
   scanning = $state(false);
@@ -26,7 +42,7 @@ class FileIndexStore {
     // Load cached index immediately for instant first paint
     const cached = loadBlobCached<{ files: LibFile[]; scannedAt: number }>(CACHE_BLOB);
     if (cached?.files) {
-      this.files = cached.files;
+      this.files = byUniquePath(cached.files);
       this.lastScanned = cached.scannedAt ?? 0;
     }
     // Rescan in background when app starts
@@ -38,7 +54,7 @@ class FileIndexStore {
       if (!cached?.files) {
         void loadBlob<{ files: LibFile[]; scannedAt: number }>(CACHE_BLOB).then((disk) => {
           if (this.scanDone || !disk?.files) return;
-          this.files = disk.files;
+          this.files = byUniquePath(disk.files);
           this.lastScanned = disk.scannedAt ?? 0;
         });
       }
@@ -73,10 +89,12 @@ class FileIndexStore {
     this.error = "";
 
     try {
-      const files = await invoke<LibFile[]>("scan_library_roots", { roots });
+      const files = byUniquePath(await invoke<LibFile[]>("scan_library_roots", { roots }));
       this.scanDone = true;
       this.files = files;
       this.lastScanned = Date.now();
+      // Persist the DEDUPED list — writing the raw one back would just reseed
+      // the bad cache for the next launch.
       saveBlob(CACHE_BLOB, { files, scannedAt: this.lastScanned });
     } catch (err) {
       // Keep last known index; show non-blocking error

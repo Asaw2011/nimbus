@@ -3,6 +3,7 @@
 // app regains focus. No caching here — the frontend owns the cache.
 
 use serde::Serialize;
+use std::collections::HashSet;
 use std::time::UNIX_EPOCH;
 use walkdir::WalkDir;
 
@@ -33,6 +34,15 @@ pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
     const MAX_FILES: usize = 50_000;
 
     let mut files: Vec<LibFile> = Vec::new();
+    // ⚠ The same file can be reached more than once, and the UI keys its result
+    // lists on the path — a repeat is a duplicate key, which is a FATAL Svelte
+    // render error, so Doc Search simply refuses to open. Two ways it happens:
+    // overlapping library roots (adding a folder and something inside it walks
+    // the inner tree twice, yielding byte-identical paths), and `follow_links`
+    // below, which we need for Dropbox on macOS but which lets a symlink lead
+    // back into a tree already being walked. Reported by a Mac user whose
+    // roots overlapped; other people's did not, so it looked machine-specific.
+    let mut seen: HashSet<String> = HashSet::new();
 
     'outer: for root in &roots {
         let walker = WalkDir::new(root)
@@ -95,8 +105,14 @@ pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
                 .unwrap_or("")
                 .to_string();
 
+            let path_str = path.to_string_lossy().to_string();
+            // First sighting wins; a repeat is the same file reached twice.
+            if !seen.insert(path_str.clone()) {
+                continue;
+            }
+
             files.push(LibFile {
-                path: path.to_string_lossy().to_string(),
+                path: path_str,
                 name,
                 ext,
                 mtime,
