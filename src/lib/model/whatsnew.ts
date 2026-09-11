@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.5",
+    headline: "Two fixes from real rounds.",
+    items: [
+      "**You see everything your partner types, not just the first letter.** If your cursor was parked on a cell while your partner typed into it, only their first character ever appeared — a whole sentence would arrive and you would see one letter, with nothing on screen to tell you anything was missing. The cell now keeps up live. Typing in a cell yourself still protects what you are writing: a partner's edit won't yank the text out from under you mid-word.",
+      "**Doc Search opens when your library folders overlap.** If you had added a folder *and* a folder inside it, the same file was indexed twice and Doc Search refused to open at all. It now ignores the repeat. If this was happening to you, it fixes itself on first launch — you don't need to change your folders.",
+    ],
+  },
+  {
     version: "1.2.4",
     headline: "The 2NR gets partner lanes too.",
     items: [
