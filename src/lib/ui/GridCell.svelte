@@ -344,10 +344,26 @@
     }, 0);
   }
 
-  // Set text imperatively. We skip re-painting a focused, non-empty editor to
-  // avoid caret jumps mid-typing — BUT a focused-yet-empty editor means the
-  // cursor just landed here on load (e.g. the LABEL cell), so we must paint it
-  // or the value shows blank even though the data has it.
+  /** When this cell last took a keystroke, for the repaint guard below. */
+  let lastTypedAt = 0;
+  /**
+   * How long after your last keystroke a focused cell refuses remote repaints.
+   *
+   * Long enough to cover the gap between words, short enough that a partner's
+   * edit shows up while you sit and read it.
+   */
+  const TYPING_HOLDOFF_MS = 1200;
+
+  // Set text imperatively. We skip re-painting a focused editor WHILE YOU ARE
+  // TYPING, to avoid caret jumps mid-word.
+  //
+  // ⚠ This used to skip any focused, non-empty editor, and that silently ate
+  // your partner's work. Park your cursor on a cell in a live session and their
+  // first keystroke paints (the editor is still empty, the old escape hatch),
+  // after which the cell is non-empty and EVERY later delta is dropped — so a
+  // whole sentence arrived and you saw one character, with no error and nothing
+  // in the data wrong. Reported from a real session. "Focused" is not "typing":
+  // the holdoff is what tells them apart.
   $effect(() => {
     if (!editor) return;
     // Reference cell.author so the effect repaints when the banked author changes.
@@ -356,12 +372,43 @@
     guard("GridCell.paint", () => {
       if (!editor || (editor.textContent === cell.text && !authorNeedsPaint())) return;
       const focused = document.activeElement === editor;
-      if (!focused || editor.textContent === "") {
+      const typingNow = Date.now() - lastTypedAt < TYPING_HOLDOFF_MS;
+      if (!focused || !typingNow || editor.textContent === "") {
         paint();
         if (focused) placeCaretAtEnd();
+      } else {
+        // Held off because you were mid-word. Nothing re-runs this effect on its
+        // own, so without the retry a delta that lands between two keystrokes is
+        // never painted at all — the same silent loss in a narrower window.
+        repaintAfterTyping();
       }
     });
   });
+
+  /**
+   * Re-check once your typing pause is over, and paint then.
+   *
+   * Only ever paints when the DOM still disagrees with the data, so it cannot
+   * clobber you: if you typed after their delta the cell already holds YOUR
+   * text and the two match. It repaints exactly when the last write was theirs.
+   */
+  let repaintTimer: ReturnType<typeof setTimeout> | null = null;
+  function repaintAfterTyping(): void {
+    if (repaintTimer) clearTimeout(repaintTimer);
+    repaintTimer = setTimeout(() => {
+      repaintTimer = null;
+      if (!editor) return;
+      const focused = document.activeElement === editor;
+      // Still going — wait out the new keystroke rather than interrupting it.
+      if (focused && Date.now() - lastTypedAt < TYPING_HOLDOFF_MS) {
+        repaintAfterTyping();
+        return;
+      }
+      if (editor.textContent === cell.text && !authorNeedsPaint()) return;
+      paint();
+      if (focused) placeCaretAtEnd();
+    }, TYPING_HOLDOFF_MS);
+  }
 
   /** True when the DOM isn't yet showing the bold-author markup it should. */
   function authorNeedsPaint(): boolean {
@@ -444,6 +491,9 @@
 
   function oninput() {
     if (!editor) return;
+    // Stamped on every keystroke so the repaint effect can tell someone who is
+    // MID-WORD from someone merely parked in the cell. See TYPING_HOLDOFF_MS.
+    lastTypedAt = Date.now();
     // Typing means we're editing, not sitting on a whole-cell selection.
     if (store.selectAll) store.selectAll = false;
     const raw = editor.textContent ?? "";
