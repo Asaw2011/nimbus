@@ -79,6 +79,19 @@
   /** The argument-bank manager (edit what ⌘J draws from). */
   let showBank = $state(false);
   let showPartner = $state(false);
+  /**
+   * The partner button has THREE states, not two.
+   *
+   * `session.active` is "a session exists", `status` is "the relay is
+   * answering", `peerOnline` is "they are actually there" — and all three can
+   * disagree. Only the combination is trustworthy, so it is computed once here
+   * rather than re-derived at each use.
+   *
+   * ⚠ Not `{@const}` in the markup: Svelte only allows those as the immediate
+   * child of a block, never of a plain element.
+   */
+  const partnerOk = $derived(session.status === "connected" && session.peerOnline);
+  const partnerTrouble = $derived(session.active && !partnerOk);
   /** Just the local part of the partner's email — a top-bar tab has no room
    *  for "reian@nimbusdebate.com's". */
   const peerFirstName = $derived.by(() => {
@@ -1154,16 +1167,36 @@
       </div>
       <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})">⏱<span class="btn-lbl">Timer</span></button>
       <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers">🗃<span class="btn-lbl">Arguments</span></button>
+      <!-- ⚠ THREE states, not two. This used to be `connected ? live : idle`,
+           so a session that had dropped looked EXACTLY like no session at all —
+           same icon, same label, same colour. Mid-round that is the one thing
+           you cannot afford to be ambiguous: a partner reported losing the
+           connection, carrying on flowing, and only finding out later that
+           nothing had reached the other side. A live session that is not
+           currently delivering now says so on the toolbar, where you can see it
+           without opening anything.
+           `session.active` is "a session exists", `status` is "the relay is
+           answering", `peerOnline` is "they are actually there" — all three can
+           disagree, and the worrying combinations must not read as healthy. -->
       <button
         class="icon-btn"
         class:active={showPartner}
-        class:live={session.status === "connected"}
+        class:live={partnerOk}
+        class:trouble={partnerTrouble}
         onclick={() => (showPartner = !showPartner)}
         title={session.active
-          ? `Partner session ${session.code} — ${session.peerOnline ? "connected" : "reconnecting"}`
+          ? partnerOk
+            ? `Partner session ${session.code} — connected, edits are reaching ${session.peerEmail}`
+            : `Partner session ${session.code} — NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
           : "Flow with a partner — share this flow live"}
-      >{session.status === "connected" ? "👥" : "👤"}<span class="btn-lbl"
-        >{session.status === "connected" ? "Partner · live" : "Partner flow"}</span
+      >{partnerOk ? "👥" : partnerTrouble ? "⚠" : "👤"}<span class="btn-lbl"
+        >{partnerOk
+          ? "Partner · live"
+          : partnerTrouble
+            ? session.status === "joining"
+              ? "Partner · joining"
+              : "Partner · reconnecting"
+            : "Partner flow"}</span
       ></button>
       <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works">📖<span class="btn-lbl">Manual</span></button>
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙<span class="btn-lbl">Settings</span></button>
@@ -1578,6 +1611,15 @@
     border-color: #2e8b57;
     color: #2e8b57;
     background: color-mix(in srgb, #2e8b57 16%, transparent);
+  }
+  /* A live session that is NOT currently delivering. Deliberately loud: the
+     failure this replaces was silent, and amber next to the green "live" state
+     is the whole point — you must be able to tell them apart at a glance,
+     mid-speech, without reading the label. */
+  .icon-btn.trouble {
+    border-color: #b8860b;
+    color: #b8860b;
+    background: color-mix(in srgb, #b8860b 18%, transparent);
   }
   .join-toast {
     position: fixed;

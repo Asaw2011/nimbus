@@ -299,18 +299,32 @@ export class Channel {
     });
   }
 
-  /** Send a broadcast. Queued (not dropped) while the socket is down. */
-  broadcast(event: string, payload: unknown): void {
-    if (this.closed) return;
+  /**
+   * Send a broadcast. Queued (not dropped) while the socket is down.
+   *
+   * Returns TRUE only if the frame actually went out. Queued is not sent, and
+   * `joined` is not the same as deliverable: a socket can be closing, or
+   * already dead, while we still think we are joined — so callers that must
+   * know whether the far side really got it have to read this, not `joined`.
+   *
+   * `queueIfDown: false` is for traffic that REGENERATES itself — the cell
+   * diff, which recomputes from scratch every tick. Queueing that is pointless
+   * and actively harmful: it fills the outbox with work the next diff would
+   * produce anyway, and an outbox that overflows is what marks the session
+   * desynced.
+   */
+  broadcast(event: string, payload: unknown, queueIfDown = true): boolean {
+    if (this.closed) return false;
     if (!this.joined) {
+      if (!queueIfDown) return false;
       this.outbox.push({ event, payload });
       if (this.outbox.length > Channel.OUTBOX_LIMIT) {
         this.outbox.shift();
         this.overflowed = true;
       }
-      return;
+      return false;
     }
-    this.send({
+    return this.send({
       topic: this.topic,
       event: "broadcast",
       payload: { type: "broadcast", event, payload },
@@ -328,12 +342,15 @@ export class Channel {
     for (const q of queued) this.broadcast(q.event, q.payload);
   }
 
-  private send(frame: Record<string, unknown>): void {
-    if (this.ws?.readyState !== WebSocket.OPEN) return;
+  /** True only when the frame actually reached the wire. */
+  private send(frame: Record<string, unknown>): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
     try {
       this.ws.send(JSON.stringify({ ...frame, ref: String(++this.ref) }));
+      return true;
     } catch {
       // A send can fail on a socket that is closing; onclose drives recovery.
+      return false;
     }
   }
 

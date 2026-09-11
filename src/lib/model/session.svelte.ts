@@ -547,12 +547,32 @@ class SessionStore {
     for (const doc of this.syncedDocs()) {
       const snap = $state.snapshot(doc) as Round;
       const { deltas, next } = diffRound(snap, this.shadows.get(doc.id) ?? emptyShadow());
-      this.shadows.set(doc.id, next);
-      if (!deltas.length) continue;
+      if (!deltas.length) {
+        this.shadows.set(doc.id, next);
+        continue;
+      }
       // One message per document per batch — a burst of typing is one frame.
       // `doc` is what lets the far side put these on the right flow; without it
       // an edit to your partner's page would land on your own.
-      this.ch?.broadcast("delta", { from: this.clientId, doc: doc.id, deltas });
+      const sent = this.ch?.broadcast("delta", { from: this.clientId, doc: doc.id, deltas }, false) ?? false;
+      // ⚠ THE SHADOW IS "WHAT THEY HAVE", NOT "WHAT I LAST LOOKED AT".
+      //
+      // It used to advance every tick whether or not the frame went anywhere,
+      // so anything composed while the socket was down was diffed out exactly
+      // once and then considered delivered forever. Drop your wifi for a few
+      // seconds, import a 1NC, come back: the import was queued, the queue
+      // overflowed (a 1NC is a sheet plus hundreds of cells, against a 500
+      // message cap), the frames were discarded — and because the shadow had
+      // already moved past them, no later diff would ever mention that sheet
+      // again. Your partner never saw it and never could. Reported from a real
+      // round, and it looked like a one-way connection rather than data loss.
+      //
+      // Leaving the shadow put while a send fails makes the recovery automatic
+      // instead: it stays pinned at the last state they actually received, so
+      // the first tick after reconnecting diffs everything that happened in
+      // between and sends it in one go. Nothing to queue, nothing to overflow,
+      // nothing to replay in order.
+      if (sent) this.shadows.set(doc.id, next);
     }
     this.queued = this.ch?.pending ?? 0;
     this.publishCursor();
