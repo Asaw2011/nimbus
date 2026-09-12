@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.7",
+    headline: "Two partner-flowing fixes. Update if you flow with a partner.",
+    items: [
+      "**Your typing no longer jumps into the cell above.** When your partner added a row above the one you were in — pressing Enter, usually — the cursor stayed on the old row *number* instead of your row, so mid-word your caret was pulled into their new row and the rest of what you were writing landed there, mixed in with whatever it already said. It now follows your row wherever it moves.",
+      "**\"AT:\" headers name the argument you're actually answering.** Sending an answer to the speech doc could head it with one of *your own* earlier arguments — an answer in the 1AR coming out as \"AT: <your own 2AC>\" — whenever the opponent's cell on that row was blank. And when the argument you were answering had been flowed by your partner rather than you, the answer arrived with no header at all. Both fixed: it looks for the other team's argument, prefers the one in your own lane, and falls back to your partner's lane instead of giving up.",
+    ],
+  },
+  {
     version: "1.2.6",
     headline: "Partner flowing survives a dropped connection.",
     items: [
