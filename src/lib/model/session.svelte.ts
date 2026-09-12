@@ -407,6 +407,41 @@ class SessionStore {
     void saveBlob(RESUME_BLOB, null);
   }
 
+  // ---- keeping the cursor on its row ---------------------------------------
+
+  /**
+   * The row the cursor is on, BY ID.
+   *
+   * Row ids are the one thing an insert above cannot change — everything else
+   * about a row's position is a number that renumbers underneath you. The whole
+   * sync layer already keys cells on row id for the same reason; the cursor was
+   * the one place still trusting an index.
+   */
+  private cursorAnchor(): { sheetId: string; rowId: string; col: number } | null {
+    const c = store.cursor;
+    const sheetId = store.activeSheetId;
+    if (!c || !sheetId) return null;
+    const sheet = store.round?.sheets.find((s) => s.id === sheetId);
+    const rowId = sheet?.rows[c.row]?.id;
+    return rowId ? { sheetId, rowId, col: c.col } : null;
+  }
+
+  /**
+   * Move the cursor to wherever that row ended up.
+   *
+   * Deltas apply synchronously, so nothing of the user's can interleave — the
+   * only thing that moved the row was their change. If the row is GONE (they
+   * deleted the one you were on) the cursor is left alone: dropping it
+   * somewhere arbitrary mid-typing would be its own version of this bug.
+   */
+  private restoreCursor(a: { sheetId: string; rowId: string; col: number } | null): void {
+    if (!a || !store.cursor) return;
+    const sheet = store.round?.sheets.find((s) => s.id === a.sheetId);
+    if (!sheet) return;
+    const now = sheet.rows.findIndex((r) => r.id === a.rowId);
+    if (now >= 0 && now !== store.cursor.row) store.cursor = { row: now, col: a.col };
+  }
+
   /** Join a partner's session as lane 1. */
   join(raw: string): void {
     const code = normalizeCode(raw);
@@ -766,6 +801,18 @@ class SessionStore {
         // peer that sends no `doc` still works.
         const docId = String(p.doc ?? store.round?.id ?? "");
         if (!docId) return;
+        // ⚠ Which ROW the cursor is on, captured BEFORE their change lands.
+        //
+        // store.cursor is an INDEX, and a row inserted above you renumbers
+        // every row below it. Nothing was re-pointing the cursor, so the index
+        // you were sitting on quietly came to mean the row ABOVE the one you
+        // were typing in — and because GridCell focuses whichever cell matches
+        // the cursor, your caret was dragged into it mid-word and the rest of
+        // your sentence went into your partner's freshly inserted row, mixed in
+        // with whatever was already there. Every time they pressed Enter above
+        // you. Reported from a real round, and it corrupts live typing, so the
+        // anchor is by row id — the one thing an insert cannot renumber.
+        const anchor = this.cursorAnchor();
         this.applying = true;
         try {
           const landed = store.applyRemoteToDoc(docId, (r) => {
@@ -779,6 +826,8 @@ class SessionStore {
           if (landed && docId === store.round?.id) store.dropHistory();
         } finally {
           this.applying = false;
+          // Put the cursor back on the row it was on, at its NEW index.
+          this.restoreCursor(anchor);
           // Re-seed so their change isn't diffed back out as ours next tick.
           const doc = store.docById(docId);
           if (doc) {
