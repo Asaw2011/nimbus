@@ -576,10 +576,43 @@
       }
     }
     const startCol = sheet.startCol ?? 0;
-    for (let c = col - 1; c >= startCol; c--) {
-      if (isOtherLane(speeches[c], store.laneHere)) continue;
-      const label = cellText(c);
-      if (label) return label;
+    const mySide = speeches[col]?.side;
+
+    /**
+     * ⚠ NEVER YOUR OWN SIDE. The walk used to return the first non-empty cell
+     * to the left whatever it was, so the moment the opponent's column was
+     * blank on that row it kept going and headed your answer with one of YOUR
+     * OWN earlier arguments — an aff answer in the 1AR coming out as
+     * "AT: <your own 2AC>". Reported from a real round. "AT:" means answering
+     * the other team; a cell on your side is never the thing being answered.
+     *
+     * Falls back to no side filter if the template has no sides to compare,
+     * rather than refusing to label anything.
+     */
+    const answerable = (c: number): boolean =>
+      !mySide || (!!speeches[c]?.side && speeches[c].side !== mySide);
+
+    /**
+     * Two passes, and the order is the point.
+     *
+     * Pass 0 prefers YOUR lane: on a split speech your partner's column sits
+     * physically nearer than your own, and heading every answer with their
+     * argument instead of yours is the bug session 9 fixed.
+     *
+     * ⚠ Pass 1 is new, and is the other half of the report. Skipping their lane
+     * outright meant that when the argument you were answering had been flowed
+     * by your PARTNER — which is most of them, that being the point of lanes —
+     * the walk found nothing and the answer went to the doc with no block
+     * header at all. Their lane holds the OPPONENT'S words too; preferring
+     * yours is right, ignoring theirs is not.
+     */
+    for (let pass = 0; pass < 2; pass++) {
+      for (let c = col - 1; c >= startCol; c--) {
+        if (!answerable(c)) continue;
+        if (pass === 0 && isOtherLane(speeches[c], store.laneHere)) continue;
+        const label = cellText(c);
+        if (label) return label;
+      }
     }
     return "";
   }
