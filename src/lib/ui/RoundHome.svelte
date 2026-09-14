@@ -1,6 +1,6 @@
 <script lang="ts">
   import { store } from "../model/round.svelte";
-  import { sheetAccent, uid, type Ballot } from "../model/types";
+  import { ballotNotes, sheetAccent, uid, type Ballot } from "../model/types";
   import { exportRoundFile, exportRoundHtml } from "../model/export";
   import { saveToFile, saveAs, exportExcel, exportNimbus, renameFileToMatchTitle } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature — to remove: delete this import + the marked section
@@ -117,14 +117,26 @@
       // First ballot seeds the judge name from the round's judge list; on a
       // panel the rest are blank because that field holds all of them at once.
       const judge = r.rfd.ballots.length === 0 ? (r.judges ?? "").trim() : "";
-      const b: Ballot = { id: uid(), judge, winner: "", reason: "", feedback: "", points: "" };
+      const b: Ballot = { id: uid(), judge, winner: "", notes: "" };
       r.rfd.ballots = [...r.rfd.ballots, b];
     });
   }
   function setBallot(id: string, field: keyof Ballot, value: string, coalesce = true) {
     store.mutate((r) => {
       if (!r.rfd) return;
-      r.rfd.ballots = r.rfd.ballots.map((b) => (b.id === id ? { ...b, [field]: value } : b));
+      r.rfd.ballots = r.rfd.ballots.map((b) => {
+        if (b.id !== id) return b;
+        const next = { ...b, [field]: value };
+        // Editing the notes retires the pre-1.2.8 split fields — their content
+        // is already in the box being typed into (see ballotNotes), so leaving
+        // them would duplicate it the next time this ballot was read.
+        if (field === "notes") {
+          delete next.reason;
+          delete next.feedback;
+          delete next.points;
+        }
+        return next;
+      });
     }, coalesce ? { coalesceText: true } : undefined);
   }
   function removeBallot(id: string) {
@@ -138,6 +150,40 @@
       if (!r.rfd) r.rfd = { ballots: [], notes: "" };
       r.rfd.notes = value;
     }, { coalesceText: true });
+  }
+  /** The panel's overall decision. Not a vote — see the note on RFD.winner. */
+  function setRfdWinner(value: "aff" | "neg" | "") {
+    store.mutate((r) => {
+      if (!r.rfd) r.rfd = { ballots: [], notes: "" };
+      r.rfd.winner = value;
+    });
+  }
+
+  /**
+   * Grow a textarea to fit what is in it.
+   *
+   * Feedback is taken down in a hurry and read back later; a four-line box you
+   * have to scroll inside hides most of it. Height follows the content up to a
+   * deliberately large cap (set in CSS via max-height), and only past that does
+   * it scroll.
+   */
+  function autoGrow(el: HTMLTextAreaElement) {
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    };
+    fit();
+    el.addEventListener("input", fit);
+    // Value can also change from outside (undo, a partner's edit, load).
+    const obs = new MutationObserver(fit);
+    obs.observe(el, { attributes: true, attributeFilter: ["value"] });
+    return {
+      update: fit,
+      destroy() {
+        el.removeEventListener("input", fit);
+        obs.disconnect();
+      },
+    };
   }
 
   // "AFF (school) wins 2–1" style summary from the ballots that have a vote.
@@ -279,6 +325,30 @@
         <p class="hint-line">Record how the round came out: who voted, why, and any feedback. It saves with the flow.</p>
       {/if}
 
+      <!-- PANEL ONLY. A 3-judge panel can split 2–1 and the round still has one
+           result, so the overall decision is recorded on its own rather than
+           inferred. Deliberately has NO notes box: it is the outcome, not a
+           person — the feedback belongs to the judges below it. -->
+      {#if (round.rfd?.ballots.length ?? 0) > 1}
+        <div class="overall">
+          <span class="overall-t">Round won by</span>
+          <div class="vote">
+            <button
+              class="vote-btn aff"
+              class:on={round.rfd?.winner === "aff"}
+              title="The panel awarded the round to AFF"
+              onclick={() => setRfdWinner(round.rfd?.winner === "aff" ? "" : "aff")}
+            >AFF</button>
+            <button
+              class="vote-btn neg"
+              class:on={round.rfd?.winner === "neg"}
+              title="The panel awarded the round to NEG"
+              onclick={() => setRfdWinner(round.rfd?.winner === "neg" ? "" : "neg")}
+            >NEG</button>
+          </div>
+        </div>
+      {/if}
+
       {#each round.rfd?.ballots ?? [] as b (b.id)}
         <div class="ballot">
           <div class="ballot-top">
@@ -304,24 +374,16 @@
             </div>
             <button class="icon danger" title="Remove ballot" onclick={() => removeBallot(b.id)}>×</button>
           </div>
+          <!-- One block, not three. Grows with what you write and only starts
+               scrolling once it is already tall, so a long ballot is readable
+               without a scrollbar inside a scrollbar. -->
           <textarea
-            class="ballot-reason"
-            value={b.reason}
-            placeholder="Reason for decision: why did they vote this way?"
-            oninput={(e) => setBallot(b.id, "reason", e.currentTarget.value)}
+            class="ballot-notes"
+            value={ballotNotes(b)}
+            placeholder="Everything they said — RFD, feedback, speaker points…"
+            use:autoGrow
+            oninput={(e) => setBallot(b.id, "notes", e.currentTarget.value)}
           ></textarea>
-          <textarea
-            class="ballot-feedback"
-            value={b.feedback}
-            placeholder="Feedback / advice for next time"
-            oninput={(e) => setBallot(b.id, "feedback", e.currentTarget.value)}
-          ></textarea>
-          <input
-            class="ballot-points"
-            value={b.points}
-            placeholder="Speaker points (e.g. 1A 28.5 · 2A 29)"
-            oninput={(e) => setBallot(b.id, "points", e.currentTarget.value)}
-          />
         </div>
       {/each}
 
@@ -536,7 +598,6 @@
     color: #fff;
   }
   .ballot textarea,
-  .ballot-points,
   .rfd-notes {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -547,9 +608,32 @@
     font-family: inherit;
     resize: vertical;
   }
-  .ballot-reason { min-height: 60px; }
-  .ballot-feedback { min-height: 44px; }
+  /* Grows with the text (see the autoGrow action) and only scrolls once it is
+     already very tall — feedback is read back later, and a scrollbar inside a
+     panel hides most of it. 70vh is roughly a screenful. */
+  .ballot-notes {
+    min-height: 120px;
+    max-height: 70vh;
+    line-height: 1.5;
+    overflow-y: auto;
+  }
   .rfd-notes { min-height: 44px; }
+  /* The panel's overall result. No notes box: it is the outcome, not a person. */
+  .overall {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    margin-bottom: 8px;
+  }
+  .overall-t {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
   .tools {
     display: flex;
     flex-direction: column;

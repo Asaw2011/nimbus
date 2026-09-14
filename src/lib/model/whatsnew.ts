@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.8",
+    headline: "Judge feedback in one block, and a reconnect that catches you up.",
+    items: [
+      "**Judge feedback is one box now.** Judge, who won, and everything they said — instead of separate boxes for the decision, the feedback and the speaker points. Nobody takes feedback down in categories; it arrives as bullet points in whatever order the judge says it. The box grows as you write and only starts scrolling once it is already about a screen tall. **Anything you recorded in the old boxes is kept** and appears in the new one.",
+      "**Panels get an overall winner.** Three judges can split 2–1 and the round still has one result, so you can record it at the top. It has no feedback box of its own — that belongs to the judges underneath it.",
+      "**Reconnecting catches you up on what you missed.** If your connection dropped, anything your partner wrote while you were away never reached you, and nothing re-sent it — their end had already counted it as delivered. Whoever comes back now gets the full current state of the flow. It merges with whatever you typed while you were offline rather than replacing it.",
+    ],
+  },
+  {
     version: "1.2.7",
     headline: "Two partner-flowing fixes. Update if you flow with a partner.",
     items: [

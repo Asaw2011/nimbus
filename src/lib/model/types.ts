@@ -375,13 +375,35 @@ export interface Ballot {
   judge: string;
   /** Who this judge voted for. "" = not recorded yet. */
   winner: "aff" | "neg" | "";
-  /** Reason for decision — why they voted the way they did. */
-  reason: string;
-  /** Feedback / advice for improvement. */
-  feedback: string;
-  /** Speaker points, free-form (e.g. "1A 28.5 · 2A 29") — formats vary by
-   *  circuit, so this is deliberately not parsed. */
-  points: string;
+  /**
+   * Everything the judge said, as ONE block.
+   *
+   * ⚠ Deliberately not split into reason / feedback / points. Nobody takes
+   * feedback down in categories — it arrives as bullet points, in whatever
+   * order the judge says it, and being asked which box a sentence belongs in
+   * while they are still talking is the opposite of useful.
+   */
+  notes: string;
+  /**
+   * @deprecated Pre-1.2.8 split fields. Read by {@link ballotNotes} so nothing
+   * recorded in an older build is lost, and folded into `notes` on first edit.
+   * Never written to again.
+   */
+  reason?: string;
+  feedback?: string;
+  points?: string;
+}
+
+/**
+ * One ballot's text, including anything saved before the fields were merged.
+ *
+ * ⚠ Reads the legacy fields rather than migrating on load: a round is only
+ * rewritten when the user actually edits it, so opening an old flow in this
+ * build and closing it again changes nothing on disk.
+ */
+export function ballotNotes(b: Ballot): string {
+  if (b.notes) return b.notes;
+  return [b.reason, b.feedback, b.points].map((s) => (s ?? "").trim()).filter(Boolean).join("\n\n");
 }
 
 /** The round's result: one ballot per judge (panels supported) + notes. */
@@ -389,6 +411,14 @@ export interface RFD {
   ballots: Ballot[];
   /** Any extra notes about the round outcome. */
   notes: string;
+  /**
+   * Who won the round overall.
+   *
+   * Only meaningful on a PANEL, where the individual ballots can split 2–1 and
+   * the decision is still one result. Absent on a single-judge round, where the
+   * one ballot already is the decision.
+   */
+  winner?: "aff" | "neg" | "";
 }
 
 /** Lightweight listing for the dashboard (no sheet contents). */

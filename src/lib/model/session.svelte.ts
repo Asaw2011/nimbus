@@ -681,6 +681,24 @@ class SessionStore {
     return store.docs.filter((d) => d.id === this.myDocId || d.id === this.peerDocId);
   }
 
+  /**
+   * Make the next diff resend every cell we hold.
+   *
+   * The shadow keeps the sheet structure (so sheets aren't re-announced as new,
+   * which the far side would skip anyway) but forgets all CONTENT — so every
+   * cell reads as changed and goes out on the next tick, in one batch.
+   *
+   * ⚠ Deliberately not a snapshot. `loadRound` would replace what they typed
+   * while they were away; cell deltas land alongside it.
+   */
+  private resendEverything(): void {
+    for (const doc of this.syncedDocs()) {
+      const fresh = diffRound($state.snapshot(doc) as Round, emptyShadow()).next;
+      fresh.cells.clear();
+      this.shadows.set(doc.id, fresh);
+    }
+  }
+
   /** Re-seed shadows so nothing already in hand is diffed out as a change. */
   private reseed(): void {
     this.shadows.clear();
@@ -760,6 +778,26 @@ class SessionStore {
 
     switch (event) {
       case "hello": {
+        // ⚠ THEY MISSED EVERYTHING WE SENT WHILE THEY WERE AWAY.
+        //
+        // Broadcast is fire-and-forget through a relay: a send that succeeds
+        // means the relay took it, NOT that our partner received it. So while
+        // they were disconnected our sends kept "succeeding", our shadow kept
+        // advancing, and every one of those edits is now recorded as delivered
+        // to somebody who never saw it. Nothing would ever mention them again.
+        //
+        // Their own edits come back on their side (our shadow of them is only
+        // advanced by frames that actually left), so this is the other half of
+        // that: when anyone announces a rejoin, resend our content in full.
+        //
+        // Not a snapshot — a snapshot calls loadRound() over the top of
+        // whatever they typed while the wifi was down, which is the destructive
+        // path session 9 removed. This resends CELLS only, leaving their
+        // offline work to merge normally.
+        //
+        // Before the role check on purpose: a host can reconnect too, and the
+        // guest is the only one who can resend to them.
+        if (p.rejoin) this.resendEverything();
         if (this.role !== "host") return;
         const req = { clientId: String(p.clientId ?? ""), email: String(p.email ?? "a partner") };
         if (!req.clientId) return;
