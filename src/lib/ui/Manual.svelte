@@ -297,8 +297,20 @@
             prep files and insert cards straight into the flow.
           </p>
           <ul>
-            <li>Add folders in <b>Settings → Library</b>. Nimbus indexes the .docx inside.</li>
+            <li>Add folders in <b>Settings → Library</b>. Nimbus lists the .docx inside.</li>
             <li>Search <b>By name</b> (filename/heading) or <b>By content</b> (inside the cards).</li>
+            <li>
+              <b>By content needs the documents read once.</b> Choosing it doesn't start
+              anything — press <b>Index</b> in the bar to scan, and <b>Stop</b> whenever you
+              like; whatever has been read is kept and searchable, and pressing Index again
+              picks up where it left off. Searching always works on whatever is already indexed.
+            </li>
+            <li>
+              <b>Prep stored online isn't downloaded.</b> With Dropbox or OneDrive keeping
+              files in the cloud rather than on your computer, reading one to search inside it
+              would download it. Those are skipped and shown as a count
+              (<b>⇣ n not downloaded</b>) — click it if you do want them fetched.
+            </li>
             <li>Dive into a file to browse its Pocket / Hat / Block / Tag structure, then insert.</li>
             <li>Inserting fills the flow cell only — it never auto-adds to your speech doc.</li>
           </ul>

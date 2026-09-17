@@ -9,6 +9,51 @@ import { saveRoundJson } from "./persist";
 const HISTORY_LIMIT = 300;
 const SAVE_DEBOUNCE_MS = 400;
 
+/**
+ * Ceiling on the memory the undo + redo stacks may hold, in CHARACTERS of
+ * stored JSON.
+ *
+ * ⚠ A step count is the wrong axis and 300 of them was a real freeze. History
+ * snapshots hold the WHOLE round, so their cost is set by the flow, not by how
+ * many steps you took: a measured 2.4 MB round × 300 steps is ~1.4 GB of live
+ * strings once V8 stores them as UTF-16, which is enough to put WebView2 into
+ * continuous major GC. That is the "app freezes for a few seconds while
+ * flowing" report.
+ *
+ * A byte budget self-tunes instead. A big flow keeps fewer steps (~30 on that
+ * 2.4 MB round); an ordinary one is nowhere near the limit and keeps the full
+ * 300, because small snapshots cost nothing. 75M chars ≈ 150 MB in memory.
+ *
+ * ⚠ Both stacks are counted together, since redo holds the same size objects
+ * and a long undo-then-redo run would otherwise double the real figure.
+ */
+const HISTORY_BUDGET_CHARS = 75_000_000;
+
+/**
+ * One undo/redo step.
+ *
+ * ⚠ The ⌘J argument bank is stored SEPARATELY from the round, and that is a
+ * memory decision, not a tidiness one. On a real flow the bank was 1.10 MB of a
+ * 2.4 MB round — 45% of every snapshot — and it is imported reference material
+ * that typing in the grid never touches, so serializing it again for every
+ * keystroke-session was copying the same megabyte hundreds of times.
+ *
+ * Keeping it as its own string lets every step that did not change the bank
+ * share ONE string (see {@link RoundStore.bankSnapshot}): strings are immutable
+ * in JS, so 300 entries pointing at the same one cost a single copy.
+ *
+ * ⚠ It is a stored snapshot, NOT a live reference. Undoing `clearBank()` or
+ * `removeArg()` has to bring the old bank back, so the entry has to hold what
+ * the bank WAS — re-attaching whatever the bank happens to be at restore time
+ * would make emptying it permanent.
+ */
+interface HistoryEntry {
+  /** The round, trimmed, without `cards`. */
+  round: string;
+  /** The `cards` bank as it stood, or "" when the round had none. */
+  bank: string;
+}
+
 /** Grid cursor within the active sheet. */
 export interface Cursor {
   row: number;
@@ -33,8 +78,8 @@ export interface AnswerRef {
 
 /** A document's parked view state and history while another is on screen. */
 interface DocCtx {
-  undo: string[];
-  redo: string[];
+  undo: HistoryEntry[];
+  redo: HistoryEntry[];
   cursor: Cursor | null;
   activeSheetId: string | null;
 }
@@ -179,8 +224,15 @@ class RoundStore {
     };
   });
 
-  private undoStack: string[] = [];
-  private redoStack: string[] = [];
+  private undoStack: HistoryEntry[] = [];
+  private redoStack: HistoryEntry[] = [];
+  /** Running total of `round` JSON held by both stacks, in characters. */
+  private historyChars = 0;
+  /** The bank array the last snapshot serialized, and the string it produced.
+   *  See {@link bankSnapshot} — this is what makes an unchanged bank cost one
+   *  copy across the whole history instead of one per step. */
+  private lastBankRef: ArgRef[] | undefined | null = null;
+  private lastBankJson = "";
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** True while a text-edit session is coalescing keystrokes into one undo step. */
   private textSessionOpen = false;
@@ -209,8 +261,7 @@ class RoundStore {
     this.round = round;
     this.activeSheetId = null;
     this.cursor = null;
-    this.undoStack = [];
-    this.redoStack = [];
+    this.resetHistory();
   }
 
   loadRound(round: Round): void {
@@ -218,8 +269,7 @@ class RoundStore {
     this.activeSheetId = round.sheets[0]?.id ?? null;
     this.cursor = { row: 0, col: 0 };
     this.selectAll = false;
-    this.undoStack = [];
-    this.redoStack = [];
+    this.resetHistory();
   }
 
   // ---- mutation core ------------------------------------------------------
@@ -337,6 +387,16 @@ class RoundStore {
     const saved = this.ctx.get(id);
     this.undoStack = saved?.undo ?? [];
     this.redoStack = saved?.redo ?? [];
+    // The budget travels with the stacks. Recomputed rather than parked
+    // alongside them because the two must not be able to disagree — a total
+    // carried over from the other document would evict this one's history.
+    this.historyChars =
+      this.undoStack.reduce((n, e) => n + e.round.length, 0) +
+      this.redoStack.reduce((n, e) => n + e.round.length, 0);
+    // The incoming document has its own bank; the cached string belongs to the
+    // one being parked.
+    this.lastBankRef = null;
+    this.lastBankJson = "";
     this.textSessionOpen = false;
     this.selection = null;
     this.selectAll = false;
@@ -378,9 +438,25 @@ class RoundStore {
    * history costs you undo; keeping it would cost them their flow.
    */
   dropHistory(): void {
+    this.resetHistory();
+    this.textSessionOpen = false;
+  }
+
+  /**
+   * Empty both stacks and the accounting that goes with them.
+   *
+   * ⚠ One place, called from everywhere history is discarded. `historyChars`
+   * and the cached bank string are only correct if they are cleared with the
+   * stacks — a stale total would evict real history on the next push, and a
+   * stale bank reference would attach the previous round's ⌘J bank to the
+   * first snapshot of the new one.
+   */
+  private resetHistory(): void {
     this.undoStack = [];
     this.redoStack = [];
-    this.textSessionOpen = false;
+    this.historyChars = 0;
+    this.lastBankRef = null;
+    this.lastBankJson = "";
   }
 
   /**
@@ -416,28 +492,102 @@ class RoundStore {
     this.scheduleSave();
   }
 
+  /**
+   * The ⌘J bank as a string, reusing the last one when it has not changed.
+   *
+   * Every bank mutator (`addCards`, `addArg`, `updateArg`, `removeArg`,
+   * `clearBank`) builds a NEW array and assigns it, so an identity check is a
+   * sound "did this change" test — and on the overwhelmingly common path
+   * (typing in the grid, which never touches the bank) it costs one reference
+   * comparison instead of serializing a megabyte.
+   */
+  private bankSnapshot(): string {
+    const bank = this.round?.cards;
+    if (bank === this.lastBankRef) return this.lastBankJson;
+    this.lastBankRef = bank;
+    this.lastBankJson = bank?.length ? JSON.stringify(bank) : "";
+    return this.lastBankJson;
+  }
+
+  /** Serialize the round for history: trimmed, and without the bank. */
+  private historySnapshot(): HistoryEntry {
+    const bank = this.bankSnapshot();
+    const trimmed = trimPadding(this.round!);
+    // Drop `cards` for the serialize only — `trimPadding` already returns a
+    // fresh shallow object, so deleting the key here cannot touch the round.
+    delete (trimmed as Partial<Round>).cards;
+    return { round: JSON.stringify(trimmed), bank };
+  }
+
+  /** Put a history entry back, re-attaching the bank it was taken with. */
+  private restoreSnapshot(e: HistoryEntry): void {
+    const round = JSON.parse(e.round) as Round;
+    if (e.bank) round.cards = JSON.parse(e.bank) as ArgRef[];
+    // A restored bank is a brand-new array, so the next snapshot must
+    // re-serialize rather than reuse the string cached against the old one.
+    this.lastBankRef = null;
+    this.round = round;
+  }
+
+  /**
+   * Evict the oldest steps until both stacks fit {@link HISTORY_BUDGET_CHARS}.
+   *
+   * Oldest-first: the step you are most likely to want back is the one you just
+   * took. Redo is only trimmed once undo is down to a single step, so a long
+   * undo run can still be walked forward again.
+   *
+   * ⚠ The budget counts the ROUND strings only. Bank strings are shared between
+   * every step that did not change the bank, so charging each entry for one
+   * would over-count the same megabyte hundreds of times and evict history that
+   * costs nothing.
+   */
+  private trimHistory(): void {
+    if (this.undoStack.length > HISTORY_LIMIT) {
+      this.historyChars -= this.undoStack.shift()!.round.length;
+    }
+    while (this.historyChars > HISTORY_BUDGET_CHARS && this.undoStack.length > 1) {
+      this.historyChars -= this.undoStack.shift()!.round.length;
+    }
+    while (this.historyChars > HISTORY_BUDGET_CHARS && this.redoStack.length > 0) {
+      this.historyChars -= this.redoStack.shift()!.round.length;
+    }
+  }
+
   private pushHistory(): void {
     if (!this.round) return;
-    // Blank trailing rows are regenerated on demand, so keeping them in 300
+    // Blank trailing rows are regenerated on demand, so keeping them in
     // history snapshots of a scrolled-around round is pure memory cost.
-    this.undoStack.push(JSON.stringify(trimPadding(this.round)));
-    if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
+    const e = this.historySnapshot();
+    this.undoStack.push(e);
+    this.historyChars += e.round.length;
+    for (const r of this.redoStack) this.historyChars -= r.round.length;
     this.redoStack = [];
+    this.trimHistory();
   }
 
   undo(): void {
     if (!this.round || this.undoStack.length === 0) return;
     const paper = this.paperLevel();
-    this.redoStack.push(JSON.stringify(trimPadding(this.round)));
-    this.round = JSON.parse(this.undoStack.pop()!);
+    const e = this.historySnapshot();
+    this.redoStack.push(e);
+    this.historyChars += e.round.length;
+    const prev = this.undoStack.pop()!;
+    this.historyChars -= prev.round.length;
+    this.restoreSnapshot(prev);
+    this.trimHistory();
     this.afterTimeTravel(paper);
   }
 
   redo(): void {
     if (!this.round || this.redoStack.length === 0) return;
     const paper = this.paperLevel();
-    this.undoStack.push(JSON.stringify(trimPadding(this.round)));
-    this.round = JSON.parse(this.redoStack.pop()!);
+    const e = this.historySnapshot();
+    this.undoStack.push(e);
+    this.historyChars += e.round.length;
+    const next = this.redoStack.pop()!;
+    this.historyChars -= next.round.length;
+    this.restoreSnapshot(next);
+    this.trimHistory();
     this.afterTimeTravel(paper);
   }
 
@@ -486,6 +636,24 @@ class RoundStore {
   private dirty = false;
 
   private scheduleSave(): void {
+    // ⚠ `updatedAt` is bumped HERE, not only in `mutate()`.
+    //
+    // It used to be set by `mutate()` and `applyRemote()` alone, which left
+    // three paths that change real content and persist it without ever moving
+    // the stamp: `runBatch()` (when the batch mutates the round directly),
+    // `renameSpeech()` and `addCards()`. Two consequences, one of them latent
+    // for a long time:
+    //
+    //  - `openPath` decides which copy is newer by comparing `updatedAt` (never
+    //    mtime — see the 2026-08-24 invariants). A round whose only change was
+    //    a renamed speech column looked UNCHANGED to that comparison and could
+    //    lose to a staler file.
+    //  - Partner sync now skips the diff for a document whose stamp has not
+    //    moved, and a change that never bumps it would simply never be sent.
+    //
+    // Making the stamp mean "something asked to be saved" puts it at one choke
+    // point instead of N call sites that have to remember.
+    if (this.round) this.round.updatedAt = Date.now();
     this.dirty = true;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {

@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.9",
+    headline: "Nimbus stops freezing mid-round, and searching by content no longer downloads your whole Dropbox.",
+    items: [
+      "**The pauses while flowing are fixed.** On a big flow Nimbus could lock up for a second or two at a time, usually just as you were typing. Every undo step was keeping a complete copy of the round in memory, and three hundred of them on a full flow came to well over a gigabyte — so the app spent its time cleaning up memory instead of taking your keystrokes. Undo now keeps as much history as it can fit in a sensible amount of memory rather than a fixed number of steps: on an ordinary flow nothing changes and you still get the full three hundred, and on a very large one you get fewer steps but a responsive app. **Nothing about what a single undo does has changed.**",
+      "**Partner flowing costs almost nothing when nobody is typing.** Four times a second, every second of a session, Nimbus was copying the entire flow and re-checking every cell to work out whether anything had changed — including while you were sitting listening to the other team. It now checks in an instant whether the flow has been touched at all and does the real work only when it has.",
+      "**Judge feedback is your own.** In a partner session, feedback is no longer shared between the two of you — you each keep your own notes on what the judge said, which is usually not the same thing. Everything else still carries across as before: the judge's name, who you hit, the team names and the flow itself.",
+      "**\"By content\" no longer starts reading your whole library the moment you click it.** If your prep is in Dropbox or OneDrive, the files are often stored online rather than on your computer, and reading them to search inside them quietly downloads every one — a mis-click could pull down hundreds of megabytes and tie the app up for several minutes with no way to stop it. Searching by content now works straight away on whatever has already been read, and bringing the rest up to date is a button you press. **You can stop it at any time**, and everything scanned so far is kept. Files that aren't downloaded to your computer are skipped and counted, so you can choose to fetch them rather than having it happen to you.",
+    ],
+  },
+  {
     version: "1.2.8",
     headline: "Judge feedback in one block, and a reconnect that catches you up.",
     items: [

@@ -12,6 +12,17 @@ export interface LibFile {
   ext: string;  // "docx" | "nimbus"
   mtime: number; // ms since epoch
   size: number;
+  /**
+   * True when the file is a cloud placeholder (Dropbox Smart Sync / OneDrive
+   * Files On-Demand) whose contents are not on this disk.
+   *
+   * ⚠ Name search is unaffected — the name is in the placeholder. It matters
+   * only to the CONTENT index, which has to read the bytes and would download
+   * the file to do it. Absent on an index cached by a build older than this
+   * flag, which reads as `undefined` and is treated as "not a placeholder", so
+   * behaviour there is exactly what it was before.
+   */
+  offline?: boolean;
 }
 
 const CACHE_BLOB = "file-index";

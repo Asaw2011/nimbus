@@ -17,6 +17,43 @@ pub struct LibFile {
     /// Milliseconds since Unix epoch (for sorting by recency).
     pub mtime: u64,
     pub size: u64,
+    /// True when the file is a cloud PLACEHOLDER whose contents are not on this
+    /// disk — Dropbox Smart Sync / OneDrive Files On-Demand.
+    ///
+    /// ⚠ Reading one of these DOWNLOADS it. The name and size come from the
+    /// placeholder for free, but opening the bytes blocks on the network and
+    /// then keeps the file locally forever. A content index that reads every
+    /// library file therefore quietly hydrates the entire folder: measured on a
+    /// real library, one click on "By content" pulled down 219 MB across 1,076
+    /// documents and took six minutes.
+    ///
+    /// Reported as a flag rather than acted on here, because the scan must stay
+    /// a pure listing — the frontend decides what to do with it.
+    #[serde(default)]
+    pub offline: bool,
+}
+
+/// Whether a file's contents live somewhere other than this disk.
+///
+/// Windows marks cloud placeholders with attribute bits: `OFFLINE`,
+/// `RECALL_ON_OPEN` (a full dehydration) and `RECALL_ON_DATA_ACCESS` (the
+/// per-file "online only" state Dropbox and OneDrive use). Any of the three
+/// means reading it costs a download.
+#[cfg(windows)]
+fn is_offline(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_OFFLINE: u32 = 0x0000_1000;
+    const FILE_ATTRIBUTE_RECALL_ON_OPEN: u32 = 0x0004_0000;
+    const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
+    let a = meta.file_attributes();
+    a & (FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) != 0
+}
+
+/// macOS and Linux expose no equivalent attribute, so nothing is skipped there
+/// and behaviour is exactly what it was before this flag existed.
+#[cfg(not(windows))]
+fn is_offline(_meta: &std::fs::Metadata) -> bool {
+    false
 }
 
 /// Recursively walk every enabled root and return all .docx / .nimbus files,
@@ -117,6 +154,7 @@ pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
                 ext,
                 mtime,
                 size: meta.len(),
+                offline: is_offline(&meta),
             });
 
             if files.len() >= MAX_FILES {

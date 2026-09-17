@@ -9,6 +9,19 @@
 //  4. PERSIST to disk — subsequent launches reload instantly and only re-parse
 //     files that actually changed.
 //  5. SEARCH scans cached lowercased strings only — no file I/O, no parsing.
+//
+// ── ⚠ INDEXING IS EXPLICIT, AND INTERRUPTIBLE ──────────────────────────────
+//
+// Building this index reads every .docx in the library. On a Dropbox or
+// OneDrive library that is not a cheap read: the files are PLACEHOLDERS, and
+// reading one downloads it and keeps it on the disk from then on. It used to
+// start the moment you selected "By content" — one click, no confirmation and
+// no way to stop it — which on a real library meant six minutes of work and
+// 219 MB pulled down by someone who had clicked the wrong button.
+//
+// So: nothing here starts on its own (`build()` is only ever reached from a
+// click), `stop()` works at any point, and files that are not already on the
+// disk are skipped by default rather than downloaded.
 
 import { invoke } from "@tauri-apps/api/core";
 import { saveBlob, loadBlob, loadBlobCached } from "$lib/model/blobs";
@@ -36,6 +49,16 @@ class ContentIndexStore {
   built = $state(0); // files processed so far this build
   total = $state(0); // files to process this build
   builtAt = $state(0); // ms of last full build
+  /** True when the last build was halted by {@link stop} rather than finishing.
+   *  Surfaced so the panel can say "partly indexed" instead of implying the
+   *  library was covered. */
+  stopped = $state(false);
+  /** Library files skipped because they are not downloaded — see
+   *  {@link LibFile.offline}. Shown as a count so the skipping is visible
+   *  rather than silent, with an opt-in to include them. */
+  skippedOffline = $state(0);
+  /** Set by {@link stop}; checked at every yield point in {@link build}. */
+  private cancel = false;
 
   private docs: ContentDoc[] = [];
   private byPath = new Map<string, ContentDoc>();
@@ -82,56 +105,123 @@ class ContentIndexStore {
   }
 
   /**
+   * How much of the library the index actually covers, right now.
+   *
+   * ⚠ Counted against the CURRENT file list rather than against whatever the
+   * last build happened to walk: files appear and disappear between runs, and
+   * the honest question the panel needs to answer is "will searching by content
+   * find things", not "did a build once finish".
+   *
+   * `offline` is the part that cannot be covered without downloading it, which
+   * is why it is reported separately instead of just making the index look
+   * permanently incomplete.
+   */
+  get coverage(): { indexed: number; local: number; offline: number } {
+    const all = fileIndex.files.filter(
+      (f) => f.ext === "docx" && !f.name.startsWith("~$"),
+    );
+    let indexed = 0;
+    let offline = 0;
+    for (const f of all) {
+      if (f.offline) offline++;
+      else if (this.byPath.has(f.path)) indexed++;
+    }
+    return { indexed, local: all.length - offline, offline };
+  }
+
+  /**
    * Build / refresh the content index for every library .docx. Incremental and
    * throttled. Safe to call repeatedly — a file unchanged since last time is
    * reused, so a re-build after the first is nearly free.
    */
-  async build(force = false): Promise<void> {
+  async build(force = false, includeOffline = false): Promise<void> {
     if (this.building) return;
     if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return;
     this.building = true;
+    this.cancel = false;
+    this.stopped = false;
     try {
-      const files = fileIndex.files.filter(
+      const all = fileIndex.files.filter(
         (f) => f.ext === "docx" && !f.name.startsWith("~$"),
       );
+      // ⚠ Skip what isn't on the disk. A placeholder's bytes cost a download,
+      // and a library search is not worth silently pulling someone's whole
+      // Dropbox onto their laptop mid-tournament. Counted, not hidden, and
+      // `includeOffline` is the deliberate way to fetch them anyway.
+      const files = includeOffline ? all : all.filter((f) => !f.offline);
+      this.skippedOffline = all.length - files.length;
       this.total = files.length;
       this.built = 0;
-      const result: ContentDoc[] = [];
+      // Start from what is already indexed, so stopping keeps every file done
+      // so far AND everything a previous run covered. Rebuilding `result` from
+      // only this pass would throw away the rest of the library the moment you
+      // pressed Stop.
+      //
+      // ⚠ Carried forward only for files the library still lists. The old code
+      // rebuilt the map from scratch each time, so deletions fell out on their
+      // own; seeding from the previous run without this would keep every file
+      // ever indexed forever, and the stored index is already megabytes.
+      // Compared against `all`, not `files`, so skipping the offline ones does
+      // not evict what we know about them.
+      const live = new Set(all.map((f) => f.path));
+      const result = new Map(
+        this.docs.filter((d) => live.has(d.path)).map((d) => [d.path, d] as const),
+      );
       let sinceYield = 0;
       for (const f of files) {
         const cached = this.byPath.get(f.path);
         if (!force && cached && cached.mtime === f.mtime) {
-          result.push(cached);
+          result.set(f.path, cached);
         } else {
           try {
             const bytes = await invoke<number[]>("read_binary_file", { path: f.path });
             const heads = extractHeadings(new Uint8Array(bytes).buffer);
             const headings = heads.map((h) => h.text).slice(0, MAX_HEADINGS_PER_DOC);
-            result.push({ path: f.path, mtime: f.mtime, headings });
+            result.set(f.path, { path: f.path, mtime: f.mtime, headings });
           } catch {
-            result.push({ path: f.path, mtime: f.mtime, headings: [] });
+            result.set(f.path, { path: f.path, mtime: f.mtime, headings: [] });
           }
         }
         this.built++;
-        if (++sinceYield >= YIELD_EVERY) {
+        if (++sinceYield >= YIELD_EVERY || this.cancel) {
           sinceYield = 0;
           // Publish partial progress so results appear as they index, then yield.
-          this.docs = result.slice();
-          this.byPath = new Map(this.docs.map((d) => [d.path, d]));
-          this.lcByPath.clear();
-          this.version++;
+          this.publish(result);
+          if (this.cancel) break;
           await new Promise((r) => setTimeout(r, 0));
         }
       }
-      this.docs = result;
-      this.byPath = new Map(result.map((d) => [d.path, d]));
-      this.lcByPath.clear();
-      this.builtAt = Date.now();
-      this.version++;
-      saveBlob(BLOB, { docs: result, builtAt: this.builtAt });
+      this.stopped = this.cancel;
+      this.publish(result);
+      // ⚠ Persist a halted build too. The reads already happened — throwing the
+      // parse away would mean doing them again next time, which on a cloud
+      // library is the expensive half. `builtAt` only moves on a COMPLETE pass,
+      // so a stopped build still reads as "not fully indexed".
+      if (!this.cancel) this.builtAt = Date.now();
+      saveBlob(BLOB, { docs: [...result.values()], builtAt: this.builtAt });
     } finally {
       this.building = false;
+      this.cancel = false;
     }
+  }
+
+  /**
+   * Halt a build in progress. Everything parsed so far is kept and saved.
+   *
+   * Takes effect at the next yield point (at most a few files later) — the
+   * in-flight `read_binary_file` cannot be recalled, so one more file may
+   * finish downloading after the click. Stopping is not a rollback.
+   */
+  stop(): void {
+    if (this.building) this.cancel = true;
+  }
+
+  /** Swap in a set of indexed docs and invalidate the derived caches. */
+  private publish(result: Map<string, ContentDoc>): void {
+    this.docs = [...result.values()];
+    this.byPath = new Map(this.docs.map((d) => [d.path, d]));
+    this.lcByPath.clear();
+    this.version++;
   }
 
   /**

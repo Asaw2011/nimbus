@@ -104,7 +104,16 @@ function metaKey(s: Sheet): string {
   return JSON.stringify({ t: s.title, k: s.kind, c: s.startCol, col: s.color });
 }
 
-/** Everything that changed between `prev` and the round as it is now. */
+/**
+ * Everything that changed between `prev` and the round as it is now.
+ *
+ * ⚠ `round` may be a LIVE `$state` proxy — `publish()` passes one deliberately,
+ * to avoid deep-cloning megabytes on every tick. Reading a proxy is fine and
+ * `JSON.stringify` works on one, but `structuredClone` THROWS on a `$state`
+ * proxy, so anything that leaves this function inside a delta is taken with
+ * `$state.snapshot` instead. It is a no-op on the plain objects the other
+ * callers pass in.
+ */
 function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow } {
   const next = emptyShadow();
   const deltas: Delta[] = [];
@@ -123,7 +132,7 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
     if (!hadSheet) {
       // A brand-new sheet ships whole — it is small at creation, and this is
       // far simpler than synthesising row-inserts for an empty grid.
-      deltas.push({ t: "sheetadd", at: si, sheet: structuredClone(sheet) as Sheet });
+      deltas.push({ t: "sheetadd", at: si, sheet: $state.snapshot(sheet) as Sheet });
       for (const r of sheet.rows)
         r.cells.forEach((c, ci) => next.cells.set(`${sheet.id}|${r.id}|${ci}`, JSON.stringify(c)));
       return;
@@ -153,7 +162,7 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
         // A row that was just inserted arrives empty on the far side, so only
         // emit a cell for it when it actually has something in it.
         if (prev.cells.get(key) !== json && (beforeSet.has(row.id) || json !== "{}")) {
-          deltas.push({ t: "cell", s: sheet.id, r: row.id, c: ci, v: structuredClone(cell) as Cell });
+          deltas.push({ t: "cell", s: sheet.id, r: row.id, c: ci, v: $state.snapshot(cell) as Cell });
         }
       });
     }
@@ -161,6 +170,10 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
 
   for (const id of prev.sheetOrder) if (!seen.has(id)) deltas.push({ t: "sheetdel", s: id });
 
+  // ⚠ `rfd` is deliberately NOT here and must not be added. Judge feedback is
+  // each partner's own notes — see the note in `sendSnapshot`. Everything in
+  // this list is a shared fact about the round (who judged, who you hit, the
+  // team names), which is why those DO travel.
   const metaKeys = ["name", "tournament", "opponent", "judges", "affTeam", "negTeam"] as const;
   for (const k of metaKeys) {
     const cur = String(round[k] ?? "");
@@ -300,6 +313,15 @@ class SessionStore {
   private clientId = crypto.randomUUID();
   /** One shadow per open document — a separate-flows session diffs both. */
   private shadows = new Map<string, Shadow>();
+  /**
+   * `updatedAt` of each document as of the last diff we actually delivered.
+   *
+   * Lets an idle tick cost one number comparison instead of a deep clone and a
+   * full re-serialize of every cell. Cleared — never merely updated — by
+   * anything that makes the shadow lie about what the peer holds, because the
+   * stamp is a shortcut past the diff and a stale entry would suppress it.
+   */
+  private published = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private ping: ReturnType<typeof setInterval> | null = null;
   private lastHeard = 0;
@@ -534,6 +556,7 @@ class SessionStore {
     this.ch?.close();
     this.ch = null;
     this.shadows.clear();
+    this.published.clear();
     this.inbound.clear();
     // Close the partner's flow. It is still saved in app data under its own
     // id, so it stays reachable from the dashboard — this just stops rendering
@@ -697,11 +720,16 @@ class SessionStore {
       fresh.cells.clear();
       this.shadows.set(doc.id, fresh);
     }
+    // ⚠ Must clear, or the resend never happens. The whole point here is to
+    // re-emit cells the round itself has NOT changed since, so the `updatedAt`
+    // shortcut in `publish()` would skip the very tick this exists to cause.
+    this.published.clear();
   }
 
   /** Re-seed shadows so nothing already in hand is diffed out as a change. */
   private reseed(): void {
     this.shadows.clear();
+    this.published.clear();
     for (const d of this.syncedDocs()) {
       this.shadows.set(d.id, diffRound($state.snapshot(d) as Round, emptyShadow()).next);
     }
@@ -710,10 +738,25 @@ class SessionStore {
   private publish(): void {
     if (this.applying || this.status === "off") return;
     for (const doc of this.syncedDocs()) {
-      const snap = $state.snapshot(doc) as Round;
-      const { deltas, next } = diffRound(snap, this.shadows.get(doc.id) ?? emptyShadow());
+      // ⚠ THE IDLE TICK IS THE COMMON ONE — skip it entirely.
+      //
+      // Diffing meant deep-cloning the whole round ($state.snapshot) and
+      // re-serializing every cell to ask "did anything change?". Measured on a
+      // real 2.4 MB flow that is ~17ms of clone plus ~7ms of diff, four times a
+      // second, forever — including while you are listening to the other team
+      // and touching nothing. Five cells in that flow are over 50KB and one is
+      // 507KB; all of them were being re-stringified 4x/second to be told they
+      // were identical.
+      //
+      // `updatedAt` now moves on every path that persists a change (it is set
+      // in `scheduleSave`, the one choke point), so an unmoved stamp means
+      // there is provably nothing to send.
+      const stamp = doc.updatedAt ?? 0;
+      if (this.published.get(doc.id) === stamp) continue;
+      const { deltas, next } = diffRound(doc, this.shadows.get(doc.id) ?? emptyShadow());
       if (!deltas.length) {
         this.shadows.set(doc.id, next);
+        this.published.set(doc.id, stamp);
         continue;
       }
       // One message per document per batch — a burst of typing is one frame.
@@ -737,7 +780,15 @@ class SessionStore {
       // the first tick after reconnecting diffs everything that happened in
       // between and sends it in one go. Nothing to queue, nothing to overflow,
       // nothing to replay in order.
-      if (sent) this.shadows.set(doc.id, next);
+      // ⚠ The guard advances ONLY with the shadow, for the same reason the
+      // shadow only advances on a frame that reached the wire: marking a
+      // document "published" after a failed send would stop the next tick even
+      // looking at it, and the edits composed while the socket was down would
+      // never be diffed again.
+      if (sent) {
+        this.shadows.set(doc.id, next);
+        this.published.set(doc.id, stamp);
+      }
     }
     this.queued = this.ch?.pending ?? 0;
     this.publishCursor();
@@ -870,6 +921,12 @@ class SessionStore {
           const doc = store.docById(docId);
           if (doc) {
             this.shadows.set(docId, diffRound($state.snapshot(doc) as Round, emptyShadow()).next);
+            // The shadow now matches the document exactly, so there is nothing
+            // to send — and applying their change bumped `updatedAt`, which
+            // would otherwise make the next tick do a full diff to discover
+            // that. Recording the stamp alongside the shadow keeps the two
+            // saying the same thing.
+            this.published.set(docId, doc.updatedAt ?? 0);
           }
         }
         return;
@@ -909,7 +966,21 @@ class SessionStore {
   private sendSnapshot(to: string, kind: "adopt" | "mirror" = "adopt", round?: Round): void {
     const src = round ?? store.round;
     if (!src) return;
-    const json = JSON.stringify($state.snapshot(src));
+    const payload = $state.snapshot(src) as Round;
+    // ⚠ JUDGE FEEDBACK IS PER PARTNER AND NEVER TRAVELS.
+    //
+    // You and your partner hear the same RFD and write down different things —
+    // what you each took from it is your own note, not shared state. Deltas
+    // already never carry `rfd` (it is not in the delta protocol; see the
+    // `meta` keys), so during a session the two copies already diverge
+    // correctly. The snapshot was the one path that copied one person's
+    // feedback onto the other, at the moment of joining.
+    //
+    // Everything ABOUT the round stays shared: judge names, opponent, teams and
+    // the flow itself all still sync, because those are facts about the round
+    // rather than somebody's notes on it.
+    delete payload.rfd;
+    const json = JSON.stringify(payload);
     const total = Math.max(1, Math.ceil(json.length / CHUNK_CHARS));
     const id = crypto.randomUUID();
     for (let i = 0; i < total; i++) {
@@ -950,6 +1021,15 @@ class SessionStore {
     // strips it too; both paths do it because it is the one rule here that
     // cannot be allowed to slip.
     delete round.filePath;
+    // ⚠ Judge feedback is stripped on BOTH sides, not just on send.
+    //
+    // `sendSnapshot` already drops it, but every build up to 1.2.8 puts `rfd`
+    // in the snapshot, and partners update at different times — so a guest on
+    // this build joining a host on an older one would still inherit their
+    // notes. The receiving side is the one that can actually enforce the rule,
+    // which is why `filePath` has always been cleared here too. Whatever this
+    // round's feedback should be is decided below, from what WE already had.
+    delete round.rfd;
     this.peerEmail = String(p.email ?? "") || this.peerEmail || "your partner";
 
     if (p.kind === "mirror") {
@@ -971,6 +1051,19 @@ class SessionStore {
     }
 
     // SHARED flow: their round becomes ours, and we take lane 1.
+    //
+    // ⚠ KEEP OUR OWN JUDGE FEEDBACK ACROSS THE ADOPT, BY ROUND ID.
+    //
+    // An adopt REPLACES the flow on screen, and a rejoin after an app restart
+    // re-sends the snapshot — so without this, typing up the RFD and then
+    // reconnecting would silently erase it. Keyed on the round's identity, not
+    // on the fact that a snapshot arrived: if this is the same flow we were
+    // already in, the feedback we wrote about it is still ours to keep; if it
+    // is a different flow, our notes belonged to the old one and do not follow
+    // us onto someone else's round.
+    const mine = store.round;
+    const keepRfd = mine && mine.id === round.id ? mine.rfd : undefined;
+    if (keepRfd) round.rfd = $state.snapshot(keepRfd) as typeof keepRfd;
     this.mode = "shared";
     this.myDocId = round.id;
     store.loadRound(round);

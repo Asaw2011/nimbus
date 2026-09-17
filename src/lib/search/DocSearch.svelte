@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { untrack } from "svelte";
   import { fileIndex, relativeTime, type LibFile } from "./file-index.svelte";
   import { contentIndex } from "./content-index.svelte";
   import { parseDocx, nodeChip, type DocNode } from "$lib/docx/parse";
@@ -176,17 +175,22 @@
     return uniqueByPath(hits, (h) => h.file.path);
   });
 
-  // Kick off the (incremental, cached) content build when the user switches to
-  // by-content — never on startup, so it costs nothing unless you use it.
-  function ensureContentIndex() {
-    if (!contentIndex.building) void contentIndex.build();
+  // ⚠ SELECTING "BY CONTENT" DOES NOT INDEX ANYTHING.
+  //
+  // This used to be an $effect that started a full build the instant the mode
+  // flipped. Indexing reads every .docx in the library, and on a Dropbox
+  // library those reads are downloads — one mis-click cost six minutes and
+  // 219 MB, with no way to stop it. Searching still works immediately against
+  // whatever is already indexed; bringing the index up to date is now a button.
+  function startIndex(force = false, includeOffline = false) {
+    if (!contentIndex.building) void contentIndex.build(force, includeOffline);
   }
-  $effect(() => {
-    // Trigger only on the switch INTO content mode. untrack so the build's own
-    // reactive reads (contentIndex.building, fileIndex.files) don't become deps —
-    // otherwise finishing a build flips `building` and re-fires this effect,
-    // kicking off an endless re-index loop.
-    if (searchBy === "content") untrack(() => ensureContentIndex());
+
+  // Recomputes as the index grows (version) and as the library is re-scanned.
+  const coverage = $derived.by(() => {
+    contentIndex.version;
+    fileIndex.files;
+    return contentIndex.coverage;
   });
 
   // ── tree rows (within-file) ────────────────────────────────────
@@ -494,8 +498,36 @@
       {#if searchBy === "content"}
         {#if contentIndex.building}
           <span class="ds-scopeinfo">indexing {contentIndex.built}/{contentIndex.total}…</span>
-        {:else if contentIndex.ready}
-          <button class="ds-scopeinfo link" title="Re-scan documents for changes" onclick={() => contentIndex.build()}>↻ rescan</button>
+          <button
+            class="ds-scopebtn stop"
+            title="Stop indexing. Everything scanned so far is kept."
+            onclick={() => contentIndex.stop()}
+          >■ Stop</button>
+        {:else}
+          {#if coverage.indexed < coverage.local}
+            <button
+              class="ds-scopebtn go"
+              title="Read {coverage.local - coverage.indexed} document{coverage.local - coverage.indexed === 1 ? '' : 's'} to make their contents searchable. You can stop at any time."
+              onclick={() => startIndex()}
+            >⌕ Index {(coverage.local - coverage.indexed).toLocaleString()} doc{coverage.local - coverage.indexed === 1 ? "" : "s"}</button>
+          {:else if contentIndex.ready}
+            <button class="ds-scopeinfo link" title="Re-check documents for changes" onclick={() => startIndex()}>↻ rescan</button>
+          {/if}
+          {#if contentIndex.ready}
+            <span class="ds-scopeinfo" title="Documents whose contents are searchable">
+              {coverage.indexed.toLocaleString()} indexed{contentIndex.stopped ? " (stopped)" : ""}
+            </span>
+          {/if}
+          <!-- Only ever an OPT-IN. These files are not on the disk and reading
+               them downloads every one — which is exactly what used to happen
+               by accident. -->
+          {#if coverage.offline > 0}
+            <button
+              class="ds-scopeinfo link warn"
+              title="{coverage.offline.toLocaleString()} document{coverage.offline === 1 ? ' is' : 's are'} stored online only and {coverage.offline === 1 ? 'was' : 'were'} skipped. Indexing {coverage.offline === 1 ? 'it' : 'them'} downloads {coverage.offline === 1 ? 'it' : 'them'} to this computer."
+              onclick={() => startIndex(false, true)}
+            >⇣ {coverage.offline.toLocaleString()} not downloaded</button>
+          {/if}
         {/if}
       {/if}
     </div>
@@ -536,13 +568,40 @@
     {:else if mode === "files" && searchBy === "content"}
       {#if !query.trim()}
         <div class="ds-msg">
-          {contentIndex.building
-            ? `Indexing document contents… ${contentIndex.built}/${contentIndex.total}`
-            : "Type a tagline / card / block to find which docs contain it."}
+          {#if contentIndex.building}
+            Indexing document contents… {contentIndex.built}/{contentIndex.total}
+            <div class="ds-msgsub">Stop at any time — what's been scanned is kept.</div>
+          {:else if !contentIndex.ready}
+            Nothing is indexed yet.
+            <div class="ds-msgsub">
+              Searching by content needs to read your documents once. Press
+              <b>Index</b> above to start — it can be stopped at any time.
+            </div>
+          {:else}
+            Type a tagline / card / block to find which docs contain it.
+            {#if coverage.indexed < coverage.local}
+              <div class="ds-msgsub">
+                Searching {coverage.indexed.toLocaleString()} of
+                {coverage.local.toLocaleString()} documents — press <b>Index</b> to cover the rest.
+              </div>
+            {/if}
+          {/if}
         </div>
       {:else if contentResults.length === 0}
         <div class="ds-msg">
-          {contentIndex.building ? "Indexing… results appear as docs are scanned." : `No document contains "${query}"`}
+          {#if contentIndex.building}
+            Indexing… results appear as docs are scanned.
+          {:else}
+            No indexed document contains "{query}"
+            {#if coverage.indexed < coverage.local || coverage.offline > 0}
+              <div class="ds-msgsub">
+                {coverage.indexed.toLocaleString()} of {coverage.local.toLocaleString()} documents
+                are indexed{coverage.offline > 0
+                  ? `, and ${coverage.offline.toLocaleString()} more are stored online only`
+                  : ""}. It may be in one that hasn't been read yet.
+              </div>
+            {/if}
+          {/if}
         </div>
       {:else}
         {#each contentResults as hit, i (hit.file.path)}
@@ -661,9 +720,22 @@
     border-radius: 6px; padding: 3px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
   }
   .ds-scopebtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* The index action reads as an offer, not as the selected mode — it must not
+     look like the "By content" button it sits next to. */
+  .ds-scopebtn.go { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .ds-scopebtn.go:hover { background: var(--accent); color: #fff; }
+  .ds-scopebtn.stop { border-color: var(--mark-dropped); color: var(--mark-dropped); }
+  .ds-scopebtn.stop:hover { background: var(--mark-dropped); color: #fff; }
   .ds-scopeinfo { font-size: 11px; color: var(--text-dim); margin-left: auto; }
   .ds-scopeinfo.link { background: none; border: none; cursor: pointer; }
   .ds-scopeinfo.link:hover { color: var(--text); }
+  /* Not an error — these files are fine, they just aren't here. Dimmed rather
+     than coloured, so it reads as information and not as something to fix. */
+  .ds-scopeinfo.warn { margin-left: 0; text-decoration: underline dotted; }
+  .ds-msgsub {
+    font-size: 11px; line-height: 1.5; margin-top: 6px;
+    max-width: 44ch; margin-inline: auto; opacity: 0.85;
+  }
 
   /* By-content result: a file with the matching heading snippets under it. */
   .ds-file.content { flex-direction: column; align-items: stretch; gap: 2px; }
