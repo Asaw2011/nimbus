@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.0",
+    headline: "A cleaner, calmer Nimbus — same flow, less clutter.",
+    items: [
+      "**Two themes instead of five.** The theme picker is now just **Dark** and **Light** — a deep true-dark and a clean white, both on the same blue accent and the same aff/neg/analytic/card ink, so a flow looks the same in either one and nothing shifts color when you switch. The old in-between greys and paper tints are gone; if you were on one of them, Nimbus moves you to the nearest of the two and nothing you set is lost.",
+      "**Crisp icons in place of emoji.** The toolbar, dashboard and tabs now use a single matched icon set that stays sharp at any size and takes the theme's color, instead of emoji that rendered differently on every machine. Everything means the same thing it did — it just looks like one app now.",
+      "**Prep time lives with the other clocks.** The setting for how much prep each team gets moved out from under Appearance into its own **Prep clocks** section next to Timer presets, with a note that it sets new rounds — to change the round you're in, you still click the time in the ribbon and type over it.",
+      "**A tidier dashboard and settings.** The round list and the settings window got a pass for spacing and alignment, so the app feels finished rather than busy. Nothing about where things are or what they do has changed.",
+    ],
+  },
+  {
     version: "1.2.9",
     headline: "Nimbus stops freezing mid-round, and searching by content no longer downloads your whole Dropbox.",
     items: [

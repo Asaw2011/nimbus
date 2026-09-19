@@ -1,0 +1,54 @@
+/* Two themes only: Dark (black) and Light (white). Both share the same blue
+   accent family and the same aff/neg/analytic/card ink, so colors stay
+   synchronized across the app; only the surfaces flip. Dark is the :root
+   default; [data-theme="light"] overrides it. */
+:root {
+  --bg: #08080a;
+  --panel: #16161b;
+  --cell-bg: #121216;
+  --border: #2d2d35;
+  --grid-line: #1f1f25;
+  --text: #ededf0;
+  --text-dim: #8b8b93;
+  --accent: #4c8dff;
+  --aff: #7fb0ff;
+  --neg: #ff8a6f;
+  --analytic: #5fd98a;
+  --card: #c792ea;
+  --active-cell-bg: #1a2233;
+  --dropped-bg: #2a1b1b;
+  --mark-dropped: #e05c5c;
+  --mark-star: #e0b64c;
+  --kbd-bg: #232327;
+  --kbd-border: #34343a;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --cell-bg: #ffffff;
+  --border: #dfe1e6;
+  --grid-line: #edeef1;
+  --text: #16181d;
+  --text-dim: #697080;
+  --accent: #3f6fd0;
+  --aff: #2563eb;
+  --neg: #d63d3d;
+  --analytic: #1e8e4a;
+  --card: #7c4dbe;
+  --active-cell-bg: #e8f0fe;
+  --dropped-bg: #fdeaea;
+  --mark-dropped: #d63d3d;
+  --mark-star: #b8860b;
+  --kbd-bg: #eef0f3;
+  --kbd-border: #e3e5e9;
+  color-scheme: light;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}

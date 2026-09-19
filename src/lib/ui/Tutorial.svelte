@@ -55,7 +55,7 @@
       </div>
       <div class="item">
         <span class="k">Read the manual</span>
-        The <b>📖 Manual</b> button in the top bar explains every feature —
+        The <b>Manual</b> button in the top bar explains every feature:
         flow, speech doc, shortcuts, and settings.
       </div>
     </div>
@@ -65,7 +65,7 @@
       <button class="ghost" onclick={dismissForever}>Don't show this again</button>
     </div>
     <p class="foot">
-      New here? The <b>📖 Manual</b> button (top bar) explains every feature.
+      New here? The <b>Manual</b> button (top bar) explains every feature.
       Reopen this welcome anytime in Settings → “Show welcome tutorial”.
     </p>
   </div>

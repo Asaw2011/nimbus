@@ -403,7 +403,7 @@
     <div class="tools">
       <!-- DOCX-IMPORT feature (removable — see import comment above) -->
       <details class="tool">
-        <summary>📄 Import speech doc (.docx)</summary>
+        <summary>Import speech doc (.docx)</summary>
         <div class="tool-body">
           <p class="hint-line">Drop in their .docx — each position becomes a sheet, card tags become rows.</p>
           <DocImport />
@@ -412,11 +412,11 @@
       <!-- /DOCX-IMPORT -->
 
       <details class="tool">
-        <summary>📤 Export &amp; convert</summary>
+        <summary>Export &amp; convert</summary>
         <div class="tool-body">
           <div class="setup-row">
             <button class="chip" onclick={async () => { if (round && await exportExcel(round)) exportStatus = "Saved as Excel (.xlsx)"; }}>⊞ Excel (.xlsx)</button>
-            <button class="chip" onclick={async () => { if (round && await exportNimbus(round)) exportStatus = "Saved as Nimbus (.nimbus)"; }}>☁ Nimbus (.nimbus)</button>
+            <button class="chip" onclick={async () => { if (round && await exportNimbus(round)) exportStatus = "Saved as Nimbus (.nimbus)"; }}>Nimbus (.nimbus)</button>
             <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
           </div>
         </div>

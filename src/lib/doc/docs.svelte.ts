@@ -12,8 +12,13 @@ export interface DocEntry {
   name: string;
 }
 
-const LIST_BLOB = "docs-list";
-const LEGACY_BLOB = "speech-doc-json";
+// Doc lists are scoped PER FLOW: each round keeps its own set of speech docs, so
+// opening ten source docs while flowing one round never bleeds into the next
+// one — a fresh flow starts with a single clean Speech doc. The list blob is
+// keyed by round id (`docs-list-<roundId>`; round ids are alphanumeric, so the
+// blob-name sanitizer leaves them intact). Doc CONTENT stays keyed by its own
+// unique doc id, so it never needs round scoping.
+const LIST_PREFIX = "docs-list-";
 
 class DocsStore {
   docs = $state<DocEntry[]>([]);
@@ -21,30 +26,38 @@ class DocsStore {
   // The doc that receives ` / ~ "send to speech" sends — your speech in progress.
   // CardMirror/Verbatim call this "the speech"; here it's marked with a ★ on its tab.
   speechDocId = $state<string | null>(null);
-  private loaded = false;
+  private currentRoundId: string | null = null;
 
-  async init(): Promise<void> {
-    if (this.loaded) return;
-    this.loaded = true;
-    const saved = await loadBlob<{ docs: DocEntry[]; activeId: string | null; speechDocId?: string | null }>(LIST_BLOB);
+  private listKey(roundId: string): string {
+    return LIST_PREFIX + roundId;
+  }
+
+  /**
+   * Load the doc set for a specific flow, replacing whatever was open. A round
+   * with no saved docs starts fresh (one blank "Speech" doc). Flushes the
+   * previous flow's docked content first so nothing is lost on the switch.
+   */
+  async loadForRound(roundId: string): Promise<void> {
+    if (this.currentRoundId === roundId) return;
+    if (this.currentRoundId) {
+      try { await flushDocs(); } catch { /* best-effort */ }
+    }
+    this.currentRoundId = roundId;
+    const saved = await loadBlob<{ docs: DocEntry[]; activeId: string | null; speechDocId?: string | null }>(this.listKey(roundId));
     if (saved?.docs?.length) {
       this.docs = saved.docs;
       const has = (id: string | null | undefined) => !!id && saved.docs.some((d) => d.id === id);
       const fallback = saved.docs[0].id;
       this.activeId = has(saved.activeId) ? saved.activeId! : fallback;
       this.speechDocId = has(saved.speechDocId) ? saved.speechDocId! : fallback;
-      // If either pointer referenced a doc that no longer exists, heal the
-      // persisted state so it doesn't keep loading a phantom (empty) doc.
       if (!has(saved.activeId) || !has(saved.speechDocId)) this.persist();
       return;
     }
-    // First run: carry over the old single doc if there was one, else start blank.
+    // Fresh flow: a single clean Speech doc.
     const id = uid();
     this.docs = [{ id, name: "Speech" }];
     this.activeId = id;
     this.speechDocId = id;
-    const legacy = await loadBlob<unknown>(LEGACY_BLOB);
-    if (legacy) saveDocContent(id, legacy);
     this.persist();
   }
 
@@ -121,7 +134,12 @@ class DocsStore {
   }
 
   private persist(): void {
-    saveBlob(LIST_BLOB, { docs: $state.snapshot(this.docs), activeId: this.activeId, speechDocId: this.speechDocId });
+    if (!this.currentRoundId) return;
+    saveBlob(this.listKey(this.currentRoundId), {
+      docs: $state.snapshot(this.docs),
+      activeId: this.activeId,
+      speechDocId: this.speechDocId,
+    });
   }
 }
 

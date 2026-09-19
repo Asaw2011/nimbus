@@ -181,7 +181,7 @@
         <section id="sec-partner">
           <h2>Flowing with a partner</h2>
           <p>
-            <b>👤 Partner flow</b> in the top bar pairs two copies of Nimbus over
+            <b>Partner flow</b> in the top bar pairs two copies of Nimbus over
             the internet so you and your partner see each other type. One of you
             starts and reads out the <b>6-character code</b>; the other types it
             in; the first approves, with the joiner's email shown.
@@ -270,7 +270,7 @@
           <ul>
             <li><b>Enter</b> takes the author; <b>Tab</b> takes the author and the tag.</li>
             <li>The bank fills up from the docs you import, and holds analytics as well as carded arguments.</li>
-            <li><b>🗃 Arguments</b> in the top bar edits what it offers.</li>
+            <li><b>Arguments</b> in the top bar edits what it offers.</li>
           </ul>
         </section>
 
@@ -322,7 +322,7 @@
             The speech doc <b>is</b> CardMirror: it uses CardMirror's real schema,
             importer, and exporter, so cards render and round-trip identically
             (highlight = spoken, underline = the cut, emphasis = boxed power word,
-            small = unread). Open it with <kbd>{mod}D</kbd> or the 📄 button.
+            small = unread). Open it with <kbd>{mod}D</kbd> or the Speech doc button.
           </p>
           <p class="foot">
             CardMirror is by Anthony Trufanov — Required Notice: Copyright &copy; 2026
@@ -338,7 +338,7 @@
             <li><b>Backspace</b> on an empty heading/tag removes it. Empty headings don't clutter the outline.</li>
             <li><b>Outline</b> (left) jumps to any heading; collapse to Pocket / Hat / Block.</li>
             <li><b>Maximize</b> to fill the window, or <b>Pop out</b> into its own window. Drag the divider to resize; it can go narrow.</li>
-            <li><b>Multiple docs</b>: the tab bar above the doc holds several independent docs — <b>＋</b> makes a new one, <b>📂 Open</b> imports a <b>.docx</b> into its own doc, double-click a tab to rename, <b>×</b> to close. Each keeps its own content, saved automatically.</li>
+            <li><b>Multiple docs</b>: the tab bar above the doc holds several independent docs — <b>+</b> makes a new one, <b>Open</b> imports a <b>.docx</b> into its own doc, double-click a tab to rename, <b>×</b> to close. Each keeps its own content, saved automatically.</li>
             <li><b>Pop out</b> (⇱ on a tab) opens a doc in its own window — you can have several out at once. The <b>main</b> doc (the flow-linked one) is always the docked tab; click a tab to make it the main.</li>
             <li><b>The speech doc</b> (<b>★</b>): click the star on any doc's tab to mark it as your speech doc — the one you're building. The star turns gold. Setting it makes that doc the docked/main doc so sends always land in it.</li>
             <li><b>Send to speech</b> (<kbd>`</kbd> / <kbd>~</kbd>, fixed): from any other doc (typically a source doc popped out into its own window), press this to send the current card/selection to your <b>★ speech doc</b> at its cursor — like Verbatim/CardMirror. If the speech doc isn't open, the card is appended to it.</li>
@@ -490,7 +490,7 @@
             from <b>Settings → Backup</b>. Updates are signed, so Nimbus will
             refuse anything that didn't come from us.
           </p>
-          <p class="foot">Reopen this manual anytime from the 📖 button in the top bar.</p>
+          <p class="foot">Reopen this manual anytime from the Manual button in the top bar.</p>
         </section>
 
         <section>
