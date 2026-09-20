@@ -17,29 +17,76 @@ export interface LibraryRoot {
 const LS_KEY = "debate-flow:settings"; // legacy pre-disk location
 const BLOB = "settings";
 
-export type Theme = "dark" | "light";
+export type Theme =
+  | "dark"
+  | "slate"
+  | "light"
+  | "snow"
+  | "paper"
+  | "cream"
+  | "sky"
+  | "mist";
 export type TabsPosition = "top" | "bottom";
+export type TabSize = "compact" | "regular" | "large";
 
-/** Theme picker options: id, label, and the swatch bg to preview. */
+/**
+ * Sheet-tab sizes, as the padding and text size the tab bar uses.
+ *
+ * `compact` is the bar as it was before the 1.3.0 look — the smallest that
+ * still reads. `large` is what 1.3.0 shipped. `regular` sits between them and
+ * is the default, so the bar is no longer as tall as 1.3.0 made it but is not
+ * squeezed to the old minimum either; anyone who wants either end has it.
+ */
+export const TAB_SIZES: { id: TabSize; label: string; pad: string; font: string }[] = [
+  { id: "compact", label: "Compact", pad: "7px 18px", font: "12px" },
+  { id: "regular", label: "Regular", pad: "9px 20px", font: "13px" },
+  { id: "large", label: "Large", pad: "12px 24px", font: "14px" },
+];
+
+/**
+ * Theme picker options: id, label, and the swatch bg to preview.
+ *
+ * ⚠ `light` is the WHITE one and `paper` is the legal-pad tint. They were the
+ * same id once: the two-theme pass reused `light` for white, while before it
+ * `light` WAS the paper tint and was labelled "Paper". Keeping white on `light`
+ * means nobody who had picked it gets moved, and the tint comes back under its
+ * own id rather than silently changing what an existing saved value means.
+ */
 export const THEMES: { id: Theme; label: string; bg: string }[] = [
   { id: "light", label: "Light", bg: "#ffffff" },
+  { id: "snow", label: "Snow", bg: "#fbfcfd" },
+  { id: "paper", label: "Paper", bg: "#f6f5f1" },
+  { id: "cream", label: "Cream", bg: "#f7f2e9" },
+  { id: "sky", label: "Sky", bg: "#eef4fb" },
+  { id: "mist", label: "Mist", bg: "#f4f5f6" },
+  { id: "slate", label: "Slate", bg: "#2b3038" },
   { id: "dark", label: "Dark", bg: "#0e0e10" },
 ];
 
-/** Map any legacy theme id (Snow/Paper/Cream/Sky/Mist/Slate) onto the two we
- *  keep now, so an old saved value never lands on an undefined theme. */
+const THEME_IDS = new Set<string>(THEMES.map((t) => t.id));
+
+/**
+ * Coerce a saved value onto a theme that actually exists.
+ *
+ * ⚠ It no longer collapses the tinted themes onto Light — that is what removed
+ * somebody's grey out from under them. It only guards against a value with no
+ * palette at all (a future rename, or a hand-edited settings file), which would
+ * otherwise leave `data-theme` pointing at a block that does not exist and the
+ * app rendering with the bare `:root` dark palette.
+ */
 export function normalizeTheme(t: string | undefined): Theme {
-  return t === "dark" || t === "slate" ? "dark" : "light";
+  return t && THEME_IDS.has(t) ? (t as Theme) : "light";
 }
 
 /** Themes that are dark enough to need light doc text / dark-mode treatment. */
-export const DARK_THEMES: Theme[] = ["dark"];
+export const DARK_THEMES: Theme[] = ["dark", "slate"];
 
 export interface Persisted {
   /** Bumped when a default change should override stale saved values. */
   version?: number;
   theme: Theme;
   tabsPosition: TabsPosition;
+  tabSize: TabSize;
   colMinWidth: number;
   /** Overrides for the aff/neg accent colors; "" = theme default. */
   affColor: string;
@@ -226,6 +273,15 @@ class Settings {
   templateAbbrs = $state<Record<number, string[]>>({});
   /** Bottom by default — the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
+  /**
+   * How much room the sheet tabs take.
+   *
+   * ⚠ Every pixel here comes out of the FLOW. The tab bar spans the bottom of
+   * the grid, so a taller tab is a row of argument you cannot see — which is
+   * why this is a setting rather than a constant. The roomier bar reads better
+   * on a big screen and costs real space on a laptop in a round.
+   */
+  tabSize = $state<TabSize>("regular");
   /** Columns stretch to fill the window but never shrink below this.
    * Default ≈ the ~30.7-char columns of a standard Verbatim flow template. */
   colMinWidth = $state(200);
@@ -298,6 +354,7 @@ class Settings {
     if (p.tabsPosition && (p.version ?? 1) >= 3) {
       this.tabsPosition = p.tabsPosition;
     }
+    if (p.tabSize && TAB_SIZES.some((t) => t.id === p.tabSize)) this.tabSize = p.tabSize;
     if (p.colMinWidth) this.colMinWidth = p.colMinWidth;
     if (p.affColor !== undefined) this.affColor = p.affColor;
     if (p.negColor !== undefined) this.negColor = p.negColor;
@@ -379,6 +436,7 @@ class Settings {
       version: 3,
       theme: this.theme,
       tabsPosition: this.tabsPosition,
+      tabSize: this.tabSize,
       readers: $state.snapshot(this.readers) as Reader[],
       timerPresets: $state.snapshot(this.timerPresets) as TimerPreset[],
       docTarget: this.docTarget,

@@ -1866,8 +1866,10 @@
     /* Inactive tabs recede — no stripe, half opacity — so the current sheet
      * reads unambiguously. */
     opacity: 0.5;
-    padding: 12px 24px;
-    font-size: 14px;
+    /* Settings → Sheet tabs → Size. Falls back to the 1.3.0 values so the bar
+     * still renders if the property is ever missing. */
+    padding: var(--tab-pad, 12px 24px);
+    font-size: var(--tab-font, 14px);
     font-weight: 600;
     letter-spacing: 0.03em;
     cursor: pointer;

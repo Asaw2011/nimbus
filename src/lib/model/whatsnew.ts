@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.2",
+    headline: "The other themes are back, and the sheet tabs can be made smaller.",
+    items: [
+      "**All the themes are back.** Snow, Paper, Cream, Sky, Mist and Slate return alongside Dark and Light, with exactly the colours they had — same backgrounds, same aff/neg ink. If you were using one of them and got moved to Light, pick it again in **Settings → Appearance** and it looks the way it did.",
+      "**Sheet tabs come in three sizes.** The tab bar along the bottom got taller in 1.3.0, and every pixel of it is a bit of flow you can't see. **Settings → Sheet tabs → Tab size** offers Compact, Regular and Large — Compact is the old bar and gives you about half a row of flow back on a laptop. Regular is the new default, between the two.",
+    ],
+  },
+  {
     version: "1.3.1",
     headline: "Importing a 1NC now gives your partner the off-case pages too.",
     items: [

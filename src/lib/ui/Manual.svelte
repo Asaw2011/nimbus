@@ -477,7 +477,8 @@
           <h2>Settings</h2>
           <p><kbd>{combosLabel(km.openSettings, mac)}</kbd> opens Settings, split into tabs:</p>
           <ul>
-            <li><b>Appearance</b> — theme, colors, default font, sizes, and the Speech Doc Style editor.</li>
+            <li><b>Appearance</b> — theme, colors, default font, sizes, and the Speech Doc Style editor. Eight themes: Light, Snow, Paper, Cream, Sky and Mist, plus Slate and Dark.</li>
+            <li><b>Sheet tabs</b> — top or bottom, and <b>Tab size</b> (Compact / Regular / Large). Smaller tabs leave more of the window for the flow.</li>
             <li><b>Editing</b> — macros and abbreviations.</li>
             <li><b>Keyboard</b> — every rebindable shortcut, grouped.</li>
             <li><b>Library</b> — folders Doc Search indexes.</li>

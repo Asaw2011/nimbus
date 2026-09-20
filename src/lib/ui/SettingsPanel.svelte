@@ -2,7 +2,7 @@
   import { settings } from "../model/settings.svelte";
   import type { ActionId, Combo } from "../model/keymap";
   import { ACTION_GROUPS, actionLabel, comboFromEvent, comboLabel } from "../model/keymap";
-  import { THEMES, DEFAULT_DOC_TYPOGRAPHY, clampPrepMinutes, type DocTypography } from "../model/settings.svelte";
+  import { THEMES, TAB_SIZES, DEFAULT_DOC_TYPOGRAPHY, clampPrepMinutes, type DocTypography } from "../model/settings.svelte";
   import { loadSnippets, saveSnippets } from "../model/snippets";
   import { validateMacroCode } from "../model/macros";
   import { exportSettings, importSettings } from "../model/backup";
@@ -291,6 +291,18 @@
           >Bottom</button>
         </div>
       </label>
+      <label class="row">
+        Tab size
+        <div class="seg">
+          {#each TAB_SIZES as t (t.id)}
+            <button
+              class:on={settings.tabSize === t.id}
+              onclick={() => { settings.tabSize = t.id; settings.save(); }}
+            >{t.label}</button>
+          {/each}
+        </div>
+      </label>
+      <p class="hint">Smaller tabs leave more of the window for the flow.</p>
       <div class="row">
         <span>Colors</span>
         <div class="color-group">

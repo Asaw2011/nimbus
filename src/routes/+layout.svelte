@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { settings } from "$lib/model/settings.svelte";
+  import { settings, TAB_SIZES } from "$lib/model/settings.svelte";
   import { initSnippets } from "$lib/model/snippets";
   import { onMount } from "svelte";
   import "$lib/theme.css"; // the two themes (Dark/Light) + base body styles
@@ -13,6 +13,16 @@
 
   $effect(() => {
     document.documentElement.dataset.theme = settings.theme;
+  });
+
+  // Sheet-tab size. Same mechanism as the grid geometry below — a custom
+  // property on the root — so the tab bar restyles without remounting the grid
+  // or touching the flow's own layout.
+  $effect(() => {
+    const root = document.documentElement.style;
+    const size = TAB_SIZES.find((t) => t.id === settings.tabSize) ?? TAB_SIZES[1];
+    root.setProperty("--tab-pad", size.pad);
+    root.setProperty("--tab-font", size.font);
   });
 
   // User overrides for the aff/neg accent colors (blue/red are just defaults).

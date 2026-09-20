@@ -44,6 +44,143 @@
   --kbd-border: #e3e5e9;
   color-scheme: light;
 }
+/* ── The tinted themes ──────────────────────────────────────────────────────
+   Restored after the two-theme pass removed them. They are the palettes as
+   they were, not re-derived: somebody picks Mist or Slate because of how it
+   looks, and "close enough" is not the same theme.
+
+   ⚠ These carry their OWN accent and ink on purpose, unlike Dark/Light above
+   which deliberately share one family. A flow's aff/neg colors are tuned to
+   the surface they sit on — the blue that reads right on white is not the one
+   that reads right on #2b3038. */
+:root[data-theme="slate"] {
+  --bg: #2b3038;
+  --panel: #343a44;
+  --cell-bg: #2f353e;
+  --border: #4a515c;
+  --grid-line: #3a404a;
+  --text: #e9edf2;
+  --text-dim: #9aa3b0;
+  --accent: #6bb0ff;
+  --aff: #8fc0ff;
+  --neg: #ff9a7f;
+  --analytic: #6fe0a0;
+  --card: #cf9cf0;
+  --active-cell-bg: #33465e;
+  --dropped-bg: #3a2626;
+  --mark-dropped: #e86b6b;
+  --mark-star: #e6c05c;
+  --kbd-bg: #3c434e;
+  --kbd-border: #565e6a;
+  color-scheme: dark;
+}
+:root[data-theme="snow"] {
+  --bg: #fbfcfd;
+  --panel: #ffffff;
+  --cell-bg: #ffffff;
+  --border: #dde1e6;
+  --grid-line: #eceff2;
+  --text: #1a1d21;
+  --text-dim: #6b7280;
+  --accent: #2563eb;
+  --aff: #2563eb;
+  --neg: #d63d3d;
+  --analytic: #1e8e4a;
+  --card: #7c4dbe;
+  --active-cell-bg: #e8f0fe;
+  --dropped-bg: #fdeaea;
+  --mark-dropped: #d63d3d;
+  --mark-star: #b8860b;
+  --kbd-bg: #eef1f4;
+  --kbd-border: #dde1e6;
+  color-scheme: light;
+}
+/* Legal-pad paper. Was `light` before the two-theme pass; see THEMES. */
+:root[data-theme="paper"] {
+  --bg: #f6f5f1;
+  --panel: #ffffff;
+  --cell-bg: #fffefb;
+  --border: #c9c7c0;
+  --grid-line: #e2e0d8;
+  --text: #1d1d1b;
+  --text-dim: #6d6b64;
+  --accent: #1a6fd4;
+  --aff: #1a6fd4;
+  --neg: #c8442a;
+  --analytic: #1e8e4a;
+  --card: #7c4dbe;
+  --active-cell-bg: #e8f0fc;
+  --dropped-bg: #fbe9e7;
+  --mark-dropped: #c8442a;
+  --mark-star: #b8860b;
+  --kbd-bg: #eceae4;
+  --kbd-border: #c9c7c0;
+  color-scheme: light;
+}
+:root[data-theme="cream"] {
+  --bg: #f7f2e9;
+  --panel: #fffdf8;
+  --cell-bg: #fffefb;
+  --border: #e3d9c6;
+  --grid-line: #efe7d6;
+  --text: #2a2620;
+  --text-dim: #7a715f;
+  --accent: #2f6bd0;
+  --aff: #2f6bd0;
+  --neg: #c8442a;
+  --analytic: #1e8e4a;
+  --card: #7c4dbe;
+  --active-cell-bg: #eef3fb;
+  --dropped-bg: #f7e7e0;
+  --mark-dropped: #c8442a;
+  --mark-star: #a9791a;
+  --kbd-bg: #efe7d6;
+  --kbd-border: #e3d9c6;
+  color-scheme: light;
+}
+:root[data-theme="sky"] {
+  --bg: #eef4fb;
+  --panel: #ffffff;
+  --cell-bg: #f9fbfe;
+  --border: #cfdff0;
+  --grid-line: #e1ecf8;
+  --text: #16202e;
+  --text-dim: #5c6b7d;
+  --accent: #1a6fd4;
+  --aff: #1a6fd4;
+  --neg: #d1442c;
+  --analytic: #1e8e4a;
+  --card: #7c4dbe;
+  --active-cell-bg: #dceaf8;
+  --dropped-bg: #f8e5e0;
+  --mark-dropped: #d1442c;
+  --mark-star: #b3801c;
+  --kbd-bg: #e1ecf8;
+  --kbd-border: #cfdff0;
+  color-scheme: light;
+}
+:root[data-theme="mist"] {
+  --bg: #f4f5f6;
+  --panel: #ffffff;
+  --cell-bg: #fcfcfd;
+  --border: #d9dce0;
+  --grid-line: #eaecee;
+  --text: #1e2227;
+  --text-dim: #6a7078;
+  --accent: #3b6cc9;
+  --aff: #2c62c4;
+  --neg: #cf3f38;
+  --analytic: #1e8e4a;
+  --card: #7c4dbe;
+  --active-cell-bg: #e9eef7;
+  --dropped-bg: #f8e9e8;
+  --mark-dropped: #cf3f38;
+  --mark-star: #ab7d1a;
+  --kbd-bg: #eaecee;
+  --kbd-border: #d9dce0;
+  color-scheme: light;
+}
+
 body {
   margin: 0;
   background: var(--bg);
