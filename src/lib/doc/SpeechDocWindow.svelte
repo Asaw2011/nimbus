@@ -96,7 +96,7 @@
   <div class="window-bar">
     <span class="title">Speech Doc</span>
     <div class="bar-actions">
-      <button class="search-btn" onclick={() => (showSearch = true)}>🔍 Find cards (⌘K)</button>
+      <button class="search-btn" onclick={() => (showSearch = true)}>Find cards (⌘K)</button>
       <button class="dock-btn" onclick={dockBack}>⤓ Dock back into Nimbus</button>
     </div>
   </div>

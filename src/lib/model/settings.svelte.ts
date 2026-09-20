@@ -17,29 +17,23 @@ export interface LibraryRoot {
 const LS_KEY = "debate-flow:settings"; // legacy pre-disk location
 const BLOB = "settings";
 
-export type Theme =
-  | "dark"
-  | "slate"
-  | "light"
-  | "snow"
-  | "cream"
-  | "sky"
-  | "mist";
+export type Theme = "dark" | "light";
 export type TabsPosition = "top" | "bottom";
 
 /** Theme picker options: id, label, and the swatch bg to preview. */
 export const THEMES: { id: Theme; label: string; bg: string }[] = [
-  { id: "snow", label: "Snow", bg: "#fbfcfd" },
-  { id: "light", label: "Paper", bg: "#f6f5f1" },
-  { id: "cream", label: "Cream", bg: "#f7f2e9" },
-  { id: "sky", label: "Sky", bg: "#eef4fb" },
-  { id: "mist", label: "Mist", bg: "#f4f5f6" },
-  { id: "slate", label: "Slate", bg: "#2b3038" },
-  { id: "dark", label: "Dark", bg: "#141414" },
+  { id: "light", label: "Light", bg: "#ffffff" },
+  { id: "dark", label: "Dark", bg: "#0e0e10" },
 ];
 
+/** Map any legacy theme id (Snow/Paper/Cream/Sky/Mist/Slate) onto the two we
+ *  keep now, so an old saved value never lands on an undefined theme. */
+export function normalizeTheme(t: string | undefined): Theme {
+  return t === "dark" || t === "slate" ? "dark" : "light";
+}
+
 /** Themes that are dark enough to need light doc text / dark-mode treatment. */
-export const DARK_THEMES: Theme[] = ["dark", "slate"];
+export const DARK_THEMES: Theme[] = ["dark"];
 
 export interface Persisted {
   /** Bumped when a default change should override stale saved values. */
@@ -206,7 +200,7 @@ export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
 };
 
 class Settings {
-  theme = $state<Theme>("snow");
+  theme = $state<Theme>("light");
   showTutorial = $state(true);
   compactTopBar = $state(false);
   /** Denser speech-doc chrome (toolbar + outline) so the document reads bigger
@@ -298,7 +292,7 @@ class Settings {
   }
 
   applyPersisted(p: Partial<Persisted>): void {
-    if (p.theme) this.theme = p.theme;
+    if (p.theme) this.theme = normalizeTheme(p.theme);
     // v3: re-assert bottom tabs (Excel-style) as the default — only saves made
     // at v3+ (i.e. a deliberate later toggle) keep a persisted position.
     if (p.tabsPosition && (p.version ?? 1) >= 3) {

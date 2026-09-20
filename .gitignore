@@ -16,6 +16,12 @@ vite.config.ts.timestamp-*
 /.claude
 /.vscode
 
+# ruflo / agent orchestration scratch — local only, never part of the app.
+/.agents
+/.swarm
+/ruvector.db
+/skills-lock.json
+
 # Internal working notes. These name real people (debate partners and
 # opponents), contain local Dropbox paths, and record session-by-session dev
 # history. Kept out of the public repo on purpose.

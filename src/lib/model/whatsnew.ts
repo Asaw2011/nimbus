@@ -24,11 +24,21 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "1.2.10",
+    version: "1.3.1",
     headline: "Importing a 1NC now gives your partner the off-case pages too.",
     items: [
       "**Off-case pages reach your partner.** Importing a 1NC created the pages on your screen and, often, on nobody else's — your partner had to build them by hand mid-round and the two flows drifted apart. A page made by an import arrives already full of cards, and the whole thing was being sent as one oversized message that the server quietly refused. Worse, nothing noticed: your computer treated it as delivered, so it was never sent again. Pages, rows and cards are now sent in pieces small enough to get through, and a big block of cards is split up rather than dropped. **You don't need to change how you import.**",
       "**Long blocks of cards sync in full.** The same limit was quietly cutting off individual cells holding a large expanded block — the page would look like it had synced with the biggest card in it missing. Those are sent in parts now and arrive complete.",
+    ],
+  },
+  {
+    version: "1.3.0",
+    headline: "A cleaner, calmer Nimbus — same flow, less clutter.",
+    items: [
+      "**Two themes instead of five.** The theme picker is now just **Dark** and **Light** — a deep true-dark and a clean white, both on the same blue accent and the same aff/neg/analytic/card ink, so a flow looks the same in either one and nothing shifts color when you switch. The old in-between greys and paper tints are gone; if you were on one of them, Nimbus moves you to the nearest of the two and nothing you set is lost.",
+      "**Crisp icons in place of emoji.** The toolbar, dashboard and tabs now use a single matched icon set that stays sharp at any size and takes the theme's color, instead of emoji that rendered differently on every machine. Everything means the same thing it did — it just looks like one app now.",
+      "**Prep time lives with the other clocks.** The setting for how much prep each team gets moved out from under Appearance into its own **Prep clocks** section next to Timer presets, with a note that it sets new rounds — to change the round you're in, you still click the time in the ribbon and type over it.",
+      "**A tidier dashboard and settings.** The round list and the settings window got a pass for spacing and alignment, so the app feels finished rather than busy. Nothing about where things are or what they do has changed.",
     ],
   },
   {

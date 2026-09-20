@@ -181,6 +181,15 @@ fn create_dir(path: String) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| e.to_string())
 }
 
+/// The user's Documents directory, for the default auto-save flow library.
+#[tauri::command]
+fn documents_dir(app: tauri::AppHandle) -> Result<String, String> {
+    app.path()
+        .document_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
 /// List the .nimbus/.xlsx flows inside a folder (newest first).
 #[tauri::command]
 fn list_flows(path: String) -> Result<Vec<FlowFile>, String> {
@@ -432,6 +441,7 @@ pub fn run() {
             take_pending_file,
             force_quit,
             create_dir,
+            documents_dir,
             list_flows,
             move_path,
             delete_path,

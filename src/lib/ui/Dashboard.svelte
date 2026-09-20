@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { RoundMeta, Side, SpeechTemplate } from "../model/types";
+  import type { Round, RoundMeta, Side, SpeechTemplate } from "../model/types";
   import { builtinTemplates, splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
@@ -8,8 +8,20 @@
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
+  import Manual from "./Manual.svelte";
+  import Icon from "./Icon.svelte";
+  import { APP_VERSION } from "../model/minversion";
 
   let { onopen }: { onopen: () => void } = $props();
+
+  const version = APP_VERSION;
+  let showManual = $state(false);
+
+  // The default flow library: a folder auto-created in Documents where every new
+  // flow is saved and kept in sync, so flows are organized on disk with no
+  // "Save As" step (like ebb). Registered as a tournament so it shows in the UI.
+  const LIBRARY_NAME = "Nimbus Flows";
+  let homeTourney = $state<Tournament | null>(null);
 
   let rounds: RoundMeta[] = $state([]); // every flow in app data
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
@@ -115,9 +127,57 @@
   onMount(async () => {
     rounds = await listRounds();
     await tournaments.init();
+    // Collapse pre-existing tournaments; the default library (added next) is
+    // left out of this list, so it opens expanded.
     collapsed = tournaments.list.map((t) => t.id);
+    await ensureDefaultLibrary();
     await reloadFlows();
   });
+
+  /** Create (once) the default "Nimbus Flows" folder in Documents and register
+   *  it, so every new flow auto-saves there. Idempotent: reuses it if already
+   *  registered, and only seeds examples when the folder is empty. */
+  async function ensureDefaultLibrary() {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const docs = await invoke<string>("documents_dir");
+      const sep = docs.includes("\\") ? "\\" : "/";
+      const libPath = docs.replace(/[\\/]+$/, "") + sep + LIBRARY_NAME;
+      const already = tournaments.list.find((t) => normPath(t.path) === normPath(libPath));
+      if (already) { homeTourney = already; return; }
+      await invoke("create_dir", { path: libPath });
+      const t = tournaments.addLibrary(LIBRARY_NAME, libPath);
+      homeTourney = t;
+      // Seed a couple of example flows the very first time, so the folder shows
+      // populated. Skipped if the folder already holds flows.
+      const existing = await tournaments.flows(t);
+      if (existing.length === 0) {
+        await tournaments.saveRoundInto(t, exampleRound("Example flow 1"));
+        await tournaments.saveRoundInto(t, exampleRound("Example flow 2"));
+      }
+    } catch (e) {
+      console.warn("default library setup failed", e);
+    }
+  }
+
+  /** A minimal, self-contained round for seeding examples (no open-round side
+   *  effects — mirrors store.newRound's shape). */
+  function exampleRound(name: string): Round {
+    return {
+      id: Math.random().toString(36).slice(2, 12),
+      name,
+      tournament: "",
+      opponent: "",
+      judges: "",
+      affTeam: "",
+      negTeam: "",
+      template: structuredClone(pickedTemplate) as SpeechTemplate,
+      sheets: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } as Round;
+  }
 
   async function reloadFlows() {
     const map: Record<string, FlowFile[]> = {};
@@ -261,12 +321,25 @@
 
   // ---- create / open flows -------------------------------------------------
 
-  function createRound() {
-    store.newRound(
-      structuredClone(pickedTemplate) as SpeechTemplate,
-      "New Round",
-      mySide,
-    );
+  async function createRound() {
+    // Save straight into the default library folder so every flow is organized
+    // on disk and auto-saved (no "Save As" step) — same path as "+ New flow" in
+    // a tournament. Falls back to an app-data-only round if there's no library
+    // (e.g. the browser build).
+    if (homeTourney && "__TAURI_INTERNALS__" in window) {
+      const name = await tournaments.uniqueFlowName(homeTourney, "New Round");
+      store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, name, mySide);
+      if (store.round) {
+        try {
+          const path = await tournaments.saveRoundInto(homeTourney, store.round);
+          store.mutate((r) => (r.filePath = path));
+        } catch (e) {
+          console.warn("couldn't save new flow into the library", e);
+        }
+      }
+    } else {
+      store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, "New Round", mySide);
+    }
     onopen();
   }
 
@@ -399,31 +472,60 @@
   function fmtDate(t: number): string {
     return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
+
+  /** Short relative time for recency: "4h ago", "3d ago", else a date. */
+  function timeAgo(t: number): string {
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
+    return fmtDate(t);
+  }
+
+  // Single-key shortcuts, echoing the key badges shown in the menu. Ignored
+  // while typing (inline renames, tournament name) or with a modifier held.
+  function onKey(e: KeyboardEvent) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable)) return;
+    switch (e.key.toLowerCase()) {
+      case "n": e.preventDefault(); createRound(); break;
+      case "o": e.preventDefault(); void openFlowFile(); break;
+      case "c": if (!converting) { e.preventDefault(); void convert(); } break;
+      case "s": e.preventDefault(); showSettings = true; break;
+      case "?": e.preventDefault(); showManual = true; break;
+    }
+  }
 </script>
 
-<div class="dashboard">
-  <div class="topbar">
-    <div class="brand">
-      <img class="logo" src="/logo.png" alt="Nimbus" />
-      Nimbus
-    </div>
-    <button class="top-btn" onclick={() => (showSettings = true)}>Settings</button>
-  </div>
+<svelte:window onkeydown={onKey} />
 
+<div class="dashboard">
   <div class="content">
-    <!-- action cards: New flow is the primary action, Open is secondary -->
-    <div class="actions">
-      <div class="action-card primary">
-        <div class="ac-head">
-          <span class="ac-icon" aria-hidden="true">✦</span>
-          <div>
-            <div class="ac-title">New flow</div>
-            <div class="ac-desc">Start a fresh round in your format.</div>
-          </div>
+    <!-- hero -->
+    <header class="hero">
+      <div class="logo-stage">
+        <img class="logo" src="/logo.png" alt="Nimbus" />
+        <div class="rain" aria-hidden="true">
+          {#each Array(7) as _, i (i)}
+            <span></span>
+          {/each}
         </div>
-        <div class="ac-controls">
+      </div>
+      <h1 class="wordmark">Nimbus</h1>
+      <p class="version">Version {version}</p>
+    </header>
+
+    <div class="panel">
+      <!-- New flow: the primary action, then quick secondary actions -->
+      <div class="newcard">
+        <div class="newcard-accent" aria-hidden="true"></div>
+        <div class="newcard-title">New flow</div>
+        <label class="frow">
+          <span class="frow-label">Format</span>
           <select
-            class="ac-select"
+            class="field"
             value={settings.defaultTemplate}
             aria-label="Format for the new flow"
             onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}
@@ -432,50 +534,31 @@
               <option value={i}>{t.name}</option>
             {/each}
           </select>
+        </label>
+        <label class="frow">
+          <span class="frow-label">Side</span>
           <select
-            class="ac-select"
+            class="field"
             bind:value={mySide}
             aria-label="Which side you are flowing"
             title={splitLabel || "Flow this round on your own"}
             onchange={() => localStorage.setItem(LS_SIDE, mySide)}
           >
             <option value="neutral">Flowing solo</option>
-            <option value="aff">With a partner — I'm Aff</option>
-            <option value="neg">With a partner — I'm Neg</option>
+            <option value="aff">With a partner · Aff</option>
+            <option value="neg">With a partner · Neg</option>
           </select>
-          <button class="ac-start" onclick={createRound}>Start flowing →</button>
-        </div>
-        {#if splitLabel}
-          <!-- Says only what picking a side DOES. It used to add "both lanes are
-               yours to type in for now; live partner sync isn't built yet" — both
-               halves are now false: sync shipped (👤 in the flow toolbar), and
-               once you're synced your partner owns the other lane, so the lanes
-               are not both yours. Whether they are depends on session state this
-               screen doesn't know about, so it stays out of it. -->
-          <div class="ac-note">{splitLabel}</div>
-        {/if}
+        </label>
+        {#if splitLabel}<div class="ac-note">{splitLabel}</div>{/if}
+        <button class="start" onclick={createRound}>Start flowing</button>
       </div>
-      <button class="action-card secondary" onclick={openFlowFile}>
-        <div class="ac-head">
-          <span class="ac-icon" aria-hidden="true">↥</span>
-          <div>
-            <div class="ac-title">Open a flow</div>
-            <div class="ac-desc">Open a saved .nimbus or Excel flow from your Mac.</div>
-          </div>
-        </div>
-        <span class="ac-hint">Browse files…</span>
-      </button>
-      <button class="action-card secondary" onclick={convert} disabled={converting}>
-        <div class="ac-head">
-          <span class="ac-icon" aria-hidden="true">⇄</span>
-          <div>
-            <div class="ac-title">{converting ? "Converting…" : "Convert"}</div>
-            <div class="ac-desc">Switch a flow between .nimbus and Excel, either direction.</div>
-          </div>
-        </div>
-        <span class="ac-hint">Pick a file…</span>
-      </button>
-    </div>
+
+      <div class="quick">
+        <button class="quick-btn" onclick={openFlowFile}>Open a flow</button>
+        <button class="quick-btn" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
+        <button class="quick-btn" onclick={() => (showSettings = true)}>Settings</button>
+        <button class="quick-btn" onclick={() => (showManual = true)}>Help</button>
+      </div>
 
     {#if status}<p class="status">{status}</p>{/if}
 
@@ -500,7 +583,8 @@
 
     {#each tournaments.list as t (t.id)}
       <section
-        class="tourney"
+        class="folder"
+        class:open={!collapsed.includes(t.id)}
         class:drop-target={(draggingFlow || draggingRoundId) && dragOver === t.id}
         class:drag-live={!!(draggingFlow || draggingRoundId)}
         role="group"
@@ -508,35 +592,39 @@
         ondragleave={() => dragOver === t.id && (dragOver = null)}
         ondrop={(e) => { e.preventDefault(); dropOn(t); }}
       >
-        <div class="tourney-title">
-          {#if renamingTourney === t.id}
-            <span class="folder-icon">📁</span>
+        {#if renamingTourney === t.id}
+          <div class="folder-head">
+            <span class="folder-ic"><Icon name="folder" size="16" /></span>
             <!-- svelte-ignore a11y_autofocus -->
             <input class="rename" bind:value={renameTourneyText} autofocus
               onblur={commitRenameTourney}
               onkeydown={(e) => { if (e.key==='Enter') commitRenameTourney(); if (e.key==='Escape') renamingTourney=null; }} />
-          {:else}
+          </div>
+        {:else}
+          <div class="folder-head">
             <button
               class="disclose"
               aria-expanded={!collapsed.includes(t.id)}
-              title={collapsed.includes(t.id) ? 'Show flows' : 'Collapse to just the name'}
+              title={collapsed.includes(t.id) ? 'Show flows' : 'Collapse'}
               onclick={() => toggleCollapsed(t.id)}
             >
-              <span class="caret">{collapsed.includes(t.id) ? '▸' : '▾'}</span>
-              <span class="folder-icon">📁</span>
+              <span class="chev"><Icon name="chevron" size="14" /></span>
+              <span class="folder-ic"><Icon name="folder" size="16" /></span>
               <span class="tname">{t.name}</span>
               <!-- Count the rows actually shown, not raw files: two copies of
                    one flow are one flow. -->
               <span class="count">{rowsFor(t).length}</span>
             </button>
-            <button class="icon" title="Rename" onclick={() => { renamingTourney = t.id; renameTourneyText = t.name; }}>✎</button>
-            <button class="icon" title="Remove from Nimbus (keeps the folder)" onclick={() => tournaments.unlink(t.id)}>unlink</button>
             <span class="t-sp"></span>
-            <button class="mini-btn" onclick={() => newFlowInTournament(t)}>+ New flow</button>
-          {/if}
-        </div>
+            <div class="folder-actions">
+              <button class="act-btn" title="Rename tournament" onclick={() => { renamingTourney = t.id; renameTourneyText = t.name; }}><Icon name="pencil" size="13" /></button>
+              <button class="act-btn" title="Remove from Nimbus (keeps the folder on your Mac)" onclick={() => tournaments.unlink(t.id)}>Unlink</button>
+            </div>
+            <button class="folder-new" title="New flow in this tournament" onclick={() => newFlowInTournament(t)}><Icon name="plus" size="13" /> New flow</button>
+          </div>
+        {/if}
         {#if !collapsed.includes(t.id)}
-          <div class="flow-rows">
+          <div class="folder-body">
             {#each rowsFor(t) as { file, dupes } (file.path)}
               <div
                 class="flow-row"
@@ -549,6 +637,7 @@
                 ondragstart={(e) => { draggingFlow = file; e.dataTransfer?.setData('text/plain', file.path); }}
                 ondragend={() => { draggingFlow = null; dragOver = null; }}
               >
+                <span class="row-ic"><Icon name="doc" size="15" /></span>
                 {#if renamingKey === file.path}
                   <!-- svelte-ignore a11y_autofocus -->
                   <input class="rename-input" bind:value={renameText} autofocus
@@ -558,7 +647,7 @@
                 {:else}
                   <span class="rname">{flowTitle(file)}</span>
                   <button class="rename-btn" title="Rename flow"
-                    onclick={(e) => { e.stopPropagation(); startRename(file.path, flowTitle(file)); }}>✎</button>
+                    onclick={(e) => { e.stopPropagation(); startRename(file.path, flowTitle(file)); }}><Icon name="pencil" size="13" /></button>
                 {/if}
                 {#if file.rel}
                   <span class="rel-badge" title="In sub-folder: {file.rel}">{file.rel}</span>
@@ -578,25 +667,20 @@
               </div>
             {/each}
             {#if rowsFor(t).length === 0}
-              <p class="empty-hint row-empty">No flows here yet. Drag one in, or use New flow.</p>
+              <p class="empty-hint row-empty">Empty. Drag a flow here, or press New flow.</p>
             {/if}
           </div>
         {/if}
       </section>
     {/each}
 
-    {#if tournaments.list.length === 0 && !creatingTourney}
-      <p class="empty-hint">No tournaments yet. Use New tournament to make a folder, then add flows to it.</p>
-    {/if}
-
     <!-- unfiled app-data flows (anything already filed shows in its tournament) -->
     {#if unfiled.length > 0}
-      <h2 class="section">NOT IN A TOURNAMENT</h2>
-      <p class="empty-hint">Drag any of these onto a tournament above to file it there.</p>
-      <div class="cards">
+      <h2 class="section">RECENT FLOWS</h2>
+      <div class="flow-rows">
         {#each unfiled as r (r.id)}
           <div
-            class="card round-card"
+            class="flow-row"
             class:card-dragging={draggingRoundId === r.id}
             role="button"
             tabindex="0"
@@ -606,9 +690,7 @@
             ondragstart={(e) => { draggingRoundId = r.id; e.dataTransfer?.setData('text/plain', r.id); }}
             ondragend={() => { draggingRoundId = null; dragOver = null; }}
           >
-            <button class="x" class:confirming={confirmDelete === r.id}
-              onclick={(e) => { e.stopPropagation(); removeRound(r.id); }}
-              title="Delete round">{confirmDelete === r.id ? 'Delete?' : '×'}</button>
+            <span class="row-ic"><Icon name="doc" size="15" /></span>
             {#if renamingKey === r.id}
               <!-- svelte-ignore a11y_autofocus -->
               <input class="rename-input" bind:value={renameText} autofocus
@@ -616,22 +698,20 @@
                 onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitRenameRound(r.id); if (e.key === 'Escape') renamingKey = null; }}
                 onblur={() => commitRenameRound(r.id)} />
             {:else}
-              <div class="fname">
-                {r.name}
-                <button class="rename-btn" title="Rename flow"
-                  onclick={(e) => { e.stopPropagation(); startRename(r.id, r.name); }}>✎</button>
-              </div>
+              <span class="rname">{r.name}</span>
+              <button class="rename-btn" title="Rename flow"
+                onclick={(e) => { e.stopPropagation(); startRename(r.id, r.name); }}><Icon name="pencil" size="13" /></button>
             {/if}
-            <div class="chips">
-              {#each r.sheets.slice(0, 6) as s, i (i)}
-                <span class="chip-tag">{s.title || '(untitled)'}</span>
-              {/each}
-            </div>
-            <div class="date">{fmtDate(r.updatedAt)}</div>
+            <span class="row-sp"></span>
+            <span class="rdate">{timeAgo(r.updatedAt)}</span>
+            <button class="x row-x" class:confirming={confirmDelete === r.id}
+              onclick={(e) => { e.stopPropagation(); removeRound(r.id); }}
+              title="Delete round">{confirmDelete === r.id ? 'Delete?' : '×'}</button>
           </div>
         {/each}
       </div>
     {/if}
+    </div>
   </div>
 </div>
 
@@ -639,76 +719,123 @@
   <SettingsPanel onclose={() => (showSettings = false)} />
 {/if}
 
-<style>
-  .dashboard { height: 100vh; display: flex; flex-direction: column; }
-  .topbar {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 14px max(28px, calc((100% - 1060px) / 2));
-    border-bottom: 1px solid var(--border); background: var(--panel);
-  }
-  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
-  .logo { width: 30px; height: 30px; object-fit: contain; }
-  .top-btn {
-    background: var(--panel); border: 1px solid var(--border); color: var(--text);
-    border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
-  }
-  .top-btn:hover { border-color: var(--accent); }
-  /* Center everything in a calm, fixed-width column instead of crowding the
-     top-left corner. The max() padding keeps a comfortable margin on small
-     windows and centers to ~1060px on large ones — no markup wrapper needed. */
-  .content { flex: 1; overflow-y: auto; padding: 48px max(28px, calc((100% - 1060px) / 2)) 72px; }
+{#if showManual}
+  <Manual onclose={() => (showManual = false)} />
+{/if}
 
-  .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; align-items: stretch; }
-  .action-card {
-    text-align: left; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px 18px; min-width: 240px;
-    display: flex; flex-direction: column; gap: 14px;
-    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+<style>
+  .dashboard { height: 100vh; position: relative; overflow: hidden; background: var(--bg); }
+
+  .content {
+    height: 100%; overflow-y: auto; padding: 0 24px 40px;
+    display: flex; flex-direction: column; align-items: center;
   }
-  /* New flow leads: a touch wider, with a soft accent wash and the only filled
-     button on the screen — the primary action stands out without shouting. */
-  .action-card.primary { flex: 1.7 1 320px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, var(--panel)), var(--panel)); border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); }
-  .action-card.secondary { flex: 1 1 240px; cursor: pointer; }
-  .action-card.secondary:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
-  .action-card.secondary:disabled { opacity: 0.55; cursor: default; transform: none; border-color: var(--border); box-shadow: none; }
-  .ac-head { display: flex; align-items: flex-start; gap: 12px; }
-  .ac-icon {
-    flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px;
-    display: flex; align-items: center; justify-content: center; font-size: 17px;
-    background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  .content > * { width: 100%; max-width: 600px; }
+
+  /* ---- hero: compact cloud with a constant rain loop underneath ---- */
+  .hero {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 34px 0 20px;
   }
-  .ac-title { font-size: 17px; font-weight: 700; color: var(--text); }
-  .ac-desc { font-size: 13px; color: var(--text-dim); line-height: 1.35; margin-top: 2px; }
-  /* Format picker, side picker and Start share a row; they wrap on a narrow
-     window rather than squeezing the selects down to nothing. */
-  .ac-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .ac-note { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: -4px; }
+  .logo-stage { position: relative; width: 130px; height: 122px; display: grid; place-items: start center; }
+  .logo { width: 118px; height: 118px; object-fit: contain; }
+  /* Rain: seven thin drops falling on a loop just below the cloud. Each is
+     staggered by its index so they don't fall in lockstep. */
+  .rain {
+    position: absolute; left: 50%; top: 90px; transform: translateX(-50%);
+    width: 62px; height: 32px; overflow: hidden; pointer-events: none;
+  }
+  .rain span {
+    position: absolute; top: -8px;
+    width: 2px; height: 9px; border-radius: 1px;
+    background: linear-gradient(var(--accent), transparent);
+    opacity: 0;
+    animation: nimbus-rain 1.5s linear infinite;
+  }
+  /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
+     the drops don't march across in a diagonal wave — it reads as real rain. */
+  .rain span:nth-child(1) { left: 5px;  animation-delay: -0.15s; animation-duration: 1.5s; }
+  .rain span:nth-child(2) { left: 14px; animation-delay: -0.95s; animation-duration: 1.3s; }
+  .rain span:nth-child(3) { left: 23px; animation-delay: -0.45s; animation-duration: 1.7s; }
+  .rain span:nth-child(4) { left: 31px; animation-delay: -1.25s; animation-duration: 1.4s; }
+  .rain span:nth-child(5) { left: 39px; animation-delay: -0.65s; animation-duration: 1.6s; }
+  .rain span:nth-child(6) { left: 48px; animation-delay: -0.25s; animation-duration: 1.35s; }
+  .rain span:nth-child(7) { left: 57px; animation-delay: -1.05s; animation-duration: 1.55s; }
+  @keyframes nimbus-rain {
+    0%   { transform: translateY(-6px); opacity: 0; }
+    18%  { opacity: 0.9; }
+    100% { transform: translateY(32px); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .rain span { animation: none; opacity: 0; } }
+  .wordmark {
+    margin: 8px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
+    color: var(--text); line-height: 1;
+  }
+  .version { margin: 8px 0 0; font-size: 12px; letter-spacing: 0.03em; color: var(--text-dim); }
+
+  /* A hairline under the hero starts the "one surface, separated by rules"
+     rhythm that makes the whole screen read as a single system. */
+  .panel { border-top: 1px solid var(--border); padding-top: 26px; margin-top: 6px; }
+
+  /* ---- Unified surface language: every block (New flow card, quick pills,
+     flow lists) shares the same border, radius, and one restrained shadow, so
+     nothing floats above the rest. ---- */
+  .newcard {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 22px 22px 20px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
+  }
+  .newcard-accent {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent);
+  }
+  .newcard-title { font-size: 16px; font-weight: 700; color: var(--text); }
+  .frow { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .frow-label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+  .field {
+    flex: 1; max-width: 260px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: inherit; cursor: pointer;
+    transition: border-color 0.12s;
+  }
+  .field:hover { border-color: var(--accent); }
+  .ac-note { font-size: 11.5px; color: var(--text-dim); font-style: italic; }
+  .start {
+    margin-top: 4px; width: 100%; padding: 11px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff; font-size: 14.5px; font-weight: 650;
+    font-family: inherit; cursor: pointer; transition: filter 0.12s;
+  }
+  .start:hover { filter: brightness(1.05); }
+
+  /* Secondary actions: quiet pills under the card, same surface language. */
+  .quick { display: flex; gap: 10px; margin-top: 14px; }
+  .quick-btn {
+    flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 12px; padding: 11px 12px; font-size: 13px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .quick-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+  .quick-btn:disabled { opacity: 0.55; cursor: default; }
+
   .ext-badge {
     align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
     padding: 1px 7px; border: 1px solid var(--border); color: var(--text-dim);
   }
   .ext-badge.nimbus { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
   .ext-badge.xlsx { color: #1e8e4a; border-color: color-mix(in srgb, #1e8e4a 40%, transparent); }
-  .ac-select {
-    background: var(--bg); border: 1px solid var(--border); color: var(--text);
-    border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 130px;
-  }
-  .ac-start {
-    flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 8px;
-    padding: 8px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer;
-    transition: filter 0.12s;
-  }
-  .ac-start:hover { filter: brightness(1.06); }
-  .ac-hint { font-size: 12.5px; font-weight: 600; color: var(--accent); }
 
   .section {
-    font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim);
-    font-weight: 600; margin: 40px 0 14px; text-transform: uppercase;
+    font-size: 11.5px; letter-spacing: 0.09em; color: var(--text-dim);
+    font-weight: 700; margin: 36px 0 14px; text-transform: uppercase;
   }
   /* The section heading shares this flex row with the buttons, so its own top
      margin would offset it and float the buttons above the label. Put the
      spacing on the row and zero the heading's margin inside it. */
-  .tourney-head { display: flex; align-items: center; gap: 10px; margin: 40px 0 14px; }
+  .tourney-head { display: flex; align-items: center; gap: 10px; margin: 36px 0 14px; }
   .tourney-head .section { margin: 0; }
   .mini-btn {
     background: var(--panel); border: 1px solid var(--border); color: var(--accent);
@@ -720,39 +847,76 @@
     border-radius: 6px; padding: 5px 10px; font-size: 13px; min-width: 320px;
   }
 
-  .tourney {
-    border: 2px dashed transparent; border-radius: 12px; padding: 4px 8px 8px;
-    margin: 0 -8px 8px;
+  /* ---- Tournament = one cohesive folder card: a clickable header bar, and a
+     body of flow rows that opens beneath it. Same surface language as
+     everything else. ---- */
+  .folder {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; margin-bottom: 10px;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
+    transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
   }
-  .tourney.drag-live { border-color: var(--border); }
-  .tourney.drop-target { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-  .tourney-title { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-weight: 700; }
-  .folder-icon { font-size: 15px; }
-  .tname { font-size: 15px; }
-  .t-sp { flex: 1; }
-  /* The whole name is the collapse control — a 12px caret is a poor target. */
+  .folder.drag-live { border-style: dashed; }
+  .folder.drop-target {
+    border-color: var(--accent); border-style: solid;
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .folder-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
   .disclose {
-    display: flex; align-items: center; gap: 8px; background: none; border: none;
-    color: var(--text); font: inherit; cursor: pointer; padding: 2px 4px;
-    border-radius: 6px; text-align: left;
+    display: flex; align-items: center; gap: 9px; min-width: 0;
+    background: none; border: none; color: var(--text); font: inherit;
+    cursor: pointer; padding: 5px 7px; border-radius: 8px; text-align: left;
+    transition: background 0.12s;
   }
-  .disclose:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
-  .caret { font-size: 10px; color: var(--text-dim); width: 10px; }
+  .disclose:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .chev { display: inline-flex; color: var(--text-dim); transition: transform 0.15s ease; }
+  .folder.open .chev { transform: rotate(90deg); }
+  .folder-ic { display: inline-flex; color: var(--accent); flex-shrink: 0; }
+  .tname { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .count {
     font-size: 11px; font-weight: 600; color: var(--text-dim);
     background: var(--bg); border: 1px solid var(--border);
-    border-radius: 9px; padding: 0 7px; min-width: 18px; text-align: center;
+    border-radius: 9px; padding: 0 7px; min-width: 18px; text-align: center; flex-shrink: 0;
   }
+  .t-sp { flex: 1; }
+  /* Rename/Unlink stay out of the way until you hover the folder. */
+  .folder-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+  .folder:hover .folder-actions, .folder:focus-within .folder-actions { opacity: 1; }
+  .act-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: none; border: 1px solid transparent; color: var(--text-dim);
+    border-radius: 7px; padding: 4px 8px; font-size: 12px; font-family: inherit; cursor: pointer;
+  }
+  .act-btn:hover { color: var(--text); background: var(--bg); border-color: var(--border); }
+  .folder-new {
+    display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+    color: var(--accent); border-radius: 8px; padding: 5px 10px;
+    font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer;
+    transition: background 0.12s;
+  }
+  .folder-new:hover { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+  .folder-body { border-top: 1px solid var(--border); }
 
-  /* One line per flow. The old card grid was 162px per flow, so a tournament
-     with a handful of rounds filled the page on its own. */
-  .flow-rows { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
-  .flow-row {
-    display: flex; align-items: center; gap: 8px; cursor: grab;
-    padding: 5px 8px; border-radius: 6px; border: 1px solid transparent;
-    font-size: 13px; min-height: 30px; box-sizing: border-box;
+  /* Flows sit on their own surface card with hairline dividers, so the list
+     reads as a defined block that lifts off the page instead of floating
+     text. Hover highlights the whole row like a selected band. */
+  .flow-rows {
+    display: flex; flex-direction: column; margin-bottom: 6px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
   }
-  .flow-row:hover { background: var(--panel); border-color: var(--border); }
+  .flow-row {
+    display: flex; align-items: center; gap: 10px; cursor: grab;
+    padding: 13px 16px; border-bottom: 1px solid var(--grid-line);
+    font-size: 14px; min-height: 50px; box-sizing: border-box;
+    transition: background 0.1s;
+  }
+  .flow-row:last-child { border-bottom: none; }
+  .flow-row:hover { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
   .rname { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row-sp { flex: 1; }
   .rdate { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
@@ -770,32 +934,19 @@
   .flow-row:hover .row-x, .row-x.confirming { opacity: 1; }
   .flow-row:hover .rename-btn { opacity: 1; }
   .flow-row .rename-input { margin-right: 0; width: auto; flex: 1; font-size: 13px; }
-  .row-empty { margin: 2px 0 4px 8px; }
-  .icon {
-    background: none; border: 1px solid var(--border); color: var(--text-dim);
-    border-radius: 4px; font-size: 11px; padding: 1px 6px; cursor: pointer;
-  }
-  .icon:hover { color: var(--text); border-color: var(--accent); }
+  .row-empty { margin: 0; padding: 14px 16px; }
   .rename, .rename:focus {
+    flex: 1; min-width: 0;
     background: var(--bg); border: 1px solid var(--accent); color: var(--text);
-    border-radius: 4px; padding: 3px 8px; font-size: 14px;
+    border-radius: 6px; padding: 5px 9px; font-size: 14px; font-weight: 700;
   }
 
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-  .card {
-    position: relative; border: 1px solid var(--border); border-radius: 8px;
-    background: var(--panel); padding: 14px 16px; min-height: 96px; cursor: pointer;
-    display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; text-align: left;
-  }
-  .card:hover { border-color: var(--accent); }
   .card-dragging { opacity: 0.4; }
-  .round-card { cursor: grab; }
-  .fname { font-size: 15px; font-weight: 700; padding-right: 34px; display: flex; align-items: center; gap: 6px; }
   .rename-btn {
+    display: inline-flex; align-items: center;
     background: none; border: none; color: var(--text-dim); cursor: pointer;
     font-size: 12px; opacity: 0; padding: 0 2px;
   }
-  .card:hover .rename-btn { opacity: 1; }
   .rename-btn:hover { color: var(--accent); }
   .rename-input {
     background: var(--bg); border: 1px solid var(--accent); color: var(--text);
@@ -808,12 +959,6 @@
   }
   .x:hover { color: var(--mark-dropped); }
   .x.confirming { background: var(--mark-dropped); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 8px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
-  .chip-tag {
-    font-size: 11px; border-radius: 5px; padding: 2px 8px;
-    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
-  }
-  .date { margin-top: auto; font-size: 12px; color: var(--text-dim); }
   .empty-hint { color: var(--text-dim); font-size: 12px; font-style: italic; margin: 4px 0 10px; }
   .status { font-size: 12px; color: var(--text-dim); margin: 0 0 10px; }
 </style>

@@ -100,6 +100,12 @@ class TournamentStore {
     return this.add(name, path);
   }
 
+  /** Register a folder as a tournament without a picker dialog — used for the
+   *  auto-created default flow library. Dedupes by path. */
+  addLibrary(name: string, path: string): Tournament {
+    return this.add(name, path);
+  }
+
   private add(name: string, path: string): Tournament {
     const existing = this.list.find((t) => t.path === path);
     if (existing) return existing;

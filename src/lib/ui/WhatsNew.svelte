@@ -94,7 +94,7 @@
     </div>
 
     <div class="wn-foot">
-      <span class="wn-hint">The full manual is under 📖 in the top bar.</span>
+      <span class="wn-hint">The full manual is under Manual in the top bar.</span>
       <button class="wn-go" onclick={close}>Start flowing →</button>
     </div>
   </div>

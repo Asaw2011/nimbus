@@ -551,10 +551,10 @@
     bind:value={query}
     class="ds-input"
     placeholder={mode !== "files"
-      ? "🔍  Filter blocks / cards / tags…"
+      ? "Filter blocks / cards / tags…"
       : searchBy === "content"
-        ? "🔍  Find a tag / card / block in any doc…"
-        : "🔍  Find a file by name…"}
+        ? "Find a tag / card / block in any doc…"
+        : "Find a file by name…"}
     spellcheck="false"
     autocomplete="off"
   />

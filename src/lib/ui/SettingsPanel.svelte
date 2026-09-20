@@ -204,7 +204,7 @@
     const reader = new FileReader();
     reader.onload = () => {
       const err = importSettings(String(reader.result ?? ""));
-      backupStatus = err ?? "Imported ✓ — keybinds, macros, snippets, and colors applied.";
+      backupStatus = err ?? "Imported. Keybinds, macros, snippets, and colors applied.";
       if (!err) snippets = { ...loadSnippets() };
     };
     reader.readAsText(file);
@@ -251,12 +251,14 @@
       <button class="close" onclick={onclose}>×</button>
     </div>
 
-    <div class="tabbar">
-      {#each TABS as t (t.id)}
-        <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>{t.label}</button>
-      {/each}
-    </div>
+    <div class="layout">
+      <nav class="tabbar">
+        {#each TABS as t (t.id)}
+          <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>{t.label}</button>
+        {/each}
+      </nav>
 
+      <div class="scroll">
     {#if tab === "appearance"}
     <section>
       <h3>Theme &amp; colors</h3>
@@ -393,24 +395,6 @@
           checked={settings.showTutorial}
           onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
         />
-      </label>
-      <label class="row">
-        Prep time per team
-        <span class="inline">
-          <input
-            type="number"
-            min="0"
-            max="60"
-            style="width: 66px"
-            value={settings.prepMinutes}
-            onchange={(e) => {
-              settings.prepMinutes = clampPrepMinutes(Number(e.currentTarget.value));
-              e.currentTarget.value = String(settings.prepMinutes);
-              settings.save();
-            }}
-          />
-          <span class="hint-inline">minutes</span>
-        </span>
       </label>
       <label class="row">
         Default save format
@@ -788,6 +772,32 @@
       </div>
     </section>
     <section>
+      <h3>Prep clocks</h3>
+      <p class="hint">
+        How much prep each team gets, on the two clocks in the ribbon. Applies to
+        new rounds and whenever you reset a clock — to change the round you're in
+        right now, click its time in the ribbon and type a new value.
+      </p>
+      <label class="row">
+        Prep time per team
+        <span class="inline">
+          <input
+            type="number"
+            min="0"
+            max="60"
+            style="width: 66px"
+            value={settings.prepMinutes}
+            onchange={(e) => {
+              settings.prepMinutes = clampPrepMinutes(Number(e.currentTarget.value));
+              e.currentTarget.value = String(settings.prepMinutes);
+              settings.save();
+            }}
+          />
+          <span class="hint-inline">minutes</span>
+        </span>
+      </label>
+    </section>
+    <section>
       <h3>Speech Doc Style &amp; Headings</h3>
       <p class="hint">
         Edit how the speech doc renders evidence — sizes, colors, and marks, like
@@ -902,6 +912,8 @@
       </p>
     </section>
     {/if}
+      </div>
+    </div>
   </div>
 </div>
 
@@ -909,7 +921,9 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -918,56 +932,74 @@
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    width: min(560px, 92vw);
-    max-height: 84vh;
-    overflow-y: auto;
-    padding: 20px 24px;
+    border-radius: 16px;
+    width: min(760px, 94vw);
+    height: min(620px, 88vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
   }
   .head {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
   h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: 17px;
+    font-weight: 700;
   }
   .close {
     background: none;
     border: none;
     color: var(--text-dim);
-    font-size: 20px;
+    font-size: 22px;
+    line-height: 1;
     cursor: pointer;
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
   }
+  .close:hover { color: var(--text); background: var(--bg); }
+
+  .layout { display: flex; flex: 1; min-height: 0; }
   .tabbar {
     display: flex;
-    gap: 2px;
-    margin-top: 14px;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    position: sticky;
-    top: 0;
-    background: var(--panel);
-    z-index: 2;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 12px;
+    width: 168px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+    overflow-y: auto;
   }
   .tab {
+    text-align: left;
     background: none;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-radius: 8px;
     color: var(--text-dim);
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
-    padding: 8px 12px;
+    padding: 9px 13px;
     cursor: pointer;
     white-space: nowrap;
     font-family: inherit;
+    transition: background 0.12s, color 0.12s;
   }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .tab.active { color: var(--text); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .scroll { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 26px 26px; }
   section {
-    margin-top: 18px;
+    margin-top: 4px;
+    margin-bottom: 22px;
   }
+  section:last-child { margin-bottom: 0; }
   h3 {
     font-size: 12px;
     text-transform: uppercase;

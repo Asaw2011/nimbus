@@ -4,6 +4,7 @@
   import { isOtherLane, sheetAccent } from "../model/types";
   import { matchesAny, combosLabel } from "../model/keymap";
   import Grid from "./Grid.svelte";
+  import Icon from "./Icon.svelte";
   import Ribbon from "./Ribbon.svelte";
   import RoundHome from "./RoundHome.svelte";
   import SpreadView from "./SpreadView.svelte";
@@ -147,12 +148,17 @@
   let renamingDocId = $state<string | null>(null);
   let docStatus = $state("");
 
-  // Bring up the docs library the first time the doc opens.
+  // Bring up the docs library the first time the doc opens — and reload it when
+  // the open flow changes, so each flow keeps its OWN set of docs (a new flow
+  // starts clean, never inheriting the previous flow's docs).
+  let docsRoundId = $state<string | null>(null);
   $effect(() => {
-    if (docOpen && !docsReady) void initDocs();
+    const rid = store.round?.id ?? null;
+    if (docOpen && rid && (!docsReady || docsRoundId !== rid)) void initDocs(rid);
   });
-  async function initDocs() {
-    await docsStore.init();
+  async function initDocs(roundId: string) {
+    await docsStore.loadForRound(roundId);
+    docsRoundId = roundId;
     activeContent = await docsStore.loadContent(docsStore.activeId);
     docsReady = true;
   }
@@ -1162,9 +1168,9 @@
         class="icon-btn"
         onclick={() => { settings.compactTopBar = !settings.compactTopBar; settings.save(); }}
         title={settings.compactTopBar ? "Show the full top bar" : "Compact top bar (hide the words)"}
-      >{settings.compactTopBar ? "⤢" : "⤡"}</button>
-      <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})">📄<span class="btn-lbl">Speech doc</span></button>
-      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow">★<span class="btn-lbl">Quick cards</span></button>
+      ><Icon name={settings.compactTopBar ? "maximize" : "minimize"} /></button>
+      <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})"><Icon name="doc" /><span class="btn-lbl">Speech doc</span></button>
+      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow"><Icon name="layers" /><span class="btn-lbl">Quick cards</span></button>
       <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop running with the Nimbus plugin; the built-in doc always works offline.">
         <span class="send-to-label">Send to</span>
         <button
@@ -1198,8 +1204,8 @@
           </select>
         {/if}
       </div>
-      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})">⏱<span class="btn-lbl">Timer</span></button>
-      <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers">🗃<span class="btn-lbl">Arguments</span></button>
+      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})"><Icon name="clock" /><span class="btn-lbl">Timer</span></button>
+      <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers"><Icon name="archive" /><span class="btn-lbl">Arguments</span></button>
       <!-- ⚠ THREE states, not two. This used to be `connected ? live : idle`,
            so a session that had dropped looked EXACTLY like no session at all —
            same icon, same label, same colour. Mid-round that is the one thing
@@ -1222,7 +1228,7 @@
             ? `Partner session ${session.code} — connected, edits are reaching ${session.peerEmail}`
             : `Partner session ${session.code} — NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
           : "Flow with a partner — share this flow live"}
-      >{partnerOk ? "👥" : partnerTrouble ? "⚠" : "👤"}<span class="btn-lbl"
+      ><Icon name={partnerOk ? "users" : partnerTrouble ? "alert" : "user"} /><span class="btn-lbl"
         >{partnerOk
           ? "Partner · live"
           : partnerTrouble
@@ -1231,8 +1237,8 @@
               : "Partner · reconnecting"
             : "Partner flow"}</span
       ></button>
-      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works">📖<span class="btn-lbl">Manual</span></button>
-      <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})">⚙<span class="btn-lbl">Settings</span></button>
+      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
+      <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
       <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">Keys</span></button>
     </div>
 
@@ -1328,7 +1334,7 @@
               </div>
             {/each}
             <button class="doc-tab-add" onclick={newDoc} title="New doc">＋</button>
-            <button class="doc-tab-open" onclick={openDocx} title="Open a .docx into a new doc">📂 Open</button>
+            <button class="doc-tab-open" onclick={openDocx} title="Open a .docx into a new doc"><Icon name="folder-open" /> Open</button>
             {#if docStatus}<span class="doc-tab-status">{docStatus}</span>{/if}
           </div>
           <div class="doc-editor-wrap">
@@ -1860,8 +1866,8 @@
     /* Inactive tabs recede — no stripe, half opacity — so the current sheet
      * reads unambiguously. */
     opacity: 0.5;
-    padding: 7px 18px;
-    font-size: 12px;
+    padding: 12px 24px;
+    font-size: 14px;
     font-weight: 600;
     letter-spacing: 0.03em;
     cursor: pointer;
