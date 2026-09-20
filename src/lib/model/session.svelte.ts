@@ -69,6 +69,20 @@ const DIFF_MS = 250;
 /** Snapshot chunk size. Comfortably under any realtime payload limit, so a big
  *  flow transfers without us having to know what that limit is. */
 const CHUNK_CHARS = 48_000;
+/**
+ * Biggest delta batch we will put in one broadcast frame.
+ *
+ * ⚠ The relay drops an oversized frame and the SENDER IS NOT TOLD. A browser
+ * `ws.send()` does not throw on a large payload — it buffers it and the server
+ * rejects it — so the send reports success, the shadow advances, and the edits
+ * in that frame are recorded as delivered forever. That is how importing a 1NC
+ * could leave a partner with none of the off-case pages and nothing to re-send
+ * them, twice, in real tournaments.
+ *
+ * Same budget the snapshot path has always chunked at, which is the one size
+ * here with a long record of actually getting through.
+ */
+const FRAME_CHARS = 48_000;
 /** A peer that hasn't been heard from in this long is treated as gone. Presence
  *  leave events proved slow to arrive, so this is the authority, not presence. */
 const PEER_TIMEOUT_MS = 20_000;
@@ -85,7 +99,21 @@ export type Delta =
   | { t: "sheetadd"; at: number; sheet: Sheet }
   | { t: "sheetdel"; s: string }
   | { t: "sheetmeta"; s: string; title: string; kind: SheetKind; startCol: number; color?: string }
-  | { t: "meta"; k: "name" | "tournament" | "opponent" | "judges" | "affTeam" | "negTeam"; v: string };
+  | { t: "meta"; k: "name" | "tournament" | "opponent" | "judges" | "affTeam" | "negTeam"; v: string }
+  /**
+   * One slice of a cell too big to send in a single frame.
+   *
+   * ⚠ Needed because a CELL is not divisible any other way. An expanded block
+   * with a dozen cards in it is one cell, and real ones measure 384KB and 507KB
+   * — past what the relay accepts, so they were being dropped in silence while
+   * every smaller cell around them arrived. The off-case page looked like it had
+   * synced, with the biggest card in it missing.
+   *
+   * An older build has no case for this in `applyDelta`'s switch and ignores it,
+   * which is exactly what it does with these cells today — so a mixed pair is no
+   * worse off than before, and a matched pair is fixed.
+   */
+  | { t: "cellpart"; s: string; r: string; c: number; id: string; i: number; n: number; part: string };
 
 /** Shadow of the last state we published, as `sheet|row|col -> JSON`, plus the
  *  structure we compared against. Rebuilt on every diff pass. */
@@ -102,6 +130,29 @@ function emptyShadow(): Shadow {
 
 function metaKey(s: Sheet): string {
   return JSON.stringify({ t: s.title, k: s.kind, c: s.startCol, col: s.color });
+}
+
+/**
+ * A sheet's structure with none of its content: same id, title, kind, column
+ * and the same rows BY ID, but every cell blank.
+ *
+ * This is what a new sheet travels as. The row ids have to be real — the whole
+ * delta protocol addresses cells by row id, so a skeleton with invented ids
+ * would leave every following cell delta landing nowhere. The cells themselves
+ * follow one at a time through the ordinary path.
+ *
+ * Column COUNT is preserved too: `applyDelta` bounds-checks `d.c` against
+ * `row.cells.length` and silently drops anything past the end, so a skeleton
+ * with too few columns would quietly lose the right-hand speeches.
+ */
+function skeletonOf(sheet: Sheet): Sheet {
+  return {
+    ...$state.snapshot(sheet),
+    rows: sheet.rows.map((r) => ({
+      id: r.id,
+      cells: r.cells.map(() => ({ text: "" })),
+    })),
+  } as Sheet;
 }
 
 /**
@@ -130,14 +181,29 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
 
     const hadSheet = prev.sheetMeta.has(sheet.id);
     if (!hadSheet) {
-      // A brand-new sheet ships whole — it is small at creation, and this is
-      // far simpler than synthesising row-inserts for an empty grid.
-      deltas.push({ t: "sheetadd", at: si, sheet: $state.snapshot(sheet) as Sheet });
-      for (const r of sheet.rows)
-        r.cells.forEach((c, ci) => next.cells.set(`${sheet.id}|${r.id}|${ci}`, JSON.stringify(c)));
-      return;
+      // ⚠ A NEW SHEET SHIPS AS A SKELETON, NOT WHOLE.
+      //
+      // It used to ship complete, on the assumption that a sheet "is small at
+      // creation". That is true when you press ＋, and false in the case that
+      // matters: importing a 1NC creates a sheet ALREADY FULL of cards. Measured
+      // on real rounds, those sheets serialize to 124KB, 357KB, 595KB — one was
+      // 1.29 MB — in a SINGLE broadcast frame, well past what the relay accepts.
+      //
+      // And the failure was silent in the worst way. `ws.send()` does not throw
+      // on an oversized payload; it buffers it and the SERVER drops it. So the
+      // send reported success, the shadow advanced, the sheet was recorded as
+      // delivered — and no later diff would ever mention it again. Your partner
+      // simply never got the off-case pages and had to rebuild them by hand.
+      //
+      // Sending the structure only, and letting the ordinary per-cell path carry
+      // the contents, keeps every frame bounded by one cell instead of one sheet.
+      deltas.push({ t: "sheetadd", at: si, sheet: skeletonOf(sheet) });
+      // Deliberately NOT recording the cells in `next` and NOT returning early:
+      // falling through to the cell loop below is what emits them. Marking them
+      // as already-sent here is precisely the bug above.
     }
-    if (prev.sheetMeta.get(sheet.id) !== mk) {
+    // Only for a sheet they already had — the skeleton just carried all of this.
+    if (hadSheet && prev.sheetMeta.get(sheet.id) !== mk) {
       deltas.push({
         t: "sheetmeta", s: sheet.id, title: sheet.title, kind: sheet.kind,
         startCol: sheet.startCol, color: sheet.color,
@@ -149,9 +215,19 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
     const beforeSet = new Set(before);
     const nowSet = new Set(rowIds);
     for (const id of before) if (!nowSet.has(id)) deltas.push({ t: "rowdel", s: sheet.id, r: id });
-    rowIds.forEach((id, i) => {
-      if (!beforeSet.has(id)) deltas.push({ t: "rowins", s: sheet.id, id, at: i });
-    });
+    // ⚠ Not for a brand-new sheet: its rows travel inside the skeleton, so
+    // emitting inserts here would add one `rowins` per row of an imported 1NC.
+    //
+    // `beforeSet` stays EMPTY for a new sheet on purpose, and is a different
+    // question from this one — it means "rows the peer already had", which is
+    // what decides whether a BLANK cell has to be sent. On a new sheet a blank
+    // cell is already blank on the far side and sending it is pure noise; on an
+    // existing row, blank means the text was deleted and must travel.
+    if (hadSheet) {
+      rowIds.forEach((id, i) => {
+        if (!beforeSet.has(id)) deltas.push({ t: "rowins", s: sheet.id, id, at: i });
+      });
+    }
 
     // Cells, by (row id, column).
     for (const row of sheet.rows) {
@@ -240,11 +316,40 @@ function applyDelta(round: Round, d: Delta): void {
       else sheet.color = d.color;
       return;
     }
+    case "cellpart": {
+      // Buffer until every slice is in, then apply it as an ordinary cell.
+      // Held outside the round so a half-arrived cell never renders.
+      const parts = cellParts.get(d.id) ?? new Array<string>(d.n).fill("");
+      cellParts.set(d.id, parts);
+      if (d.i >= 0 && d.i < d.n) parts[d.i] = d.part;
+      if (parts.some((p) => p === "")) return;
+      cellParts.delete(d.id);
+      let cell: Cell;
+      try {
+        cell = JSON.parse(parts.join("")) as Cell;
+      } catch {
+        // A corrupt reassembly is dropped rather than written — the next diff
+        // of that cell will send it again.
+        return;
+      }
+      applyDelta(round, { t: "cell", s: d.s, r: d.r, c: d.c, v: cell });
+      return;
+    }
     case "meta":
       round[d.k] = d.v;
       return;
   }
 }
+
+/**
+ * Slices of oversized cells still arriving, by transfer id.
+ *
+ * ⚠ Module level, not per-round: the parts of one cell can span several frames
+ * and must survive between `applyDelta` calls. Entries are removed as soon as a
+ * cell completes; an abandoned transfer (the sender reconnected mid-way) is a
+ * few KB that the next full diff supersedes anyway.
+ */
+const cellParts = new Map<string, string[]>();
 
 // ---- session ---------------------------------------------------------------
 
@@ -759,10 +864,11 @@ class SessionStore {
         this.published.set(doc.id, stamp);
         continue;
       }
-      // One message per document per batch — a burst of typing is one frame.
+      // Usually one message per document per batch, so a burst of typing is one
+      // frame — but split when the batch is too big for the relay to accept.
       // `doc` is what lets the far side put these on the right flow; without it
       // an edit to your partner's page would land on your own.
-      const sent = this.ch?.broadcast("delta", { from: this.clientId, doc: doc.id, deltas }, false) ?? false;
+      const sent = this.sendDeltas(doc.id, deltas);
       // ⚠ THE SHADOW IS "WHAT THEY HAVE", NOT "WHAT I LAST LOOKED AT".
       //
       // It used to advance every tick whether or not the frame went anywhere,
@@ -792,6 +898,61 @@ class SessionStore {
     }
     this.queued = this.ch?.pending ?? 0;
     this.publishCursor();
+  }
+
+  /**
+   * Put a batch of deltas on the wire, split so no frame is too big to accept.
+   *
+   * ⚠ Returns true ONLY if every frame reached the wire. A partial success must
+   * read as a failure, because the caller uses this to decide whether to advance
+   * the shadow — and advancing it after frame 3 of 5 failed would record frames
+   * 4 and 5 as delivered and never mention them again. Re-sending a few deltas
+   * the peer already has is harmless: applying a cell it already holds is a
+   * no-op, and `sheetadd` is ignored when the sheet exists.
+   */
+  private sendDeltas(docId: string, deltas: Delta[]): boolean {
+    const frames: Delta[][] = [];
+    let cur: Delta[] = [];
+    let curChars = 0;
+    for (const d of deltas) {
+      const n = JSON.stringify(d).length;
+      if (n > FRAME_CHARS) {
+        if (cur.length) { frames.push(cur); cur = []; curChars = 0; }
+        // A cell is the one delta that can still be split — and the one that
+        // actually gets this big. Slice it; the far side reassembles.
+        if (d.t === "cell") {
+          const json = JSON.stringify(d.v);
+          const id = crypto.randomUUID();
+          const total = Math.ceil(json.length / FRAME_CHARS);
+          for (let i = 0; i < total; i++) {
+            frames.push([{
+              t: "cellpart", s: d.s, r: d.r, c: d.c, id, i, n: total,
+              part: json.slice(i * FRAME_CHARS, (i + 1) * FRAME_CHARS),
+            }]);
+          }
+        } else {
+          // Nothing else should reach this size — a skeleton `sheetadd` is
+          // structure only. Send it alone so it cannot take a batch down too.
+          frames.push([d]);
+        }
+        continue;
+      }
+      if (curChars + n > FRAME_CHARS && cur.length) {
+        frames.push(cur);
+        cur = [];
+        curChars = 0;
+      }
+      cur.push(d);
+      curChars += n;
+    }
+    if (cur.length) frames.push(cur);
+
+    let all = true;
+    for (const f of frames) {
+      const ok = this.ch?.broadcast("delta", { from: this.clientId, doc: docId, deltas: f }, false) ?? false;
+      if (!ok) all = false;
+    }
+    return all;
   }
 
   /** Last position we announced, so a parked cursor costs no messages. */

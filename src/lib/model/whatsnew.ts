@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.2.10",
+    headline: "Importing a 1NC now gives your partner the off-case pages too.",
+    items: [
+      "**Off-case pages reach your partner.** Importing a 1NC created the pages on your screen and, often, on nobody else's — your partner had to build them by hand mid-round and the two flows drifted apart. A page made by an import arrives already full of cards, and the whole thing was being sent as one oversized message that the server quietly refused. Worse, nothing noticed: your computer treated it as delivered, so it was never sent again. Pages, rows and cards are now sent in pieces small enough to get through, and a big block of cards is split up rather than dropped. **You don't need to change how you import.**",
+      "**Long blocks of cards sync in full.** The same limit was quietly cutting off individual cells holding a large expanded block — the page would look like it had synced with the biggest card in it missing. Those are sent in parts now and arrive complete.",
+    ],
+  },
+  {
     version: "1.2.9",
     headline: "Nimbus stops freezing mid-round, and searching by content no longer downloads your whole Dropbox.",
     items: [
