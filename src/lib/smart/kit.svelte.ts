@@ -247,7 +247,7 @@ class SmartKit {
    * A Main holding cards with no block under it is its own overview.
    */
   overviewsFor(sheet: Sheet): Overview[] {
-    const key = this.linkFor(sheet);
+    const key = this.fileFor(sheet)?.key;
     const roots = key ? this.parsed[key]?.roots : undefined;
     if (!roots) return [];
     const out: Overview[] = [];
@@ -275,7 +275,8 @@ class SmartKit {
 
   /** The kit file a sheet's File and Overviews tabs show, with its name. */
   fileFor(sheet: Sheet): { key: string; name: string; roots: DocNode[] } | null {
-    const key = this.linkFor(sheet);
+    // An aff sheet with no file of its own shows its case neg.
+    const key = this.linkFor(sheet) ?? this.caseNegsFor(sheet)[0] ?? null;
     const f = this.files.find((x) => x.key === key);
     const p = key ? this.parsed[key] : undefined;
     return f && p ? { key: f.key, name: f.name, roots: p.roots } : null;
@@ -331,10 +332,32 @@ class SmartKit {
     this.persist();
   }
 
+  /**
+   * A case neg answers the aff's case, whatever the advantage sheets happen to
+   * be called ("Adv 1", "Warming") — so it is recognised by its NAME or top
+   * heading ("Case Neg", "caseneg", "Case Negs"), not by matching sheet titles.
+   *
+   * ⚠ Not by folder. `Casenegs\Native Climate\` also holds a China Soft Power
+   * DA, and a folder rule would pin that DA to every case sheet.
+   */
+  isCaseNeg(key: string): boolean {
+    const f = this.files.find((x) => x.key === key);
+    if (!f) return false;
+    const re = /case[\s_-]*negs?(?![a-z])/i;
+    return re.test(f.name) || re.test(this.parsed[key]?.firstHeading ?? "");
+  }
+
+  /** Case-neg files that apply to this sheet: every aff (case) sheet gets all
+   *  of them, unless the sheet was explicitly set to "No file". */
+  caseNegsFor(sheet: Sheet): string[] {
+    if (sheet.kind !== "case" || this.links[sheet.id] === "") return [];
+    return this.files.filter((f) => !f.general && this.isCaseNeg(f.key)).map((f) => f.key);
+  }
+
   /** The automatic guess for a sheet, ignoring any explicit choice. */
   autoLink(sheet: Sheet): string | null {
     const candidates = this.files
-      .filter((f) => !f.general && this.parsed[f.key]?.blocks.length)
+      .filter((f) => !f.general && !this.isCaseNeg(f.key) && this.parsed[f.key]?.blocks.length)
       .map((f) => ({ key: f.key, name: f.name, firstHeading: this.parsed[f.key].firstHeading }));
     return guessFileForSheet(sheet.title, candidates);
   }
@@ -345,13 +368,15 @@ class SmartKit {
     return this.autoLink(sheet);
   }
 
-  /** Every block a sheet may suggest: its own file's, then the general files'. */
+  /** Every block a sheet may suggest: its own file's, any case negs (on an aff
+   *  sheet), then the general files'. Each file counted once. */
   blocksFor(sheet: Sheet): KitBlock[] {
-    const out: KitBlock[] = [];
+    const keys = new Set<string>();
     const own = this.linkFor(sheet);
-    if (own) out.push(...(this.parsed[own]?.blocks ?? []));
-    for (const f of this.files) if (f.general) out.push(...(this.parsed[f.key]?.blocks ?? []));
-    return out;
+    if (own) keys.add(own);
+    for (const k of this.caseNegsFor(sheet)) keys.add(k);
+    for (const f of this.files) if (f.general) keys.add(f.key);
+    return [...keys].flatMap((k) => this.parsed[k]?.blocks ?? []);
   }
 
   mySide(round: Round): Side | undefined {

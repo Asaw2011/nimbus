@@ -376,6 +376,7 @@
               <span class="fname" title={f.key.startsWith("copy:") ? "Not found in your Doc Search library, so Nimbus keeps a copy made when you dropped it. Drop it again to update it." : f.key}>
                 {f.name.replace(/\.docx$/i, "")}
                 {#if f.key.startsWith("copy:")}<span class="copytag">copy</span>{/if}
+                {#if !f.general && smartKit.isCaseNeg(f.key)}<span class="copytag casetag" title="Used on every aff (case) sheet">case neg</span>{/if}
               </span>
               <span class="fmeta" class:err={!!p?.error}>
                 {p ? (p.error ? p.error : `${p.blocks.length} blocks`) : "reading…"}
@@ -399,10 +400,13 @@
             <div class="section">Which file each sheet uses</div>
             {#each store.round.sheets as sh (sh.id)}
               {@const auto = smartKit.autoLink(sh)}
+              {@const caseNegs = sh.kind === "case" ? smartKit.files.filter((f) => !f.general && smartKit.isCaseNeg(f.key)) : []}
               <div class="row">
                 <span class="label sheetname" title={sh.title}>{sh.title || "Untitled"}</span>
                 <select value={linkValue(sh.id)} onchange={(e) => onLink(sh.id, (e.currentTarget as HTMLSelectElement).value)}>
-                  <option value="__auto">Auto: {auto ? fileName(auto) : "none found"}</option>
+                  <option value="__auto">
+                    Auto: {auto ? fileName(auto) : caseNegs.length ? "" : "none found"}{auto && caseNegs.length ? " + " : ""}{caseNegs.length ? `case neg (${caseNegs.map((f) => fileName(f.key)).join(", ")})` : ""}
+                  </option>
                   <option value="">No file</option>
                   {#each smartKit.files.filter((f) => !f.general) as f (f.key)}
                     <option value={f.key}>{f.name.replace(/\.docx$/i, "")}</option>
@@ -686,6 +690,10 @@
     border-radius: 3px;
     padding: 0 3px;
     margin-left: 4px;
+  }
+  .casetag {
+    color: var(--aff);
+    border-color: var(--aff);
   }
   .from {
     display: flex;

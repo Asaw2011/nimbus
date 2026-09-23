@@ -28,6 +28,13 @@ export interface KitBlock {
   node: DocNode;
   cardCount: number;
   tokens: string[];
+  /**
+   * Just what the block ANSWERS — the part after its last "AT:"/"A2" ("Humanism
+   * K---AT: Permutation---2NC" → perm). The prefix is context, and scoring only
+   * the whole title let it drown the answer. Same as `tokens` when there is no
+   * "AT:".
+   */
+  core: string[];
   /** Headed as an answer ("AT:", "A2", "Perm:"), which is what we want most. */
   answer: boolean;
   /** Old / extension-only material — still offered, ranked lower. */
@@ -141,6 +148,7 @@ export function indexBlocks(file: string, roots: DocNode[]): KitBlock[] {
             node: n,
             cardCount: cardsUnder(n).length,
             tokens: tokens(n.text),
+            core: coreTokens(n.text),
             answer: /(^|[^a-z])(at|a2)\b|perm/i.test(n.text),
             weak: /(^|[^a-z])(old|ext)([^a-z]|$)/i.test(n.text),
           });
@@ -151,6 +159,31 @@ export function indexBlocks(file: string, roots: DocNode[]): KitBlock[] {
   };
   walk(roots, []);
   return out;
+}
+
+function coreTokens(title: string): string[] {
+  const m = title.match(/.*(?:^|[^a-z0-9])(?:at|a2)\s*[:\-–—]?\s*(.+)$/i);
+  const core = m ? tokens(m[1]) : [];
+  return core.length ? core : tokens(title);
+}
+
+/** How well a block's token list answers the query's; 0 when it doesn't. */
+function scoreAgainst(q: string[], b: string[]): number {
+  if (!b.length) return 0;
+  let hit = 0;
+  let exact = 0;
+  for (const t of q) {
+    if (b.includes(t)) {
+      hit += 1;
+      exact += 1;
+    } else if (OPPOSITE[t] && b.includes(OPPOSITE[t])) {
+      hit += 0.75;
+    }
+  }
+  if (!exact) return 0; // an opposite alone ("bad") is not a topic match
+  // The last term is how much of what they SAID the block covers — without it
+  // a one-word block ("UQ---2NR") ties with "AT: UQ Overwhelms".
+  return 0.5 * (hit / Math.min(q.length, b.length)) + 0.25 * (hit / b.length) + 0.25 * (hit / q.length);
 }
 
 /**
@@ -167,23 +200,8 @@ export function matchBlocks(said: string, blocks: KitBlock[], limit = 3): BlockM
   if (!q.length) return [];
   const out: BlockMatch[] = [];
   for (const block of blocks) {
-    const b = block.tokens;
-    if (!b.length) continue;
-    let hit = 0;
-    let exact = 0;
-    for (const t of q) {
-      if (b.includes(t)) {
-        hit += 1;
-        exact += 1;
-      } else if (OPPOSITE[t] && b.includes(OPPOSITE[t])) {
-        hit += 0.75;
-      }
-    }
-    if (!exact) continue; // an opposite alone ("bad") is not a topic match
-    // The last term is how much of what they SAID the block covers — without it
-    // a one-word block ("UQ---2NR") ties with "AT: UQ Overwhelms".
-    let score =
-      0.5 * (hit / Math.min(q.length, b.length)) + 0.25 * (hit / b.length) + 0.25 * (hit / q.length);
+    let score = Math.max(scoreAgainst(q, block.tokens), scoreAgainst(q, block.core));
+    if (!score) continue;
     if (block.answer) score += 0.1;
     if (block.weak) score *= 0.75;
     if (score >= 0.45) out.push({ block, score });
