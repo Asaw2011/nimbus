@@ -24,6 +24,17 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.3",
+    headline: "Nothing your partner types can go missing, and your own column stops calling itself \"Partner\".",
+    items: [
+      "**Your partner's work can no longer be lost while you're on another flow.** If you opened a different flow during a session — flowing into the wrong one and copying it across, say — everything your partner wrote in the meantime arrived with nowhere to go and was dropped, for good. Their end had already counted it as sent, so it was never re-sent and going back to the flow didn't bring it. Nimbus now notices it missed something and asks for it again as soon as the flow is open.",
+      "**Your own column says \"You\" again.** If you were the one who joined, your column was labelled **Partner** and your partner's said **You** — every time you left a session or reopened the flow. It was only ever right while the session was live, and it never happened to whoever hosted, which is why it was hard to pin down. Which lane is yours is now remembered with the flow.",
+      "**You can't type over your partner's cell by accident.** With a cell of theirs selected, a stray keystroke could replace a line they had just written, and there was no getting it back — their text was never in your undo history. Their cells are now read-only while a session is live. **Empty ones still aren't**, so flowing a speech for them works exactly as before, and you can always select and copy.",
+      "**Drag your tournaments into the order you want.** Grab the handle at the left of any folder on the home page and drag, or focus it and use the arrow keys. The order is saved.",
+      "**Choose which side your column sits on.** When a speech is split between you and your partner, **Settings → My column** puts yours on the Left or the Right. Before this it depended on who started the session, so the two of you saw mirror images of the same flow. It only changes what you see.",
+    ],
+  },
+  {
     version: "1.3.2",
     headline: "The other themes are back, and the sheet tabs can be made smaller.",
     items: [

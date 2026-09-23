@@ -120,6 +120,29 @@ class TournamentStore {
     this.persist();
   }
 
+  /**
+   * Move a tournament so it sits where `beforeId` currently is.
+   *
+   * The list's own order is what the dashboard renders, so reordering it IS the
+   * feature — no separate rank to keep in step with the array, and nothing to
+   * migrate for anyone whose list predates this.
+   *
+   * `beforeId` of null drops it at the end. A no-op move persists nothing.
+   */
+  move(id: string, beforeId: string | null): void {
+    if (id === beforeId) return;
+    const from = this.list.findIndex((t) => t.id === id);
+    if (from < 0) return;
+    const next = this.list.slice();
+    const [moved] = next.splice(from, 1);
+    const to = beforeId === null ? next.length : next.findIndex((t) => t.id === beforeId);
+    if (beforeId !== null && to < 0) return; // target vanished mid-drag
+    next.splice(to, 0, moved);
+    if (next.every((t, i) => t.id === this.list[i]?.id)) return;
+    this.list = next;
+    this.persist();
+  }
+
   /** Unlink from Nimbus (does NOT delete the folder or its files). */
   unlink(id: string): void {
     this.list = this.list.filter((t) => t.id !== id);

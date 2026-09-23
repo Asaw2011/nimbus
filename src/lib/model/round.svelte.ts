@@ -207,7 +207,40 @@ class RoundStore {
    * of those you are always the second lane.
    */
   get laneHere(): number {
-    return this.isForeign(this.round?.id) ? 1 : this.myLane;
+    if (this.isForeign(this.round?.id)) return 1;
+    // ⚠ WHICH LANE IS MINE IS A FACT ABOUT THIS COPY OF THIS FLOW, not about
+    // whether a session happens to be running.
+    //
+    // `myLane` is session state: set to 1 exactly once, when a guest adopts a
+    // snapshot, and reset to 0 by `leave()` and by every app start. So the
+    // moment a guest left a session — or simply reopened their own flow the
+    // next day — their column was labelled "Partner" and the host's "You", and
+    // they had to type in the one marked "Partner". Reported by a partner and
+    // initially dismissed, because it never happens to whoever HOSTS: the host
+    // is lane 0, so the reset value is accidentally correct for them.
+    //
+    // Same shape as the lane-label, cursor and AT: bugs before it: a POSITION
+    // held somewhere that outlives its meaning, where an IDENTITY was needed.
+    // The round records the lane its owner holds, so it survives leaving,
+    // reopening and restarting.
+    const own = this.round?.ownLane;
+    return own === 0 || own === 1 ? own : this.myLane;
+  }
+
+  /**
+   * Record which lane belongs to whoever is reading this copy of the flow.
+   *
+   * ⚠ Local to this machine and stripped from anything sent, like `filePath`.
+   * It is the one field on a Round whose correct value DIFFERS per client, so
+   * syncing it would push one partner's point of view onto the other — the
+   * mistake `laneAbbr` exists to avoid.
+   */
+  setOwnLane(lane: number): void {
+    if (!this.round) return;
+    if (this.round.ownLane === lane) return;
+    this.applyRemote((r) => {
+      r.ownLane = lane;
+    });
   }
 
   /** Memoized normalized selection rectangle. Every visible cell asks whether

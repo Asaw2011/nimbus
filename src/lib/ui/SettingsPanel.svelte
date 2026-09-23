@@ -303,6 +303,24 @@
         </div>
       </label>
       <p class="hint">Smaller tabs leave more of the window for the flow.</p>
+      <label class="row">
+        My column
+        <div class="seg">
+          <button
+            class:on={settings.myLaneSide === "left"}
+            onclick={() => { settings.myLaneSide = "left"; settings.save(); }}
+          >Left</button>
+          <button
+            class:on={settings.myLaneSide === "right"}
+            onclick={() => { settings.myLaneSide = "right"; settings.save(); }}
+          >Right</button>
+        </div>
+      </label>
+      <p class="hint">
+        Which side your own column sits on when a speech is split between you and
+        your partner. Only changes what you see — your partner's layout and the
+        speech doc are unaffected.
+      </p>
       <div class="row">
         <span>Colors</span>
         <div class="color-group">

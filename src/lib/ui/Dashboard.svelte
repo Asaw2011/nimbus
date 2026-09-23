@@ -83,6 +83,11 @@
   let draggingFlow = $state<FlowFile | null>(null);
   let draggingRoundId = $state<string | null>(null);
   let dragOver = $state<string | null>(null);
+  /** The tournament being dragged to a new position, and the one it is over.
+   *  Kept apart from `draggingFlow`/`dragOver` because the two gestures land on
+   *  the same element and mean opposite things — reorder vs. file into. */
+  let draggingTourney = $state<string | null>(null);
+  let tourneyOver = $state<string | null>(null);
   // Two-step delete confirms
   let confirmDelete = $state<string | null>(null);
   // Inline rename (keyed by file path or round id)
@@ -587,10 +592,34 @@
         class:open={!collapsed.includes(t.id)}
         class:drop-target={(draggingFlow || draggingRoundId) && dragOver === t.id}
         class:drag-live={!!(draggingFlow || draggingRoundId)}
+        class:reorder-over={draggingTourney && draggingTourney !== t.id && tourneyOver === t.id}
+        class:reorder-self={draggingTourney === t.id}
         role="group"
-        ondragover={(e) => { if (draggingFlow || draggingRoundId) { e.preventDefault(); dragOver = t.id; } }}
-        ondragleave={() => dragOver === t.id && (dragOver = null)}
-        ondrop={(e) => { e.preventDefault(); dropOn(t); }}
+        ondragover={(e) => {
+          // Reordering folders and dropping a flow INTO one are different
+          // gestures that share this element; whichever drag is live wins.
+          if (draggingTourney) {
+            if (draggingTourney === t.id) return;
+            e.preventDefault();
+            tourneyOver = t.id;
+            return;
+          }
+          if (draggingFlow || draggingRoundId) { e.preventDefault(); dragOver = t.id; }
+        }}
+        ondragleave={() => {
+          if (dragOver === t.id) dragOver = null;
+          if (tourneyOver === t.id) tourneyOver = null;
+        }}
+        ondrop={(e) => {
+          e.preventDefault();
+          if (draggingTourney) {
+            tournaments.move(draggingTourney, t.id);
+            draggingTourney = null;
+            tourneyOver = null;
+            return;
+          }
+          dropOn(t);
+        }}
       >
         {#if renamingTourney === t.id}
           <div class="folder-head">
@@ -602,6 +631,36 @@
           </div>
         {:else}
           <div class="folder-head">
+            <!-- A grip rather than a draggable header: the header is mostly
+                 buttons (disclose, rename, unlink, new flow), and making the
+                 whole thing draggable makes those awkward to click. It also
+                 keeps folder-dragging distinguishable from the flow-drag that
+                 already drops files INTO a tournament. -->
+            <span
+              class="t-grip"
+              role="button"
+              tabindex="0"
+              aria-label="Drag to reorder {t.name}"
+              title="Drag to reorder"
+              draggable="true"
+              ondragstart={(e) => {
+                draggingTourney = t.id;
+                e.dataTransfer?.setData("text/plain", t.id);
+                if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+              }}
+              ondragend={() => { draggingTourney = null; tourneyOver = null; }}
+              onkeydown={(e) => {
+                // Keyboard equivalent, so reordering isn't mouse-only.
+                if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                e.preventDefault();
+                const i = tournaments.list.findIndex((x) => x.id === t.id);
+                const j = e.key === "ArrowUp" ? i - 1 : i + 1;
+                if (j < 0 || j >= tournaments.list.length) return;
+                tournaments.move(t.id, e.key === "ArrowUp"
+                  ? tournaments.list[j].id
+                  : (tournaments.list[j + 1]?.id ?? null));
+              }}
+            >⠿</span>
             <button
               class="disclose"
               aria-expanded={!collapsed.includes(t.id)}
@@ -863,6 +922,19 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
   }
   .folder-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+  /* Reorder grip. Faint until the row is hovered — it is a power feature, and
+     a permanent handle on every folder is clutter on a page you mostly read. */
+  .t-grip {
+    cursor: grab; user-select: none; line-height: 1;
+    color: var(--text-dim); opacity: 0; transition: opacity 0.12s;
+    padding: 2px 1px; border-radius: 4px; font-size: 13px;
+  }
+  .folder:hover .t-grip, .t-grip:focus-visible { opacity: 0.6; }
+  .t-grip:hover { opacity: 1; }
+  .t-grip:active { cursor: grabbing; }
+  /* Where it would land, and the folder being carried. */
+  .folder.reorder-over { box-shadow: inset 0 3px 0 -1px var(--accent); }
+  .folder.reorder-self { opacity: 0.45; }
   .disclose {
     display: flex; align-items: center; gap: 9px; min-width: 0;
     background: none; border: none; color: var(--text); font: inherit;

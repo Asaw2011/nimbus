@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { answerOf, isAnswered, type Cell, type CellItem } from "../model/types";
+  import { answerOf, isAnswered, isOtherLane, type Cell, type CellItem } from "../model/types";
   import { nodeAuthor, type DocNode } from "../docx/parse";
   import { store, type AnswerRef } from "../model/round.svelte";
   import { expand, loadSnippets } from "../model/snippets";
@@ -47,6 +47,30 @@
     isLastCol?: boolean;
     dropTarget?: boolean;
   } = $props();
+
+  /**
+   * True when this cell is your partner's and already has something in it.
+   *
+   * ⚠ Protection against OVERWRITING, not against collaborating. Same-cell
+   * edits are last-writer-wins (there are no per-cell timestamps), so a stray
+   * keystroke while their cell happened to be selected could replace a line
+   * they had just written, with nothing to undo it back — their text was never
+   * in your undo stack. Reported after exactly that.
+   *
+   * Deliberately narrow, on all three counts:
+   *  - only while a session is LIVE. Flowing solo, a lane-split flow is
+   *    entirely yours and locking half of it would be nonsense.
+   *  - only the other lane, resolved through `laneHere` so it means "not mine"
+   *    rather than "not lane 0".
+   *  - only when it already HAS text. An empty cell in their lane stays open,
+   *    which is what makes flowing their speech for them still work.
+   */
+  const partnerLocked = $derived.by(() => {
+    if (!session.active || isLabel) return false;
+    const sp = store.round?.template.speeches[col];
+    if (!isOtherLane(sp, store.laneHere)) return false;
+    return !!cell.text?.trim();
+  });
 
   /** The open block this column carries the parts of, if any. */
   const leftBlock = $derived(
@@ -489,6 +513,15 @@
       : before.length === (editor.textContent ?? "").length;
   }
 
+  /** Keys that only move around or copy — safe on a cell you may not edit. */
+  function isNavOrCopy(e: KeyboardEvent): boolean {
+    if (e.key.startsWith("Arrow") || e.key === "Tab" || e.key === "Escape") return true;
+    if (e.key === "Home" || e.key === "End" || e.key === "PageUp" || e.key === "PageDown") return true;
+    // Copy and select-all, but NOT cut or paste.
+    if ((e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "a" || e.key === "C" || e.key === "A")) return true;
+    return false;
+  }
+
   function oninput() {
     if (!editor) return;
     // Stamped on every keystroke so the repaint effect can tell someone who is
@@ -522,6 +555,15 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    // ⚠ `contenteditable="false"` stops typing and pasting, but the element is
+    // still focusable and still gets key events — so Delete, macros and the
+    // mark shortcuts would happily rewrite a cell the user cannot type into.
+    // Navigation and copying stay allowed: the point is that their work cannot
+    // be changed by accident, not that the cell is inert.
+    if (partnerLocked && !isNavOrCopy(e)) {
+      e.preventDefault();
+      return;
+    }
     const km = settings.keymap;
     // User macros take highest priority.
     for (const m of settings.macros) {
@@ -921,7 +963,9 @@
     class="editor"
     class:bold={cell.marks?.bold}
     class:italic={cell.marks?.italic}
-    contenteditable="true"
+    class:locked={partnerLocked}
+    contenteditable={partnerLocked ? "false" : "true"}
+    title={partnerLocked ? "Your partner wrote this. You can still select and copy it." : undefined}
     role="textbox"
     tabindex="0"
     spellcheck="false"
@@ -1668,6 +1712,16 @@
     box-shadow:
       inset 3px 0 0 var(--mark-dropped),
       inset -3px 0 0 var(--mark-star);
+  }
+  /* Your partner's writing during a live session. Deliberately almost
+     invisible — a normal-looking cell you happen not to be able to overwrite.
+     Anything stronger would put a permanent visual scar down half the flow,
+     which is the column you spend the round reading. */
+  .editor.locked {
+    cursor: default;
+  }
+  .editor.locked::selection {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
   .editor {
     outline: none;

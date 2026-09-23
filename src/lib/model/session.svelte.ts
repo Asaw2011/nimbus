@@ -427,6 +427,15 @@ class SessionStore {
    * stamp is a shortcut past the diff and a stale entry would suppress it.
    */
   private published = new Map<string, number>();
+  /**
+   * Documents we were sent changes for and could not apply, because the flow
+   * was not open here at the time.
+   *
+   * Emptied by asking the peer to resend that flow in full, once it is open
+   * again. Held rather than acted on immediately because the ask is pointless
+   * until there is somewhere for the answer to land.
+   */
+  private missed = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private ping: ReturnType<typeof setInterval> | null = null;
   private lastHeard = 0;
@@ -662,6 +671,7 @@ class SessionStore {
     this.ch = null;
     this.shadows.clear();
     this.published.clear();
+    this.missed.clear();
     this.inbound.clear();
     // Close the partner's flow. It is still saved in app data under its own
     // id, so it stays reachable from the dashboard — this just stops rendering
@@ -840,8 +850,28 @@ class SessionStore {
     }
   }
 
+  /**
+   * Ask the peer to re-send any flow whose changes we had to drop.
+   *
+   * Runs on the existing diff tick rather than its own timer, and only once the
+   * flow is actually open — asking while it is still closed would get an answer
+   * with nowhere to land, exactly the situation we are recovering from.
+   *
+   * The answer is `resendEverything()` on their side: cells only, never a
+   * snapshot, so it merges with whatever is here instead of replacing it.
+   */
+  private requestMissed(): void {
+    if (!this.missed.size) return;
+    for (const docId of [...this.missed]) {
+      if (!store.docById(docId)) continue; // still not open — keep waiting
+      this.missed.delete(docId);
+      this.ch?.broadcast("catchup", { from: this.clientId, doc: docId });
+    }
+  }
+
   private publish(): void {
     if (this.applying || this.status === "off") return;
+    this.requestMissed();
     for (const doc of this.syncedDocs()) {
       // ⚠ THE IDLE TICK IS THE COMMON ONE — skip it entirely.
       //
@@ -1044,6 +1074,14 @@ class SessionStore {
       case "snap":
         this.onSnapshotChunk(p);
         return;
+      case "catchup": {
+        // They missed changes to a flow while it was closed on their end.
+        // Re-send our content in full: the same machinery a rejoin uses, and
+        // deliberately cells rather than a snapshot, so it merges with whatever
+        // they have rather than replacing it.
+        this.resendEverything();
+        return;
+      }
       case "delta": {
         const deltas = p.deltas as Delta[] | undefined;
         if (!Array.isArray(deltas)) return;
@@ -1074,6 +1112,21 @@ class SessionStore {
           // that actually changed. An edit to their page must not cost you the
           // undo history of your own.
           if (landed && docId === store.round?.id) store.dropHistory();
+          // ⚠ A DELTA THAT COULD NOT LAND IS LOST WORK, NOT A NO-OP.
+          //
+          // `applyRemoteToDoc` returns false when that flow is not open here —
+          // which happens the moment you open a different flow from the
+          // dashboard while a session is running. Their edits kept arriving,
+          // found no document to land on, and were dropped in silence; on their
+          // side the frame had reached the wire, so the shadow advanced and
+          // those cells were recorded as delivered forever. Going back to the
+          // flow did not help, because nothing would ever mention them again.
+          // Reported from a real round after someone flowed into the wrong
+          // flow and switched back.
+          //
+          // We cannot apply it (the round is not in memory to apply it TO), so
+          // the honest move is to admit we missed it and ask for it again.
+          if (!landed) this.missed.add(docId);
         } finally {
           this.applying = false;
           // Put the cursor back on the row it was on, at its NEW index.
@@ -1141,6 +1194,10 @@ class SessionStore {
     // the flow itself all still sync, because those are facts about the round
     // rather than somebody's notes on it.
     delete payload.rfd;
+    // ⚠ And which lane is MINE is mine. It is the one field whose correct value
+    // differs per machine, so sending it would tell my partner that my column
+    // is theirs — the exact confusion `laneAbbr` resolves at render time.
+    delete payload.ownLane;
     const json = JSON.stringify(payload);
     const total = Math.max(1, Math.ceil(json.length / CHUNK_CHARS));
     const id = crypto.randomUUID();
@@ -1191,6 +1248,11 @@ class SessionStore {
     // which is why `filePath` has always been cleared here too. Whatever this
     // round's feedback should be is decided below, from what WE already had.
     delete round.rfd;
+    // Unconditional for the same reason `rfd` is: a partner on an older build
+    // still sends it, and theirs says lane 0 is the owner's — which on this
+    // machine is exactly backwards. The correct value is set below, from what
+    // WE are in this session, not from what they think.
+    delete round.ownLane;
     this.peerEmail = String(p.email ?? "") || this.peerEmail || "your partner";
 
     if (p.kind === "mirror") {
@@ -1229,6 +1291,11 @@ class SessionStore {
     this.myDocId = round.id;
     store.loadRound(round);
     store.myLane = 1;
+    // ⚠ Write it onto the flow, not just the session. `myLane` is wiped by
+    // `leave()` and by every app start, which is what left a guest's own column
+    // labelled "Partner" the next time they opened it. Recorded here so the
+    // answer survives the session that produced it.
+    store.setOwnLane(1);
     this.goLive();
   }
 }

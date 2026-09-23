@@ -366,6 +366,19 @@ export interface Round {
   /** Judge decision(s) for the round — see {@link RFD}. Absent on rounds saved
    *  before the RFD panel existed, and on rounds where nothing was recorded. */
   rfd?: RFD;
+  /**
+   * Which partner lane belongs to whoever holds THIS copy of the flow.
+   *
+   * ⚠ LOCAL ONLY. Stripped from every snapshot, like `filePath`, and never in a
+   * delta — its correct value is different on each partner's machine, so
+   * sending it would push one person's point of view onto the other. Absent on
+   * a flow you created (you are lane 0) and on every round saved before this
+   * existed, both of which read as lane 0.
+   *
+   * Exists because "which lane is mine" has to outlive the session. See
+   * `store.laneHere`.
+   */
+  ownLane?: number;
 }
 
 /** One judge's ballot: who they voted for and why. A panel has several. */

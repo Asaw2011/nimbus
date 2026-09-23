@@ -190,6 +190,8 @@
             <li><b>One flow, together</b> — you both work on the same flow.</li>
             <li><b>A flow each</b> — you keep your own flow and open your partner's beside it. Both are live and <b>both are editable</b>, so you can drop a block onto their page while they're speaking. The <b>Mine / Theirs</b> switcher in the top bar says whose page you're typing on, and their flow renders in a different colour so you can't mistake it.</li>
             <li>A small outline and a <b>Partner</b> pill show where their cursor is.</li>
+            <li><b>Their cells are read-only while you're connected</b>, so a stray keystroke can't replace something they just wrote. Empty cells in their lane are still yours to fill, and you can always select and copy theirs.</li>
+            <li>Opening a different flow mid-session is safe — anything your partner writes while you're away is fetched as soon as you come back to it.</li>
             <li><b>You always save to your own file.</b> Your partner's flow is never written to your disk under your file's name — that rule is not adjustable.</li>
             <li>Nothing about a flow is stored on a server; the connection is only a relay. Close the panel and flowing carries on.</li>
           </ul>
@@ -459,6 +461,7 @@
           <ul>
             <li>A flow that exists in more than one place collapses to a single row with an <b>N copies</b> badge; hover it to see the other paths. Nothing is deleted or hidden without a trace.</li>
             <li>Tournaments start collapsed; one you make during a session stays open.</li>
+            <li><b>Reorder them</b> by dragging the <b>⠿</b> handle at the left of a folder, or by focusing it and pressing <kbd>↑</kbd> / <kbd>↓</kbd>. The order is saved.</li>
             <li>Flows that aren't under any linked folder sit under <b>Not in a tournament</b>.</li>
           </ul>
         </section>
@@ -479,6 +482,7 @@
           <ul>
             <li><b>Appearance</b> — theme, colors, default font, sizes, and the Speech Doc Style editor. Eight themes: Light, Snow, Paper, Cream, Sky and Mist, plus Slate and Dark.</li>
             <li><b>Sheet tabs</b> — top or bottom, and <b>Tab size</b> (Compact / Regular / Large). Smaller tabs leave more of the window for the flow.</li>
+            <li><b>My column</b> — which side your own column sits on when a speech is split between you and your partner. Changes only your screen, never theirs and never the speech doc.</li>
             <li><b>Editing</b> — macros and abbreviations.</li>
             <li><b>Keyboard</b> — every rebindable shortcut, grouped.</li>
             <li><b>Library</b> — folders Doc Search indexes.</li>

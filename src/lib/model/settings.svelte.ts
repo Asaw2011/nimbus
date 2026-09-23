@@ -28,6 +28,7 @@ export type Theme =
   | "mist";
 export type TabsPosition = "top" | "bottom";
 export type TabSize = "compact" | "regular" | "large";
+export type LaneSide = "left" | "right";
 
 /**
  * Sheet-tab sizes, as the padding and text size the tab bar uses.
@@ -87,6 +88,7 @@ export interface Persisted {
   theme: Theme;
   tabsPosition: TabsPosition;
   tabSize: TabSize;
+  myLaneSide: LaneSide;
   colMinWidth: number;
   /** Overrides for the aff/neg accent colors; "" = theme default. */
   affColor: string;
@@ -282,6 +284,21 @@ class Settings {
    * on a big screen and costs real space on a laptop in a round.
    */
   tabSize = $state<TabSize>("regular");
+  /**
+   * Which side of a split speech your own column is drawn on.
+   *
+   * ⚠ PURELY VISUAL, like the lane collapse. It reorders the two columns ON
+   * SCREEN and changes nothing stored: not the template, not `sheet.startCol`,
+   * not which column answers which. Session 9's rule stands — a view toggle
+   * must never change what the speech doc exports, or the same flow would emit
+   * different "AT:" headers depending on a setting.
+   *
+   * Worth having because without it the side depends on who HOSTED: lanes are
+   * stored creator-first, so the host's column is on the left and the joiner's
+   * on the right, and the two partners see mirror images of the same flow.
+   * "Left" makes your own column first for both of you.
+   */
+  myLaneSide = $state<LaneSide>("left");
   /** Columns stretch to fill the window but never shrink below this.
    * Default ≈ the ~30.7-char columns of a standard Verbatim flow template. */
   colMinWidth = $state(200);
@@ -355,6 +372,7 @@ class Settings {
       this.tabsPosition = p.tabsPosition;
     }
     if (p.tabSize && TAB_SIZES.some((t) => t.id === p.tabSize)) this.tabSize = p.tabSize;
+    if (p.myLaneSide === "left" || p.myLaneSide === "right") this.myLaneSide = p.myLaneSide;
     if (p.colMinWidth) this.colMinWidth = p.colMinWidth;
     if (p.affColor !== undefined) this.affColor = p.affColor;
     if (p.negColor !== undefined) this.negColor = p.negColor;
@@ -437,6 +455,7 @@ class Settings {
       theme: this.theme,
       tabsPosition: this.tabsPosition,
       tabSize: this.tabSize,
+      myLaneSide: this.myLaneSide,
       readers: $state.snapshot(this.readers) as Reader[],
       timerPresets: $state.snapshot(this.timerPresets) as TimerPreset[],
       docTarget: this.docTarget,

@@ -40,11 +40,35 @@
   // headers rather than `colStart + k`, which silently desynced from them the
   // moment a lane was hidden — the headers would shift left while the cells
   // stayed put.
-  const colIdx = $derived(
-    speeches
+  const colIdx = $derived.by(() => {
+    const cols = speeches
       .map((_, c) => c)
-      .filter((c) => c >= colStart && !store.isLaneHidden(speeches[c].id)),
-  );
+      .filter((c) => c >= colStart && !store.isLaneHidden(speeches[c].id));
+    if (settings.myLaneSide !== "right") return cols;
+    // ⚠ RENDER ORDER ONLY. The values in `cols` are real template indices and
+    // stay real — everything downstream (the cell lookup, `sourceCol`, the
+    // "AT:" walk, `sheet.startCol`) keeps addressing columns by those numbers.
+    // Only the order they are drawn in changes, which is what keeps session 9's
+    // rule intact: a view setting must not change what the speech doc exports.
+    //
+    // Lanes of a group are adjacent, so this swaps within each group's slot
+    // rather than sorting globally — a sort would be free to move columns that
+    // have nothing to do with lanes.
+    const out = cols.slice();
+    for (let i = 0; i < out.length - 1; i++) {
+      const a = speeches[out[i]];
+      const b = speeches[out[i + 1]];
+      if (!a?.laneGroup || a.laneGroup !== b?.laneGroup) continue;
+      // Put MY lane second. `laneHere`, never lane 0 — the whole point is that
+      // "mine" differs between the two partners.
+      if (a.lane === store.laneHere) {
+        out[i] = out[i + 1];
+        out[i + 1] = cols[i];
+      }
+      i++; // this pair is settled
+    }
+    return out;
+  });
 
   /**
    * How many grid rows one flow row needs.
