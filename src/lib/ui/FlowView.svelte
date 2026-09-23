@@ -22,6 +22,7 @@
   import Timer from "./Timer.svelte";
   import ArgBank from "./ArgBank.svelte";
   import PartnerPanel from "./PartnerPanel.svelte";
+  import SmartTray from "$lib/smart/SmartTray.svelte";
   import { session } from "$lib/model/session.svelte";
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
   import { cardmirror } from "$lib/doc/cardmirror.svelte";
@@ -1311,6 +1312,14 @@
             <div class="zoom-wrap" style="zoom: {settings.zoom}">
               <Grid {sheet} />
             </div>
+          {/if}
+          {#if round}
+            <SmartTray
+              onjump={(sheetId, row, col) => {
+                openSheet(sheetId);
+                store.cursor = { row, col };
+              }}
+            />
           {/if}
         </div>
       {/if}
