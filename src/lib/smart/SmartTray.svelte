@@ -21,6 +21,16 @@
   /** File tab: search text, and the rows folded shut (per file). */
   let fileQuery = $state("");
   let folded = $state<Set<string>>(new Set());
+  /** File tab level filter, as in Ctrl+K: a level shows the tree down to it
+   *  (HAT = pockets + hats), and while searching only that level matches. */
+  let level = $state<"all" | 1 | 2 | 3 | 4>("all");
+  const LEVELS: { id: "all" | 1 | 2 | 3 | 4; label: string }[] = [
+    { id: "all", label: "ALL" },
+    { id: 1, label: "POC" },
+    { id: 2, label: "HAT" },
+    { id: 3, label: "BLK" },
+    { id: 4, label: "CARD" },
+  ];
   let foldedFor = "";
   /** Brief "Inserted" confirmation on the row just used. */
   let flashed = $state("");
@@ -139,19 +149,24 @@
       const find = (ns: DocNode[], prefix: string, up: string[]) =>
         ns.forEach((n, i) => {
           const key = prefix + i;
-          if (n.text.toLowerCase().includes(q)) [key, ...up].forEach((x) => k.add(x));
+          const levelOk = level === "all" || n.level === level;
+          if (levelOk && n.text.toLowerCase().includes(q)) [key, ...up].forEach((x) => k.add(x));
           find(n.children, key + ".", [...up, key]);
         });
       find(f.roots, "", []);
       keep = k;
     }
+    // Without a search, a level caps how deep the tree goes.
+    const cap = !keep && level !== "all" ? level : Infinity;
     const out: TreeRow[] = [];
     const walk = (ns: DocNode[], depth: number, prefix: string) =>
       ns.forEach((n, i) => {
         const key = prefix + i;
         if (keep && !keep.has(key)) return;
-        out.push({ node: n, key, depth, hasKids: n.children.length > 0 });
-        if (n.children.length && (keep || !folded.has(key))) walk(n.children, depth + 1, key + ".");
+        if (n.level > cap) return;
+        const capped = n.level >= cap;
+        out.push({ node: n, key, depth, hasKids: n.children.length > 0 && !capped });
+        if (n.children.length && !capped && (keep || !folded.has(key))) walk(n.children, depth + 1, key + ".");
       });
     walk(f.roots, 0, "");
     return out.slice(0, 600);
@@ -167,6 +182,20 @@
       fileQuery = "";
     });
   });
+
+  function foldAll() {
+    const next = new Set<string>();
+    const walk = (ns: DocNode[], prefix: string) =>
+      ns.forEach((n, i) => {
+        const key = prefix + i;
+        if (n.children.length) {
+          next.add(key);
+          walk(n.children, key + ".");
+        }
+      });
+    walk(sheetFile?.roots ?? [], "");
+    folded = next;
+  }
 
   function toggleFold(key: string) {
     const next = new Set(folded);
@@ -319,6 +348,14 @@
               {/each}
             {:else}
               <input class="search" type="search" placeholder="Search this file…" bind:value={fileQuery} />
+              <div class="levels">
+                {#each LEVELS as l (l.id)}
+                  <button class="lvl" class:on={level === l.id} onclick={() => (level = l.id)}>{l.label}</button>
+                {/each}
+                <span class="spacer"></span>
+                <button class="mini" onclick={foldAll} title="Collapse all">⊟</button>
+                <button class="mini" onclick={() => (folded = new Set())} title="Expand all">⊞</button>
+              </div>
               {#each treeRows as r (r.key)}
                 {@const c = chipOf(r.node)}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -761,6 +798,39 @@
     border-radius: 5px;
     background: var(--cell-bg);
     color: var(--text);
+  }
+  /* Same look as Ctrl+K's level chips. */
+  .levels {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .lvl,
+  .mini {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .lvl {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+  .lvl.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .mini {
+    padding: 1px 6px;
+    font-size: 12px;
+  }
+  .spacer {
+    flex: 1;
   }
   .arrow {
     border: none;
