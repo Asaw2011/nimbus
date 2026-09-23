@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Smart blocks tray (LAB). Collapsed it is one small pill in the corner of
+  // Smart blocks tray. Collapsed it is one small pill in the corner of
   // the flow; open it shows suggestions and the round kit.
   //
   // ⚠ It never takes a keystroke from the grid and never inserts on its own —
@@ -15,6 +15,8 @@
   let { onjump }: { onjump: (sheetId: string, row: number, col: number) => void } = $props();
 
   let open = $state(false);
+  /** Most suggestions rendered at once. */
+  const SHOWN = 40;
   let tab = $state<"suggest" | "overviews" | "file" | "kit">("suggest");
   /** A file is being dragged over the tray or the pill. */
   let dropping = $state(false);
@@ -284,7 +286,7 @@
         <button class:on={tab === "kit"} onclick={() => (tab = "kit")}>
           Kit{smartKit.all.length ? ` (${smartKit.all.length})` : ""}
         </button>
-        <span class="lab">LAB</span>
+        <span class="beta">BETA</span>
         <button class="x" onclick={() => (open = false)} aria-label="Close">×</button>
       </div>
 
@@ -297,7 +299,10 @@
           {:else if !list.length}
             <p class="empty">No suggestions right now. They appear when the other team's argument matches a block in your kit and your answer cell is still empty.</p>
           {:else}
-            {#each list as s (s.key)}
+            <!-- Newest first, and only the newest SHOWN: late in a round the open
+                 list can run to hundreds, and rendering them all on every edit
+                 is the cost, not the matching. -->
+            {#each list.slice(0, SHOWN) as s (s.key)}
               <div class="sug">
                 <div class="sug-head">
                   <button class="where" onclick={() => onjump(s.sheetId, s.row, s.toCol)} title="Go to this row">
@@ -318,6 +323,9 @@
                 {/each}
               </div>
             {/each}
+            {#if list.length > SHOWN}
+              <p class="empty">+{list.length - SHOWN} older — answer or × some of these to see them.</p>
+            {/if}
           {/if}
         </div>
       {:else if tab === "overviews" || tab === "file"}
@@ -510,7 +518,7 @@
     ondragover={onDragOver}
     ondragleave={() => (dropping = false)}
     ondrop={onDrop}
-    title="Smart blocks (Lab) — drop .docx files here to add them to the round kit"
+    title="Smart blocks (beta) — drop .docx files here to add them to the round kit"
   >
     ✦ {list.length ? `${list.length} suggestion${list.length === 1 ? "" : "s"}` : "Smart blocks"}
   </button>
@@ -580,7 +588,7 @@
     background: var(--cell-bg);
     font-weight: 600;
   }
-  .lab {
+  .beta {
     margin-left: auto;
     font-size: 10px;
     letter-spacing: 0.06em;

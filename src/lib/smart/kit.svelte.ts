@@ -1,4 +1,4 @@
-// Smart blocks — the round kit and the suggestions it produces (LAB).
+// Smart blocks — the round kit and the suggestions it produces.
 //
 // The kit is the handful of files you load before a round: YOUR midterms file,
 // not the four other copies in Dropbox. Suggestions only ever come from it.
@@ -124,6 +124,11 @@ class SmartKit {
   loading = $state(0);
   /** Suggestions waved away this session. Not saved — a restart offers them again. */
   dismissed = $state<string[]>([]);
+  /** Match results kept between recomputes — see `suggestions`. */
+  private matchCache = new Map<string, BlockMatch[]>();
+  private blocksCache = new Map<string, KitBlock[]>();
+  private cacheSig = "";
+  private cacheParsed: Record<string, Parsed> | null = null;
 
   /** Library first, then this round's files; a file is never listed twice. */
   get all(): KitFile[] {
@@ -560,9 +565,29 @@ class SmartKit {
     if (!side || !this.all.length) return [];
     const speeches = round.template.speeches;
     const out: Suggestion[] = [];
-    const memo = new Map<string, BlockMatch[]>();
+    // Matches are kept between recomputes, so an edit re-matches only the
+    // cells whose text changed — measured ~40ms per pass on a 3,600-cell flow
+    // against 748 blocks without it, and this runs after every edit. Anything
+    // that changes WHICH blocks a sheet sees drops the lot.
+    const sig = JSON.stringify([this.all.map((f) => f.key + (f.general ? "*" : "")), this.links, side]);
+    if (sig !== this.cacheSig || this.parsed !== this.cacheParsed || this.matchCache.size > 50_000) {
+      this.matchCache.clear();
+      this.blocksCache.clear();
+      this.cacheSig = sig;
+      this.cacheParsed = this.parsed;
+    }
+    const memo = this.matchCache;
+    const dismissed = new Set(this.dismissed);
+    const byKey = new Map<string, Suggestion>();
     for (const sheet of round.sheets) {
-      const blocks = this.blocksFor(sheet);
+      // Which file and section a sheet uses only changes with the kit (the
+      // sig above) or the sheet's own title/kind — not with every edit.
+      const bKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}`;
+      let blocks = this.blocksCache.get(bKey);
+      if (!blocks) {
+        blocks = this.blocksFor(sheet);
+        this.blocksCache.set(bKey, blocks);
+      }
       if (!blocks.length) continue;
       sheet.rows.forEach((row, r) => {
         for (let c = Math.max(0, sheet.startCol); c < speeches.length; c++) {
@@ -578,15 +603,31 @@ class SmartKit {
             : filled(row.cells[to]);
           if (answered) continue;
           const key = `${sheet.id}:${row.id}:${speeches[to].id}`;
-          if (this.dismissed.includes(key)) continue;
-          const memoKey = `${sheet.id}\u0000${cell.text}`;
+          if (dismissed.has(key)) continue;
+          // Title and kind decide the sheet's file and section, so they're
+          // part of the key: renaming a sheet can change what it matches.
+          const memoKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}\u0000${cell.text}`;
           let matches = memo.get(memoKey);
           if (!matches) {
             matches = matchBlocks(cell.text, blocks);
             memo.set(memoKey, matches);
           }
           if (!matches.length) continue;
-          out.push({
+          // ⚠ ONE suggestion per reply cell. Both partners' lanes of the same
+          // opponent speech answer into the same cell, so two arguments on one
+          // row share a key — and a duplicate key in the tray's keyed list is
+          // a FATAL Svelte error. Merge instead: both arguments shown, the best
+          // blocks for either offered. The first lane stays the reply target.
+          const same = byKey.get(key);
+          if (same) {
+            same.said = `${same.said} / ${cell.text}`;
+            const seen = new Set(same.matches.map((m) => m.block.id));
+            same.matches = [...same.matches, ...matches.filter((m) => !seen.has(m.block.id))]
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 3);
+            continue;
+          }
+          const s: Suggestion = {
             key,
             sheetId: sheet.id,
             sheetTitle: sheet.title,
@@ -596,7 +637,9 @@ class SmartKit {
             toCol: to,
             said: cell.text,
             matches,
-          });
+          };
+          byKey.set(key, s);
+          out.push(s);
         }
       });
     }

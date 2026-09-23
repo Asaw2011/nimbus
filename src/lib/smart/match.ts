@@ -1,4 +1,4 @@
-// Smart blocks — matching (LAB). Pure functions, no store, no I/O.
+// Smart blocks — matching. Pure functions, no store, no I/O.
 //
 // Two questions, both answered from the Verbatim heading tree `parseDocx`
 // already builds:
