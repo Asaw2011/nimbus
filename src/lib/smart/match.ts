@@ -25,6 +25,8 @@ export interface KitBlock {
   title: string;
   /** Ancestor headings, outermost first ("Uniqueness", "Answers"). */
   trail: string[];
+  /** The same ancestors as nodes — how a block is scoped to one section. */
+  anc: DocNode[];
   node: DocNode;
   cardCount: number;
   tokens: string[];
@@ -133,7 +135,8 @@ export function cardsUnder(node: DocNode): DocNode[] {
  */
 export function indexBlocks(file: string, roots: DocNode[]): KitBlock[] {
   const out: KitBlock[] = [];
-  const walk = (ns: DocNode[], trail: string[]) => {
+  const walk = (ns: DocNode[], anc: DocNode[]) => {
+    const trail = anc.map((a) => a.text);
     for (const n of ns) {
       if (isCard(n)) continue;
       if (n.children.some(isCard)) {
@@ -145,6 +148,7 @@ export function indexBlocks(file: string, roots: DocNode[]): KitBlock[] {
             file,
             title: n.text,
             trail,
+            anc,
             node: n,
             cardCount: cardsUnder(n).length,
             tokens: tokens(n.text),
@@ -154,7 +158,7 @@ export function indexBlocks(file: string, roots: DocNode[]): KitBlock[] {
           });
         }
       }
-      walk(n.children, [...trail, n.text]);
+      walk(n.children, [...anc, n]);
     }
   };
   walk(roots, []);
@@ -202,6 +206,10 @@ export function matchBlocks(said: string, blocks: KitBlock[], limit = 3): BlockM
   for (const block of blocks) {
     let score = Math.max(scoreAgainst(q, block.tokens), scoreAgainst(q, block.core));
     if (!score) continue;
+    // Named EXACTLY what they said ("States CP" → "States CP---2AC"): that is
+    // the frontline, and it must beat "States CP---AT: UCF", whose answer
+    // lift would otherwise put it on top.
+    if (block.tokens.length === q.length && q.every((t) => block.tokens.includes(t))) score += 0.2;
     if (block.answer) score += 0.1;
     if (block.weak) score *= 0.75;
     if (score >= 0.45) out.push({ block, score });
@@ -214,6 +222,38 @@ export function matchBlocks(said: string, blocks: KitBlock[], limit = 3): BlockM
 
 /** Words that say what KIND of position something is, not WHICH one. */
 const KIND = new Set(["cp", "da", "k", "t", "adv", "advantage", "case", "off", "neg", "aff", "file"]);
+
+/**
+ * The section of a multi-position file a sheet belongs to — "Public Option CP"
+ * → `CP---Public Option` in an aff master file — or null.
+ *
+ * Only pockets and hats are candidates (where positions live), with the same
+ * "more than a kind marker" rule as file linking. A tie goes to the DEEPER
+ * heading: `CP---Process` beats its parent `Counterplans---Process`.
+ */
+export function guessSection(sheetTitle: string, roots: DocNode[]): DocNode | null {
+  const s = tokens(sheetTitle);
+  if (!s.length) return null;
+  let best: DocNode | null = null;
+  let bestScore = 0;
+  const walk = (ns: DocNode[]) => {
+    for (const n of ns) {
+      if (isCard(n) || n.level > 2) continue;
+      const ht = tokens(n.text);
+      const shared = s.filter((t) => ht.includes(t));
+      if (shared.some((t) => !KIND.has(t))) {
+        const score = shared.length / Math.min(s.length, ht.length);
+        if (score > bestScore || (score === bestScore && best && n.level > best.level)) {
+          bestScore = score;
+          best = n;
+        }
+      }
+      walk(n.children);
+    }
+  };
+  walk(roots);
+  return bestScore >= 0.5 ? best : null;
+}
 
 /**
  * The kit file a sheet most likely belongs to, or null.

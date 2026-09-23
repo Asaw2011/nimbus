@@ -9,7 +9,7 @@
   import { store } from "$lib/model/round.svelte";
   import { laneAbbr } from "$lib/model/types";
   import type { DocNode } from "$lib/docx/parse";
-  import { smartKit, type Suggestion } from "./kit.svelte";
+  import { smartKit, type KitFile, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
 
   let { onjump }: { onjump: (sheetId: string, row: number, col: number) => void } = $props();
@@ -51,6 +51,7 @@
     void store.laneHere;
     void smartKit.parsed;
     void smartKit.files;
+    void smartKit.library;
     void smartKit.links;
     void smartKit.side;
     void smartKit.dismissed;
@@ -100,7 +101,7 @@
   }
 
   function fileName(key: string | null): string {
-    return smartKit.files.find((f) => f.key === key)?.name.replace(/\.docx$/i, "") ?? "";
+    return smartKit.all.find((f) => f.key === key)?.name.replace(/\.docx$/i, "") ?? "";
   }
 
   // ---- dropping files onto the tray ----------------------------------------
@@ -126,6 +127,11 @@
   const sheet = $derived(store.activeSheet);
   const sheetFile = $derived(sheet ? smartKit.fileFor(sheet) : null);
   const overviews = $derived(sheet ? smartKit.overviewsFor(sheet) : []);
+  /** File tab: show the whole file instead of just this sheet's section. */
+  let wholeFile = $state(false);
+  const fileRoots = $derived(
+    sheetFile ? (sheetFile.scope && !wholeFile ? [sheetFile.scope] : sheetFile.roots) : [],
+  );
 
   interface TreeRow {
     node: DocNode;
@@ -153,7 +159,7 @@
           if (levelOk && n.text.toLowerCase().includes(q)) [key, ...up].forEach((x) => k.add(x));
           find(n.children, key + ".", [...up, key]);
         });
-      find(f.roots, "", []);
+      find(fileRoots, "", []);
       keep = k;
     }
     // Without a search, a level caps how deep the tree goes.
@@ -168,20 +174,28 @@
         out.push({ node: n, key, depth, hasKids: n.children.length > 0 && !capped });
         if (n.children.length && !capped && (keep || !folded.has(key))) walk(n.children, depth + 1, key + ".");
       });
-    walk(f.roots, 0, "");
+    walk(fileRoots, 0, "");
     return out.slice(0, 600);
   });
 
-  // A different file (another sheet, or a re-link) starts unfolded and unsearched.
+  // A different file or section (another sheet, a re-link) starts unfolded,
+  // unsearched, and on just its section. Fold keys are positions in the tree
+  // shown, so they must not carry over to a different tree.
   $effect(() => {
-    const k = sheetFile?.key ?? "";
+    const k = `${sheetFile?.key ?? ""}|${sheetFile?.scope?.text ?? ""}`;
     untrack(() => {
       if (k === foldedFor) return;
       foldedFor = k;
       folded = new Set();
       fileQuery = "";
+      wholeFile = false;
     });
   });
+
+  function toggleWholeFile() {
+    wholeFile = !wholeFile;
+    folded = new Set();
+  }
 
   function foldAll() {
     const next = new Set<string>();
@@ -193,7 +207,7 @@
           walk(n.children, key + ".");
         }
       });
-    walk(sheetFile?.roots ?? [], "");
+    walk(fileRoots, "");
     folded = next;
   }
 
@@ -268,7 +282,7 @@
         <button class:on={tab === "overviews"} onclick={() => (tab = "overviews")}>Overviews</button>
         <button class:on={tab === "file"} onclick={() => (tab = "file")}>File</button>
         <button class:on={tab === "kit"} onclick={() => (tab = "kit")}>
-          Kit{smartKit.files.length ? ` (${smartKit.files.length})` : ""}
+          Kit{smartKit.all.length ? ` (${smartKit.all.length})` : ""}
         </button>
         <span class="lab">LAB</span>
         <button class="x" onclick={() => (open = false)} aria-label="Close">×</button>
@@ -276,7 +290,7 @@
 
       {#if tab === "suggest"}
         <div class="body">
-          {#if !smartKit.files.length}
+          {#if !smartKit.all.length}
             <p class="empty">Add your files for this round in <b>Round kit</b>, and blocks that answer what the other team says will show up here.</p>
           {:else if !side}
             <p class="empty">Pick which side you're on in <b>Round kit</b>.</p>
@@ -318,7 +332,14 @@
             <div class="from">
               <span>{sheet.title || "Untitled"}</span>
               <span class="dim">from</span>
-              <span class="fromfile" title={sheetFile.key}>{sheetFile.name.replace(/\.docx$/i, "")}</span>
+              <span class="fromfile" title={sheetFile.key}>
+                {sheetFile.name.replace(/\.docx$/i, "")}{#if sheetFile.scope}<span class="dim"> › </span>{sheetFile.scope.text}{/if}
+              </span>
+              {#if sheetFile.scope && tab === "file"}
+                <button class="mini" onclick={toggleWholeFile} title="Only this sheet's section is used for suggestions either way">
+                  {wholeFile ? "Just this section" : "Whole file"}
+                </button>
+              {/if}
             </div>
             {#if !canInsert}
               <p class="hint">Click a cell first, then click a block to put it there — or drag it onto any cell.</p>
@@ -343,7 +364,8 @@
                 </div>
               {:else}
                 <p class="empty">
-                  No overviews found. Nimbus looks for sections with a heading named <b>Main</b> and takes the first block under each one.
+                  No overviews found. Nimbus looks for sections with a heading named <b>Main</b> and takes the first block under each one
+                  — and when you're aff, the first block of each advantage in a 2AC file's <b>CASE</b> section.
                 </p>
               {/each}
             {:else}
@@ -406,14 +428,20 @@
             </div>
           {/if}
 
-          <div class="section">Files</div>
-          {#each smartKit.files as f (f.key)}
+          {#snippet fileRow(f: KitFile, pinned: boolean)}
             {@const p = smartKit.parsed[f.key]}
             <div class="file">
+              <button
+                class="pin"
+                class:on={pinned}
+                onclick={() => (pinned ? smartKit.unpin(f.key) : smartKit.pin(f.key))}
+                title={pinned ? "In every round — click to keep it in this round only" : "Keep this file in every round"}
+              >📌</button>
               <span class="fname" title={f.key.startsWith("copy:") ? "Not found in your Doc Search library, so Nimbus keeps a copy made when you dropped it. Drop it again to update it." : f.key}>
                 {f.name.replace(/\.docx$/i, "")}
                 {#if f.key.startsWith("copy:")}<span class="copytag">copy</span>{/if}
                 {#if !f.general && smartKit.isCaseNeg(f.key)}<span class="copytag casetag" title="Used on every aff (case) sheet">case neg</span>{/if}
+                {#if !f.general && smartKit.isTwoAC(f.key)}<span class="copytag casetag" title="When you're aff: its CASE section is used on every aff sheet, and each off-case sheet uses its own section">2AC</span>{/if}
               </span>
               <span class="fmeta" class:err={!!p?.error}>
                 {p ? (p.error ? p.error : `${p.blocks.length} blocks`) : "reading…"}
@@ -422,8 +450,24 @@
                 <input type="checkbox" checked={!!f.general} onchange={(e) => smartKit.setGeneral(f.key, (e.currentTarget as HTMLInputElement).checked)} />
                 every sheet
               </label>
-              <button class="dismiss" onclick={() => smartKit.remove(f.key)} title="Remove from kit">×</button>
+              <button
+                class="dismiss"
+                onclick={() => smartKit.remove(f.key)}
+                title={pinned ? "Remove from the library (every round)" : "Remove from this round"}
+              >×</button>
             </div>
+          {/snippet}
+
+          <div class="section">Library · in every round</div>
+          {#each smartKit.library as f (f.key)}
+            {@render fileRow(f, true)}
+          {:else}
+            <p class="empty">Pin 📌 a file below to keep it in every round — T, theory, framework, your case neg.</p>
+          {/each}
+
+          <div class="section">This round</div>
+          {#each smartKit.files.filter((f) => !smartKit.inLibrary(f.key)) as f (f.key)}
+            {@render fileRow(f, false)}
           {:else}
             <p class="empty">No files yet. Add the exact files you want suggestions from — the newest midterms file, not all four.</p>
           {/each}
@@ -433,19 +477,20 @@
           </div>
           <input bind:this={fileInput} type="file" accept=".docx" multiple hidden onchange={onBrowserFiles} />
 
-          {#if store.round?.sheets.length && smartKit.files.length}
+          {#if store.round?.sheets.length && smartKit.all.length}
             <div class="section">Which file each sheet uses</div>
             {#each store.round.sheets as sh (sh.id)}
               {@const auto = smartKit.autoLink(sh)}
-              {@const caseNegs = sh.kind === "case" ? smartKit.files.filter((f) => !f.general && smartKit.isCaseNeg(f.key)) : []}
+              {@const autoScope = auto ? smartKit.scopeFor(sh, auto) : null}
+              {@const caseFiles = [...smartKit.caseNegsFor(sh), ...smartKit.twoACsFor(sh)].filter((k) => k !== auto)}
               <div class="row">
                 <span class="label sheetname" title={sh.title}>{sh.title || "Untitled"}</span>
                 <select value={linkValue(sh.id)} onchange={(e) => onLink(sh.id, (e.currentTarget as HTMLSelectElement).value)}>
                   <option value="__auto">
-                    Auto: {auto ? fileName(auto) : caseNegs.length ? "" : "none found"}{auto && caseNegs.length ? " + " : ""}{caseNegs.length ? `case neg (${caseNegs.map((f) => fileName(f.key)).join(", ")})` : ""}
+                    Auto: {auto ? fileName(auto) + (autoScope ? ` › ${autoScope.text}` : "") : caseFiles.length ? "" : "none found"}{auto && caseFiles.length ? " + " : ""}{caseFiles.length ? caseFiles.map((k) => fileName(k)).join(", ") : ""}
                   </option>
                   <option value="">No file</option>
-                  {#each smartKit.files.filter((f) => !f.general) as f (f.key)}
+                  {#each smartKit.all.filter((f) => !f.general) as f (f.key)}
                     <option value={f.key}>{f.name.replace(/\.docx$/i, "")}</option>
                   {/each}
                 </select>
@@ -727,6 +772,20 @@
     border-radius: 3px;
     padding: 0 3px;
     margin-left: 4px;
+  }
+  .pin {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+    opacity: 0.3;
+    filter: grayscale(1);
+  }
+  .pin.on,
+  .pin:hover {
+    opacity: 1;
+    filter: none;
   }
   .casetag {
     color: var(--aff);

@@ -21,6 +21,8 @@ import type { Cell, Round, Sheet, Side, Speech } from "$lib/model/types";
 import {
   cardsUnder,
   guessFileForSheet,
+  guessSection,
+  tokens,
   indexBlocks,
   matchBlocks,
   type BlockMatch,
@@ -102,9 +104,19 @@ function targetCol(speeches: Speech[], from: number, mySide: Side, laneHere: num
   return -1;
 }
 
+const LIBRARY_BLOB = "smart-library";
+
 class SmartKit {
   roundId = $state<string | null>(null);
+  /** This round's own files. */
   files = $state<KitFile[]>([]);
+  /**
+   * The library: files in EVERY round's kit — the handful of common files you
+   * always want (T, theory, framework, your case neg). Saved once, not per
+   * round; pinning or unpinning moves a file between here and `files`.
+   */
+  library = $state<KitFile[]>([]);
+  private libraryLoaded = false;
   links = $state<Record<string, string>>({});
   side = $state<Side | undefined>(undefined);
   /** Parsed trees are large and never edited — raw, so they aren't proxied. */
@@ -113,8 +125,50 @@ class SmartKit {
   /** Suggestions waved away this session. Not saved — a restart offers them again. */
   dismissed = $state<string[]>([]);
 
+  /** Library first, then this round's files; a file is never listed twice. */
+  get all(): KitFile[] {
+    const lib = this.library;
+    return [...lib, ...this.files.filter((f) => !lib.some((l) => l.key === f.key))];
+  }
+
+  inLibrary(key: string): boolean {
+    return this.library.some((f) => f.key === key);
+  }
+
+  private async loadLibrary(): Promise<void> {
+    if (this.libraryLoaded) return;
+    this.libraryLoaded = true;
+    this.library = (await loadBlob<KitFile[]>(LIBRARY_BLOB)) ?? [];
+    for (const f of this.library) if (!this.parsed[f.key]) void this.parseFromDisk(f);
+  }
+
+  private persistLibrary(): void {
+    void saveBlob(LIBRARY_BLOB, $state.snapshot(this.library));
+  }
+
+  /** Keep a file in every round's kit (moves it out of this round's list). */
+  pin(key: string): void {
+    const f = this.all.find((x) => x.key === key);
+    if (!f || this.inLibrary(key)) return;
+    this.library = [...this.library, f];
+    this.files = this.files.filter((x) => x.key !== key);
+    this.persistLibrary();
+    this.persist();
+  }
+
+  /** Stop keeping a file in every round — it stays in THIS round's kit. */
+  unpin(key: string): void {
+    const f = this.library.find((x) => x.key === key);
+    if (!f) return;
+    this.library = this.library.filter((x) => x.key !== key);
+    if (!this.files.some((x) => x.key === key)) this.files = [...this.files, f];
+    this.persistLibrary();
+    this.persist();
+  }
+
   /** Load (or switch to) the kit for a round. Cheap when it's already loaded. */
   async attach(roundId: string | undefined): Promise<void> {
+    void this.loadLibrary();
     if (!roundId || roundId === this.roundId) return;
     this.roundId = roundId;
     this.files = [];
@@ -193,7 +247,7 @@ class SmartKit {
   /** Add files by path (the Tauri file picker). */
   async addPaths(paths: string[]): Promise<void> {
     for (const path of paths) {
-      if (this.files.some((f) => f.key === path)) continue;
+      if (this.all.some((f) => f.key === path)) continue;
       const name = path.split(/[\\/]/).pop() ?? path;
       const f: KitFile = { key: path, name };
       this.files = [...this.files, f];
@@ -205,7 +259,7 @@ class SmartKit {
   /** Add a file from its bytes (a browser, or a test). Lives for this session. */
   addBytes(name: string, buf: ArrayBuffer): void {
     const key = `mem:${name}`;
-    if (!this.files.some((f) => f.key === key)) this.files = [...this.files, { key, name }];
+    if (!this.all.some((f) => f.key === key)) this.files = [...this.files, { key, name }];
     this.ingest(key, buf);
     this.persist();
   }
@@ -234,7 +288,7 @@ class SmartKit {
       const key = `copy:${file.name}`;
       const buf = await file.arrayBuffer();
       await saveBlob(copyBlobName(key), toBase64(buf));
-      if (!this.files.some((f) => f.key === key)) this.files = [...this.files, { key, name: file.name }];
+      if (!this.all.some((f) => f.key === key)) this.files = [...this.files, { key, name: file.name }];
       this.ingest(key, buf);
       this.persist();
     }
@@ -247,11 +301,37 @@ class SmartKit {
    * A Main holding cards with no block under it is its own overview.
    */
   overviewsFor(sheet: Sheet): Overview[] {
-    const key = this.fileFor(sheet)?.key;
-    const roots = key ? this.parsed[key]?.roots : undefined;
-    if (!roots) return [];
     const out: Overview[] = [];
     const isCard = (n: DocNode) => n.isAnalytic || n.level >= 4;
+
+    // 2AC impact overviews (aff sheets, when we're aff): in each 2AC file's
+    // CASE section, every advantage opens with a block named for itself
+    // ("Disease---2AC") whose analytics are the impact overview. The one for
+    // THIS sheet's advantage, if its title names one, comes first.
+    const want = tokens(sheet.title);
+    const affOverviews: Array<Overview & { mine: boolean }> = [];
+    for (const k of this.twoACsFor(sheet)) {
+      const kase = this.scopeFor(sheet, k);
+      for (const adv of kase?.children ?? []) {
+        // Solvency sits under CASE too, but it has no impact to overview.
+        if (isCard(adv) || /^solvency$/i.test(adv.text.trim())) continue;
+        const first = adv.children.find((c) => !isCard(c));
+        if (!first) continue;
+        const advTokens = tokens(adv.text);
+        affOverviews.push({
+          section: adv.text.trim(),
+          node: first,
+          cardCount: cardsUnder(first).length,
+          mine: want.some((t) => advTokens.includes(t)),
+        });
+      }
+    }
+    affOverviews.sort((a, b) => Number(b.mine) - Number(a.mine));
+    out.push(...affOverviews.map(({ mine: _mine, ...o }) => o));
+
+    const file = this.fileFor(sheet);
+    const roots = file ? (file.scope ? [file.scope] : file.roots) : undefined;
+    if (!roots) return out;
     const walk = (ns: DocNode[], parent: DocNode | null) => {
       for (const n of ns) {
         if (isCard(n)) continue;
@@ -273,13 +353,14 @@ class SmartKit {
     return out;
   }
 
-  /** The kit file a sheet's File and Overviews tabs show, with its name. */
-  fileFor(sheet: Sheet): { key: string; name: string; roots: DocNode[] } | null {
-    // An aff sheet with no file of its own shows its case neg.
-    const key = this.linkFor(sheet) ?? this.caseNegsFor(sheet)[0] ?? null;
-    const f = this.files.find((x) => x.key === key);
+  /** The kit file a sheet's File and Overviews tabs show, with its name and
+   *  the section of it that belongs to the sheet (null = the whole file). */
+  fileFor(sheet: Sheet): { key: string; name: string; roots: DocNode[]; scope: DocNode | null } | null {
+    // An aff sheet with no file of its own shows its case neg / 2AC file.
+    const key = this.linkFor(sheet) ?? this.caseFilesFor(sheet)[0] ?? null;
+    const f = this.all.find((x) => x.key === key);
     const p = key ? this.parsed[key] : undefined;
-    return f && p ? { key: f.key, name: f.name, roots: p.roots } : null;
+    return f && p ? { key: f.key, name: f.name, roots: p.roots, scope: this.scopeFor(sheet, f.key) } : null;
   }
 
   /**
@@ -304,8 +385,19 @@ class SmartKit {
     return true;
   }
 
+  /**
+   * Take a file out of the kit. A library file leaves the library (so every
+   * round); a round file leaves this round only.
+   *
+   * ⚠ A dropped file's saved copy is NOT deleted: the same `copy:` key can be
+   * in another round's kit, or the library, and deleting it here broke that.
+   */
   remove(key: string): void {
-    if (key.startsWith("copy:")) void saveBlob(copyBlobName(key), "");
+    if (this.inLibrary(key)) {
+      this.library = this.library.filter((f) => f.key !== key);
+      this.persistLibrary();
+      return;
+    }
     this.files = this.files.filter((f) => f.key !== key);
     const links = { ...this.links };
     for (const [sheet, k] of Object.entries(links)) if (k === key) delete links[sheet];
@@ -314,8 +406,14 @@ class SmartKit {
   }
 
   setGeneral(key: string, general: boolean): void {
-    this.files = this.files.map((f) => (f.key === key ? { ...f, general: general || undefined } : f));
-    this.persist();
+    const set = (f: KitFile) => (f.key === key ? { ...f, general: general || undefined } : f);
+    if (this.inLibrary(key)) {
+      this.library = this.library.map(set);
+      this.persistLibrary();
+    } else {
+      this.files = this.files.map(set);
+      this.persist();
+    }
   }
 
   setSide(side: Side): void {
@@ -341,25 +439,58 @@ class SmartKit {
    * DA, and a folder rule would pin that DA to every case sheet.
    */
   isCaseNeg(key: string): boolean {
-    const f = this.files.find((x) => x.key === key);
+    return this.named(key, /case[\s_-]*negs?(?![a-z])/i);
+  }
+
+  /** A 2AC file ("2ACs_Single Payer"): the aff's answers, case AND off-case. */
+  isTwoAC(key: string): boolean {
+    return !this.isCaseNeg(key) && this.named(key, /(^|[^a-z0-9])2acs?(?![a-z])/i);
+  }
+
+  private named(key: string, re: RegExp): boolean {
+    const f = this.all.find((x) => x.key === key);
     if (!f) return false;
-    const re = /case[\s_-]*negs?(?![a-z])/i;
     return re.test(f.name) || re.test(this.parsed[key]?.firstHeading ?? "");
+  }
+
+  private currentSide(): Side | undefined {
+    return store.round ? this.mySide(store.round) : undefined;
   }
 
   /** Case-neg files that apply to this sheet: every aff (case) sheet gets all
    *  of them, unless the sheet was explicitly set to "No file". */
   caseNegsFor(sheet: Sheet): string[] {
     if (sheet.kind !== "case" || this.links[sheet.id] === "") return [];
-    return this.files.filter((f) => !f.general && this.isCaseNeg(f.key)).map((f) => f.key);
+    return this.all.filter((f) => !f.general && this.isCaseNeg(f.key)).map((f) => f.key);
   }
 
-  /** The automatic guess for a sheet, ignoring any explicit choice. */
+  /** 2AC files on an aff sheet, when WE are aff — their CASE section answers it,
+   *  whatever the advantage sheets are called. */
+  twoACsFor(sheet: Sheet): string[] {
+    if (sheet.kind !== "case" || this.links[sheet.id] === "" || this.currentSide() !== "aff") return [];
+    return this.all.filter((f) => !f.general && this.isTwoAC(f.key)).map((f) => f.key);
+  }
+
+  /** Every file that applies to an aff sheet automatically. */
+  private caseFilesFor(sheet: Sheet): string[] {
+    return [...this.caseNegsFor(sheet), ...this.twoACsFor(sheet)];
+  }
+
+  /**
+   * The automatic guess for a sheet, ignoring any explicit choice: a file NAMED
+   * for the position first, else a multi-position file with a SECTION for it
+   * (an aff master file's `CP---Public Option`). Case negs never auto-link —
+   * they have their own rule.
+   */
   autoLink(sheet: Sheet): string | null {
-    const candidates = this.files
-      .filter((f) => !f.general && !this.isCaseNeg(f.key) && this.parsed[f.key]?.blocks.length)
-      .map((f) => ({ key: f.key, name: f.name, firstHeading: this.parsed[f.key].firstHeading }));
-    return guessFileForSheet(sheet.title, candidates);
+    const pool = this.all.filter((f) => !f.general && !this.isCaseNeg(f.key) && this.parsed[f.key]?.blocks.length);
+    const byName = guessFileForSheet(
+      sheet.title,
+      pool.map((f) => ({ key: f.key, name: f.name, firstHeading: this.parsed[f.key].firstHeading })),
+    );
+    if (byName) return byName;
+    if (sheet.kind === "case") return null; // aff sheets are covered by caseFilesFor
+    return pool.find((f) => guessSection(sheet.title, this.parsed[f.key].roots))?.key ?? null;
   }
 
   /** The file a sheet draws from: an explicit choice, else the guess. */
@@ -368,15 +499,46 @@ class SmartKit {
     return this.autoLink(sheet);
   }
 
-  /** Every block a sheet may suggest: its own file's, any case negs (on an aff
-   *  sheet), then the general files'. Each file counted once. */
+  /**
+   * The part of a file that belongs to a sheet, or null for the whole file.
+   *
+   * A file named for the position ("DA_Midterms" on "Midterms") is used whole:
+   * its sections are Uniqueness/Link/Impact, not positions. A multi-position
+   * file is cut to the section for the sheet, so two CPs' "AT: Perm" blocks in
+   * one master file stay apart. On an aff sheet a 2AC file is cut to its CASE.
+   */
+  scopeFor(sheet: Sheet, key: string): DocNode | null {
+    const f = this.all.find((x) => x.key === key);
+    const p = this.parsed[key];
+    if (!f || !p) return null;
+    if (sheet.kind === "case" && this.twoACsFor(sheet).includes(key)) {
+      return p.roots.find((n) => n.text.trim().toLowerCase() === "case") ?? null;
+    }
+    if (guessFileForSheet(sheet.title, [{ key, name: f.name, firstHeading: p.firstHeading }])) return null;
+    return guessSection(sheet.title, p.roots);
+  }
+
+  /** Every block a sheet may suggest: its own file's (cut to its section), any
+   *  case files (on an aff sheet), then the general files'. Each block once. */
   blocksFor(sheet: Sheet): KitBlock[] {
     const keys = new Set<string>();
     const own = this.linkFor(sheet);
     if (own) keys.add(own);
-    for (const k of this.caseNegsFor(sheet)) keys.add(k);
-    for (const f of this.files) if (f.general) keys.add(f.key);
-    return [...keys].flatMap((k) => this.parsed[k]?.blocks ?? []);
+    for (const k of this.caseFilesFor(sheet)) keys.add(k);
+    const general = new Set(this.all.filter((f) => f.general).map((f) => f.key));
+    for (const k of general) keys.add(k);
+    const out: KitBlock[] = [];
+    const seen = new Set<string>();
+    for (const k of keys) {
+      const scope = general.has(k) ? null : this.scopeFor(sheet, k);
+      for (const b of this.parsed[k]?.blocks ?? []) {
+        if (seen.has(b.id)) continue;
+        if (scope && b.node !== scope && !b.anc.includes(scope)) continue;
+        seen.add(b.id);
+        out.push(b);
+      }
+    }
+    return out;
   }
 
   mySide(round: Round): Side | undefined {
@@ -395,7 +557,7 @@ class SmartKit {
    */
   suggestions(round: Round, laneHere: number): Suggestion[] {
     const side = this.mySide(round);
-    if (!side || !this.files.length) return [];
+    if (!side || !this.all.length) return [];
     const speeches = round.template.speeches;
     const out: Suggestion[] = [];
     const memo = new Map<string, BlockMatch[]>();
