@@ -13,8 +13,8 @@ Two design pillars, in priority order:
 
 1. **FAST** — every action is keybound, the app is local-first and works fully
    offline (tournament wifi can't be trusted), and it loads instantly.
-2. **SMART** — doc-aware today (import `.docx` speech docs), AI-assisted soon
-   (see [Planned](#planned)).
+2. **SMART** — doc-aware today (import `.docx` speech docs, and block
+   suggestions from your own files), AI-assisted soon (see [Planned](#planned)).
 
 > **Status:** Nimbus is usable today for real rounds. The **AI features are not
 > built yet** — everything under [Planned](#planned) is a roadmap, not a
@@ -59,6 +59,21 @@ are done. Nimbus tells you what changed the first time you open a new version.
   that part. You answer their third card, they answer that, you answer that, out
   to the last speech. The tiles are ordinary flow cells: mark them card or
   analytic, color them, star them. `Ctrl+Enter` inserts a row inside the block
+
+**Smart blocks** (beta)
+- Load the files for a round, and when the other team makes an argument — in
+  your lane or your partner's — Nimbus suggests the block that answers it; one
+  click puts the whole block in your next speech, linked as the answer
+- **Each sheet uses its own file**, so two counterplans' *AT: Perm* blocks never
+  mix; a file with a section per position (a 2AC file) gives each sheet only
+  its own section. Case negs — and, when you're aff, your 2AC file's CASE
+  section — apply to every advantage sheet
+- **Overviews** tab: the first block under each *Main* heading (Uniqueness,
+  Link, Internal, Impact), plus each advantage's impact overview when you're aff
+- **File** tab: the sheet's file browsed like Doc Search, click or drag to insert
+- A **library** of files pinned into every round's kit
+- Matches your block headings — it's word matching, not AI, and runs fully
+  offline
 
 **Flow with your partner** (live, two computers)
 - Pair with a **6-character code** — the host approves explicitly, with the

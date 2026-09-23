@@ -21,6 +21,7 @@
     { id: "bank", label: "The argument bank" },
     { id: "answer", label: "Linking an answer" },
     { id: "search", label: "Doc search (library)" },
+    { id: "smart", label: "Smart blocks" },
     { id: "doc", label: "The speech doc" },
     { id: "quick", label: "Quick cards" },
     { id: "docstyle", label: "Doc style & headings" },
@@ -315,6 +316,64 @@
             </li>
             <li>Dive into a file to browse its Pocket / Hat / Block / Tag structure, then insert.</li>
             <li>Inserting fills the flow cell only — it never auto-adds to your speech doc.</li>
+          </ul>
+        </section>
+
+        <section id="sec-smart">
+          <h2>Smart blocks</h2>
+          <p>
+            Load the files for a round, and Nimbus offers the block that answers what the
+            other team just said. Open it with the <b>✦ Smart blocks</b> button in the
+            bottom-right corner of the flow.
+          </p>
+          <ul>
+            <li>
+              <b>Kit</b> — the files for this round. Add them with <b>Add files…</b> or drop
+              .docx files onto the panel. Pick the exact files you want (the newest midterms
+              file, not every copy) — suggestions only ever come from these.
+            </li>
+            <li>
+              <b>Library</b> — pin 📌 a file to keep it in <b>every</b> round's kit: T, theory,
+              framework, your case neg. Unpin it to keep it in the current round only.
+            </li>
+            <li>
+              <b>Each sheet uses its own file.</b> Nimbus links a sheet to the file named for
+              it ("India CP" → your India CP file), so two counterplans' <i>AT: Perm</i> blocks
+              never mix. In a file holding many positions (a 2AC file with a section per CP),
+              a sheet uses only its own section. Change any link under <b>Which file each sheet uses</b>.
+            </li>
+            <li>
+              <b>Case files go on every aff sheet.</b> A file named <i>Case Neg</i> is used on
+              every aff (advantage) sheet. When you're aff, so is the <b>CASE</b> section of a
+              <i>2AC</i> file. Set a sheet to <b>No file</b> to turn it off there.
+            </li>
+            <li>
+              <b>Suggestions</b> appear when an argument the other team made — in either
+              partner's lane — matches a block, and your answer cell is still empty.
+              <b>Insert</b> puts the whole block in your next speech on that row, linked as the
+              answer to that argument. <b>×</b> dismisses one. Answering the cell yourself (or
+              your partner answering it) clears it.
+            </li>
+            <li>
+              <b>Overviews</b> lists the overview blocks for the sheet you're on: the first block
+              under each <b>Main</b> heading (Uniqueness, Link, Internal, Impact). When you're aff,
+              it also lists each advantage's impact overview — the first block of each advantage
+              in a 2AC file's CASE section.
+            </li>
+            <li>
+              <b>File</b> shows the sheet's file the way Doc Search does inside a file — search,
+              POC / HAT / BLK / CARD levels, fold and unfold.
+            </li>
+            <li>
+              In Overviews and File, <b>click</b> a block to put it in the selected cell, or
+              <b>drag</b> it onto any cell. Doc Search (<kbd>{combosLabel(km.openDocSearch, mac)}</kbd>)
+              still works exactly as before.
+            </li>
+            <li>
+              Suggestions match your <b>block headings</b>, so they work best when headings name
+              what they answer ("AT: Say No", "Perm: Do Both"). It's a beta — it matches words,
+              it doesn't read cards.
+            </li>
           </ul>
         </section>
 

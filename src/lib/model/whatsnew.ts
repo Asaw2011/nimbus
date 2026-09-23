@@ -24,6 +24,18 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.0",
+    headline: "Smart blocks: load your files for the round, and Nimbus offers the block that answers each argument.",
+    items: [
+      "**Smart blocks (beta).** Open **✦ Smart blocks** in the bottom-right corner of the flow and drop in your files for the round. When the other team makes an argument — in your lane or your partner's — Nimbus suggests the block that answers it. One click puts the whole block in your next speech on that row.",
+      "**Every sheet uses its own file.** \"India CP\" draws only from your India CP file, so two counterplans' \"AT: Perm\" blocks never get mixed up. A 2AC file with a section for each CP works too: each sheet uses only its own section.",
+      "**Case negs and 2ACs cover your aff sheets automatically.** A file named \"Case Neg\" is used on every advantage sheet, and when you're aff, so is the CASE section of your 2AC file.",
+      "**Overviews, one click away.** The Overviews tab lists the sheet's overview blocks — the first block under each **Main** (Uniqueness, Link, Internal, Impact), and when you're aff, each advantage's impact overview from your 2AC file.",
+      "**Your file, right beside the flow.** The File tab shows the sheet's file just like Doc Search does inside a file, with search and POC / HAT / BLK / CARD levels. Click a block to put it in the selected cell, or drag it onto any cell.",
+      "**A library that follows you.** Pin 📌 the files you want in every round — T, theory, framework, your case neg — and they're in every kit automatically.",
+    ],
+  },
+  {
     version: "1.3.5",
     headline: "A tidier home screen, a single Nimbus folder, a white-doc dark theme, and quicker housekeeping.",
     items: [
