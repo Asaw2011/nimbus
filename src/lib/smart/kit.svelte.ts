@@ -16,6 +16,7 @@
 import { parseDocx, nodeChip, type DocNode } from "$lib/docx/parse";
 import { loadBlob, saveBlob } from "$lib/model/blobs";
 import { store } from "$lib/model/round.svelte";
+import { fileIndex } from "$lib/search/file-index.svelte";
 import type { Cell, Round, Sheet, Side, Speech } from "$lib/model/types";
 import {
   cardsUnder,
@@ -35,9 +36,19 @@ export interface KitFile {
 }
 
 interface Parsed {
+  /** The whole heading tree — what the File tab shows, Ctrl+K style. */
+  roots: DocNode[];
   blocks: KitBlock[];
   firstHeading: string;
   error?: string;
+}
+
+/** One entry on the Overviews tab: a section and the block that overviews it. */
+export interface Overview {
+  /** The section the Main sits in — "Uniqueness", "Link", "Impact". */
+  section: string;
+  node: DocNode;
+  cardCount: number;
 }
 
 interface SavedKit {
@@ -138,12 +149,17 @@ class SmartKit {
     try {
       const { nodes } = parseDocx(buf);
       this.setParsed(key, {
+        roots: nodes,
         blocks: indexBlocks(key, nodes),
         firstHeading: nodes[0]?.text ?? "",
       });
     } catch (e) {
-      this.setParsed(key, { blocks: [], firstHeading: "", error: String(e instanceof Error ? e.message : e) });
+      this.fail(key, e);
     }
+  }
+
+  private fail(key: string, e: unknown): void {
+    this.setParsed(key, { roots: [], blocks: [], firstHeading: "", error: String(e instanceof Error ? e.message : e) });
   }
 
   /**
@@ -153,16 +169,22 @@ class SmartKit {
    */
   private async parseFromDisk(f: KitFile): Promise<void> {
     if (f.key.startsWith("mem:")) {
-      this.setParsed(f.key, { blocks: [], firstHeading: "", error: "Not saved on disk — add it again" });
+      this.fail(f.key, "Not saved on disk — add it again");
       return;
     }
     this.loading++;
     try {
+      if (f.key.startsWith("copy:")) {
+        const b64 = await loadBlob<string>(copyBlobName(f.key));
+        if (!b64) throw new Error("The saved copy is gone — drop the file again");
+        this.ingest(f.key, fromBase64(b64));
+        return;
+      }
       const { invoke } = await import("@tauri-apps/api/core");
       const bytes = await invoke<number[]>("read_binary_file", { path: f.key });
       this.ingest(f.key, new Uint8Array(bytes).buffer);
     } catch (e) {
-      this.setParsed(f.key, { blocks: [], firstHeading: "", error: String(e instanceof Error ? e.message : e) });
+      this.fail(f.key, e);
     } finally {
       this.loading--;
     }
@@ -188,7 +210,101 @@ class SmartKit {
     this.persist();
   }
 
+  /**
+   * Files dropped onto the tray.
+   *
+   * ⚠ A web drop carries the file's NAME and bytes but never its path (the
+   * window's native drop, which would, is off — it breaks dragging blocks onto
+   * the grid). So the path is recovered from the Doc Search library index by
+   * name + exact size, which keeps the kit pointing at the REAL file and picks
+   * up later edits to it. A file the index doesn't hold, or holds ambiguously,
+   * is kept as a saved copy instead, and the kit says so.
+   */
+  async addDropped(dropped: File[]): Promise<void> {
+    for (const file of dropped) {
+      if (!/\.docx$/i.test(file.name) || file.name.startsWith("~$")) continue;
+      const stem = file.name.replace(/\.docx$/i, "").toLowerCase();
+      const hits = fileIndex.files.filter(
+        (f) => f.ext === "docx" && f.name.toLowerCase() === stem && f.size === file.size,
+      );
+      if (hits.length === 1 && "__TAURI_INTERNALS__" in window) {
+        await this.addPaths([hits[0].path]);
+        continue;
+      }
+      const key = `copy:${file.name}`;
+      const buf = await file.arrayBuffer();
+      await saveBlob(copyBlobName(key), toBase64(buf));
+      if (!this.files.some((f) => f.key === key)) this.files = [...this.files, { key, name: file.name }];
+      this.ingest(key, buf);
+      this.persist();
+    }
+  }
+
+  /**
+   * The Overviews tab for a sheet: in its linked file, every heading named
+   * "Main" contributes the FIRST block beneath it, labelled with the section
+   * the Main sits in (Uniqueness › Main › "Uniqueness---2NC" → Uniqueness).
+   * A Main holding cards with no block under it is its own overview.
+   */
+  overviewsFor(sheet: Sheet): Overview[] {
+    const key = this.linkFor(sheet);
+    const roots = key ? this.parsed[key]?.roots : undefined;
+    if (!roots) return [];
+    const out: Overview[] = [];
+    const isCard = (n: DocNode) => n.isAnalytic || n.level >= 4;
+    const walk = (ns: DocNode[], parent: DocNode | null) => {
+      for (const n of ns) {
+        if (isCard(n)) continue;
+        if (n.text.trim().toLowerCase() === "main") {
+          const first = n.children.find((c) => !isCard(c)) ?? (n.children.some(isCard) ? n : undefined);
+          if (first) {
+            out.push({
+              section: parent?.text.trim() || first.text,
+              node: first,
+              cardCount: cardsUnder(first).length,
+            });
+          }
+          continue;
+        }
+        walk(n.children, n);
+      }
+    };
+    walk(roots, null);
+    return out;
+  }
+
+  /** The kit file a sheet's File and Overviews tabs show, with its name. */
+  fileFor(sheet: Sheet): { key: string; name: string; roots: DocNode[] } | null {
+    const key = this.linkFor(sheet);
+    const f = this.files.find((x) => x.key === key);
+    const p = key ? this.parsed[key] : undefined;
+    return f && p ? { key: f.key, name: f.name, roots: p.roots } : null;
+  }
+
+  /**
+   * Put a block into the cell under the cursor — exactly what Ctrl+K does with
+   * a click in a file (replaces the cell, then steps down a row so the next
+   * one stacks under it). One undo step.
+   */
+  insertAtCursor(node: DocNode): boolean {
+    const cur = store.cursor;
+    const sheetId = store.activeSheetId;
+    if (!store.round || !cur || !sheetId) return false;
+    const { row, col } = cur;
+    store.mutate((r) => {
+      const sheet = r.sheets.find((s) => s.id === sheetId);
+      if (!sheet) return;
+      store.ensureRows(row, sheet);
+      const cell = sheet.rows[row]?.cells[col];
+      if (!cell) return;
+      fillCell(cell, node);
+    });
+    store.cursor = { row: row + 1, col };
+    return true;
+  }
+
   remove(key: string): void {
+    if (key.startsWith("copy:")) void saveBlob(copyBlobName(key), "");
     this.files = this.files.filter((f) => f.key !== key);
     const links = { ...this.links };
     for (const [sheet, k] of Object.entries(links)) if (k === key) delete links[sheet];
@@ -321,25 +437,8 @@ class SmartKit {
     store.mutate((round) => {
       const cell = locate(round);
       if (!cell || filled(cell)) return;
-      // A copy: the kit's tree is shared by every suggestion and must never be
-      // aliased into the round, where edits and sync would reach it.
-      const node = structuredClone(m.block.node) as DocNode;
-      const cards = cardsUnder(node);
-      cell.text = node.text;
-      cell.chip = nodeChip(node);
-      cell.card = node;
-      delete cell.cmNode;
+      fillCell(cell, m.block.node);
       cell.repliesTo = from.id;
-      if (cards.length) {
-        cell.items = cards.map((c) => ({
-          id: crypto.randomUUID(),
-          text: c.text,
-          kind: "card" as const,
-          chip: nodeChip(c),
-          card: c,
-        }));
-        cell.expanded = false;
-      }
       done = true;
     });
     if (done) void this.log({ t: Date.now(), ev: "insert", said: s.said, block: m.block.title, rank, sheet: s.sheetTitle });
@@ -361,6 +460,58 @@ class SmartKit {
     log.push(e);
     await saveBlob(LOG_BLOB, log.slice(-LOG_MAX));
   }
+}
+
+/**
+ * Fill a flow cell with a block — the same shape Doc Search builds: header,
+ * chip, the full node, one item per card, collapsed.
+ *
+ * ⚠ Works on a COPY: the kit's tree is shared by every suggestion and tab and
+ * must never be aliased into the round, where edits and sync would reach it.
+ */
+function fillCell(cell: Cell, source: DocNode): void {
+  const node = structuredClone(source) as DocNode;
+  const cards = cardsUnder(node);
+  cell.text = node.text;
+  cell.chip = nodeChip(node);
+  cell.card = node;
+  delete cell.cmNode;
+  if (cards.length) {
+    cell.items = cards.map((c) => ({
+      id: crypto.randomUUID(),
+      text: c.text,
+      kind: "card" as const,
+      chip: nodeChip(c),
+      card: c,
+    }));
+    cell.expanded = false;
+  } else {
+    delete cell.items;
+    delete cell.expanded;
+  }
+}
+
+/** Blob names allow only [A-Za-z0-9_-]; a hash keeps distinct names distinct. */
+function copyBlobName(key: string): string {
+  let h = 5381;
+  for (let i = 0; i < key.length; i++) h = ((h * 33) ^ key.charCodeAt(i)) >>> 0;
+  return `smartcopy-${h.toString(36)}`;
+}
+
+function toBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+function fromBase64(b64: string): ArrayBuffer {
+  const s = atob(b64);
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+  return bytes.buffer;
 }
 
 export const smartKit = new SmartKit();
