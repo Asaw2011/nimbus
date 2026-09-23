@@ -24,9 +24,10 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "1.3.3",
+    version: "1.3.4",
     headline: "Nothing your partner types can go missing, and your own column stops calling itself \"Partner\".",
     items: [
+      "**The home page scrolls all the way down again.** With more than a few tournaments, the bottom of the list was cut off — scrolling toward it pulled the page back up to the top instead of letting you reach it. The scrolling area was sized 40 pixels taller than the window it sits in, so the last of it was unreachable and the page underneath was being dragged instead.",
       "**Your partner's work can no longer be lost while you're on another flow.** If you opened a different flow during a session — flowing into the wrong one and copying it across, say — everything your partner wrote in the meantime arrived with nowhere to go and was dropped, for good. Their end had already counted it as sent, so it was never re-sent and going back to the flow didn't bring it. Nimbus now notices it missed something and asks for it again as soon as the flow is open.",
       "**Your own column says \"You\" again.** If you were the one who joined, your column was labelled **Partner** and your partner's said **You** — every time you left a session or reopened the flow. It was only ever right while the session was live, and it never happened to whoever hosted, which is why it was hard to pin down. Which lane is yours is now remembered with the flow.",
       "**You can't type over your partner's cell by accident.** With a cell of theirs selected, a stray keystroke could replace a line they had just written, and there was no getting it back — their text was never in your undo history. Their cells are now read-only while a session is live. **Empty ones still aren't**, so flowing a speech for them works exactly as before, and you can always select and copy.",

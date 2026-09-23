@@ -786,6 +786,17 @@
   .dashboard { height: 100vh; position: relative; overflow: hidden; background: var(--bg); }
 
   .content {
+    /* ⚠ `border-box` is load-bearing, not tidiness. With the default
+       content-box, `height: 100%` measures the CONTENT box, so the 40px of
+       bottom padding was added on top of it and this element came out 40px
+       TALLER than the `.dashboard` it sits in — which is `overflow: hidden`.
+       Two things went wrong: the last 40px of the scroll viewport was clipped
+       and unreachable, and `.dashboard` itself became scrollable (scrollHeight
+       674 against clientHeight 634), so dragging into that region scrolled the
+       parent, which cannot hold a scroll position, and the page snapped back to
+       the top. Reported as "I can't scroll to the bottom of my flows".
+       Measured: 674 -> 634 with this line, and 40px more scroll reachable. */
+    box-sizing: border-box;
     height: 100%; overflow-y: auto; padding: 0 24px 40px;
     display: flex; flex-direction: column; align-items: center;
   }
