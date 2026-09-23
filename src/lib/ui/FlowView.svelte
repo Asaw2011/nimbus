@@ -565,11 +565,14 @@
    *  "which column is mine" — session 9's rule that the two left-walk sites
    *  must never diverge. On your own flow the two are identical; they differ
    *  only on a partner's mirrored flow, where lane 1 is you. */
-  function argBeingAnswered(sheet: Sheet, row: number, col: number): string {
+  function argBeingAnswered(sheet: Sheet, row: number, col: number): { text: string; author?: string } {
     const speeches = store.round?.template.speeches ?? [];
-    const cellText = (c: number): string => {
+    const cellInfo = (c: number): { text: string; author?: string } => {
       const prev = sheet.rows[row]?.cells[c];
-      return prev?.text?.trim() || (prev?.card as { text?: string } | undefined)?.text?.trim() || "";
+      const text = prev?.text?.trim() || (prev?.card as { text?: string } | undefined)?.text?.trim() || "";
+      // The card's author (e.g. "Jiang 25") is what names the answered argument
+      // in the "AT:" header — a whole tag is too long to sit atop an analytic.
+      return { text, author: prev?.author };
     };
     // An explicit "answer this" link wins over any guess — including a link to
     // your partner's lane, which is the whole point of being able to set it.
@@ -577,8 +580,8 @@
     if (linked) {
       const c = speeches.findIndex((s) => s.id === linked);
       if (c >= 0) {
-        const label = cellText(c);
-        if (label) return label;
+        const info = cellInfo(c);
+        if (info.text) return info;
       }
     }
     const startCol = sheet.startCol ?? 0;
@@ -616,16 +619,35 @@
       for (let c = col - 1; c >= startCol; c--) {
         if (!answerable(c)) continue;
         if (pass === 0 && isOtherLane(speeches[c], store.laneHere)) continue;
-        const label = cellText(c);
-        if (label) return label;
+        const info = cellInfo(c);
+        if (info.text) return info;
       }
     }
-    return "";
+    return { text: "" };
   }
 
-  /** "AT: Perm do both" from the answered argument's text (first letter cased). */
-  function atHeader(answered: string): string {
-    return `AT: ${answered.charAt(0).toUpperCase()}${answered.slice(1)}`;
+  /** "Jiang 25" → "Jiang '25" so a card author reads like a cite in the header.
+   *  Idempotent — an author already carrying the apostrophe is left as is. */
+  function apostropheYear(author: string): string {
+    return author.replace(/\s+'?(\d{2,4})\s*$/, " '$1");
+  }
+
+  /** The speech name for a column, without any partner-lane suffix ("1AR · You"
+   *  → "1AR"): the header names the SPEECH you're answering in, not the lane. */
+  function speechAbbr(col: number): string {
+    return (store.round?.template.speeches[col]?.abbr ?? "").split(" · ")[0];
+  }
+
+  /**
+   * "AT: Jiang '25---1AR" — the answered argument named by its card author (or,
+   * for an analytic with no author, its text), followed by the speech you're
+   * answering in. Keeps the header short: a full card tag on top of every
+   * analytic was unreadable.
+   */
+  function atHeader(answered: { text: string; author?: string }, respondingAbbr = ""): string {
+    const name = answered.author ? apostropheYear(answered.author) : answered.text;
+    const cased = `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+    return respondingAbbr ? `AT: ${cased}---${respondingAbbr}` : `AT: ${cased}`;
   }
 
   // The doc content a cell contributes, IN ORDER. A card with a captured
@@ -656,7 +678,8 @@
       const out: DocOp[] = [];
       if (ctx) {
         const answered = argBeingAnswered(ctx.sheet, ctx.row, ctx.col);
-        if (answered) out.push({ node: stubNode(atHeader(answered), { level: 3 }) });
+        if (answered.text)
+          out.push({ node: stubNode(atHeader(answered, speechAbbr(ctx.col)), { level: 3 }) });
       }
       out.push({ node: stubNode(text, { analytic: true }) });
       return out;
@@ -690,8 +713,8 @@
       // that label in first so the pair stays adjacent and correctly ordered.
       if (t && isManualAnalyticCell(cell)) {
         const answered = argBeingAnswered(sheet, r, col);
-        if (answered) {
-          const at = atHeader(answered);
+        if (answered.text) {
+          const at = atHeader(answered, speechAbbr(col));
           if (!(at in map)) map[at] = n++;
         }
       }

@@ -44,6 +44,35 @@
   --kbd-border: #e3e5e9;
   color-scheme: light;
 }
+/* ── Dark · White Doc ───────────────────────────────────────────────────────
+   The full Dark palette for the whole app — same values as the :root default
+   above — but under its own id so the speech doc stays WHITE. The doc's dark
+   styling (SpeechDoc.svelte, cardmirror.css) keys ONLY on "dark" and "slate",
+   so this theme never triggers it: the grid, ribbon, tabs and panels go dark
+   while the doc page renders on white with its normal card/analytic ink, which
+   is what you want when you're reading cards. Ink is the dark-tuned family on
+   purpose — those colors sit on the dark FLOW grid, not on the doc. */
+:root[data-theme="midnight"] {
+  --bg: #08080a;
+  --panel: #16161b;
+  --cell-bg: #121216;
+  --border: #2d2d35;
+  --grid-line: #1f1f25;
+  --text: #ededf0;
+  --text-dim: #8b8b93;
+  --accent: #4c8dff;
+  --aff: #7fb0ff;
+  --neg: #ff8a6f;
+  --analytic: #5fd98a;
+  --card: #c792ea;
+  --active-cell-bg: #1a2233;
+  --dropped-bg: #2a1b1b;
+  --mark-dropped: #e05c5c;
+  --mark-star: #e0b64c;
+  --kbd-bg: #232327;
+  --kbd-border: #34343a;
+  color-scheme: dark;
+}
 /* ── The tinted themes ──────────────────────────────────────────────────────
    Restored after the two-theme pass removed them. They are the palettes as
    they were, not re-derived: somebody picks Mist or Slate because of how it

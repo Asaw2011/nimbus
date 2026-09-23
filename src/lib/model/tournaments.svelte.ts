@@ -106,6 +106,28 @@ class TournamentStore {
     return this.add(name, path);
   }
 
+  /** Immediate sub-folders of a directory. Used to discover tournament folders
+   *  that live inside the home library's `tournaments/` folder — empty ones
+   *  included, which a flow listing can't see. */
+  async subdirs(path: string): Promise<{ name: string; path: string }[]> {
+    if (!inTauri()) return [];
+    try {
+      return await invoke<{ name: string; path: string }[]>("list_subdirs", { path });
+    } catch {
+      return [];
+    }
+  }
+
+  /** Create a tournament folder inside the home library's `tournaments/` folder
+   *  (no picker — tournaments always live there now) and register it. */
+  async createInHome(tournamentsDir: string, name: string): Promise<Tournament | null> {
+    if (!inTauri()) return null;
+    const clean = safeFileName(name);
+    const path = join(tournamentsDir, clean);
+    await invoke("create_dir", { path });
+    return this.add(name.trim() || clean, path);
+  }
+
   private add(name: string, path: string): Tournament {
     const existing = this.list.find((t) => t.path === path);
     if (existing) return existing;
