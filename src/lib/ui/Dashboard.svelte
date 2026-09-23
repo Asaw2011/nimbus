@@ -17,11 +17,31 @@
   const version = APP_VERSION;
   let showManual = $state(false);
 
-  // The default flow library: a folder auto-created in Documents where every new
-  // flow is saved and kept in sync, so flows are organized on disk with no
-  // "Save As" step (like ebb). Registered as a tournament so it shows in the UI.
-  const LIBRARY_NAME = "Nimbus Flows";
+  // The home flow library: a folder auto-created in Documents where every loose
+  // flow lives, so flows are organized on disk with no "Save As" step. It is NOT
+  // shown under TOURNAMENTS (it's the broad home, not a tournament); tournaments
+  // are the sub-folders inside its `tournaments/` folder.
+  const LIBRARY_NAME = "Nimbus";
+  // Pre-rename name, migrated to LIBRARY_NAME on first launch of this build.
+  const OLD_LIBRARY_NAME = "Nimbus Flows";
+  // Sub-folder of the home library whose child folders are the tournaments.
+  const TOURNEYS_SUB = "tournaments";
   let homeTourney = $state<Tournament | null>(null);
+  /** Absolute path of the home library's `tournaments/` folder. */
+  let homeTournamentsDir = $state("");
+
+  /** Tournaments shown under the TOURNAMENTS heading — everything except the
+   *  home library itself, which gets its own section at the top. */
+  const tourneyList = $derived(
+    tournaments.list.filter((t) => t.id !== homeTourney?.id),
+  );
+
+  /** True for a flow the home scan found inside the `tournaments/` sub-folder —
+   *  those belong to their tournament's section, not the home list. */
+  function relUnderTournaments(rel?: string): boolean {
+    const r = (rel ?? "").replace(/\\/g, "/").toLowerCase();
+    return r === TOURNEYS_SUB || r.startsWith(TOURNEYS_SUB + "/");
+  }
 
   let rounds: RoundMeta[] = $state([]); // every flow in app data
   let flowsByTourney = $state<Record<string, FlowFile[]>>({});
@@ -132,38 +152,113 @@
   onMount(async () => {
     rounds = await listRounds();
     await tournaments.init();
-    // Collapse pre-existing tournaments; the default library (added next) is
-    // left out of this list, so it opens expanded.
+    // Collapse pre-existing tournaments; the home library (added next) is left
+    // out of this list, so it opens expanded.
     collapsed = tournaments.list.map((t) => t.id);
     await ensureDefaultLibrary();
     await reloadFlows();
+    // One-time: pull every loose "Recent Flow" into the home folder so there's
+    // no split between app-data rounds and on-disk flows.
+    await migrateUnfiledIntoHome();
+    await reloadFlows();
   });
 
-  /** Create (once) the default "Nimbus Flows" folder in Documents and register
-   *  it, so every new flow auto-saves there. Idempotent: reuses it if already
-   *  registered, and only seeds examples when the folder is empty. */
+  /**
+   * Set up the home library folder and its `tournaments/` sub-folder, register
+   * both, and discover the tournament folders inside. Idempotent.
+   *
+   * Also runs the one-time rename "Nimbus Flows" → "Nimbus" (folder + the
+   * `filePath` stored in each app-data round), so an existing install lands on
+   * the new layout without losing where its flows point.
+   */
   async function ensureDefaultLibrary() {
     if (!("__TAURI_INTERNALS__" in window)) return;
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const docs = await invoke<string>("documents_dir");
       const sep = docs.includes("\\") ? "\\" : "/";
-      const libPath = docs.replace(/[\\/]+$/, "") + sep + LIBRARY_NAME;
-      const already = tournaments.list.find((t) => normPath(t.path) === normPath(libPath));
-      if (already) { homeTourney = already; return; }
-      await invoke("create_dir", { path: libPath });
-      const t = tournaments.addLibrary(LIBRARY_NAME, libPath);
-      homeTourney = t;
-      // Seed a couple of example flows the very first time, so the folder shows
-      // populated. Skipped if the folder already holds flows.
-      const existing = await tournaments.flows(t);
-      if (existing.length === 0) {
-        await tournaments.saveRoundInto(t, exampleRound("Example flow 1"));
-        await tournaments.saveRoundInto(t, exampleRound("Example flow 2"));
+      const base = docs.replace(/[\\/]+$/, "");
+      const homePath = base + sep + LIBRARY_NAME;
+      const oldPath = base + sep + OLD_LIBRARY_NAME;
+      homeTournamentsDir = homePath + sep + TOURNEYS_SUB;
+
+      // ── One-time rename of the home folder ──
+      const homeExists = await invoke<boolean>("dir_exists", { path: homePath });
+      const oldExists = await invoke<boolean>("dir_exists", { path: oldPath });
+      if (!homeExists && oldExists) {
+        try {
+          await invoke("move_path", { from: oldPath, to: homePath });
+          await repointRoundsUnder(oldPath, homePath);
+        } catch (e) {
+          console.warn("home folder rename failed", e);
+        }
+      }
+      // Drop any stale registration of the pre-rename folder.
+      for (const t of tournaments.list.filter((t) => normPath(t.path) === normPath(oldPath))) {
+        tournaments.unlink(t.id);
+      }
+
+      // Ensure the home folder and its tournaments/ sub-folder exist.
+      await invoke("create_dir", { path: homePath });
+      await invoke("create_dir", { path: homeTournamentsDir });
+
+      // Register (or reuse) the home library, keeping its label current.
+      const existing = tournaments.list.find((t) => normPath(t.path) === normPath(homePath));
+      homeTourney = existing ?? tournaments.addLibrary(LIBRARY_NAME, homePath);
+      if (homeTourney.name !== LIBRARY_NAME) tournaments.rename(homeTourney.id, LIBRARY_NAME);
+
+      // Discover tournament folders inside tournaments/ (empty ones included).
+      for (const s of await tournaments.subdirs(homeTournamentsDir)) {
+        tournaments.addLibrary(s.name, s.path);
+      }
+
+      // Seed a couple of examples only on a truly fresh install (nothing on disk).
+      const existingFlows = await tournaments.flows(homeTourney);
+      if (existingFlows.length === 0) {
+        await tournaments.saveRoundInto(homeTourney, exampleRound("Example flow 1"));
+        await tournaments.saveRoundInto(homeTourney, exampleRound("Example flow 2"));
       }
     } catch (e) {
       console.warn("default library setup failed", e);
     }
+  }
+
+  /** Re-point every app-data round whose file lives under `oldRoot` to `newRoot`
+   *  after the home folder is renamed, so opening it still finds the file. */
+  async function repointRoundsUnder(oldRoot: string, newRoot: string) {
+    const oldNorm = normPath(oldRoot).replace(/\/+$/, "");
+    for (const meta of await listRounds()) {
+      if (!meta.filePath) continue;
+      const p = normPath(meta.filePath);
+      if (p !== oldNorm && !p.startsWith(oldNorm + "/")) continue;
+      const round = await loadRound(meta.id);
+      if (round?.filePath) {
+        round.filePath = newRoot + round.filePath.slice(oldRoot.length);
+        await saveRound(round);
+      }
+    }
+    rounds = await listRounds();
+  }
+
+  /** One-time: move every genuinely unfiled flow into the home folder as a real
+   *  file, then delete the app-data-only copy, so "Recent Flows" and the folder
+   *  are no longer split. Gated so it runs once. */
+  async function migrateUnfiledIntoHome() {
+    if (settings.homeMigrated || !homeTourney || !("__TAURI_INTERNALS__" in window)) return;
+    // Snapshot first — `unfiled` is derived and shifts as we move each one.
+    for (const meta of unfiled.slice()) {
+      const round = await loadRound(meta.id);
+      if (!round) continue;
+      try {
+        await tournaments.saveRoundInto(homeTourney, round);
+        await deleteRound(meta.id);
+      } catch (e) {
+        console.warn("couldn't migrate flow into the home folder", meta.name, e);
+      }
+    }
+    rounds = await listRounds();
+    settings.homeMigrated = true;
+    settings.save();
   }
 
   /** A minimal, self-contained round for seeding examples (no open-round side
@@ -186,7 +281,16 @@
 
   async function reloadFlows() {
     const map: Record<string, FlowFile[]> = {};
-    for (const t of tournaments.list) map[t.id] = await tournaments.flows(t);
+    for (const t of tournaments.list) {
+      let files = await tournaments.flows(t);
+      // The home folder is scanned recursively, so it also turns up the flows in
+      // its tournaments/ sub-folder. Those belong to their tournament's section,
+      // not the home list — drop them here.
+      if (homeTourney && t.id === homeTourney.id) {
+        files = files.filter((f) => !relUnderTournaments(f.rel));
+      }
+      map[t.id] = files;
+    }
     flowsByTourney = map;
   }
 
@@ -390,7 +494,12 @@
     creatingTourney = false;
     tourneyName = "";
     if (!name) return;
-    const t = await tournaments.createInPicked(name);
+    // Tournaments now always live inside the home library's tournaments/ folder,
+    // so there's no folder picker — falls back to the picker only if the home
+    // folder isn't set up (e.g. a browser build).
+    const t = homeTournamentsDir
+      ? await tournaments.createInHome(homeTournamentsDir, name)
+      : await tournaments.createInPicked(name);
     if (t) await reloadFlows();
   }
 
@@ -567,14 +676,58 @@
 
     {#if status}<p class="status">{status}</p>{/if}
 
-    <!-- tournaments -->
+    <!-- One flow row, shared by the home library and every tournament folder. -->
+    {#snippet flowRow(file: FlowFile, dupes: FlowFile[])}
+      <div
+        class="flow-row"
+        class:card-dragging={draggingFlow?.path === file.path}
+        role="button"
+        tabindex="0"
+        draggable="true"
+        onclick={() => openTournamentFlow(file)}
+        onkeydown={(e) => e.key === 'Enter' && openTournamentFlow(file)}
+        ondragstart={(e) => { draggingFlow = file; e.dataTransfer?.setData('text/plain', file.path); }}
+        ondragend={() => { draggingFlow = null; dragOver = null; }}
+      >
+        <span class="row-ic"><Icon name="doc" size="15" /></span>
+        {#if renamingKey === file.path}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input class="rename-input" bind:value={renameText} autofocus
+            onclick={(e) => e.stopPropagation()}
+            onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitRenameFlow(file); if (e.key === 'Escape') renamingKey = null; }}
+            onblur={() => commitRenameFlow(file)} />
+        {:else}
+          <span class="rname">{flowTitle(file)}</span>
+          <button class="rename-btn" title="Rename flow"
+            onclick={(e) => { e.stopPropagation(); startRename(file.path, flowTitle(file)); }}><Icon name="pencil" size="13" /></button>
+        {/if}
+        {#if file.rel}
+          <span class="rel-badge" title="In sub-folder: {file.rel}">{file.rel}</span>
+        {/if}
+        {#if dupes.length > 0}
+          <span
+            class="dupe-badge"
+            title="This flow also exists at:&#10;{dupes.map((d) => d.path).join('\n')}&#10;&#10;Showing the live copy. The others are older leftovers — delete them in Finder/Explorer if you don't want them."
+          >{dupes.length + 1} copies</span>
+        {/if}
+        <span class="row-sp"></span>
+        <span class="ext-badge {file.ext}">{file.ext === 'xlsx' ? 'Excel' : 'Nimbus'}</span>
+        <span class="rdate">{fmtDate(file.modified)}</span>
+        <button class="x row-x" class:confirming={confirmDelete === file.path}
+          onclick={(e) => { e.stopPropagation(); removeFlow(file); }}
+          title="Delete flow">{confirmDelete === file.path ? 'Delete?' : '×'}</button>
+      </div>
+    {/snippet}
+
+    <!-- tournaments = the folders inside Nimbus/tournaments, shown ABOVE the
+         home "Recent flows" list. -->
     <div class="tourney-head">
       <h2 class="section">TOURNAMENTS</h2>
       {#if creatingTourney}
         <!-- svelte-ignore a11y_autofocus -->
         <input
           class="tourney-input"
-          placeholder="Tournament name (a folder is made on your Mac)"
+          placeholder="Tournament name (a folder is made in Nimbus/tournaments)"
           bind:value={tourneyName}
           autofocus
           onkeydown={(e) => { if (e.key === 'Enter') newTournament(); if (e.key === 'Escape') { creatingTourney = false; tourneyName = ''; } }}
@@ -586,7 +739,7 @@
       {/if}
     </div>
 
-    {#each tournaments.list as t (t.id)}
+    {#each tourneyList as t (t.id)}
       <section
         class="folder"
         class:open={!collapsed.includes(t.id)}
@@ -623,7 +776,6 @@
       >
         {#if renamingTourney === t.id}
           <div class="folder-head">
-            <span class="folder-ic"><Icon name="folder" size="16" /></span>
             <!-- svelte-ignore a11y_autofocus -->
             <input class="rename" bind:value={renameTourneyText} autofocus
               onblur={commitRenameTourney}
@@ -668,11 +820,7 @@
               onclick={() => toggleCollapsed(t.id)}
             >
               <span class="chev"><Icon name="chevron" size="14" /></span>
-              <span class="folder-ic"><Icon name="folder" size="16" /></span>
               <span class="tname">{t.name}</span>
-              <!-- Count the rows actually shown, not raw files: two copies of
-                   one flow are one flow. -->
-              <span class="count">{rowsFor(t).length}</span>
             </button>
             <span class="t-sp"></span>
             <div class="folder-actions">
@@ -681,49 +829,13 @@
             </div>
             <button class="folder-new" title="New flow in this tournament" onclick={() => newFlowInTournament(t)}><Icon name="plus" size="13" /> New flow</button>
           </div>
+          <!-- Where this tournament's folder lives on disk. -->
+          <div class="folder-path" title={t.path}>{t.path}</div>
         {/if}
         {#if !collapsed.includes(t.id)}
           <div class="folder-body">
             {#each rowsFor(t) as { file, dupes } (file.path)}
-              <div
-                class="flow-row"
-                class:card-dragging={draggingFlow?.path === file.path}
-                role="button"
-                tabindex="0"
-                draggable="true"
-                onclick={() => openTournamentFlow(file)}
-                onkeydown={(e) => e.key === 'Enter' && openTournamentFlow(file)}
-                ondragstart={(e) => { draggingFlow = file; e.dataTransfer?.setData('text/plain', file.path); }}
-                ondragend={() => { draggingFlow = null; dragOver = null; }}
-              >
-                <span class="row-ic"><Icon name="doc" size="15" /></span>
-                {#if renamingKey === file.path}
-                  <!-- svelte-ignore a11y_autofocus -->
-                  <input class="rename-input" bind:value={renameText} autofocus
-                    onclick={(e) => e.stopPropagation()}
-                    onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitRenameFlow(file); if (e.key === 'Escape') renamingKey = null; }}
-                    onblur={() => commitRenameFlow(file)} />
-                {:else}
-                  <span class="rname">{flowTitle(file)}</span>
-                  <button class="rename-btn" title="Rename flow"
-                    onclick={(e) => { e.stopPropagation(); startRename(file.path, flowTitle(file)); }}><Icon name="pencil" size="13" /></button>
-                {/if}
-                {#if file.rel}
-                  <span class="rel-badge" title="In sub-folder: {file.rel}">{file.rel}</span>
-                {/if}
-                {#if dupes.length > 0}
-                  <span
-                    class="dupe-badge"
-                    title="This flow also exists at:&#10;{dupes.map((d) => d.path).join('\n')}&#10;&#10;Showing the live copy. The others are older leftovers — delete them in Finder/Explorer if you don't want them."
-                  >{dupes.length + 1} copies</span>
-                {/if}
-                <span class="row-sp"></span>
-                <span class="ext-badge {file.ext}">{file.ext === 'xlsx' ? 'Excel' : 'Nimbus'}</span>
-                <span class="rdate">{fmtDate(file.modified)}</span>
-                <button class="x row-x" class:confirming={confirmDelete === file.path}
-                  onclick={(e) => { e.stopPropagation(); removeFlow(file); }}
-                  title="Delete flow">{confirmDelete === file.path ? 'Delete?' : '×'}</button>
-              </div>
+              {@render flowRow(file, dupes)}
             {/each}
             {#if rowsFor(t).length === 0}
               <p class="empty-hint row-empty">Empty. Drag a flow here, or press New flow.</p>
@@ -733,9 +845,40 @@
       </section>
     {/each}
 
-    <!-- unfiled app-data flows (anything already filed shows in its tournament) -->
+    <!-- Home library, shown as RECENT FLOWS beneath the tournaments — no folder
+         icon or count, per the flatter look. -->
+    {#if homeTourney}
+      <div class="tourney-head">
+        <h2 class="section">RECENT FLOWS</h2>
+        <span class="t-sp"></span>
+        <button class="folder-new" title="New flow" onclick={() => newFlowInTournament(homeTourney!)}><Icon name="plus" size="13" /> New flow</button>
+      </div>
+      <section
+        class="folder home-folder open"
+        class:drop-target={(draggingFlow || draggingRoundId) && dragOver === homeTourney.id}
+        class:drag-live={!!(draggingFlow || draggingRoundId)}
+        role="group"
+        ondragover={(e) => { if (draggingFlow || draggingRoundId) { e.preventDefault(); dragOver = homeTourney!.id; } }}
+        ondragleave={() => dragOver === homeTourney!.id && (dragOver = null)}
+        ondrop={(e) => { e.preventDefault(); dropOn(homeTourney!); }}
+      >
+        <div class="folder-body">
+          {#each rowsFor(homeTourney) as { file, dupes } (file.path)}
+            {@render flowRow(file, dupes)}
+          {/each}
+          {#if rowsFor(homeTourney).length === 0}
+            <p class="empty-hint row-empty">No flows yet — press New flow, or Start flowing above.</p>
+          {/if}
+        </div>
+      </section>
+    {/if}
+
+    <!-- Safety net: app-data flows not yet saved to a file (normally none, since
+         everything auto-saves into the home folder). Kept so a stray round can
+         never become unreachable. Distinct heading so it never doubles up with
+         the home "RECENT FLOWS" above. -->
     {#if unfiled.length > 0}
-      <h2 class="section">RECENT FLOWS</h2>
+      <h2 class="section">NOT SAVED TO A FILE</h2>
       <div class="flow-rows">
         {#each unfiled as r (r.id)}
           <div
@@ -807,34 +950,36 @@
     display: flex; flex-direction: column; align-items: center;
     padding: 34px 0 20px;
   }
-  .logo-stage { position: relative; width: 130px; height: 122px; display: grid; place-items: start center; }
-  .logo { width: 118px; height: 118px; object-fit: contain; }
-  /* Rain: seven thin drops falling on a loop just below the cloud. Each is
-     staggered by its index so they don't fall in lockstep. */
+  .logo-stage { position: relative; width: 156px; height: 152px; display: grid; place-items: start center; }
+  .logo { width: 140px; height: 140px; object-fit: contain; }
+  /* Rain: seven drops falling on a loop clearly BELOW the cloud. The cloud art
+     has transparent padding, so its visible bottom sits ~106px down a 140px
+     box; the rain starts just under that so the drops don't sit over the cloud.
+     Each drop is staggered by its index so they don't fall in lockstep. */
   .rain {
-    position: absolute; left: 50%; top: 90px; transform: translateX(-50%);
-    width: 62px; height: 32px; overflow: hidden; pointer-events: none;
+    position: absolute; left: 50%; top: 108px; transform: translateX(-50%);
+    width: 80px; height: 40px; overflow: hidden; pointer-events: none;
   }
   .rain span {
-    position: absolute; top: -8px;
-    width: 2px; height: 9px; border-radius: 1px;
-    background: linear-gradient(var(--accent), transparent);
+    position: absolute; top: -10px;
+    width: 2.5px; height: 12px; border-radius: 2px;
+    background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
     opacity: 0;
     animation: nimbus-rain 1.5s linear infinite;
   }
   /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
      the drops don't march across in a diagonal wave — it reads as real rain. */
-  .rain span:nth-child(1) { left: 5px;  animation-delay: -0.15s; animation-duration: 1.5s; }
-  .rain span:nth-child(2) { left: 14px; animation-delay: -0.95s; animation-duration: 1.3s; }
-  .rain span:nth-child(3) { left: 23px; animation-delay: -0.45s; animation-duration: 1.7s; }
-  .rain span:nth-child(4) { left: 31px; animation-delay: -1.25s; animation-duration: 1.4s; }
-  .rain span:nth-child(5) { left: 39px; animation-delay: -0.65s; animation-duration: 1.6s; }
-  .rain span:nth-child(6) { left: 48px; animation-delay: -0.25s; animation-duration: 1.35s; }
-  .rain span:nth-child(7) { left: 57px; animation-delay: -1.05s; animation-duration: 1.55s; }
+  .rain span:nth-child(1) { left: 6px;  animation-delay: -0.15s; animation-duration: 1.5s; }
+  .rain span:nth-child(2) { left: 18px; animation-delay: -0.95s; animation-duration: 1.3s; }
+  .rain span:nth-child(3) { left: 30px; animation-delay: -0.45s; animation-duration: 1.7s; }
+  .rain span:nth-child(4) { left: 40px; animation-delay: -1.25s; animation-duration: 1.4s; }
+  .rain span:nth-child(5) { left: 51px; animation-delay: -0.65s; animation-duration: 1.6s; }
+  .rain span:nth-child(6) { left: 63px; animation-delay: -0.25s; animation-duration: 1.35s; }
+  .rain span:nth-child(7) { left: 73px; animation-delay: -1.05s; animation-duration: 1.55s; }
   @keyframes nimbus-rain {
-    0%   { transform: translateY(-6px); opacity: 0; }
-    18%  { opacity: 0.9; }
-    100% { transform: translateY(32px); opacity: 0; }
+    0%   { transform: translateY(-4px); opacity: 0; }
+    18%  { opacity: 1; }
+    100% { transform: translateY(40px); opacity: 0; }
   }
   @media (prefers-reduced-motion: reduce) { .rain span { animation: none; opacity: 0; } }
   .wordmark {
@@ -981,6 +1126,14 @@
     transition: background 0.12s;
   }
   .folder-new:hover { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+  /* The tournament's real folder path, under its name. Indented to line up with
+     the name (past the chevron), dim, and truncated with the full path on hover. */
+  .folder-path {
+    margin: -4px 0 2px; padding: 0 12px 8px 34px;
+    font-size: 11px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
   .folder-body { border-top: 1px solid var(--border); }
 
   /* Flows sit on their own surface card with hairline dividers, so the list
@@ -1013,8 +1166,15 @@
     color: var(--mark-dropped);
     border: 1px solid color-mix(in srgb, var(--mark-dropped) 45%, transparent);
   }
-  .row-x { position: static; opacity: 0; }
-  .flow-row:hover .row-x, .row-x.confirming { opacity: 1; }
+  /* Delete button: inline at the row's right edge, always visible (dim), brighter
+     on row hover. The two-step confirm below still guards against a misclick.
+     ⚠ Selectors are `.flow-row .row-x` (specificity 0,2,0) on purpose — the base
+     `.x` rule sets `position: absolute; top/right: 8px` and is declared LATER in
+     this file, so a bare `.row-x` (0,1,0) lost the tie and the button flew to the
+     window's top-right corner instead of sitting in the row. */
+  .flow-row .row-x { position: static; top: auto; right: auto; opacity: 0.6; }
+  .flow-row:hover .row-x,
+  .flow-row .row-x.confirming { opacity: 1; }
   .flow-row:hover .rename-btn { opacity: 1; }
   .flow-row .rename-input { margin-right: 0; width: auto; flex: 1; font-size: 13px; }
   .row-empty { margin: 0; padding: 14px 16px; }
@@ -1042,6 +1202,6 @@
   }
   .x:hover { color: var(--mark-dropped); }
   .x.confirming { background: var(--mark-dropped); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 8px; }
-  .empty-hint { color: var(--text-dim); font-size: 12px; font-style: italic; margin: 4px 0 10px; }
+  .empty-hint { color: var(--text-dim); font-size: 13px; font-style: normal; margin: 4px 0 10px; }
   .status { font-size: 12px; color: var(--text-dim); margin: 0 0 10px; }
 </style>

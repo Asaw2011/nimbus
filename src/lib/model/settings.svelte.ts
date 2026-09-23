@@ -19,6 +19,7 @@ const BLOB = "settings";
 
 export type Theme =
   | "dark"
+  | "midnight"
   | "slate"
   | "light"
   | "snow"
@@ -62,6 +63,10 @@ export const THEMES: { id: Theme; label: string; bg: string }[] = [
   { id: "mist", label: "Mist", bg: "#f4f5f6" },
   { id: "slate", label: "Slate", bg: "#2b3038" },
   { id: "dark", label: "Dark", bg: "#0e0e10" },
+  // Dark app, white speech doc — the swatch is split to say so at a glance. The
+  // doc stays light because the doc's dark CSS keys only on "dark"/"slate", so
+  // this id never picks it up (see theme.css).
+  { id: "midnight", label: "Dark · White Doc", bg: "linear-gradient(135deg, #0e0e10 55%, #ffffff 55%)" },
 ];
 
 const THEME_IDS = new Set<string>(THEMES.map((t) => t.id));
@@ -102,6 +107,10 @@ export interface Persisted {
   rowHeight: number;
   /** Show the welcome tutorial on app open until dismissed. */
   showTutorial: boolean;
+  /** First-run setup prompt (theme / format / save format) has been completed. */
+  setupDone?: boolean;
+  /** One-time migration of loose app-data flows into the home folder has run. */
+  homeMigrated?: boolean;
   /** Hide the round name/meta text in the top bar to shrink it. */
   compactTopBar: boolean;
   /** Tighten the speech-doc toolbar + outline so the document gets more room
@@ -251,6 +260,10 @@ export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
 class Settings {
   theme = $state<Theme>("light");
   showTutorial = $state(true);
+  /** Whether the one-time first-run setup prompt has been completed. */
+  setupDone = $state(false);
+  /** Whether loose app-data flows have been migrated into the home folder. */
+  homeMigrated = $state(false);
   compactTopBar = $state(false);
   /** Denser speech-doc chrome (toolbar + outline) so the document reads bigger
    *  in the side panel. On by default. */
@@ -382,6 +395,8 @@ class Settings {
     if (p.fontSize) this.fontSize = p.fontSize;
     if (p.rowHeight) this.rowHeight = p.rowHeight;
     if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
+    if (p.setupDone !== undefined) this.setupDone = p.setupDone;
+    if (p.homeMigrated !== undefined) this.homeMigrated = p.homeMigrated;
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
     // The ribbon used to have three densities (full / icons / slim) cycled with
@@ -468,6 +483,8 @@ class Settings {
       fontSize: this.fontSize,
       rowHeight: this.rowHeight,
       showTutorial: this.showTutorial,
+      setupDone: this.setupDone,
+      homeMigrated: this.homeMigrated,
       compactTopBar: this.compactTopBar,
       compactDoc: this.compactDoc,
       ribbonMode: this.ribbonMode,

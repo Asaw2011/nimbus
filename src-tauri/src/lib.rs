@@ -270,7 +270,43 @@ fn collect_flows(
     Ok(())
 }
 
-/// Move (or rename) a file — used to move a flow between tournament folders.
+#[derive(serde::Serialize)]
+struct SubDir {
+    name: String,
+    path: String,
+}
+
+/// Immediate sub-folders of a directory (non-recursive), skipping dot- and
+/// system folders. Used to discover tournament folders that live inside the
+/// home library's `tournaments/` folder — including empty ones, which a flow
+/// listing can't see. Returns an empty list if the folder doesn't exist yet.
+#[tauri::command]
+fn list_subdirs(path: String) -> Result<Vec<SubDir>, String> {
+    let root = Path::new(&path);
+    let mut out = Vec::new();
+    let entries = match fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return Ok(out), // no folder yet = no tournaments
+    };
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') || name.eq_ignore_ascii_case("node_modules") {
+            continue;
+        }
+        out.push(SubDir {
+            name,
+            path: entry.path().to_string_lossy().to_string(),
+        });
+    }
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(out)
+}
+
+/// Move (or rename) a file or folder — used to move a flow between tournament
+/// folders, and to rename the home library folder in the one-time migration.
 #[tauri::command]
 fn move_path(from: String, to: String) -> Result<(), String> {
     fs::rename(from, to).map_err(|e| e.to_string())
@@ -443,6 +479,7 @@ pub fn run() {
             create_dir,
             documents_dir,
             list_flows,
+            list_subdirs,
             move_path,
             delete_path,
             dir_exists,

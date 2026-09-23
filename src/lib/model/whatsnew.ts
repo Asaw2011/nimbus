@@ -24,6 +24,17 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.5",
+    headline: "A tidier home screen, a single Nimbus folder, a white-doc dark theme, and quicker housekeeping.",
+    items: [
+      "**One home for your flows.** Your loose flows now live in a single **Nimbus** folder in Documents, shown as **Recent flows** — no more split between a folder and a separate recents list. Tournaments are the folders inside **Nimbus/tournaments**, listed up top with their location on disk shown under each one.",
+      "**A quick first-run setup** to pick your theme, speech format, and how flows are saved — all still changeable in Settings.",
+      "**Delete a flow in a click.** Every flow row has an always-visible delete button (it asks once to confirm).",
+      "**A new \"Dark · White Doc\" theme** — the whole app dark, but the speech doc stays white so cards read like paper.",
+      "**Hover tooltips** on the toolbar, tidier \"AT:\" headers that name the card and speech, and a bigger cloud on the home screen.",
+    ],
+  },
+  {
     version: "1.3.4",
     headline: "Nothing your partner types can go missing, and your own column stops calling itself \"Partner\".",
     items: [

@@ -21,6 +21,8 @@
   import { reportError } from "$lib/model/crash";
   import { auth } from "$lib/model/auth.svelte";
   import LoginGate from "$lib/ui/LoginGate.svelte";
+  import Tooltip from "$lib/ui/Tooltip.svelte";
+  import Setup from "$lib/ui/Setup.svelte";
   import { APP_VERSION, checkMinimumVersion, type VersionBlock } from "$lib/model/minversion";
 
   // Pop-out window mode: render ONLY the speech-doc editor.
@@ -34,6 +36,7 @@
   let versionBlock = $state<VersionBlock | null>(null);
   let showTutorial = $state(false);
   let showWhatsNew = $state(false);
+  let showSetup = $state(false);
   let pendingUpdate = $state<UpdateInfo | null>(null);
   let updateState = $state<"idle" | "downloading" | "done">("idle");
   let updatePct = $state(0);
@@ -87,22 +90,29 @@
     window.addEventListener("error", onErr);
     window.addEventListener("unhandledrejection", onRej);
 
-    // First-open (or re-enabled) welcome tutorial.
-    if (settings.showTutorial) showTutorial = true;
-    // Patch notes, once, when the running build is newer than the last one whose
-    // notes were shown — whether it got here by the auto-updater or by someone
-    // downloading the installer.
-    //
-    // ⚠ Never stacked on top of the tutorial. A brand-new machine gets the
-    // tutorial, which is the better first thing to read and explains the app
-    // rather than what changed in it; the version is still recorded below so
-    // that user doesn't then get a changelog for the build they started on.
-    if (hasUnseenNotes(settings.lastSeenVersion)) {
-      if (showTutorial) {
-        settings.lastSeenVersion = APP_VERSION;
-        settings.save();
-      } else {
-        showWhatsNew = true;
+    // First-run setup prompt (theme / format / save format) comes before
+    // anything else. The tutorial and what's-new wait until it's done — see
+    // onSetupDone — so a new user isn't buried under three modals at once.
+    if (!settings.setupDone) {
+      showSetup = true;
+    } else {
+      // First-open (or re-enabled) welcome tutorial.
+      if (settings.showTutorial) showTutorial = true;
+      // Patch notes, once, when the running build is newer than the last one whose
+      // notes were shown — whether it got here by the auto-updater or by someone
+      // downloading the installer.
+      //
+      // ⚠ Never stacked on top of the tutorial. A brand-new machine gets the
+      // tutorial, which is the better first thing to read and explains the app
+      // rather than what changed in it; the version is still recorded below so
+      // that user doesn't then get a changelog for the build they started on.
+      if (hasUnseenNotes(settings.lastSeenVersion)) {
+        if (showTutorial) {
+          settings.lastSeenVersion = APP_VERSION;
+          settings.save();
+        } else {
+          showWhatsNew = true;
+        }
       }
     }
     setupCloseGuard();
@@ -150,6 +160,15 @@
       window.removeEventListener("beforeunload", flushAll);
       document.removeEventListener("visibilitychange", onVisibility);
     };
+  }
+
+  // When the first-run setup is finished: record the running version so a
+  // brand-new user gets the tutorial, not a changelog, then hand off to it.
+  function onSetupDone() {
+    showSetup = false;
+    settings.lastSeenVersion = APP_VERSION;
+    settings.save();
+    if (settings.showTutorial) showTutorial = true;
   }
 
   async function installUpdate() {
@@ -307,10 +326,16 @@
   <Dashboard onopen={() => (view = "flow")} />
 {/if}
 
+<!-- First-run setup: gated behind the sign-in gate like the tutorial, and shown
+     ahead of it (onMount only sets showTutorial once setup is done). -->
+{#if showSetup && auth.signedIn && !versionBlock && !isDocWindow}
+  <Setup onclose={onSetupDone} />
+{/if}
+
 <!-- Gated: the tutorial's backdrop is z-index 50, so on a first run it rendered
      straight over the sign-in screen. Nothing that overlays the app should be
      reachable before the user is through the gate. -->
-{#if showTutorial && auth.signedIn && !versionBlock && !isDocWindow}
+{#if showTutorial && !showSetup && auth.signedIn && !versionBlock && !isDocWindow}
   <Tutorial onclose={() => (showTutorial = false)} />
 {/if}
 
@@ -343,6 +368,13 @@
 
 {#if toast}
   <div class="toast">{toast}</div>
+{/if}
+
+<!-- App-wide hover tooltips: reads the native `title` on any control and shows
+     a styled bubble instead of the slow OS one. Not in the pop-out doc window,
+     which is its own render path. -->
+{#if !isDocWindow}
+  <Tooltip />
 {/if}
 
 {#if pendingUpdate}
