@@ -14,7 +14,7 @@
    * True only while a card is being dragged out of this panel.
    *
    * ⚠ The close-on-click-outside backdrop is `position: fixed; inset: 0`, so it
-   * covers the ENTIRE grid — every dragover and drop landed on it and the flow
+   * covers the ENTIRE grid - every dragover and drop landed on it and the flow
    * never saw them, which is why dragging a quick card onto the flow did
    * nothing at all. Verified with elementFromPoint over a cell: the backdrop was
    * what was there, and `.grid-scroll` was unreachable. The backdrop goes inert
@@ -94,7 +94,7 @@
 <style>
   .qcp-backdrop { position: fixed; inset: 0; z-index: 39; }
   /* Inert while a card is in flight, so the drop reaches the flow underneath.
-     Restored on dragend — the panel still closes on an outside click. */
+     Restored on dragend - the panel still closes on an outside click. */
   .qcp-backdrop.dragging { pointer-events: none; }
   .qcp {
     position: fixed;

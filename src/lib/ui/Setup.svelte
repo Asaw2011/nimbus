@@ -1,5 +1,5 @@
 <script lang="ts">
-  // First-run setup: a one-time prompt to pick the basics — theme, speech
+  // First-run setup: a one-time prompt to pick the basics - theme, speech
   // format, and how flows are saved. Everything here is also in Settings, so
   // this is a friendly starting point, not the only way to change any of it.
   import { settings, THEMES } from "../model/settings.svelte";
@@ -30,7 +30,7 @@
 <div class="backdrop" role="presentation">
   <div class="card" role="dialog" aria-modal="true" aria-label="Welcome to Nimbus">
     <h1>Welcome to Nimbus</h1>
-    <p class="sub">A couple of quick choices — you can change any of these later in Settings.</p>
+    <p class="sub">A couple of quick choices - you can change any of these later in Settings.</p>
 
     <section class="block">
       <h2>Theme</h2>
@@ -62,10 +62,10 @@
       <h2>How flows are saved</h2>
       <div class="chips">
         <button class="chip" class:on={settings.defaultSaveFormat === "nimbus"} onclick={() => pickFormat("nimbus")}>
-          Nimbus (.nimbus) — full fidelity
+          Nimbus (.nimbus) - full fidelity
         </button>
         <button class="chip" class:on={settings.defaultSaveFormat === "xlsx"} onclick={() => pickFormat("xlsx")}>
-          Excel (.xlsx) — opens in spreadsheets
+          Excel (.xlsx) - opens in spreadsheets
         </button>
       </div>
     </section>

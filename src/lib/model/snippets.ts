@@ -8,7 +8,7 @@ const DEFAULTS: Record<string, string> = {
   "ni/": "No impact: ",
   "ext/": "Extend ",
   "cx/": "Cross-apply ",
-  "perm/": "Perm: do both — ",
+  "perm/": "Perm: do both - ",
   "cond/": "Conditionality",
   "dtd": "drop the debater",
   "dta": "drop the argument",
@@ -26,7 +26,7 @@ let cache: Record<string, string> | null = null;
 export function loadSnippets(): Record<string, string> {
   if (cache) return cache;
   try {
-    // Saved maps are complete (including any kept defaults), so no re-merge —
+    // Saved maps are complete (including any kept defaults), so no re-merge -
     // deleting a default snippet must stick.
     cache =
       loadBlobCached<Record<string, string>>(BLOB) ??

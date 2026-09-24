@@ -3,7 +3,7 @@
 // Required Notice: Copyright (c) 2026 Anthony Trufanov.
 //
 // Vendored under the PolyForm Noncommercial License 1.0.0
-// (https://polyformproject.org/licenses/noncommercial/1.0.0/) — the full
+// (https://polyformproject.org/licenses/noncommercial/1.0.0/) - the full
 // required notice is in THIRD-PARTY-NOTICES.md at the repo root.
 //
 // This is the actual importer, exporter and schema: Nimbus's speech doc IS

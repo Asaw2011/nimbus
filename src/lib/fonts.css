@@ -1,8 +1,8 @@
-/* Bundled, self-hosted fonts (offline-first — no CDN at runtime).
+/* Bundled, self-hosted fonts (offline-first - no CDN at runtime).
  *
  * - Lexend (SIL OFL): a legibility-tuned sans, offered as a flow/doc font.
  * - Calibri: proprietary (Microsoft), so it can't be shipped. Carlito (SIL OFL)
- *   is Google's METRIC-COMPATIBLE substitute — identical metrics, so Verbatim
+ *   is Google's METRIC-COMPATIBLE substitute - identical metrics, so Verbatim
  *   Calibri cards lay out the same. It's registered under the "Calibri" family
  *   with `local("Calibri")` first, so a machine that actually has Calibri uses
  *   the real thing and everyone else gets the bundled look-alike. This is why

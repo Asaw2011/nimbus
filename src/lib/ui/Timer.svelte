@@ -6,7 +6,7 @@
   // matter in an actual round:
   //   1. rAF stops entirely while the window is backgrounded or minimized. The
   //      countdown's "hit zero" check lives on this tick, so on rAF the alarm
-  //      would simply never fire if you tabbed away — the one moment you need it.
+  //      would simply never fire if you tabbed away - the one moment you need it.
   //   2. rAF runs ~60×/s to render a display that changes 10×/s at most, waking
   //      Svelte's reactivity every frame for nothing.
   // Elapsed time is computed from Date.now() regardless, so the clock stays
@@ -97,7 +97,7 @@
       o.frequency.value = 880; g.gain.value = 0.12;
       o.start();
       setTimeout(() => { o.stop(); void ctx.close(); }, 600);
-    } catch { /* audio unavailable — the flashing display still signals 0:00 */ }
+    } catch { /* audio unavailable - the flashing display still signals 0:00 */ }
   }
 
   function fmt(ms: number): string {
@@ -118,7 +118,7 @@
     const rect = panel.getBoundingClientRect();
     const offX = e.clientX - rect.left, offY = e.clientY - rect.top;
     const move = (ev: PointerEvent) => {
-      // Keep the panel reachable — never let it be dragged off-screen.
+      // Keep the panel reachable - never let it be dragged off-screen.
       const maxX = window.innerWidth - rect.width;
       const maxY = window.innerHeight - rect.height;
       pos = {

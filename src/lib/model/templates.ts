@@ -1,6 +1,6 @@
 // Built-in speech templates. These are presets, not constraints: the user can
 // edit, reorder, rename, or flip sides on any template (e.g. PF where neg
-// speaks first — a case most flowing software wrongly locks out).
+// speaks first - a case most flowing software wrongly locks out).
 
 import type { Speech, SpeechTemplate, Side } from "./types";
 import { uid } from "./types";
@@ -39,7 +39,7 @@ export function ldTemplate(): SpeechTemplate {
   };
 }
 
-/** `negFirst` flips speaking order — supported natively, unlike most tools. */
+/** `negFirst` flips speaking order - supported natively, unlike most tools. */
 export function pfTemplate(negFirst = false): SpeechTemplate {
   const first: Side = negFirst ? "neg" : "aff";
   const second: Side = negFirst ? "aff" : "neg";
@@ -69,7 +69,7 @@ export function builtinTemplates(): SpeechTemplate[] {
 /**
  * Which speeches get split into partner lanes when you flow from `side`.
  *
- * Every OPPONENT speech you actually have to flow while your partner preps —
+ * Every OPPONENT speech you actually have to flow while your partner preps -
  * flowing neg that is the 2AC and the 1AR, flowing aff the 1NC and the neg
  * block. Derived from speaking order, never by matching on "2AC", so it keeps
  * working for renamed speeches, for LD, and for PF either way round.
@@ -82,7 +82,7 @@ export function builtinTemplates(): SpeechTemplate[] {
  *
  * ⚠ That second rule is not "drop their final rebuttal", which is what it said
  * first and which was wrong. Flowing aff you flow the 2NR while your partner is
- * writing the 2AR — that is exactly the case lanes exist for, and it was being
+ * writing the 2AR - that is exactly the case lanes exist for, and it was being
  * excluded. Flowing neg the 2AR is the last thing that happens in the round and
  * there is nothing left to prep behind it, so that one really does not want
  * lanes. The asymmetry is real, not an oversight.
@@ -111,7 +111,7 @@ export function splitTargetFor(template: SpeechTemplate, side: Side): number {
 /**
  * Split one speech into two partner lanes so both of you can flow it at once.
  *
- * The lanes are ORDINARY COLUMNS — the grid is template-driven, and rows span
+ * The lanes are ORDINARY COLUMNS - the grid is template-driven, and rows span
  * every column, so a lane lines up with the speech it answers automatically and
  * cannot drift out of alignment. Nothing else in the app has to know they are
  * special.
@@ -122,13 +122,13 @@ export function splitTargetFor(template: SpeechTemplate, side: Side): number {
 /** Split ONE speech at `at` into its two partner lanes. Pure. */
 function splitOne(speeches: Speech[], at: number): Speech[] {
   const target = speeches[at];
-  // Both lanes answer whatever sat before the GROUP — so partner B answers the
+  // Both lanes answer whatever sat before the GROUP - so partner B answers the
   // same speech partner A does, instead of answering partner A's lane.
   const before = speeches[at - 1]?.id;
   const lane = (n: number, suffix: string): Speech => ({
     id: uid(),
     abbr: `${target.abbr} · ${suffix}`,
-    label: `${target.label} — ${suffix.toLowerCase()}`,
+    label: `${target.label} - ${suffix.toLowerCase()}`,
     side: target.side,
     laneGroup: target.id,
     lane: n,
@@ -138,7 +138,7 @@ function splitOne(speeches: Speech[], at: number): Speech[] {
 
   const rest = speeches.slice(at + 1);
   // The column AFTER the group would otherwise mirror the lane physically to
-  // its left — your partner's. Point it at your own lane instead. Replace the
+  // its left - your partner's. Point it at your own lane instead. Replace the
   // object rather than assigning to it: these are the built-in preset's own
   // Speech objects, and writing through them would corrupt the preset for
   // every round created afterwards in this session.
@@ -152,7 +152,7 @@ function splitOne(speeches: Speech[], at: number): Speech[] {
 /**
  * Split every speech in {@link splitTargetsFor} into two partner lanes.
  *
- * The lanes are ORDINARY COLUMNS — the grid is template-driven, and rows span
+ * The lanes are ORDINARY COLUMNS - the grid is template-driven, and rows span
  * every column, so a lane lines up with the speech it answers automatically and
  * cannot drift out of alignment. Nothing else in the app has to know they are
  * special.

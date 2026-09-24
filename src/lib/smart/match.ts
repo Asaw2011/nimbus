@@ -1,4 +1,4 @@
-// Smart blocks — matching. Pure functions, no store, no I/O.
+// Smart blocks - matching. Pure functions, no store, no I/O.
 //
 // Two questions, both answered from the Verbatim heading tree `parseDocx`
 // already builds:
@@ -25,13 +25,13 @@ export interface KitBlock {
   title: string;
   /** Ancestor headings, outermost first ("Uniqueness", "Answers"). */
   trail: string[];
-  /** The same ancestors as nodes — how a block is scoped to one section. */
+  /** The same ancestors as nodes - how a block is scoped to one section. */
   anc: DocNode[];
   node: DocNode;
   cardCount: number;
   tokens: string[];
   /**
-   * Just what the block ANSWERS — the part after its last "AT:"/"A2" ("Humanism
+   * Just what the block ANSWERS - the part after its last "AT:"/"A2" ("Humanism
    * K---AT: Permutation---2NC" → perm). The prefix is context, and scoring only
    * the whole title let it drown the answer. Same as `tokens` when there is no
    * "AT:".
@@ -39,7 +39,7 @@ export interface KitBlock {
   core: string[];
   /** Headed as an answer ("AT:", "A2", "Perm:"), which is what we want most. */
   answer: boolean;
-  /** Old / extension-only material — still offered, ranked lower. */
+  /** Old / extension-only material - still offered, ranked lower. */
   weak: boolean;
 }
 
@@ -113,7 +113,7 @@ export function tokens(text: string): string[] {
 
 const isCard = (n: DocNode) => n.isAnalytic || n.level >= 4;
 
-/** Every card/analytic beneath a heading — the same walk Doc Search inserts with. */
+/** Every card/analytic beneath a heading - the same walk Doc Search inserts with. */
 export function cardsUnder(node: DocNode): DocNode[] {
   const out: DocNode[] = [];
   const walk = (ns: DocNode[]) => {
@@ -130,7 +130,7 @@ export function cardsUnder(node: DocNode): DocNode[] {
  * The answerable blocks in one file: every heading that directly holds cards.
  *
  * ⚠ 1AC/1NC shells are left out. They are what you READ, not what you answer
- * with — "OFF---1NC" is the midterms shell, and suggesting it in reply to the
+ * with - "OFF---1NC" is the midterms shell, and suggesting it in reply to the
  * 2AC would be wrong every time.
  */
 export function indexBlocks(file: string, roots: DocNode[]): KitBlock[] {
@@ -185,7 +185,7 @@ function scoreAgainst(q: string[], b: string[]): number {
     }
   }
   if (!exact) return 0; // an opposite alone ("bad") is not a topic match
-  // The last term is how much of what they SAID the block covers — without it
+  // The last term is how much of what they SAID the block covers - without it
   // a one-word block ("UQ---2NR") ties with "AT: UQ Overwhelms".
   return 0.5 * (hit / Math.min(q.length, b.length)) + 0.25 * (hit / b.length) + 0.25 * (hit / q.length);
 }
@@ -224,8 +224,8 @@ export function matchBlocks(said: string, blocks: KitBlock[], limit = 3): BlockM
 const KIND = new Set(["cp", "da", "k", "t", "adv", "advantage", "case", "off", "neg", "aff", "file"]);
 
 /**
- * The section of a multi-position file a sheet belongs to — "Public Option CP"
- * → `CP---Public Option` in an aff master file — or null.
+ * The section of a multi-position file a sheet belongs to - "Public Option CP"
+ * → `CP---Public Option` in an aff master file - or null.
  *
  * Only pockets and hats are candidates (where positions live), with the same
  * "more than a kind marker" rule as file linking. A tie goes to the DEEPER
@@ -259,7 +259,7 @@ export function guessSection(sheetTitle: string, roots: DocNode[]): DocNode | nu
  * The kit file a sheet most likely belongs to, or null.
  *
  * Compared against the file NAME and its first heading ("CP---India"). At least
- * one shared word has to be more than a kind marker — every CP file shares
+ * one shared word has to be more than a kind marker - every CP file shares
  * "cp" with every CP sheet, and that alone must not link them.
  */
 export function guessFileForSheet(

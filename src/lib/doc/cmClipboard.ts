@@ -1,6 +1,6 @@
 // Full-fidelity "send to CardMirror": serialize flow ops into CardMirror's OWN
 // rich clipboard HTML, so a plain ⌘V into CardMirror reconstructs the card WITH
-// highlight / cite / body / structure — via its matching schema's parseDOM.
+// highlight / cite / body / structure - via its matching schema's parseDOM.
 //
 // This same HTML is what we hand CardMirror's targeted /insert (>= 1.5.0), so
 // the bridge path and a manual ⌘V reconstruct the identical card. The OLD
@@ -48,12 +48,12 @@ function opsToNodes(ops: CmDocOp[]): PMNode[] {
  * which tells ProseMirror to MERGE the first pasted block into whatever
  * textblock the caret is sitting in. After a send the caret is left at the end
  * of the last card, so a second send with no Enter in between fused its first
- * header into the previous block — "Perm do both" + "AT: Warming DA" became one
+ * header into the previous block - "Perm do both" + "AT: Warming DA" became one
  * analytic, header formatting and all. `openStart: 0` inserts the blocks whole.
  *
  * Measured against ProseMirror's real `parseFromClipboard` on this schema: end
  * of an analytic, end of a block, and a caret on an empty line all come out
- * correct, and — unlike prefixing an empty `<p>` — nothing leaves a stray blank
+ * correct, and - unlike prefixing an empty `<p>` - nothing leaves a stray blank
  * paragraph behind.
  */
 export function opsToCmClipboard(ops: CmDocOp[]): { html: string; text: string } {
@@ -126,7 +126,7 @@ export interface CmSendResult {
   /** The serialized clipboard HTML; `""` when nothing serialized. */
   html: string;
   /** CardMirror's answer, or `null` when no push was attempted (no target, or
-   *  we're outside Tauri). `null` is not a failure — it means clipboard only. */
+   *  we're outside Tauri). `null` is not a failure - it means clipboard only. */
   resp: CmInsertResp | null;
 }
 
@@ -134,20 +134,20 @@ export interface CmSendResult {
  *  clipboard as a manual ⌘V fallback.
  *
  *  `target` is the CardMirror doc UID (the `target` field of its GET /docs),
- *  never a filename — a title is ambiguous across duplicates and undefined for a
+ *  never a filename - a title is ambiguous across duplicates and undefined for a
  *  doc that has never been saved. It must come from a `refreshDocs()` in this
  *  same send: targets are session-scoped and do not survive a CardMirror restart.
  *
  *  ⚠ Was: queue the HTML locally and let the Nimbus CardMirror plugin poll for it
  *  and synthetic-paste it. CardMirror 1.5.0 added a targeted insert, so Nimbus
- *  now pushes directly — no poller, no plugin to install or whitelist, and the
+ *  now pushes directly - no poller, no plugin to install or whitelist, and the
  *  insert no longer lands at wherever the caret happens to be or steals focus.
  *  `cm_queue_card` and the flow-app queue still exist and still work; nothing
  *  calls them any more.
  *
  *  ⚠ Behaviour change: with CardMirror closed, a card used to sit in the queue
  *  and land whenever CardMirror next opened. A direct push has nobody to receive
- *  it, so the send fails to the clipboard instead. Deliberate — Adam chose it
+ *  it, so the send fails to the clipboard instead. Deliberate - Adam chose it
  *  over a local retry queue, on the grounds that a card silently arriving
  *  minutes later mid-round is its own surprise. */
 export async function sendOpsToCardMirror(

@@ -78,7 +78,7 @@
       <p class="fine">
         No account? <button class="linkish" onclick={openSite}>Create one at nimbusdebate.com</button>
       </p>
-      <p class="fine dim">You only need to do this once — after that Nimbus opens offline.</p>
+      <p class="fine dim">You only need to do this once - after that Nimbus opens offline.</p>
     {/if}
   </div>
 </div>

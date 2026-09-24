@@ -44,7 +44,7 @@
   let closePrompt = $state(false);
   let closeError = $state("");
   let closing = false;
-  // Plain mirror of `view` — read from the close callback where a $state
+  // Plain mirror of `view` - read from the close callback where a $state
   // reference could be stale. Kept in sync by the effect below.
   let inFlowView = false;
   $effect(() => {
@@ -59,7 +59,7 @@
 
   onMount(() => {
     // The pop-out doc window renders ONLY <SpeechDocWindow/>. None of the main
-    // window's setup applies here — and critically, the close guard would
+    // window's setup applies here - and critically, the close guard would
     // force_quit the WHOLE app when the doc window is closed/docked back. So
     // skip all main-window setup in the doc window.
     if (isDocWindow) return;
@@ -91,15 +91,15 @@
     window.addEventListener("unhandledrejection", onRej);
 
     // First-run setup prompt (theme / format / save format) comes before
-    // anything else. The tutorial and what's-new wait until it's done — see
-    // onSetupDone — so a new user isn't buried under three modals at once.
+    // anything else. The tutorial and what's-new wait until it's done - see
+    // onSetupDone - so a new user isn't buried under three modals at once.
     if (!settings.setupDone) {
       showSetup = true;
     } else {
       // First-open (or re-enabled) welcome tutorial.
       if (settings.showTutorial) showTutorial = true;
       // Patch notes, once, when the running build is newer than the last one whose
-      // notes were shown — whether it got here by the auto-updater or by someone
+      // notes were shown - whether it got here by the auto-updater or by someone
       // downloading the installer.
       //
       // ⚠ Never stacked on top of the tutorial. A brand-new machine gets the
@@ -135,10 +135,10 @@
    *  alone can't cover a crash, sleep, or force-quit between keystroke and flush. */
   function setupAutosave(): () => void {
     // The docked speech doc has its own debounce and is torn down with the
-    // window, so it rides along on every one of these — a heartbeat included.
+    // window, so it rides along on every one of these - a heartbeat included.
     const flush = () => { void flushDocs(); void store.autosaveIfDirty(); };
     // Writing the round back to its OWN file keeps the two copies from ever
-    // drifting apart — the drift is what let a stale file overwrite newer work.
+    // drifting apart - the drift is what let a stale file overwrite newer work.
     // It runs on a slower cadence than the app-data autosave because the file can
     // live in a synced Dropbox folder and is far heavier to write; but it must
     // also run on blur/hide/close, which is exactly when work would otherwise be
@@ -204,7 +204,7 @@
   }
 
   async function onGlobalKey(e: KeyboardEvent) {
-    // ⌘S / Ctrl+S — save the open flow to its file (prompts if none yet).
+    // ⌘S / Ctrl+S - save the open flow to its file (prompts if none yet).
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && !e.shiftKey) {
       if (store.round) {
         e.preventDefault();
@@ -235,7 +235,7 @@
     await win.onCloseRequested((event) => {
       if (closing) return;
       // Always take control of the close, then either prompt or quit the
-      // process ourselves — don't rely on Tauri's default close (unreliable
+      // process ourselves - don't rely on Tauri's default close (unreliable
       // here). Only prompt for a flow linked to a file with unsaved changes.
       let shouldPrompt = false;
       try {
@@ -258,7 +258,7 @@
     closePrompt = false;
     if (!("__TAURI_INTERNALS__" in window)) return;
     // Flush the round AND the docked speech doc to disk, then quit the process
-    // directly. force_quit fires no pagehide, so this is the doc's only chance —
+    // directly. force_quit fires no pagehide, so this is the doc's only chance -
     // and both writes are awaited so the exit can't outrun the IPC.
     try {
       await flushDocs();
@@ -270,7 +270,7 @@
     } catch {
       /* app-data save failed; quitting anyway */
     }
-    // Try several ways to actually exit — whichever the platform honors.
+    // Try several ways to actually exit - whichever the platform honors.
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("force_quit");
@@ -340,8 +340,8 @@
 {/if}
 
 <!-- Same gate as the tutorial, for the same reason: nothing overlays the app
-     until the user is through sign-in. `!showTutorial` is belt-and-braces —
-     onMount already picks one or the other — so a future change to either can't
+     until the user is through sign-in. `!showTutorial` is belt-and-braces -
+     onMount already picks one or the other - so a future change to either can't
      stack two modals on a first run. -->
 {#if showWhatsNew && !showTutorial && auth.signedIn && !versionBlock && !isDocWindow}
   <WhatsNew onclose={() => (showWhatsNew = false)} />
@@ -361,7 +361,7 @@
       {#if closeError}
         <p class="close-err">{closeError}</p>
       {/if}
-      <p class="note">Your work is always auto-kept in Nimbus either way — this saves a copy to your computer.</p>
+      <p class="note">Your work is always auto-kept in Nimbus either way - this saves a copy to your computer.</p>
     </div>
   </div>
 {/if}
@@ -386,7 +386,7 @@
     {:else if updateState === "downloading"}
       <span>Downloading… {updatePct}%</span>
     {:else}
-      <span>Update installed — restart Nimbus to apply</span>
+      <span>Update installed - restart Nimbus to apply</span>
       <button onclick={() => pendingUpdate?.relaunch()}>Restart now</button>
       <button class="dismiss" onclick={() => (pendingUpdate = null)}>Later</button>
     {/if}

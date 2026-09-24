@@ -33,6 +33,7 @@
     { id: "editing", label: "Editing" },
     { id: "keyboard", label: "Keyboard" },
     { id: "library", label: "Library" },
+    { id: "experimental", label: "Experimental" },
     { id: "backup", label: "Backup" },
   ] as const;
   let tab = $state<(typeof TABS)[number]["id"]>("appearance");
@@ -82,7 +83,7 @@
     updateStatus = "Checking…";
     const u = await checkForUpdate();
     checkingUpdate = false;
-    updateStatus = u ? `Version ${u.version} is available — restart the app to see the install prompt.` : "Nimbus is up to date.";
+    updateStatus = u ? `Version ${u.version} is available - restart the app to see the install prompt.` : "Nimbus is up to date.";
   }
 
   // Search library
@@ -318,7 +319,7 @@
       </label>
       <p class="hint">
         Which side your own column sits on when a speech is split between you and
-        your partner. Only changes what you see — your partner's layout and the
+        your partner. Only changes what you see - your partner's layout and the
         speech doc are unaffected.
       </p>
       <div class="row">
@@ -587,7 +588,7 @@
           class="code"
           rows="8"
           spellcheck="false"
-          placeholder={'// JavaScript — e.g.\nflow.type("AT: ");\nflow.insertBelow(4);\nflow.down();'}
+          placeholder={'// JavaScript - e.g.\nflow.type("AT: ");\nflow.insertBelow(4);\nflow.down();'}
           bind:value={macroCode}
         ></textarea>
         {#if macroCode.trim() && syntaxError}
@@ -622,7 +623,7 @@
               <tr><td><code>flow.rowCount()</code> <code>flow.colCount()</code> <code>flow.sheetName()</code></td><td>sheet info</td></tr>
             </tbody>
           </table>
-          <p class="hint">Example — number 4 answers down the column:</p>
+          <p class="hint">Example - number 4 answers down the column:</p>
           <pre class="code">{`for (let i = 1; i <= 4; i++) {
   flow.type(i + ") ");
   flow.down();
@@ -662,7 +663,7 @@
       <h3>Backup</h3>
       <p class="hint">
         Everything here (keybinds, macros, snippets, colors, folders) is saved
-        to disk automatically — flows too. Export a bundle to move your setup
+        to disk automatically - flows too. Export a bundle to move your setup
         to another computer or keep a copy.
       </p>
       <div class="backup-row">
@@ -740,7 +741,7 @@
     <section>
       <h3>Readers &amp; read time</h3>
       <p class="hint">
-        The speech doc shows an estimated read-aloud time — tags, analytics, and
+        The speech doc shows an estimated read-aloud time - tags, analytics, and
         highlighted words ÷ each reader's words-per-minute. Add one reader per
         person so everyone sees their own pace.
       </p>
@@ -805,7 +806,7 @@
       <h3>Prep clocks</h3>
       <p class="hint">
         How much prep each team gets, on the two clocks in the ribbon. Applies to
-        new rounds and whenever you reset a clock — to change the round you're in
+        new rounds and whenever you reset a clock - to change the round you're in
         right now, click its time in the ribbon and type a new value.
       </p>
       <label class="row">
@@ -830,7 +831,7 @@
     <section>
       <h3>Speech Doc Style &amp; Headings</h3>
       <p class="hint">
-        Edit how the speech doc renders evidence — sizes, colors, and marks, like
+        Edit how the speech doc renders evidence - sizes, colors, and marks, like
         CardMirror. Everyone's setup is personal; changes are live.
       </p>
 
@@ -860,7 +861,7 @@
         <div class="pmd-hat">Hat</div>
         <div class="pmd-block">Block</div>
         <div class="pmd-card">
-          <div class="pmd-tag">Tag — the argument</div>
+          <div class="pmd-tag">Tag - the argument</div>
           <div class="pmd-cite-para"><span class="pmd-cite">Author '24</span></div>
           <div>Body with <span class="pmd-emphasis">emphasis</span>, the <span class="pmd-underline">cut</span>, and <span class="pmd-highlight" data-highlight="yellow">spoken</span> text. <span class="pmd-undertag-mark">undertag</span></div>
         </div>
@@ -918,6 +919,21 @@
     </section>
     {/if}
 
+    {#if tab === "experimental"}
+    <section>
+      <h3>Experimental</h3>
+      <p class="hint">Newer, still-changing features. Turn them on if you want them; leave them off to keep the flow clean. Nothing here changes what you send to your speech doc.</p>
+      <label class="row">
+        <span>Smart blocks (beta)<br /><small class="sub">A tray in the bottom-right corner of the flow. Drop in your round files and it suggests the block that answers the other team's argument; one click puts the whole block in your next speech on that row. Off by default.</small></span>
+        <input
+          type="checkbox"
+          checked={settings.smartBlocksEnabled}
+          onchange={(e) => { settings.smartBlocksEnabled = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
+    </section>
+    {/if}
+
     {#if tab === "backup"}
     <section>
       <h3>Updates</h3>
@@ -937,7 +953,7 @@
         <button class="chip" onclick={() => auth.signOut()}>Sign out</button>
       </div>
       <p class="backup-status">
-        Signed in as {auth.email || "—"}. Signing out means you'll need internet
+        Signed in as {auth.email || "-"}. Signing out means you'll need internet
         to sign back in.
       </p>
     </section>

@@ -51,7 +51,7 @@
         <div class="pp-err">{session.error}</div>
       {/if}
       <p class="pp-lead">
-        You both stay on your own copy of the flow — nothing is stored on a
+        You both stay on your own copy of the flow - nothing is stored on a
         server, and each of you keeps saving to your own file.
       </p>
       {#if !hasLanes && hostMode === "shared"}
@@ -61,7 +61,7 @@
         </div>
       {/if}
 
-      <!-- This flow was in a room recently and isn't now — because Nimbus was
+      <!-- This flow was in a room recently and isn't now - because Nimbus was
            closed, or you stepped out of the flow. Offered, never automatic:
            a shared session REPLACES the joiner's flow, so reconnecting on its
            own could overwrite the work you just reopened. -->
@@ -72,7 +72,7 @@
             <strong>Pick up where you left off</strong>
             <div class="pp-sub">
               This flow was shared in room <strong>{r.code}</strong>
-              {r.role === "host" ? "— you were hosting" : "— you joined it"}.
+              {r.role === "host" ? "- you were hosting" : "- you joined it"}.
               {r.role === "host"
                 ? "Reopening it puts you back on the same code, so your partner reconnects on their own."
                 : "You'll need your partner to approve you again."}
@@ -100,7 +100,7 @@
               <span>
                 <strong>A flow each</strong>
                 <em>You keep yours, they keep theirs, and you can both see and edit
-                  either — so you can drop a block onto their page.</em>
+                  either - so you can drop a block onto their page.</em>
               </span>
             </label>
           </div>
@@ -150,7 +150,7 @@
       <div class="pp-live">
         <span class="pp-dot" class:on={session.peerOnline}></span>
         <div>
-          <div><strong>{session.peerEmail}</strong> — {session.peerOnline ? "connected" : "reconnecting…"}</div>
+          <div><strong>{session.peerEmail}</strong> - {session.peerOnline ? "connected" : "reconnecting…"}</div>
           <div class="pp-sub">
             Room {session.code} · {session.mode === "separate" ? "a flow each" : "one shared flow"}
             {#if laneName}· your lane is <strong>{laneName}</strong>{/if}
@@ -161,12 +161,12 @@
       {#if session.desynced}
         <div class="pp-err">
           You were offline long enough that some edits couldn't be queued. The
-          two flows may no longer match — end this session and start a fresh one
+          two flows may no longer match - end this session and start a fresh one
           to be sure. Nothing has been lost on either side.
         </div>
       {/if}
       <div class="pp-warn">
-        Undo history clears whenever your partner's changes arrive — otherwise
+        Undo history clears whenever your partner's changes arrive - otherwise
         undoing would wipe their work.
       </div>
       <button class="pp-btn wide" onclick={() => session.leave()}>End session</button>

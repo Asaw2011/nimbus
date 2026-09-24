@@ -1,11 +1,11 @@
 // Remote "minimum supported version" check.
 //
-// Builds already on people's machines can never be reached — they are compiled
+// Builds already on people's machines can never be reached - they are compiled
 // binaries with no update channel. This exists so that every build from HERE ON
 // can be shut off later if it has to be.
 //
 // ⚠ It FAILS OPEN, always and on purpose. Offline, table missing, RLS denying
-// the read, malformed row, server down — every one of those lets the app run.
+// the read, malformed row, server down - every one of those lets the app run.
 // The check sits on the launch path, so a false positive would lock people out
 // of their own local flows, which is far worse than an old build staying alive.
 // It is inert until somebody actually publishes a row.
@@ -50,7 +50,7 @@ export async function checkMinimumVersion(): Promise<VersionBlock | null> {
       `${SUPABASE_URL}/rest/v1/${TABLE}?select=min_version,message&limit=1`,
       { headers: { apikey: SUPABASE_KEY } },
     );
-    if (!r.ok) return null; // table missing, RLS denied, server unhappy — allow
+    if (!r.ok) return null; // table missing, RLS denied, server unhappy - allow
     const rows = (await r.json()) as Array<{ min_version?: string; message?: string }>;
     const min = rows?.[0]?.min_version;
     if (typeof min !== "string" || !min.trim()) return null;

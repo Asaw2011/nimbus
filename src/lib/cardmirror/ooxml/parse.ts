@@ -31,8 +31,8 @@ const parser = new XMLParser({
   // total number of entity expansions per document at 1000. That
   // guard counts every ordinary standard entity (&amp; &lt; &gt;
   // &quot; &apos;) and numeric char-ref toward the budget, so a
-  // large, legitimate debate file — which easily contains thousands
-  // of ampersands / quotes across document.xml — trips it with
+  // large, legitimate debate file - which easily contains thousands
+  // of ampersands / quotes across document.xml - trips it with
   // "Entity expansion limit exceeded: N > 1000" and fails to load.
   // Standard entities are 1:1, non-recursive replacements (no
   // exponential blow-up); the actual entity-bomb vector is
@@ -75,7 +75,7 @@ export function children(node: XmlNode, tag: string): XmlNode[] {
 }
 
 /** Re-serialize a parsed XmlNode list back to an XML fragment.
- *  Inverse of `parseXml` for the subset of OOXML we produce — preserves
+ *  Inverse of `parseXml` for the subset of OOXML we produce - preserves
  *  element order, attributes, and `#text` leaves. Used when we want to
  *  round-trip opaque sub-trees (e.g. `<w:tblPr>` extras) verbatim
  *  without modeling every child element in the schema. */
@@ -93,7 +93,7 @@ function serializeXmlNode(node: XmlNode): string {
     if (key === '#text') {
       return escText(String(node[key] ?? ''));
     }
-    // Tag node — single tag key per node in preserveOrder mode.
+    // Tag node - single tag key per node in preserveOrder mode.
     const attrPart = serializeAttrs(node[':@'] ?? {});
     const value = node[key];
     if (Array.isArray(value) && value.length > 0) {
@@ -125,12 +125,12 @@ function escAttr(s: string): string {
  * Body paragraphs in the exact order the importer visits them: document
  * order, descending into `<w:sdt>` content but NOT into `<w:tbl>` (heading
  * paragraphs never originate from table cells, so the importer's
- * `collectBlocks` doesn't descend into tables either — this must mirror it).
+ * `collectBlocks` doesn't descend into tables either - this must mirror it).
  *
  * The 0-based index into this list is the `srcPara` provenance the source-
  * anchor injector uses to locate a heading's paragraph. The importer builds
  * that index from THIS same helper, so the two views of "which paragraph is
- * the Nth" can never drift — see `ensureHeadingAnchor` in `src/anchor-docx.ts`.
+ * the Nth" can never drift - see `ensureHeadingAnchor` in `src/anchor-docx.ts`.
  */
 export function bodyParagraphsInOrder(bodyChildren: XmlNode[]): XmlNode[] {
   const out: XmlNode[] = [];
@@ -142,7 +142,7 @@ export function bodyParagraphsInOrder(bodyChildren: XmlNode[]): XmlNode[] {
         const content = findChild(children(node, 'w:sdt'), 'w:sdtContent');
         if (content) walk(children(content, 'w:sdtContent'));
       }
-      // <w:tbl>, <w:sectPr>, etc. — not a body paragraph; skip.
+      // <w:tbl>, <w:sectPr>, etc. - not a body paragraph; skip.
     }
   };
   walk(bodyChildren);

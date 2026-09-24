@@ -15,7 +15,7 @@
  *   5. Wrap everything in a `doc` node.
  *
  * Per ARCHITECTURE.md §3 (round-trip contract / fungibility), aggressive
- * normalization on import is fine — we preserve only what Verbatim and
+ * normalization on import is fine - we preserve only what Verbatim and
  * Advanced Verbatim treat as semantic.
  */
 
@@ -70,7 +70,7 @@ export interface ParaInfo {
   spacing: Record<string, string> | null;
   /** Word numbering from `<w:numPr>`: the list instance (`w:numId`) and level
    *  (`w:ilvl`). Set only on a paragraph that carries live-list membership
-   *  (numId > 0). Reconstructed into card `numRole`/`numRestart` — NUMBERING_PLAN
+   *  (numId > 0). Reconstructed into card `numRole`/`numRestart` - NUMBERING_PLAN
    *  §5. */
   numId?: number;
   ilvl?: number;
@@ -128,7 +128,7 @@ interface ImportContext {
   /** Media parts from the source zip; null if not provided (drawings drop). */
   mediaParts: MediaPartsMap | null;
   /** Note id → flattened body, from word/footnotes.xml / endnotes.xml.
-   *  Null when the parts weren't provided — references then import as
+   *  Null when the parts weren't provided - references then import as
    *  empty-bodied footnote nodes (marker survives, body lost). */
   footnotes: Map<string, FootnoteContent> | null;
   endnotes: Map<string, FootnoteContent> | null;
@@ -162,7 +162,7 @@ export function importDoc(
     endnotes?: Map<string, FootnoteContent>;
   } | null = null,
   /** When provided, is filled with `headingId → srcPara` (0-based source
-   *  paragraph index) for every heading — the provenance the source-anchor
+   *  paragraph index) for every heading - the provenance the source-anchor
    *  injector needs to bookmark a raw `.docx` heading. Omitted on the normal
    *  open/import path so it stays zero-cost. */
   provenanceOut?: Map<string, number>,
@@ -217,11 +217,11 @@ export function importDoc(
         }
       } else if ('w:sdt' in node) {
         // Block-level content control: unwrap and import its inner
-        // content — the wrapper carries no document content of its own.
+        // content - the wrapper carries no document content of its own.
         const content = findChild(childrenOf(node, 'w:sdt'), 'w:sdtContent');
         if (content) collectBlocks(childrenOf(content, 'w:sdtContent'));
       }
-      // <w:sectPr>, etc. — skip.
+      // <w:sectPr>, etc. - skip.
     }
   };
   collectBlocks(bodyChildren);
@@ -245,7 +245,7 @@ function parseRels(relsXml: string): RelMap {
 }
 
 /** Parse word/styles.xml into a styleId → {name, type, outlineLevel, bold} map.
- *  `outlineLevel` and `bold` are the EFFECTIVE values — resolved once here through
+ *  `outlineLevel` and `bold` are the EFFECTIVE values - resolved once here through
  *  each style's `basedOn` chain (cycle-guarded), so a style that inherits its
  *  outline level / bold from a base style carries them too, and the per-paragraph
  *  classification stays a plain property read (no chain walking). */
@@ -322,7 +322,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
 
   // Look for <w:pPr>/<w:pStyle> for the paragraph style.
   // <w:pPr>/<w:rPr> describes the paragraph-mark glyph's formatting
-  // per OOXML spec 17.7.5.10 — it does NOT propagate to runs in the
+  // per OOXML spec 17.7.5.10 - it does NOT propagate to runs in the
   // paragraph. Runs are formatted by their own rPr plus the pStyle's
   // linked character style. We deliberately do not parse pPr/rPr.
   const pPr = findChild(pChildren, 'w:pPr');
@@ -340,7 +340,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
     const indEl = findChild(pPrChildren, 'w:ind');
     if (indEl) {
       // Prefer `w:left` (LTR); fall back to `w:start` (modern/RTL-aware).
-      // Negative indents (hanging-into-margin) are clamped to 0 — we
+      // Negative indents (hanging-into-margin) are clamped to 0 - we
       // don't have visual support for them and OOXML's required-positive
       // schema makes them rare anyway.
       const ia = attrsOf(indEl);
@@ -348,7 +348,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
       const n = v ? parseInt(v, 10) : NaN;
       if (Number.isFinite(n) && n > 0) indent = n;
     }
-    // `<w:spacing>` — capture all attribute values verbatim for
+    // `<w:spacing>` - capture all attribute values verbatim for
     // round-trip. We don't apply them visually in the editor; per-
     // type CSS governs paragraph rhythm, and the captured data is
     // re-emitted on export so Word sees the original values.
@@ -360,7 +360,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
       }
       if (Object.keys(captured).length > 0) spacing = captured;
     }
-    // `<w:numPr>` — list membership (numId) + level (ilvl). numId 0 means "no
+    // `<w:numPr>` - list membership (numId) + level (ilvl). numId 0 means "no
     // numbering", so only a positive numId counts as live.
     const numPrEl = findChild(pPrChildren, 'w:numPr');
     if (numPrEl) {
@@ -403,7 +403,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
   // A style-less / non-structural paragraph that nonetheless carries an outline
   // level + the matching Verbatim heading formatting (e.g. a tag typed as plain
   // "Normal" with a direct <w:outlineLvl w:val="3"/> + 13pt bold) is promoted to
-  // its structural node — see `outlineHeadingNode`.
+  // its structural node - see `outlineHeadingNode`.
   if (nodeType === 'paragraph') {
     const promoted = outlineHeadingNode(
       pPr,
@@ -433,7 +433,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
  *  cell's structural attrs (colspan, rowspan, colwidth). Stripped
  *  from `rawTcPr` so they don't double on round-trip. The change-
  *  tracking markers (`tcPrChange`, `cellIns`, `cellDel`, `cellMerge`)
- *  are also stripped — accepting track changes means dropping
+ *  are also stripped - accepting track changes means dropping
  *  change records and keeping the post-change state. */
 const TCPR_GENERATED_CHILDREN: ReadonlySet<string> = new Set([
   'w:gridSpan',
@@ -465,7 +465,7 @@ function parseTable(tblNode: XmlNode, ctx: ImportContext): PMNode | null {
 
   // Capture `<w:tblPr>` extras so table-level borders / shading /
   // tblStyle round-trip verbatim. Children we don't want to preserve
-  // (tblPrChange — accept-on-import) get stripped.
+  // (tblPrChange - accept-on-import) get stripped.
   let rawTblPr: string | null = null;
   const tblPrEl = findChild(childrenOf(tblNode, 'w:tbl'), 'w:tblPr');
   if (tblPrEl) {
@@ -640,7 +640,7 @@ function collectInlines(node: XmlNode, ctx: ImportContext, out: PMNode[]): void 
     }
     if (rId) ctx.hyperlinkStack.pop();
   }
-  // Track-change wrappers — "accept all" policy:
+  // Track-change wrappers - "accept all" policy:
   //  - `<w:ins>` / `<w:moveTo>` ← inserted / move-target content;
   //    treat as kept. Recurse into the wrapped runs.
   //  - `<w:del>` / `<w:moveFrom>` ← deleted / move-source content;
@@ -654,7 +654,7 @@ function collectInlines(node: XmlNode, ctx: ImportContext, out: PMNode[]): void 
     // Intentionally no-op: deletion / move-source content is dropped.
   }
   // Comment range brackets. These live as siblings of `<w:r>` at
-  // the paragraph level (and can span paragraphs — the stack on
+  // the paragraph level (and can span paragraphs - the stack on
   // ImportContext is doc-wide so cross-paragraph ranges work).
   else if ('w:commentRangeStart' in node) {
     const id = attrsOf(node)['w:id'];
@@ -667,7 +667,7 @@ function collectInlines(node: XmlNode, ctx: ImportContext, out: PMNode[]): void 
     }
   }
   // Other inline-ish nodes (w:bookmarkStart, w:bookmarkEnd,
-  // w:commentReference, etc.) — skip.
+  // w:commentReference, etc.) - skip.
 }
 
 function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
@@ -697,7 +697,7 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
     }
     // Each open `<w:commentRangeStart>` contributes a `comment_range`
     // mark. Multiple overlapping comment ranges on the same text get
-    // multiple marks — ProseMirror collapses duplicates with the
+    // multiple marks - ProseMirror collapses duplicates with the
     // same threadId but keeps distinct ids.
     for (const threadId of ctx.commentRangeStack) {
       m.push(schema.marks['comment_range']!.create({ threadId }));
@@ -746,7 +746,7 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
           // Verbatim's pilcrow encoding: a `¶` glyph in a run sized to
           // 6pt (`<w:sz w:val="12"/>`). Recognize it and use the
           // non-inclusive `pilcrow_marker` mark in place of `font_size`
-          // — the inclusive font_size mark would otherwise cause
+          // - the inclusive font_size mark would otherwise cause
           // adjacent typing to inherit the 6pt size.
           if (text === '¶') {
             const sizeIdx = effectiveMarks.findIndex(
@@ -781,7 +781,7 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
     } else if ('w:softHyphen' in c) {
       try { out.push(schema.text('­', currentMarks())); } catch (_) { /* */ }
     }
-    // Footnote / endnote references — become self-contained footnote
+    // Footnote / endnote references - become self-contained footnote
     // nodes carrying the flattened body from footnotes.xml/endnotes.xml
     // (empty when the part wasn't provided; the marker still survives).
     else if ('w:footnoteReference' in c || 'w:endnoteReference' in c) {
@@ -810,7 +810,7 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
       let imgNode = parseDrawing(c, ctx);
       if (imgNode) {
         // Apply any open comment ranges to the image so a comment
-        // anchored on a picture survives the docx round-trip — the text
+        // anchored on a picture survives the docx round-trip - the text
         // path does the same from `commentRangeStack` above.
         if (ctx.commentRangeStack.length > 0) {
           imgNode = imgNode.mark(
@@ -831,8 +831,8 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
  * provided rels + media-parts map, and produce an `image` schema node
  * with the bytes embedded as base64.
  *
- * Returns null if any required piece is missing — the relId, the rel
- * lookup, the media file in the zip, etc. — so a drawing we can't
+ * Returns null if any required piece is missing - the relId, the rel
+ * lookup, the media file in the zip, etc. - so a drawing we can't
  * round-trip cleanly is dropped.
  */
 function parseDrawing(drawingNode: XmlNode, ctx: ImportContext): PMNode | null {
@@ -893,7 +893,7 @@ function findFirstAttr(root: XmlNode, tagName: string, attr: string): string | n
         const a = attrsOf(node);
         if (attr in a) return a[attr] ?? null;
         // Also recurse into the matched node's children (the attribute
-        // might be on a descendant of the same tag name — defensive).
+        // might be on a descendant of the same tag name - defensive).
       }
       const children = (node as Record<string, unknown>)[key];
       if (Array.isArray(children)) {
@@ -915,19 +915,19 @@ interface ParsedRPr {
  *
  * Per OOXML 17.7.5.10, this is meaningful only when rPr is a child of
  * <w:r>. When it's a child of <w:pPr>, it describes the paragraph mark
- * (¶) only — see parseParagraph, which deliberately ignores pPr/rPr.
+ * (¶) only - see parseParagraph, which deliberately ignores pPr/rPr.
  */
 function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
   const marks: Mark[] = [];
   const props = childrenOf(rPr, 'w:rPr');
-  // Direct <w:u/> is deferred — we decide between underline_mark and
+  // Direct <w:u/> is deferred - we decide between underline_mark and
   // underline_direct after seeing whether rStyle="StyleUnderline" is
   // also present in this rPr (order between rStyle and w:u is not
   // guaranteed by OOXML).
   let sawDirectU = false;
   // <w:i/> is deferred for the same reason: on an undertag run it's the
   // exporter's parity encoding (the undertag style implies italic
-  // display), not user formatting — importing it as an italic mark
+  // display), not user formatting - importing it as an italic mark
   // would grow marks on every round-trip.
   let sawItalic = false;
 
@@ -943,7 +943,7 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
           let markName: string | undefined = RSTYLE_TO_MARK[styleId];
           if (!markName) {
             // Legacy character style (Author-Date, Debate Underline, …) not in
-            // the canonical map — classify via the shared legacy vocabulary.
+            // the canonical map - classify via the shared legacy vocabulary.
             const role = legacyRole({ id: styleId, name: styles?.get(styleId)?.name ?? null });
             if (role === 'char-cite') markName = 'cite_mark';
             else if (role === 'char-underline') markName = 'underline_mark';
@@ -955,7 +955,7 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
       }
       case 'w:b': {
         if (a['w:val'] === '0' || a['w:val'] === 'false') {
-          // Explicit "bold off" — preserved as a `bold_off` mark so it
+          // Explicit "bold off" - preserved as a `bold_off` mark so it
           // both round-trips AND renders (a word un-bolded inside a tag,
           // which is bold by default).
           marks.push(schema.marks['bold_off']!.create());
@@ -973,7 +973,7 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
       case 'w:strike':
       case 'w:dstrike': {
         // Single (`<w:strike/>`) and double (`<w:dstrike/>`) strikethrough
-        // both map to our single strikethrough mark — we don't carry
+        // both map to our single strikethrough mark - we don't carry
         // the double-strike distinction. On round-trip, double-strike
         // becomes single-strike, which is functionally equivalent for
         // the marks Verbatim users care about.
@@ -1041,7 +1041,7 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
         // 'baseline' (the explicit normal) and unknown values: drop.
         break;
       }
-      // Other rPr props (lang, etc.) — drop.
+      // Other rPr props (lang, etc.) - drop.
     }
   }
 
@@ -1058,7 +1058,7 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
     // genuine user italic on undertag text is indistinguishable in the
     // XML (the exporter emits identical runs for both) and renders
     // identically (the style already displays italic), so this loses
-    // nothing visible — the same accepted trade as underline above.
+    // nothing visible - the same accepted trade as underline above.
     marks.push(schema.marks['italic']!.create());
   }
 
@@ -1075,7 +1075,7 @@ const HEADING_LEVEL_NODE: Record<number, string> = {
   5: 'block',
 };
 
-/** Whether the document already defines the modern Verbatim required styles —
+/** Whether the document already defines the modern Verbatim required styles -
  *  i.e. a "mixed" doc, whose legacy headings are read by outline level rather
  *  than having their depth inferred. */
 function hasVerbatimStyles(styles: StyleMap): boolean {
@@ -1112,7 +1112,7 @@ function paragraphOutline(pPr: XmlNode | null, info: StyleInfo | undefined): num
 // AND the matching Verbatim heading formatting is promoted to its structural
 // node, so a doc whose tags/headings are plain "Normal" + a direct
 // `<w:outlineLvl>` (no heading style) still imports its structure. The bold /
-// size / underline conjuncts are the cleaner's guardrails — they keep an
+// size / underline conjuncts are the cleaner's guardrails - they keep an
 // ordinary Word doc that merely uses outline levels from being mis-structured.
 
 /** Direct run bold tri-state: true (`<w:b/>`), false (`<w:b w:val="0"/>`), or null
@@ -1146,7 +1146,7 @@ function runCharStyle(rPr: XmlNode | null): string | null {
   return rs ? (attrsOf(rs)['w:val'] ?? null) : null;
 }
 
-/** Effective bold of a paragraph — mirror of the cleaner's `effectivelyBold`: a
+/** Effective bold of a paragraph - mirror of the cleaner's `effectivelyBold`: a
  *  run is bold if it's directly bold, or (when it doesn't set bold itself) if its
  *  character style or the paragraph style resolves bold. The style bolds are the
  *  `basedOn`-resolved values precomputed in `parseStyles`, so this stays a few
@@ -1235,7 +1235,7 @@ function resolveNodeType(pStyle: string | null, ctx: ImportContext, pPr: XmlNode
   const info = pStyle ? ctx.styles.get(pStyle) : undefined;
 
   // Legacy document: classify legacy paragraph styles first, so a legacy
-  // heading — even Word's own "Heading 1" — follows the document's inferred
+  // heading - even Word's own "Heading 1" - follows the document's inferred
   // hierarchy rather than its literal Word level. Cites/cards fall through to
   // 'paragraph' and the card-grouping pass reclassifies them.
   if (ctx.legacy && pStyle) {
@@ -1248,7 +1248,7 @@ function resolveNodeType(pStyle: string | null, ctx: ImportContext, pPr: XmlNode
   if (pStyle && pStyle in PSTYLE_TO_NODE) {
     return PSTYLE_TO_NODE[pStyle]!;
   }
-  // Unknown styleId — try the name/id-based fallback rules (e.g. analytics
+  // Unknown styleId - try the name/id-based fallback rules (e.g. analytics
   // authored under a non-canonical style). Synthesize a minimal StyleInfo
   // when styles.xml is absent so the styleId-based rules still fire.
   if (pStyle) {
@@ -1269,19 +1269,19 @@ function resolveNodeType(pStyle: string | null, ctx: ImportContext, pPr: XmlNode
  *
  * Conventions:
  *   - A Tag starts a card.
- *   - The card consumes following undertags, then Normals — each
+ *   - The card consumes following undertags, then Normals - each
  *     classified as cite_paragraph (any cite_mark on non-whitespace
- *     content) or card_body — plus inline tables.
+ *     content) or card_body - plus inline tables.
  *   - The card ends at the next heading-level paragraph (Tag, Pocket,
  *     Hat, Block, Analytic) or end of document. An Analytic under a tag
  *     therefore ends the card and starts its own analytic_unit.
  *
- * This mirrors the way real Verbatim docs are structured — the card
+ * This mirrors the way real Verbatim docs are structured - the card
  * boundary is implicit in the paragraph sequence; we promote it to a
  * schema node for editor-side ergonomics.
  *
  * Exported as the shared phase-(b) back-end for the smart-paste
- * converters (see the `ParaInfo` doc comment) — they classify foreign
+ * converters (see the `ParaInfo` doc comment) - they classify foreign
  * clipboard HTML into `ParaInfo[]` and hand assembly to this exact
  * code path so paste and .docx import can never disagree about
  * structure.
@@ -1299,7 +1299,7 @@ export function assembleDoc(
     const para = paragraphs[i]!;
 
     // Pre-assembled raw nodes (tables) bypass the paragraph-classifier
-    // logic entirely — they emit straight into the doc at this point.
+    // logic entirely - they emit straight into the doc at this point.
     if (para.rawNode) {
       docNodes.push(para.rawNode);
       i++;
@@ -1328,7 +1328,7 @@ export function assembleDoc(
 
       // Body paragraphs: classify by cite_mark presence (same rule as
       // in cards); analytic_unit accepts cite_paragraph too.
-      // Also absorb inline tables — the analytic_unit schema accepts
+      // Also absorb inline tables - the analytic_unit schema accepts
       // `table` as a child; without this loop seeing them, every
       // post-analytic table would be ejected back to the doc level
       // and break the visual grouping users expect.
@@ -1355,7 +1355,7 @@ export function assembleDoc(
           cardNumInfo.set(unitNode, { numId: para.numId, ilvl: para.ilvl ?? 0 });
         }
       } catch (_e) {
-        // Analytic_unit construction failed — emit children directly at
+        // Analytic_unit construction failed - emit children directly at
         // doc level, coercing tags/analytics into wrappers since they
         // can't appear at doc level on their own.
         for (const child of unitChildren) {
@@ -1386,7 +1386,7 @@ export function assembleDoc(
         j++;
       }
 
-      // An analytic under the tag is NOT folded into the card — `analytic`
+      // An analytic under the tag is NOT folded into the card - `analytic`
       // anchors its own analytic_unit. The body loop below stops at it, the
       // card ends here, and the next outer-loop iteration starts an
       // analytic_unit from it (absorbing the bodies that follow). Same result
@@ -1397,7 +1397,7 @@ export function assembleDoc(
       // content carries any cite_mark, otherwise as card_body. This is
       // content-based (matches what the user sees) rather than position-
       // based, so cards with multiple cite paragraphs round-trip cleanly.
-      // Inline tables are absorbed into the card too — the schema
+      // Inline tables are absorbed into the card too - the schema
       // accepts `table` as a card child, and a docx where the table
       // sits between the tag and the next heading was authored as
       // part of that card's evidence.
@@ -1425,7 +1425,7 @@ export function assembleDoc(
           cardNumInfo.set(cardNode, { numId: para.numId, ilvl: para.ilvl ?? 0 });
         }
       } catch (_e) {
-        // Card construction failed — emit children directly at doc
+        // Card construction failed - emit children directly at doc
         // level, coercing tags/analytics into wrappers. Should be rare
         // since the doc content expression is permissive.
         for (const child of cardChildren) {
@@ -1447,7 +1447,7 @@ export function assembleDoc(
   }
 
   // Reconstruct the numbering skeleton (numRole / numRestart) from the numId/ilvl
-  // the cards carried — a no-op when the doc had no numbering.
+  // the cards carried - a no-op when the doc had no numbering.
   const numbered = reconstructNumbering(docNodes, cardNumInfo);
 
   // Wrap in doc node. If schema rejects (which would be surprising given
@@ -1471,7 +1471,7 @@ export function assembleDoc(
  *   - a card numRestart when its numId differs from the previous numbered card's
  *     AND no heading sat between them (a heading already explains the restart).
  *   - a block numRestart=false ("continue") when the numbered cards on both sides
- *     share one numId — the running count flowed across it.
+ *     share one numId - the running count flowed across it.
  * Returns fresh nodes only where something changed; a doc with no numbering is
  * returned untouched.
  */
@@ -1506,7 +1506,7 @@ function reconstructNumbering(
       role.set(k, info.ilvl === 0 ? 'number' : 'sub');
       if (lastNumId !== null) {
         if (info.numId === lastNumId) {
-          // Same run continued — any blocks it crossed are "continue" blocks.
+          // Same run continued - any blocks it crossed are "continue" blocks.
           for (const b of pendingBlocks) blockContinue.add(b);
         } else if (pendingBlocks.length === 0) {
           // New numId with no heading to explain it → a mid-list card restart.
@@ -1537,7 +1537,7 @@ function reconstructNumbering(
 /** True if any NON-WHITESPACE inline node carries the cite_mark mark.
  *  Cut docs routinely carry the cite character style on shrunk
  *  inter-word spaces deep into body text (Verbatim's 8-pt-space
- *  convention keeps whatever rStyle the cut left on them) — that's
+ *  convention keeps whatever rStyle the cut left on them) - that's
  *  styling debris, not a cite line, and classifying on it turned body
  *  paragraphs into cite_paragraphs that e.g. refuse to shrink. */
 function hasCiteMark(inlines: readonly PMNode[]): boolean {
@@ -1584,7 +1584,7 @@ function withIndent(
 
 function paragraphToNode(para: ParaInfo): PMNode | null {
   // A "Normal" paragraph at doc level (not under a Tag/Analytic) that
-  // contains any cite_mark inline is promoted to cite_paragraph — same
+  // contains any cite_mark inline is promoted to cite_paragraph - same
   // content-based classification we use inside cards. Schema allows
   // cite_paragraph at doc level, and this preserves round-trip fidelity
   // for stray F8'd paragraphs not yet wrapped in a card.

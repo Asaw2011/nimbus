@@ -29,21 +29,21 @@
     sheetId: string;
     side?: "aff" | "neg" | "neutral";
     isLabel?: boolean;
-    /** The open block somewhere to the left whose parts this column carries —
+    /** The open block somewhere to the left whose parts this column carries -
      *  the nearest one, not necessarily the neighbour. Every speech after a
      *  block gets a tile per part, because an answer gets answered too. */
     blockCell?: Cell;
     /** Which column `blockCell` came from. Answers are stored on THAT cell's
      *  items, so every write has to name it. -1 when there is no open block. */
     blockCol?: number;
-    /** True on the first column that answers the block — the only one allowed
+    /** True on the first column that answers the block - the only one allowed
      *  to absorb a pre-tiles `responses` list, so old text appears once rather
      *  than repeating in every later speech. */
     firstAnswerCol?: boolean;
-    /** This column's speech id — the key an answer is stored under, so each
+    /** This column's speech id - the key an answer is stored under, so each
      *  speech (and each partner lane) keeps its own. */
     speechId?: string;
-    /** No column to the right — a block here shows its answers inline. */
+    /** No column to the right - a block here shows its answers inline. */
     isLastCol?: boolean;
     dropTarget?: boolean;
   } = $props();
@@ -54,7 +54,7 @@
    * ⚠ Protection against OVERWRITING, not against collaborating. Same-cell
    * edits are last-writer-wins (there are no per-cell timestamps), so a stray
    * keystroke while their cell happened to be selected could replace a line
-   * they had just written, with nothing to undo it back — their text was never
+   * they had just written, with nothing to undo it back - their text was never
    * in your undo stack. Reported after exactly that.
    *
    * Deliberately narrow, on all three counts:
@@ -79,7 +79,7 @@
   /** A block renders its own answers inline (under its parts) only when there
    *  is no next column to push them into. */
   const ownResponsesInline = $derived(isLastCol);
-  /** This cell is an open block, so IT owns the row's tracks — one per part. */
+  /** This cell is an open block, so IT owns the row's tracks - one per part. */
   const ownBlock = $derived(!!cell.items?.length && !!cell.expanded);
   /**
    * Whether to draw answer tiles here.
@@ -111,7 +111,7 @@
     );
   });
 
-  /** The argument this cell was explicitly linked to answer, if any — shown as
+  /** The argument this cell was explicitly linked to answer, if any - shown as
    *  a small tag so you can see what the doc will write "AT:" against without
    *  sending anything. Empty when the source cell is blank. */
   const replyLabel = $derived.by(() => {
@@ -133,7 +133,7 @@
     return t.length > 16 ? t.slice(0, 15) + "…" : t;
   }
 
-  /** A part's answers in SPEAKING order, skipping speeches nobody typed into —
+  /** A part's answers in SPEAKING order, skipping speeches nobody typed into -
    *  the read-only cue shown under a collapsed block. */
   function answerChain(item: CellItem): { speech: string; text: string }[] {
     const speeches = store.round?.template.speeches ?? [];
@@ -176,8 +176,8 @@
   }
 
   /**
-   * A tile took the caret. The grid cursor still moves to this cell — the tile
-   * lives in this column and arrow keys should behave — but `focusedAnswer`
+   * A tile took the caret. The grid cursor still moves to this cell - the tile
+   * lives in this column and arrow keys should behave - but `focusedAnswer`
    * records WHICH tile, so the card/analytic actions can act on the tile rather
    * than on the cell around it without touching cell key routing.
    */
@@ -187,7 +187,7 @@
   }
 
   /** Same, for a block's own inline tiles in the last column, where the parts
-   *  and the tiles live in the SAME cell — so the block column is this one, and
+   *  and the tiles live in the SAME cell - so the block column is this one, and
    *  it is the only place the part gets answered. */
   function onOwnTileFocus(itemId: string) {
     store.focusedAnswer = refFor(itemId, col, true);
@@ -208,7 +208,7 @@
    * Keys inside a tile. Enter drops to the next part; the card/analytic and
    * dropped/starred binds mark the TILE, because that is what the caret is in.
    *
-   * ⚠ Deliberately no `stopPropagation` — the response boxes this replaces
+   * ⚠ Deliberately no `stopPropagation` - the response boxes this replaces
    * didn't have one either, and the global handler in FlowView doesn't bind any
    * of these, so there is nothing to double-fire. Adding one on a hunch is on
    * the do-not list for exactly this kind of handler.
@@ -218,8 +218,8 @@
    * answers, and put the caret in the new part's tile IN THIS COLUMN.
    *
    * ⚠ This is the in-block reading of "insert a row", and it is the right one:
-   * a part of a block already behaves like a row of its own — every speech
-   * carries a cell for it — so the analogue of Ctrl+Enter is another part, not
+   * a part of a block already behaves like a row of its own - every speech
+   * carries a cell for it - so the analogue of Ctrl+Enter is another part, not
    * another grid row. Inserting a grid row from here would push a blank line
    * under the entire block instead of under the argument you were answering.
    */
@@ -257,7 +257,7 @@
     }
   }
 
-  // In spread view several sheets are visible at once — a cell is only active
+  // In spread view several sheets are visible at once - a cell is only active
   // when its sheet is the active one too.
   const active = $derived(
     store.activeSheetId === sheetId &&
@@ -304,7 +304,7 @@
   let lookupOpen = $state(false);
   let lookupQuery = $state("");
   let lookupSel = $state(0);
-  /** Cell text at the moment the bank opened — stripped from the query so the
+  /** Cell text at the moment the bank opened - stripped from the query so the
    *  lookup only matches what you type AFTER opening, not the whole cell. */
   let lookupBase = "";
   const lookupMatches = $derived(lookupOpen ? store.argMatches(lookupQuery) : []);
@@ -313,7 +313,7 @@
   /** True when the list is rendered ABOVE the cell instead of below it. */
   let lookupUp = $state(false);
 
-  // Arrowing through a long bank must drag the list along with the selection —
+  // Arrowing through a long bank must drag the list along with the selection -
   // the list is only ~240px tall, so without this the highlight walks off the
   // bottom and everything past the first few matches is unreachable.
   $effect(() => {
@@ -323,7 +323,7 @@
   });
 
   function openLookup() {
-    // Only match what you type AFTER opening — not the text already in the cell.
+    // Only match what you type AFTER opening - not the text already in the cell.
     // No normalization needed: oninput no longer rewrites "---", so the cell
     // text stays byte-identical to this base across the first keystroke. (This
     // used to mirror that conversion, otherwise the first key made the text
@@ -358,7 +358,7 @@
     // The editor is still focused and shows whatever query you typed. The
     // reactive paint deliberately never overwrites a focused, non-empty editor
     // (to avoid caret jumps mid-typing), so without an explicit repaint the
-    // inserted card would be invisible — and the next keystroke would write the
+    // inserted card would be invisible - and the next keystroke would write the
     // stale query back over it. Repaint from the just-updated cell directly.
     setTimeout(() => {
       if (!editor) return;
@@ -384,7 +384,7 @@
   // ⚠ This used to skip any focused, non-empty editor, and that silently ate
   // your partner's work. Park your cursor on a cell in a live session and their
   // first keystroke paints (the editor is still empty, the old escape hatch),
-  // after which the cell is non-empty and EVERY later delta is dropped — so a
+  // after which the cell is non-empty and EVERY later delta is dropped - so a
   // whole sentence arrived and you saw one character, with no error and nothing
   // in the data wrong. Reported from a real session. "Focused" is not "typing":
   // the holdoff is what tells them apart.
@@ -403,7 +403,7 @@
       } else {
         // Held off because you were mid-word. Nothing re-runs this effect on its
         // own, so without the retry a delta that lands between two keystrokes is
-        // never painted at all — the same silent loss in a narrower window.
+        // never painted at all - the same silent loss in a narrower window.
         repaintAfterTyping();
       }
     });
@@ -423,7 +423,7 @@
       repaintTimer = null;
       if (!editor) return;
       const focused = document.activeElement === editor;
-      // Still going — wait out the new keystroke rather than interrupting it.
+      // Still going - wait out the new keystroke rather than interrupting it.
       if (focused && Date.now() - lastTypedAt < TYPING_HOLDOFF_MS) {
         repaintAfterTyping();
         return;
@@ -444,7 +444,7 @@
 
   /** Render the cell text, bolding the banked author substring if present. The
    *  editor's `.textContent` stays the plain text, so input/copy/export are
-   *  unaffected — only the visual gets a <b class="author"> wrapper. */
+   *  unaffected - only the visual gets a <b class="author"> wrapper. */
   function paint() {
     if (!editor) return;
     const text = cell.text;
@@ -513,7 +513,7 @@
       : before.length === (editor.textContent ?? "").length;
   }
 
-  /** Keys that only move around or copy — safe on a cell you may not edit. */
+  /** Keys that only move around or copy - safe on a cell you may not edit. */
   function isNavOrCopy(e: KeyboardEvent): boolean {
     if (e.key.startsWith("Arrow") || e.key === "Tab" || e.key === "Escape") return true;
     if (e.key === "Home" || e.key === "End" || e.key === "PageUp" || e.key === "PageDown") return true;
@@ -533,8 +533,8 @@
     const at = caretOffset();
     const expanded = expand(raw, loadSnippets());
     // NOTE: "---" is deliberately left alone (it used to collapse to an em
-    // dash). It's the Verbatim separator debate tags are written in — 1NC---K,
-    // OFF---PTX — and docx/parse.ts keys off it, so converting it broke
+    // dash). It's the Verbatim separator debate tags are written in - 1NC---K,
+    // OFF---PTX - and docx/parse.ts keys off it, so converting it broke
     // round-tripping. Snippet expansion is now the only rewrite here.
     let text = expanded ?? raw;
     if (text !== raw) {
@@ -542,7 +542,7 @@
       // Keep the caret where the rewrite happened, shifted by the length the
       // rewrite added/removed. It used to jump to the end of the cell, which
       // teleported you out of the middle of a tag on every snippet expansion
-      // and every "---" — and in a wrapped cell that reads as "it moved me to
+      // and every "---" - and in a wrapped cell that reads as "it moved me to
       // the next line". Both rewrites land at the caret, so one delta is right.
       placeCaretAt(at - (raw.length - text.length));
     }
@@ -556,7 +556,7 @@
 
   function onkeydown(e: KeyboardEvent) {
     // ⚠ `contenteditable="false"` stops typing and pasting, but the element is
-    // still focusable and still gets key events — so Delete, macros and the
+    // still focusable and still gets key events - so Delete, macros and the
     // mark shortcuts would happily rewrite a cell the user cannot type into.
     // Navigation and copying stay allowed: the point is that their work cannot
     // be changed by accident, not that the cell is inert.
@@ -645,7 +645,7 @@
       // Wipe just this cell, leaving the row (and every other speech's cell on
       // it) alone. Only reached with a single cell focused: on a multi-cell
       // selection the editor is blurred and Grid.onSelectionKeys handles it,
-      // clearing the whole selection instead — which is what you'd want there.
+      // clearing the whole selection instead - which is what you'd want there.
       e.preventDefault();
       store.clearCell(row, col);
     } else if (matchesAny(e, km.extendArg)) {
@@ -686,7 +686,7 @@
       const [dr, dc] = delta[e.key];
       store.extendSelection(dr, dc);
     }
-    // Fixed grid motions — the Excel/paper muscle memory.
+    // Fixed grid motions - the Excel/paper muscle memory.
     else if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       store.moveCursor(1, 0);
@@ -763,7 +763,7 @@
    * A part reads like a card in an ordinary cell: author first, in bold, then
    * the tag.
    *
-   * ⚠ Only for CARD parts, which are read-only — the author is drawn from the
+   * ⚠ Only for CARD parts, which are read-only - the author is drawn from the
    * node the part carries and never written into `it.text`, so nothing has to
    * be migrated and nothing can be typed over. A response part is editable, so
    * it stays plain `textContent`; painting markup into a box someone types in
@@ -797,7 +797,7 @@
     return {
       update(next: CellItem) {
         if (document.activeElement === node) return;
-        // Compare against what the box SHOULD read, author included — comparing
+        // Compare against what the box SHOULD read, author included - comparing
         // to `next.text` alone would repaint on every update once an author is
         // prepended, since the two can never match.
         const author = next.kind === "card" ? nodeAuthor(next.card as DocNode | undefined) : "";
@@ -817,7 +817,7 @@
   }
 
   // ---- per-part answer tiles (answer each part of a block individually) -----
-  /** How many parts of this block have been answered — the badge, and the cue
+  /** How many parts of this block have been answered - the badge, and the cue
    *  that there is something to come back to when the block is collapsed.
    *  Counts pre-tiles `responses` too, via `answerOf`. */
   const respCount = $derived(
@@ -854,7 +854,7 @@
   /** Enter (no shift) inside a response adds a sibling right below it. */
   function onItemKeydown(index: number, e: KeyboardEvent) {
     const km = settings.keymap;
-    // The same row binds a cell has, meaning a part of this block — so the
+    // The same row binds a cell has, meaning a part of this block - so the
     // keystroke does the same thing whether you are in the part or in one of
     // the tiles answering it.
     if (matchesAny(e, km.insertRowAbove)) {
@@ -887,7 +887,7 @@
    * Excel-style click model. First click on a cell selects the whole cell
    * (Delete clears it, typing replaces it); a second click on the already-
    * selected cell drops the caret in to edit. Keyboard navigation is
-   * unaffected — it always lands in caret-edit mode.
+   * unaffected - it always lands in caret-edit mode.
    */
   function onCellMouseDown(e: MouseEvent) {
     if (e.button !== 0 || e.shiftKey) return; // Grid handles shift / drag-select
@@ -936,7 +936,7 @@
   {/if}
   {#if peerHere}
     <!-- The OUTLINE is the indicator; this is only a label for it.
-         Parked, it is a dot — the name isn't what you need to know, the
+         Parked, it is a dot - the name isn't what you need to know, the
          position is, and a word sitting in the corner of a cell you're reading
          is just clutter. It grows into "Partner" while they're actually
          typing, when knowing who is writing is worth the corner. Never
@@ -946,7 +946,7 @@
     </span>
   {/if}
   {#if replyLabel}
-    <span class="reply-tag" title="Answers “{replyLabel}” — this is the argument the speech doc will head with “AT: …”">↩ {shortPart(replyLabel)}</span>
+    <span class="reply-tag" title="Answers “{replyLabel}” - this is the argument the speech doc will head with “AT: …”">↩ {shortPart(replyLabel)}</span>
   {/if}
   {#if cell.chip}
     <span class="cell-chip chip-{cell.chip}">{cell.chip}</span>
@@ -987,18 +987,18 @@
         <span class="tw">{cell.expanded ? "▾" : "▸"}</span>
         {cell.items.length}
         {cell.items.length === 1 ? "item" : "items"}
-        {#if respCount > 0}<span class="resp-badge" title="{respCount} response{respCount === 1 ? '' : 's'}{cell.expanded ? '' : ' — expand to see them'}">· {respCount} resp</span>{/if}
+        {#if respCount > 0}<span class="resp-badge" title="{respCount} response{respCount === 1 ? '' : 's'}{cell.expanded ? '' : ' - expand to see them'}">· {respCount} resp</span>{/if}
       </button>
       <button
         class="items-clear"
-        title="Clear the whole cell — header, chip, and all cards/responses"
+        title="Clear the whole cell - header, chip, and all cards/responses"
         onmousedown={(e) => e.preventDefault()}
         onclick={() => store.clearCell(row, col)}
       >clear</button>
     </div>
     {#if !cell.expanded && respCount > 0}
       <!-- Collapsed: the whole chain of answers folds away with the block. This
-           is only a cue that there is something there — every speech's answer to
+           is only a cue that there is something there - every speech's answer to
            a part, in order, read-only. Expand to edit them. -->
       <div class="collapsed-responses" title="Answers to this block, by speech (expand to edit)">
         {#each cell.items as it (it.id)}
@@ -1061,7 +1061,7 @@
           </div>
           {#if it.kind === "card" && ownResponsesInline}
             <!-- Last column: there is no next column to put the tile in, so it
-                 sits under the part instead. Same tile, same storage — only the
+                 sits under the part instead. Same tile, same storage - only the
                  place it is drawn differs. -->
             {@const ownRef = refFor(it.id, col, true)}
             {@const own = answerOf(it, speechId, true)}
@@ -1102,7 +1102,7 @@
   {#if showTiles}
     <!-- One tile per part of the block, in that part's own grid track so it
          starts exactly level with it. EVERY speech after the block gets these,
-         not just the one that answers it first — an answer gets answered, and
+         not just the one that answers it first - an answer gets answered, and
          that gets answered, out to the last speech. A part you have not answered
          still takes its track: the empty tile IS the invitation to answer, and
          dropping it would slide every tile below out of line. -->
@@ -1110,7 +1110,7 @@
       {#each leftBlock?.items ?? [] as lit (lit.id)}
         <!-- ⚠ EVERY part gets a tile, not just the cards. A part you typed
              yourself is still an argument on the flow, and a blank row inserted
-             with Ctrl+Enter would otherwise come out unanswerable — a dead row
+             with Ctrl+Enter would otherwise come out unanswerable - a dead row
              nobody could reply to, which is the opposite of what inserting it
              was for. -->
         {@const ref = refFor(lit.id)}
@@ -1157,8 +1157,8 @@
       {#if lookupMatches.length === 0}
         <div class="al-empty">
           {store.round?.cards?.length
-            ? "No matches — keep typing"
-            : "No banked arguments yet — import a doc to bank them"}
+            ? "No matches - keep typing"
+            : "No banked arguments yet - import a doc to bank them"}
         </div>
       {/if}
       {#each lookupMatches as m, mi ((m.author ?? "") + m.tag)}
@@ -1196,7 +1196,7 @@
   }
   /* An open block and the column answering it BOTH map their children onto the
      row's tracks, which is what makes a tile start level with the part it
-     answers — no measuring, no height syncing between two sibling components.
+     answers - no measuring, no height syncing between two sibling components.
      `subgrid` adds no tracks of its own; it borrows the row's. */
   .cell.paired {
     display: grid;
@@ -1228,7 +1228,7 @@
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
     padding: 3px;
   }
-  /* Cell sits low in the grid — hang the list off the cell's top edge instead
+  /* Cell sits low in the grid - hang the list off the cell's top edge instead
      (see openLookup; the 240px threshold there is this block's max-height). */
   .author-lookup.up {
     top: auto;
@@ -1302,7 +1302,7 @@
     border-left: 3px solid var(--accent);
   }
   /* The tag needs its own strip: floating it over the cell put it straight on
-     top of the text on a single-line row (measured — an 11px tag at y=16 in a
+     top of the text on a single-line row (measured - an 11px tag at y=16 in a
      28px cell whose text ran to y=26). Reserve the height instead. */
   .cell:has(.reply-tag) {
     padding-bottom: 14px;
@@ -1427,7 +1427,7 @@
     font-size: 8px;
   }
   .items {
-    /* Parts occupy the row's tracks from 2 onward — one each, in order — so the
+    /* Parts occupy the row's tracks from 2 onward - one each, in order - so the
        answering column can place its tiles into the same ones. The last track
        holds the "+ response" button. */
     display: grid;
@@ -1442,7 +1442,7 @@
     position: relative;
     min-width: 0;
   }
-  /* Thin hover strip at the top of an item — click to insert a response there. */
+  /* Thin hover strip at the top of an item - click to insert a response there. */
   .item-gap {
     position: absolute;
     top: -2px;
@@ -1497,7 +1497,7 @@
   }
   /* A part of a block, and an answer to one, are ordinary flow cells. Same
      ground, same ink, same card/analytic bar down the left edge, same corner
-     chip — the ONLY thing marking them out is a faint halo saying they belong
+     chip - the ONLY thing marking them out is a faint halo saying they belong
      to the block above them, and the fact that the block can be folded shut.
      They used to be tinted boxes with their own colour language, which read as
      a different kind of object living inside a cell. */
@@ -1533,7 +1533,7 @@
   .answer-tile.analytic::after { background: var(--analytic); }
   .item.card::after,
   .answer-tile.card::after { background: var(--card); }
-  /* In the corner, exactly like a cell's own chip — not inline, where it pushed
+  /* In the corner, exactly like a cell's own chip - not inline, where it pushed
      the text in and made a part look like a list entry rather than a cell. */
   .item-chip {
     position: absolute;
@@ -1565,7 +1565,7 @@
   .item-text :global(b.author) {
     font-weight: 700;
   }
-  /* No placeholder on an empty part — an empty row inside a block reads like any
+  /* No placeholder on an empty part - an empty row inside a block reads like any
      other empty cell, which is the whole point of the halo. The rule is gone
      rather than blanked so nothing re-grows a hint here by setting `data-ph`. */
   .item-del {
@@ -1621,7 +1621,7 @@
     min-width: 0;
     /* Bottom margin ONLY. Consecutive tiles would otherwise sit edge to edge and
        three answers would read as one box; this gutters them. It has to be on
-       the bottom — a top margin would push the tile off the top edge of the part
+       the bottom - a top margin would push the tile off the top edge of the part
        it answers, which is the one thing the whole layout is for. */
     margin-bottom: 3px;
   }
@@ -1714,7 +1714,7 @@
       inset -3px 0 0 var(--mark-star);
   }
   /* Your partner's writing during a live session. Deliberately almost
-     invisible — a normal-looking cell you happen not to be able to overwrite.
+     invisible - a normal-looking cell you happen not to be able to overwrite.
      Anything stronger would put a permanent visual scar down half the flow,
      which is the column you spend the round reading. */
   .editor.locked {
@@ -1739,8 +1739,8 @@
   .editor.italic {
     font-style: italic;
   }
-  /* Ink color follows the speech side — like flowing with two pens */
-  /* Parts and answer tiles take the column's ink too — a 2AC tile is 2AC text,
+  /* Ink color follows the speech side - like flowing with two pens */
+  /* Parts and answer tiles take the column's ink too - a 2AC tile is 2AC text,
      the same as anything else typed in that column. */
   .cell.aff .editor,
   .cell.aff .item-text,
@@ -1752,8 +1752,8 @@
   .cell.neg .at-text {
     color: color-mix(in srgb, var(--neg) 80%, var(--text));
   }
-  /* Analytic / card evidence shows as a colored bar on the LEFT edge — like the
-     starred / dropped markers — instead of recoloring the tag text. Drawn as a
+  /* Analytic / card evidence shows as a colored bar on the LEFT edge - like the
+     starred / dropped markers - instead of recoloring the tag text. Drawn as a
      pseudo-element so it layers cleanly over the dropped/starred box-shadows. */
   .cell.analytic::after,
   .cell.card::after {
@@ -1774,7 +1774,7 @@
   }
   /* If an evidence cell is also starred (but not dropped), push the star bar to
      the right edge so the evidence bar (left) and star (right) both stay visible
-     — the same left/right split dropped+starred already uses. */
+     - the same left/right split dropped+starred already uses. */
   .cell.analytic.starred:not(.dropped),
   .cell.card.starred:not(.dropped) {
     box-shadow: inset -3px 0 0 var(--mark-star);

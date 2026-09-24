@@ -1,4 +1,4 @@
-// Frontend file index — caches the Rust scan results and exposes search.
+// Frontend file index - caches the Rust scan results and exposes search.
 // The Rust scan_library_roots command does the actual filesystem walk;
 // this module owns the in-memory cache and the fuzzy scoring logic.
 
@@ -16,7 +16,7 @@ export interface LibFile {
    * True when the file is a cloud placeholder (Dropbox Smart Sync / OneDrive
    * Files On-Demand) whose contents are not on this disk.
    *
-   * ⚠ Name search is unaffected — the name is in the placeholder. It matters
+   * ⚠ Name search is unaffected - the name is in the placeholder. It matters
    * only to the CONTENT index, which has to read the bytes and would download
    * the file to do it. Absent on an index cached by a build older than this
    * flag, which reads as `undefined` and is treated as "not a placeholder", so
@@ -31,7 +31,7 @@ const CACHE_BLOB = "file-index";
  * Drop repeated paths.
  *
  * ⚠ The result lists are keyed on `file.path`, and a duplicate key is a FATAL
- * Svelte render error — the whole Doc Search panel refuses to open rather than
+ * Svelte render error - the whole Doc Search panel refuses to open rather than
  * showing one row twice. The scanner no longer emits repeats, but an index
  * CACHED BY AN EARLIER BUILD still contains them and is loaded straight off
  * disk at startup, so filtering only in Rust would leave anyone already
@@ -61,7 +61,7 @@ class FileIndexStore {
       // A real card library's index is far too big for the localStorage cache,
       // so it lives only on disk. Load that (fast) copy while the filesystem
       // walk runs, instead of showing an empty library until the walk finishes.
-      // Never applied over a completed scan — that data is fresher.
+      // Never applied over a completed scan - that data is fresher.
       if (!cached?.files) {
         void loadBlob<{ files: LibFile[]; scannedAt: number }>(CACHE_BLOB).then((disk) => {
           if (this.scanDone || !disk?.files) return;
@@ -104,7 +104,7 @@ class FileIndexStore {
       this.scanDone = true;
       this.files = files;
       this.lastScanned = Date.now();
-      // Persist the DEDUPED list — writing the raw one back would just reseed
+      // Persist the DEDUPED list - writing the raw one back would just reseed
       // the bad cache for the next launch.
       saveBlob(CACHE_BLOB, { files, scannedAt: this.lastScanned });
     } catch (err) {

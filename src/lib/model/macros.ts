@@ -1,4 +1,4 @@
-// User macros are plain JavaScript with a `flow` API object — the same model
+// User macros are plain JavaScript with a `flow` API object - the same model
 // as VBA in Excel or Apps Script in Sheets. Code runs at the cursor inside a
 // single undo step.
 //
@@ -177,7 +177,7 @@ export function migrateLegacyMacro(raw: unknown): Macro | null {
   const m = raw as Partial<Macro> & { steps?: LegacyStep[] };
   if (typeof m.code === "string") return m as Macro;
   if (!Array.isArray(m.steps)) return null;
-  // The old built-in 3-row macros are now regular keybinds — drop them.
+  // The old built-in 3-row macros are now regular keybinds - drop them.
   if (/^Insert 3 rows (below|above)$/.test(m.name ?? "")) return null;
   const code = m.steps
     .map((s) => LEGACY_TO_JS[s.kind]?.(s))

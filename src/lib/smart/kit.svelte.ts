@@ -1,4 +1,4 @@
-// Smart blocks — the round kit and the suggestions it produces.
+// Smart blocks - the round kit and the suggestions it produces.
 //
 // The kit is the handful of files you load before a round: YOUR midterms file,
 // not the four other copies in Dropbox. Suggestions only ever come from it.
@@ -38,7 +38,7 @@ export interface KitFile {
 }
 
 interface Parsed {
-  /** The whole heading tree — what the File tab shows, Ctrl+K style. */
+  /** The whole heading tree - what the File tab shows, Ctrl+K style. */
   roots: DocNode[];
   blocks: KitBlock[];
   firstHeading: string;
@@ -47,7 +47,7 @@ interface Parsed {
 
 /** One entry on the Overviews tab: a section and the block that overviews it. */
 export interface Overview {
-  /** The section the Main sits in — "Uniqueness", "Link", "Impact". */
+  /** The section the Main sits in - "Uniqueness", "Link", "Impact". */
   section: string;
   node: DocNode;
   cardCount: number;
@@ -62,7 +62,7 @@ interface SavedKit {
 }
 
 export interface Suggestion {
-  /** sheet : row id : target speech id — stable across edits and reorders. */
+  /** sheet : row id : target speech id - stable across edits and reorders. */
   key: string;
   sheetId: string;
   sheetTitle: string;
@@ -90,7 +90,7 @@ const filled = (c: Cell | undefined) => !!c && (!!c.text.trim() || !!c.items?.le
 
 /**
  * The column a reply to `from` goes in: the next speech on OUR side. Landing on
- * a split speech means our own lane — `laneHere`, which is a fact about this
+ * a split speech means our own lane - `laneHere`, which is a fact about this
  * copy of the flow, never the session's `myLane` (see POSITION vs IDENTITY).
  */
 function targetCol(speeches: Speech[], from: number, mySide: Side, laneHere: number): number {
@@ -111,7 +111,7 @@ class SmartKit {
   /** This round's own files. */
   files = $state<KitFile[]>([]);
   /**
-   * The library: files in EVERY round's kit — the handful of common files you
+   * The library: files in EVERY round's kit - the handful of common files you
    * always want (T, theory, framework, your case neg). Saved once, not per
    * round; pinning or unpinning moves a file between here and `files`.
    */
@@ -119,12 +119,12 @@ class SmartKit {
   private libraryLoaded = false;
   links = $state<Record<string, string>>({});
   side = $state<Side | undefined>(undefined);
-  /** Parsed trees are large and never edited — raw, so they aren't proxied. */
+  /** Parsed trees are large and never edited - raw, so they aren't proxied. */
   parsed = $state.raw<Record<string, Parsed>>({});
   loading = $state(0);
-  /** Suggestions waved away this session. Not saved — a restart offers them again. */
+  /** Suggestions waved away this session. Not saved - a restart offers them again. */
   dismissed = $state<string[]>([]);
-  /** Match results kept between recomputes — see `suggestions`. */
+  /** Match results kept between recomputes - see `suggestions`. */
   private matchCache = new Map<string, BlockMatch[]>();
   private blocksCache = new Map<string, KitBlock[]>();
   private cacheSig = "";
@@ -161,7 +161,7 @@ class SmartKit {
     this.persist();
   }
 
-  /** Stop keeping a file in every round — it stays in THIS round's kit. */
+  /** Stop keeping a file in every round - it stays in THIS round's kit. */
   unpin(key: string): void {
     const f = this.library.find((x) => x.key === key);
     if (!f) return;
@@ -223,19 +223,19 @@ class SmartKit {
 
   /**
    * Read a kit file. ⚠ Only ever called for a file the user picked for this
-   * kit — on a Dropbox placeholder that read is a download, which is fine for
+   * kit - on a Dropbox placeholder that read is a download, which is fine for
    * a file you chose and would not be for a library scan.
    */
   private async parseFromDisk(f: KitFile): Promise<void> {
     if (f.key.startsWith("mem:")) {
-      this.fail(f.key, "Not saved on disk — add it again");
+      this.fail(f.key, "Not saved on disk - add it again");
       return;
     }
     this.loading++;
     try {
       if (f.key.startsWith("copy:")) {
         const b64 = await loadBlob<string>(copyBlobName(f.key));
-        if (!b64) throw new Error("The saved copy is gone — drop the file again");
+        if (!b64) throw new Error("The saved copy is gone - drop the file again");
         this.ingest(f.key, fromBase64(b64));
         return;
       }
@@ -273,7 +273,7 @@ class SmartKit {
    * Files dropped onto the tray.
    *
    * ⚠ A web drop carries the file's NAME and bytes but never its path (the
-   * window's native drop, which would, is off — it breaks dragging blocks onto
+   * window's native drop, which would, is off - it breaks dragging blocks onto
    * the grid). So the path is recovered from the Doc Search library index by
    * name + exact size, which keeps the kit pointing at the REAL file and picks
    * up later edits to it. A file the index doesn't hold, or holds ambiguously,
@@ -369,7 +369,7 @@ class SmartKit {
   }
 
   /**
-   * Put a block into the cell under the cursor — exactly what Ctrl+K does with
+   * Put a block into the cell under the cursor - exactly what Ctrl+K does with
    * a click in a file (replaces the cell, then steps down a row so the next
    * one stacks under it). One undo step.
    */
@@ -437,7 +437,7 @@ class SmartKit {
 
   /**
    * A case neg answers the aff's case, whatever the advantage sheets happen to
-   * be called ("Adv 1", "Warming") — so it is recognised by its NAME or top
+   * be called ("Adv 1", "Warming") - so it is recognised by its NAME or top
    * heading ("Case Neg", "caseneg", "Case Negs"), not by matching sheet titles.
    *
    * ⚠ Not by folder. `Casenegs\Native Climate\` also holds a China Soft Power
@@ -469,7 +469,7 @@ class SmartKit {
     return this.all.filter((f) => !f.general && this.isCaseNeg(f.key)).map((f) => f.key);
   }
 
-  /** 2AC files on an aff sheet, when WE are aff — their CASE section answers it,
+  /** 2AC files on an aff sheet, when WE are aff - their CASE section answers it,
    *  whatever the advantage sheets are called. */
   twoACsFor(sheet: Sheet): string[] {
     if (sheet.kind !== "case" || this.links[sheet.id] === "" || this.currentSide() !== "aff") return [];
@@ -484,7 +484,7 @@ class SmartKit {
   /**
    * The automatic guess for a sheet, ignoring any explicit choice: a file NAMED
    * for the position first, else a multi-position file with a SECTION for it
-   * (an aff master file's `CP---Public Option`). Case negs never auto-link —
+   * (an aff master file's `CP---Public Option`). Case negs never auto-link -
    * they have their own rule.
    */
   autoLink(sheet: Sheet): string | null {
@@ -554,8 +554,8 @@ class SmartKit {
   /**
    * Every open suggestion in the round, across all sheets.
    *
-   * An opponent cell gets suggestions when the cell a reply would go in — our
-   * next speech on that row — is still empty. Filling that cell (by accepting,
+   * An opponent cell gets suggestions when the cell a reply would go in - our
+   * next speech on that row - is still empty. Filling that cell (by accepting,
    * by typing, or by a PARTNER accepting on their machine and it syncing over)
    * is what retires it, so two partners cannot both insert the same answer
    * unless they click within the same sync tick.
@@ -566,7 +566,7 @@ class SmartKit {
     const speeches = round.template.speeches;
     const out: Suggestion[] = [];
     // Matches are kept between recomputes, so an edit re-matches only the
-    // cells whose text changed — measured ~40ms per pass on a 3,600-cell flow
+    // cells whose text changed - measured ~40ms per pass on a 3,600-cell flow
     // against 748 blocks without it, and this runs after every edit. Anything
     // that changes WHICH blocks a sheet sees drops the lot.
     const sig = JSON.stringify([this.all.map((f) => f.key + (f.general ? "*" : "")), this.links, side]);
@@ -581,7 +581,7 @@ class SmartKit {
     const byKey = new Map<string, Suggestion>();
     for (const sheet of round.sheets) {
       // Which file and section a sheet uses only changes with the kit (the
-      // sig above) or the sheet's own title/kind — not with every edit.
+      // sig above) or the sheet's own title/kind - not with every edit.
       const bKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}`;
       let blocks = this.blocksCache.get(bKey);
       if (!blocks) {
@@ -615,7 +615,7 @@ class SmartKit {
           if (!matches.length) continue;
           // ⚠ ONE suggestion per reply cell. Both partners' lanes of the same
           // opponent speech answer into the same cell, so two arguments on one
-          // row share a key — and a duplicate key in the tray's keyed list is
+          // row share a key - and a duplicate key in the tray's keyed list is
           // a FATAL Svelte error. Merge instead: both arguments shown, the best
           // blocks for either offered. The first lane stays the reply target.
           const same = byKey.get(key);
@@ -647,8 +647,8 @@ class SmartKit {
   }
 
   /**
-   * Put the whole block into the reply cell — the same cell shape Doc Search
-   * builds (header, chip, full node, one item per card, collapsed) — and link
+   * Put the whole block into the reply cell - the same cell shape Doc Search
+   * builds (header, chip, full node, one item per card, collapsed) - and link
    * it as the reply to the argument it answers, so the doc's "AT:" is right.
    *
    * Refuses a cell that filled up since the suggestion was drawn: a partner
@@ -682,7 +682,7 @@ class SmartKit {
 
   /**
    * What was taken and what was waved away, kept on this machine only. This is
-   * the evidence for what the plain matcher gets wrong — the input to deciding
+   * the evidence for what the plain matcher gets wrong - the input to deciding
    * whether AI is worth it, and where.
    */
   private async log(e: LogEntry): Promise<void> {
@@ -693,7 +693,7 @@ class SmartKit {
 }
 
 /**
- * Fill a flow cell with a block — the same shape Doc Search builds: header,
+ * Fill a flow cell with a block - the same shape Doc Search builds: header,
  * chip, the full node, one item per card, collapsed.
  *
  * ⚠ Works on a COPY: the kit's tree is shared by every suggestion and tab and

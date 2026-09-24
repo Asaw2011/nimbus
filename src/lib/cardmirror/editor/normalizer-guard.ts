@@ -3,7 +3,7 @@
  * (absorb, cite-classifier, named-style-normalizer).
  *
  * ProseMirror re-runs `appendTransaction` until no plugin appends, with
- * no built-in bound — two normalizers that each "fix" the other's output
+ * no built-in bound - two normalizers that each "fix" the other's output
  * wedge the renderer in an infinite dispatch loop. Every normalizer
  * routes its appended transaction through `guardNormalizerTr`, which
  * stamps a round counter derived from the incoming transactions and
@@ -18,7 +18,7 @@
 import type { Transaction } from 'prosemirror-state';
 
 /** Set on every guarded normalizer transaction. Lets other plugins
- *  recognize normalizer output (read mode admits it — a normalizer only
+ *  recognize normalizer output (read mode admits it - a normalizer only
  *  fires in response to a transaction that was itself admitted). */
 export const NORMALIZER_META = 'normalizerEdit';
 
@@ -48,7 +48,7 @@ export function guardNormalizerTr(
   const round = normalizerRound(incoming);
   if (round >= NORMALIZER_ROUND_CAP) {
     console.warn(
-      '[cardmirror] normalizer round cap reached — dropping a normalization pass to avoid a dispatch loop',
+      '[cardmirror] normalizer round cap reached - dropping a normalization pass to avoid a dispatch loop',
     );
     return null;
   }

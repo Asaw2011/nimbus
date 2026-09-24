@@ -120,7 +120,7 @@ async function writeTo(round: Round, rawPath: string): Promise<boolean> {
  * Write the open round back to its OWN file, if it has one and it has drifted.
  *
  * The app-data copy gets an autosave heartbeat; the file used to get nothing but
- * an explicit ⌘S. That gap is why the two copies could sit weeks apart — and a
+ * an explicit ⌘S. That gap is why the two copies could sit weeks apart - and a
  * disagreement between them is what let a stale file be opened over newer work.
  * Keeping the file current means there is nothing left to disagree about.
  *
@@ -132,7 +132,7 @@ export async function autosaveToFile(round: Round | null): Promise<boolean> {
   if (!inTauri() || !round?.filePath) return false;
   // ⚠ Never write a round you don't own to a path on this machine. A mirrored
   // flow already has its `filePath` stripped when it arrives, so this is the
-  // second lock on the same door — the failure it guards against (one client
+  // second lock on the same door - the failure it guards against (one client
   // autosaving a partner's flow over its own file) is the 2026-08-24 shape,
   // and one lock is not enough for that.
   if (store.isForeign(round.id)) return false;
@@ -189,7 +189,7 @@ export async function renameFileToMatchTitle(round: Round | null): Promise<strin
   try {
     // Never rename ON TOP OF a different flow. Two flows in one folder titled
     // the same would otherwise have this write over one and then delete the
-    // other — silently, on an autosave tick, with no error anywhere.
+    // other - silently, on an autosave tick, with no error anywhere.
     //
     // Skip the rename rather than uniquifying to "name 2": this runs on EVERY
     // autosave, so a suffix would be recomputed each tick against a target
@@ -337,13 +337,13 @@ export async function openPath(path: string): Promise<Round | null> {
     //
     // This line used to be an unconditional `saveRound(round)`. The app-data
     // copy is the one that gets the autosave heartbeat, while the FILE is only
-    // rewritten by an explicit save — so app data is routinely the newer of the
+    // rewritten by an explicit save - so app data is routinely the newer of the
     // two. Opening the file then mirrored its older content over the newer
     // round under the same id, and the newer version was simply gone. That is
     // how a fully flowed round got reduced to the 1AC it was first saved with.
     //
     // Both sides carry the round's own logical `updatedAt`, so they are
-    // directly comparable — unlike a filesystem mtime, which Dropbox rewrites
+    // directly comparable - unlike a filesystem mtime, which Dropbox rewrites
     // on sync and which therefore cannot be trusted to say which is newer.
     const existing = await loadRound(round.id);
     if (existing && (existing.updatedAt ?? 0) > (round.updatedAt ?? 0)) {

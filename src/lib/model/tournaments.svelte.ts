@@ -100,14 +100,14 @@ class TournamentStore {
     return this.add(name, path);
   }
 
-  /** Register a folder as a tournament without a picker dialog — used for the
+  /** Register a folder as a tournament without a picker dialog - used for the
    *  auto-created default flow library. Dedupes by path. */
   addLibrary(name: string, path: string): Tournament {
     return this.add(name, path);
   }
 
   /** Immediate sub-folders of a directory. Used to discover tournament folders
-   *  that live inside the home library's `tournaments/` folder — empty ones
+   *  that live inside the home library's `tournaments/` folder - empty ones
    *  included, which a flow listing can't see. */
   async subdirs(path: string): Promise<{ name: string; path: string }[]> {
     if (!inTauri()) return [];
@@ -119,7 +119,7 @@ class TournamentStore {
   }
 
   /** Create a tournament folder inside the home library's `tournaments/` folder
-   *  (no picker — tournaments always live there now) and register it. */
+   *  (no picker - tournaments always live there now) and register it. */
   async createInHome(tournamentsDir: string, name: string): Promise<Tournament | null> {
     if (!inTauri()) return null;
     const clean = safeFileName(name);
@@ -146,7 +146,7 @@ class TournamentStore {
    * Move a tournament so it sits where `beforeId` currently is.
    *
    * The list's own order is what the dashboard renders, so reordering it IS the
-   * feature — no separate rank to keep in step with the array, and nothing to
+   * feature - no separate rank to keep in step with the array, and nothing to
    * migrate for anyone whose list predates this.
    *
    * `beforeId` of null drops it at the end. A no-op move persists nothing.
@@ -227,7 +227,7 @@ class TournamentStore {
    * can actually clobber, so a same-named flow filed away in a per-round
    * subfolder must not push the name along. The compare is case-INSENSITIVE
    * because Windows and macOS treat "New Flow.nimbus" and "new flow.nimbus" as
-   * the same file — the same reason renameFlow compares paths that way.
+   * the same file - the same reason renameFlow compares paths that way.
    */
   async uniqueFlowName(t: Tournament, base: string, ext?: string): Promise<string> {
     const wanted = (base ?? "").trim() || "New Flow";
@@ -243,7 +243,7 @@ class TournamentStore {
       );
     } catch {
       // Can't read the folder, so we can't prove the name is free. Fall back to
-      // the plain name — that is exactly the old behaviour, and a folder we
+      // the plain name - that is exactly the old behaviour, and a folder we
       // can't list is one the write below will almost certainly fail on anyway.
       return wanted;
     }
@@ -273,7 +273,7 @@ class TournamentStore {
     // renameFileToMatchTitle(), which derives the path from round.name ALONE
     // and then deletes the old file. A file uniquified to "New Flow 2.nimbus"
     // while its round was still titled "New Flow" would be renamed back on top
-    // of the original within 30s — destroying it after the fact.
+    // of the original within 30s - destroying it after the fact.
     const name = await this.uniqueFlowName(t, round.name, ext);
     const path = join(t.path, `${safeFileName(name)}.${ext}`);
     const toWrite = { ...round, name, filePath: path };
@@ -295,7 +295,7 @@ class TournamentStore {
 
   /** Move a flow file into another tournament folder. Returns the new path (or
    *  null if it was already there) so the caller can re-point anything holding
-   *  the old one — the dashboard's app-data mirror, in particular. */
+   *  the old one - the dashboard's app-data mirror, in particular. */
   async moveFlow(file: FlowFile, target: Tournament): Promise<string | null> {
     const to = join(target.path, `${file.name}.${file.ext}`);
     if (to === file.path) return null;
@@ -350,13 +350,13 @@ class TournamentStore {
         contents: JSON.stringify(round, null, 2),
       });
     }
-    // Only remove the original AFTER the new file is safely written (above —
+    // Only remove the original AFTER the new file is safely written (above -
     // a failed write rejects and we never get here).
     //
     // The comparison is case-INSENSITIVE on purpose. Windows and macOS treat
     // "untitled.nimbus" and "Untitled.nimbus" as the same file, so a rename
     // that only changes capitalization writes and then deletes the very same
-    // file — destroying it. Skipping the delete in that case can at worst leave
+    // file - destroying it. Skipping the delete in that case can at worst leave
     // a stray duplicate on a case-sensitive volume; the alternative loses the
     // flow outright.
     if (newPath.toLowerCase() !== file.path.toLowerCase()) {

@@ -5,7 +5,7 @@
  * `paragraph` (or `cite_paragraph`) at doc level whose previous
  * sibling is a `card` or `analytic_unit` is auto-absorbed into that
  * container. To bound a region of loose paragraphs after a card,
- * the user inserts a heading (Pocket / Hat / Block) — anything
+ * the user inserts a heading (Pocket / Hat / Block) - anything
  * non-absorbable breaks the absorption zone.
  *
  * Absorption type mapping:
@@ -19,7 +19,7 @@
  *   - card_body → card_body (rare at doc level, but valid in both
  *     containers and harmless to absorb in place).
  *   - table → table (valid in both containers; shows up after F7 on text
- *     followed by an evidence table — without absorbing it the card wrapper
+ *     followed by an evidence table - without absorbing it the card wrapper
  *     would stop at the table instead of covering the whole card).
  *
  * Cases preserved (no absorption):
@@ -65,7 +65,7 @@ export const absorbPlugin: Plugin = new Plugin({
     // an orphan being absorbed. Step 2's `delete` claims the
     // cursor's range; PM's default assoc=1 mapping pushes it to
     // the END of the deletion (which auto-snaps to the last
-    // textblock — the bottom of the now-absorbed card). Catch that
+    // textblock - the bottom of the now-absorbed card). Catch that
     // here and re-anchor manually: each absorbed orphan moves to
     // just before the card's closing boundary, so a position `P`
     // in the original orphan range corresponds to `P - 1` in the
@@ -96,7 +96,7 @@ export const absorbPlugin: Plugin = new Plugin({
     }
     } catch (err) {
       // A schema-invalid container mid-dispatch (Issue #34 fitter
-      // shells) makes inserts throw contentMatchAt — skipping the
+      // shells) makes inserts throw contentMatchAt - skipping the
       // round beats aborting the dispatch; the container-integrity
       // normalizer heals first and absorb re-runs on the next round.
       console.warn('[absorb] skipped round on invalid doc:', err);
@@ -119,7 +119,7 @@ interface AbsorbRegion {
   /** Doc position just past the last absorbable doc-level
    *  orphan in this region. */
   orphansEnd: number;
-  /** The absorbed bodies as a Fragment (already wrapped — bare
+  /** The absorbed bodies as a Fragment (already wrapped - bare
    *  paragraph orphans get converted into card_bodies; other
    *  absorbable types pass through). */
   bodiesContent: Fragment;
@@ -166,7 +166,7 @@ function findAbsorbRegions(doc: PMNode): AbsorbRegion[] {
       firstOrphanPos = childEnd;
       regionEndPos = childEnd;
     } else if (absorbing === null) {
-      // Outside any absorption zone — nothing to do.
+      // Outside any absorption zone - nothing to do.
     } else if (t === 'paragraph') {
       bodiesPieces.push(schema.nodes['card_body']!.create(null, child.content));
       regionEndPos = childEnd;

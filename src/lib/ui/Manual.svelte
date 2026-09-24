@@ -1,6 +1,6 @@
 <script lang="ts">
   // The in-app manual: a scrollable reference covering every feature. Opened
-  // from the top bar (📖) or the welcome tutorial. Pure content — no app state.
+  // from the top bar (📖) or the welcome tutorial. Pure content - no app state.
   import { settings } from "../model/settings.svelte";
   import { combosLabel } from "../model/keymap";
 
@@ -54,7 +54,7 @@
       <img class="logo" src="/logo.png" alt="" />
       <div>
         <h1>Nimbus Manual</h1>
-        <p class="sub">Everything the app can do — flow, doc, and settings.</p>
+        <p class="sub">Everything the app can do - flow, doc, and settings.</p>
       </div>
       <button class="close" onclick={onclose} aria-label="Close">×</button>
     </div>
@@ -71,8 +71,8 @@
           <h2>Getting started</h2>
           <p>
             Nimbus is a flowing tool for competitive debate (Policy / LD / PF). It
-            combines paper's strengths — seeing many flows at once and interacting
-            with arguments spatially — with a laptop's: typing speed, copy/paste,
+            combines paper's strengths - seeing many flows at once and interacting
+            with arguments spatially - with a laptop's: typing speed, copy/paste,
             search, and full <b>.docx</b> speech-doc integration.
           </p>
           <p>
@@ -82,22 +82,22 @@
           <ul>
             <li>A <b>round</b> is one debate. Open or create one from the dashboard.</li>
             <li>Inside a round, columns are <b>speeches</b> and rows are <b>arguments</b>.</li>
-            <li>Each position (case, off-case, DA…) is a <b>sheet</b> — a tab at the bottom.</li>
+            <li>Each position (case, off-case, DA…) is a <b>sheet</b> - a tab at the bottom.</li>
           </ul>
         </section>
 
         <section id="sec-grid">
           <h2>The flow grid</h2>
           <p>
-            The grid already exists like paper or Excel — every cell is directly
+            The grid already exists like paper or Excel - every cell is directly
             editable, no "create a cell" step. Just click and type.
           </p>
           <ul>
-            <li><b>Enter</b> / <b>↓</b> — next row. <b>Tab</b> — next speech. Arrows move the cursor.</li>
+            <li><b>Enter</b> / <b>↓</b> - next row. <b>Tab</b> - next speech. Arrows move the cursor.</li>
             <li><kbd>{mod}</kbd>+arrows / the ribbon insert & delete rows.</li>
-            <li><b>Row 0 of a sheet</b> is the LABEL cell — typing it renames the sheet everywhere.</li>
-            <li>Paste from anywhere — it's standardized to <b>plain text</b> and takes the column's color. Multi-cell (tabs/newlines) spreads across cells like Excel.</li>
-            <li><b>Undo / redo</b>: <kbd>{mod}Z</kbd> / <kbd>{mod}⇧Z</kbd> — 300 steps deep.</li>
+            <li><b>Row 0 of a sheet</b> is the LABEL cell - typing it renames the sheet everywhere.</li>
+            <li>Paste from anywhere - it's standardized to <b>plain text</b> and takes the column's color. Multi-cell (tabs/newlines) spreads across cells like Excel.</li>
+            <li><b>Undo / redo</b>: <kbd>{mod}Z</kbd> / <kbd>{mod}⇧Z</kbd> - 300 steps deep.</li>
           </ul>
         </section>
 
@@ -109,7 +109,7 @@
             <li><b>Switch</b>: <kbd>{combosLabel(km.prevSheet, mac)}</kbd> / <kbd>{combosLabel(km.nextSheet, mac)}</kbd>, or <kbd>{mod}1</kbd>–<kbd>{mod}9</kbd> to jump.</li>
             <li><b>Reorder</b>: drag a tab, or <kbd>{combosLabel(km.moveSheetLeft, mac)}</kbd> / <kbd>{combosLabel(km.moveSheetRight, mac)}</kbd>.</li>
             <li><b>Rename / delete</b>: right-click a tab, or edit its LABEL cell.</li>
-            <li>Off-case pages start at the 1NC column; overviews at the block — no wasted columns, like a Verbatim template.</li>
+            <li>Off-case pages start at the 1NC column; overviews at the block - no wasted columns, like a Verbatim template.</li>
           </ul>
         </section>
 
@@ -117,15 +117,15 @@
           <h2>Marks & colors</h2>
           <p>
             Ink follows the <b>speech side</b>, not the page: aff columns are blue,
-            neg red — on every sheet, like flowing with two pens. From the ribbon
+            neg red - on every sheet, like flowing with two pens. From the ribbon
             (Debate group) or keys you can mark cells:
           </p>
           <ul>
-            <li><b>Dropped</b> (<kbd>{combosLabel(km.markDropped, mac)}</kbd>) — a conceded argument.</li>
-            <li><b>Star</b> (<kbd>{combosLabel(km.markStarred, mac)}</kbd>) — must-answer.</li>
-            <li><b>Analytic</b> (<kbd>{combosLabel(km.markAnalytic, mac)}</kbd>) — green ink, your own analysis.</li>
-            <li><b>Card</b> (<kbd>{combosLabel(km.markCard, mac)}</kbd>) — evidence, purple ink.</li>
-            <li><b>Extend</b> (<kbd>{combosLabel(km.extendArg, mac)}</kbd>) — draws an arrow carrying the argument to the next same-side speech.</li>
+            <li><b>Dropped</b> (<kbd>{combosLabel(km.markDropped, mac)}</kbd>) - a conceded argument.</li>
+            <li><b>Star</b> (<kbd>{combosLabel(km.markStarred, mac)}</kbd>) - must-answer.</li>
+            <li><b>Analytic</b> (<kbd>{combosLabel(km.markAnalytic, mac)}</kbd>) - green ink, your own analysis.</li>
+            <li><b>Card</b> (<kbd>{combosLabel(km.markCard, mac)}</kbd>) - evidence, purple ink.</li>
+            <li><b>Extend</b> (<kbd>{combosLabel(km.extendArg, mac)}</kbd>) - draws an arrow carrying the argument to the next same-side speech.</li>
             <li>Set a custom color with the ribbon <b>A</b> swatch, or <b>Auto color</b> to return to side ink. All defaults are configurable in Settings.</li>
           </ul>
           <p>
@@ -137,7 +137,7 @@
         <section id="sec-spread">
           <h2>Spread view</h2>
           <p>
-            See several sheets at once — the paper-on-your-desk view. Toggle with
+            See several sheets at once - the paper-on-your-desk view. Toggle with
             <kbd>{combosLabel(km.toggleSpread, mac)}</kbd> or the <b>Stack / Split</b> buttons.
           </p>
           <ul>
@@ -150,7 +150,7 @@
         <section id="sec-cells">
           <h2>Multi-item cells</h2>
           <p>
-            A single flow cell can hold several sub-entries — a block's cards plus
+            A single flow cell can hold several sub-entries - a block's cards plus
             your own responses. Insert a block from Doc Search and it expands into
             an <b>expandable cell</b>: a header, then each card.
           </p>
@@ -167,15 +167,15 @@
             Expand a block and <b>every speech after it</b> gets its own tile for
             each part, lined up exactly with the part it answers. So you answer
             the 1NC's third card in the 2AC, they answer that in the block, you
-            answer that in the 1AR — the argument keeps its own row all the way
+            answer that in the 1AR - the argument keeps its own row all the way
             to the last speech.
           </p>
           <ul>
-            <li>Each tile is a real flow cell: mark it a <b>card</b> or an <b>analytic</b>, colour it, bold it, star it — the ribbon buttons and the keyboard shortcuts both work while your cursor is in one.</li>
+            <li>Each tile is a real flow cell: mark it a <b>card</b> or an <b>analytic</b>, colour it, bold it, star it - the ribbon buttons and the keyboard shortcuts both work while your cursor is in one.</li>
             <li><b>Enter</b> drops to the next part's tile, so you can flow straight down a block.</li>
-            <li><kbd>{combosLabel(km.insertRowBelow, mac)}</kbd> / <kbd>{combosLabel(km.insertRowAbove, mac)}</kbd> insert a blank row <b>into the block</b>, below or above the argument you're on, and put the cursor in it — the same keys that make a row anywhere else on the flow. Rows you add are answerable down the flow like any other.</li>
+            <li><kbd>{combosLabel(km.insertRowBelow, mac)}</kbd> / <kbd>{combosLabel(km.insertRowAbove, mac)}</kbd> insert a blank row <b>into the block</b>, below or above the argument you're on, and put the cursor in it - the same keys that make a row anywhere else on the flow. Rows you add are answerable down the flow like any other.</li>
             <li>Each partner lane keeps its <b>own</b> answers, so you and your partner aren't typing in the same box.</li>
-            <li><b>Collapse the block and the whole chain folds away</b> with it — the header keeps a <b>· N resp</b> badge and a read-only summary. Expand it again and everything is where you left it.</li>
+            <li><b>Collapse the block and the whole chain folds away</b> with it - the header keeps a <b>· N resp</b> badge and a read-only summary. Expand it again and everything is where you left it.</li>
           </ul>
         </section>
 
@@ -188,12 +188,12 @@
             in; the first approves, with the joiner's email shown.
           </p>
           <ul>
-            <li><b>One flow, together</b> — you both work on the same flow.</li>
-            <li><b>A flow each</b> — you keep your own flow and open your partner's beside it. Both are live and <b>both are editable</b>, so you can drop a block onto their page while they're speaking. The <b>Mine / Theirs</b> switcher in the top bar says whose page you're typing on, and their flow renders in a different colour so you can't mistake it.</li>
+            <li><b>One flow, together</b> - you both work on the same flow.</li>
+            <li><b>A flow each</b> - you keep your own flow and open your partner's beside it. Both are live and <b>both are editable</b>, so you can drop a block onto their page while they're speaking. The <b>Mine / Theirs</b> switcher in the top bar says whose page you're typing on, and their flow renders in a different colour so you can't mistake it.</li>
             <li>A small outline and a <b>Partner</b> pill show where their cursor is.</li>
             <li><b>Their cells are read-only while you're connected</b>, so a stray keystroke can't replace something they just wrote. Empty cells in their lane are still yours to fill, and you can always select and copy theirs.</li>
-            <li>Opening a different flow mid-session is safe — anything your partner writes while you're away is fetched as soon as you come back to it.</li>
-            <li><b>You always save to your own file.</b> Your partner's flow is never written to your disk under your file's name — that rule is not adjustable.</li>
+            <li>Opening a different flow mid-session is safe - anything your partner writes while you're away is fetched as soon as you come back to it.</li>
+            <li><b>You always save to your own file.</b> Your partner's flow is never written to your disk under your file's name - that rule is not adjustable.</li>
             <li>Nothing about a flow is stored on a server; the connection is only a relay. Close the panel and flowing carries on.</li>
           </ul>
 
@@ -201,7 +201,7 @@
           <p>
             Pick <b>I'm Aff</b> or <b>I'm Neg</b> when you make a flow and every
             opponent speech you have to flow while your partner preps splits into
-            two columns — one for you, one for them — so you are never typing
+            two columns - one for you, one for them - so you are never typing
             over each other.
           </p>
           <ul>
@@ -214,31 +214,31 @@
               Two speeches never split: a <b>1AC</b>, because it is read off a
               prepared document, and whichever speech <em>closes the round</em>,
               because there is nothing left to prep behind it. That is why the
-              2NR gets lanes and the 2AR does not — flowing aff you are taking
+              2NR gets lanes and the 2AR does not - flowing aff you are taking
               the 2NR down while your partner writes the 2AR.
             </li>
             <li>Both lanes answer the <b>same</b> speech, not each other.</li>
             <li>
               In a live session each of you sees <b>your own</b> lane headed
-              <b>You</b> and the other headed <b>Partner</b> — so the same column
+              <b>You</b> and the other headed <b>Partner</b> - so the same column
               is labelled differently on each computer, on purpose.
             </li>
             <li>
-              <b>⇤</b> on any lane header collapses <em>that</em> lane — your own
-              as readily as your partner's — and <b>⇥</b> on the one still
+              <b>⇤</b> on any lane header collapses <em>that</em> lane - your own
+              as readily as your partner's - and <b>⇥</b> on the one still
               showing brings it back. Collapsing is purely visual: it never
               changes what your speech doc says. A group always keeps one lane on
               screen, so there is always a header to click.
             </li>
             <li>
               <b>Importing a speech doc</b> fills <em>your</em> lane, not your
-              partner's — so you can both import the same 1NC without landing on
+              partner's - so you can both import the same 1NC without landing on
               top of each other.
             </li>
             <li>The side is chosen when the flow is created and can't be switched later.</li>
             <li>
               <b>If the connection drops</b>, the partner button turns amber and
-              says <b>reconnecting</b> — keep flowing, and everything you write
+              says <b>reconnecting</b> - keep flowing, and everything you write
               is sent as soon as it comes back. It only says <b>live</b> when
               your partner is actually there.
             </li>
@@ -246,7 +246,7 @@
               <b>Rejoining.</b> Reopen a flow you were sharing and the partner
               panel offers the room back. Hosting resumes the same code, so your
               partner reconnects on their own; joining needs their approval
-              again. It never reconnects by itself — joining replaces your flow
+              again. It never reconnects by itself - joining replaces your flow
               with their copy, so that stays your call.
             </li>
           </ul>
@@ -255,7 +255,7 @@
         <section id="sec-prep">
           <h2>Prep clocks &amp; the timer</h2>
           <ul>
-            <li>Both teams' prep sits in the <b>ribbon</b>, on the right. Press ▶ to run one — starting one stops the other, and it stops itself at 0:00.</li>
+            <li>Both teams' prep sits in the <b>ribbon</b>, on the right. Press ▶ to run one - starting one stops the other, and it stops itself at 0:00.</li>
             <li>Click the time to correct it by hand when nobody stopped the clock; right-click to reset it.</li>
             <li>Prep length is in Settings (8 minutes by default).</li>
             <li><b>⏱ Timer</b> in the top bar (<kbd>{combosLabel(km.toggleTimer, mac)}</kbd>) is the separate speech stopwatch, with countdown presets.</li>
@@ -289,14 +289,14 @@
           <ul>
             <li>The cell shows a small <b>↩</b> tag naming the argument it answers.</li>
             <li>It's stored as the speech, not the column, so it survives renaming and reordering.</li>
-            <li>Use it to answer your <b>partner's</b> lane deliberately — that's the case the left-to-right guess can't get right on its own.</li>
+            <li>Use it to answer your <b>partner's</b> lane deliberately - that's the case the left-to-right guess can't get right on its own.</li>
           </ul>
         </section>
 
         <section id="sec-search">
           <h2>Doc search (your library)</h2>
           <p>
-            <kbd>{combosLabel(km.openDocSearch, mac)}</kbd> opens Doc Search — search your
+            <kbd>{combosLabel(km.openDocSearch, mac)}</kbd> opens Doc Search - search your
             prep files and insert cards straight into the flow.
           </p>
           <ul>
@@ -304,7 +304,7 @@
             <li>Search <b>By name</b> (filename/heading) or <b>By content</b> (inside the cards).</li>
             <li>
               <b>By content needs the documents read once.</b> Choosing it doesn't start
-              anything — press <b>Index</b> in the bar to scan, and <b>Stop</b> whenever you
+              anything - press <b>Index</b> in the bar to scan, and <b>Stop</b> whenever you
               like; whatever has been read is kept and searchable, and pressing Index again
               picks up where it left off. Searching always works on whatever is already indexed.
             </li>
@@ -312,10 +312,10 @@
               <b>Prep stored online isn't downloaded.</b> With Dropbox or OneDrive keeping
               files in the cloud rather than on your computer, reading one to search inside it
               would download it. Those are skipped and shown as a count
-              (<b>⇣ n not downloaded</b>) — click it if you do want them fetched.
+              (<b>⇣ n not downloaded</b>) - click it if you do want them fetched.
             </li>
             <li>Dive into a file to browse its Pocket / Hat / Block / Tag structure, then insert.</li>
-            <li>Inserting fills the flow cell only — it never auto-adds to your speech doc.</li>
+            <li>Inserting fills the flow cell only - it never auto-adds to your speech doc.</li>
           </ul>
         </section>
 
@@ -328,12 +328,12 @@
           </p>
           <ul>
             <li>
-              <b>Kit</b> — the files for this round. Add them with <b>Add files…</b> or drop
+              <b>Kit</b> - the files for this round. Add them with <b>Add files…</b> or drop
               .docx files onto the panel. Pick the exact files you want (the newest midterms
-              file, not every copy) — suggestions only ever come from these.
+              file, not every copy) - suggestions only ever come from these.
             </li>
             <li>
-              <b>Library</b> — pin 📌 a file to keep it in <b>every</b> round's kit: T, theory,
+              <b>Library</b> - pin 📌 a file to keep it in <b>every</b> round's kit: T, theory,
               framework, your case neg. Unpin it to keep it in the current round only.
             </li>
             <li>
@@ -348,8 +348,8 @@
               <i>2AC</i> file. Set a sheet to <b>No file</b> to turn it off there.
             </li>
             <li>
-              <b>Suggestions</b> appear when an argument the other team made — in either
-              partner's lane — matches a block, and your answer cell is still empty.
+              <b>Suggestions</b> appear when an argument the other team made - in either
+              partner's lane - matches a block, and your answer cell is still empty.
               <b>Insert</b> puts the whole block in your next speech on that row, linked as the
               answer to that argument. <b>×</b> dismisses one. Answering the cell yourself (or
               your partner answering it) clears it.
@@ -357,11 +357,11 @@
             <li>
               <b>Overviews</b> lists the overview blocks for the sheet you're on: the first block
               under each <b>Main</b> heading (Uniqueness, Link, Internal, Impact). When you're aff,
-              it also lists each advantage's impact overview — the first block of each advantage
+              it also lists each advantage's impact overview - the first block of each advantage
               in a 2AC file's CASE section.
             </li>
             <li>
-              <b>File</b> shows the sheet's file the way Doc Search does inside a file — search,
+              <b>File</b> shows the sheet's file the way Doc Search does inside a file - search,
               POC / HAT / BLK / CARD levels, fold and unfold.
             </li>
             <li>
@@ -371,7 +371,7 @@
             </li>
             <li>
               Suggestions match your <b>block headings</b>, so they work best when headings name
-              what they answer ("AT: Say No", "Perm: Do Both"). It's a beta — it matches words,
+              what they answer ("AT: Say No", "Perm: Do Both"). It's a beta - it matches words,
               it doesn't read cards.
             </li>
           </ul>
@@ -386,7 +386,7 @@
             small = unread). Open it with <kbd>{mod}D</kbd> or the Speech doc button.
           </p>
           <p class="foot">
-            CardMirror is by Anthony Trufanov — Required Notice: Copyright &copy; 2026
+            CardMirror is by Anthony Trufanov - Required Notice: Copyright &copy; 2026
             Anthony Trufanov, used under PolyForm Noncommercial 1.0.0. See
             <b>Credits &amp; license</b> at the end of this manual.
           </p>
@@ -395,15 +395,15 @@
             <li><b>Read markings</b>: Cite <kbd>{mod}9</kbd>, Emphasis <kbd>{mod}↓</kbd>, Underline <kbd>{mod}↑</kbd>, Clear <kbd>{mod}←</kbd>. Plus B / I / strikethrough and highlight colors.</li>
             <li><b>Find in doc</b> (<kbd>{mod}F</kbd>): highlights every match; Enter / Shift-Enter cycle.</li>
             <li><b>Read mode</b>: shows only the read-aloud (highlighted) text.</li>
-            <li><b>Standardize highlighting</b> (Std ▾): rewrite every highlight to one color — optionally keeping one color as an exception.</li>
+            <li><b>Standardize highlighting</b> (Std ▾): rewrite every highlight to one color - optionally keeping one color as an exception.</li>
             <li><b>Backspace</b> on an empty heading/tag removes it. Empty headings don't clutter the outline.</li>
             <li><b>Outline</b> (left) jumps to any heading; collapse to Pocket / Hat / Block.</li>
             <li><b>Maximize</b> to fill the window, or <b>Pop out</b> into its own window. Drag the divider to resize; it can go narrow.</li>
-            <li><b>Multiple docs</b>: the tab bar above the doc holds several independent docs — <b>+</b> makes a new one, <b>Open</b> imports a <b>.docx</b> into its own doc, double-click a tab to rename, <b>×</b> to close. Each keeps its own content, saved automatically.</li>
-            <li><b>Pop out</b> (⇱ on a tab) opens a doc in its own window — you can have several out at once. The <b>main</b> doc (the flow-linked one) is always the docked tab; click a tab to make it the main.</li>
-            <li><b>The speech doc</b> (<b>★</b>): click the star on any doc's tab to mark it as your speech doc — the one you're building. The star turns gold. Setting it makes that doc the docked/main doc so sends always land in it.</li>
-            <li><b>Send to speech</b> (<kbd>`</kbd> / <kbd>~</kbd>, fixed): from any other doc (typically a source doc popped out into its own window), press this to send the current card/selection to your <b>★ speech doc</b> at its cursor — like Verbatim/CardMirror. If the speech doc isn't open, the card is appended to it.</li>
-            <li><b>Where sends land</b> — no toggle, the app follows what you select: a <b>highlight, one cell, or a range of cells</b> drops <b>at your cursor</b>; the <b>↕ Send Entire Row</b> button sends the whole speech in <b>flow order</b> (mirrors the flow, de-dupes).</li>
+            <li><b>Multiple docs</b>: the tab bar above the doc holds several independent docs - <b>+</b> makes a new one, <b>Open</b> imports a <b>.docx</b> into its own doc, double-click a tab to rename, <b>×</b> to close. Each keeps its own content, saved automatically.</li>
+            <li><b>Pop out</b> (⇱ on a tab) opens a doc in its own window - you can have several out at once. The <b>main</b> doc (the flow-linked one) is always the docked tab; click a tab to make it the main.</li>
+            <li><b>The speech doc</b> (<b>★</b>): click the star on any doc's tab to mark it as your speech doc - the one you're building. The star turns gold. Setting it makes that doc the docked/main doc so sends always land in it.</li>
+            <li><b>Send to speech</b> (<kbd>`</kbd> / <kbd>~</kbd>, fixed): from any other doc (typically a source doc popped out into its own window), press this to send the current card/selection to your <b>★ speech doc</b> at its cursor - like Verbatim/CardMirror. If the speech doc isn't open, the card is appended to it.</li>
+            <li><b>Where sends land</b> - no toggle, the app follows what you select: a <b>highlight, one cell, or a range of cells</b> drops <b>at your cursor</b>; the <b>↕ Send Entire Row</b> button sends the whole speech in <b>flow order</b> (mirrors the flow, de-dupes).</li>
             <li>All doc shortcuts are rebindable in <b>Settings → Keyboard → Speech doc</b>.</li>
           </ul>
         </section>
@@ -411,7 +411,7 @@
         <section id="sec-quick">
           <h2>Quick cards</h2>
           <p>
-            A reusable library of rich-text snippets — your go-to blocks, tags, or
+            A reusable library of rich-text snippets - your go-to blocks, tags, or
             analytics you drop in again and again. Open the palette with
             <kbd>{combosLabel(km.docQuickCards, mac)}</kbd> or the <b>★ Quick</b> button.
           </p>
@@ -419,7 +419,7 @@
             <li><b>Save</b>: select text in the doc, open Quick Cards, click <b>＋ Save selection</b>, give it a name and optional tags.</li>
             <li><b>Insert</b>: open the palette, search by name / tag / text, and click a card (or Enter for the top match) to drop it at the cursor.</li>
             <li><b>Delete</b> with the <b>×</b> on any card.</li>
-            <li><b>On the flow</b>: the <b>★</b> button in the top bar opens the same library — <b>drag a card onto the grid</b>, or click it to drop into the current cell (as plain text).</li>
+            <li><b>On the flow</b>: the <b>★</b> button in the top bar opens the same library - <b>drag a card onto the grid</b>, or click it to drop into the current cell (as plain text).</li>
             <li>The library persists across sessions and is saved with your setup.</li>
           </ul>
         </section>
@@ -441,24 +441,24 @@
 
         <section id="sec-senddoc">
           <h2>Sending to the doc</h2>
-          <p>Cards reach the doc only when you ask — flowing an opponent's cards never touches your speech.</p>
+          <p>Cards reach the doc only when you ask - flowing an opponent's cards never touches your speech.</p>
           <ul>
-            <li><b>⌖ Send Cell(s)</b> sends the selected cell — or a whole range of cells — at the cursor. <b>↕ Send Entire Row</b> sends the whole speech in flow order.</li>
-            <li>Either way, content lands in <b>flow order</b> (top to bottom) — not just appended at the bottom — and re-sending updates rather than duplicating.</li>
+            <li><b>⌖ Send Cell(s)</b> sends the selected cell - or a whole range of cells - at the cursor. <b>↕ Send Entire Row</b> sends the whole speech in flow order.</li>
+            <li>Either way, content lands in <b>flow order</b> (top to bottom) - not just appended at the bottom - and re-sending updates rather than duplicating.</li>
             <li>A plain typed cell sends as an <b>analytic</b>; a card sends as a card; a multi-item cell sends its header, cards, and responses in order.</li>
             <li>The ribbon's <b>B / I / A color / font-size</b> act on the doc whenever the doc is the surface you last clicked into.</li>
           </ul>
           <h3>Sending to CardMirror instead</h3>
           <p>
             <b>Send to</b> in the top bar chooses between Nimbus's own speech doc
-            and <b>CardMirror Desktop</b>. Cards go straight across — highlighting,
+            and <b>CardMirror Desktop</b>. Cards go straight across - highlighting,
             cites, images and structure all survive, and it doesn't steal your
             focus mid-round.
           </p>
           <ul>
-            <li>Needs <b>CardMirror 1.5.0 or newer</b> running. <b>There is no plugin to install</b> — earlier versions of Nimbus needed one and no longer do.</li>
+            <li>Needs <b>CardMirror 1.5.0 or newer</b> running. <b>There is no plugin to install</b> - earlier versions of Nimbus needed one and no longer do.</li>
             <li>The dropdown beside it picks which CardMirror document receives sends; leave it on <b>Auto</b> to use whichever one CardMirror has starred as the speech doc.</li>
-            <li>If CardMirror isn't running, the card goes to your <b>clipboard</b> instead so nothing is lost — paste it wherever you meant it to go.</li>
+            <li>If CardMirror isn't running, the card goes to your <b>clipboard</b> instead so nothing is lost - paste it wherever you meant it to go.</li>
           </ul>
         </section>
 
@@ -473,7 +473,7 @@
         <section id="sec-keys">
           <h2>Keyboard shortcuts</h2>
           <p>
-            The core motions — Enter, Tab, arrows — are fixed muscle memory.
+            The core motions - Enter, Tab, arrows - are fixed muscle memory.
             Everything else is rebindable in <b>Settings → Keyboard</b>, grouped
             into Rows, Flowing & marks, Sheets, View & zoom, App, and Speech doc.
             Multiple bindings per action are allowed.
@@ -483,7 +483,7 @@
         <section id="sec-macros">
           <h2>Macros & snippets</h2>
           <ul>
-            <li><b>Macros</b> are plain JavaScript (Settings → Editing) bound to a key — run as one undo step. The <code>flow</code> API can type, move, insert rows, and set marks for one-key argument blocks.</li>
+            <li><b>Macros</b> are plain JavaScript (Settings → Editing) bound to a key - run as one undo step. The <code>flow</code> API can type, move, insert rows, and set marks for one-key argument blocks.</li>
             <li><b>Abbreviations</b> expand as you type (e.g. a short trigger → a long phrase).</li>
           </ul>
         </section>
@@ -503,8 +503,8 @@
           <ul>
             <li>Everything autosaves to your machine (a heartbeat plus a flush on blur/close). Your work is never only in memory.</li>
             <li><kbd>{mod}S</kbd> saves the open flow to a <b>.nimbus</b> file; double-click a .nimbus file to open it.</li>
-            <li><b>Excel (.xlsx)</b> works too — save as either, and convert between them from the dashboard. Both formats are first-class; neither is going away.</li>
-            <li>Renaming a flow renames its file, and renaming the file's round retitles it — the name on the dashboard is the round's own title, not the filename.</li>
+            <li><b>Excel (.xlsx)</b> works too - save as either, and convert between them from the dashboard. Both formats are first-class; neither is going away.</li>
+            <li>Renaming a flow renames its file, and renaming the file's round retitles it - the name on the dashboard is the round's own title, not the filename.</li>
             <li>Export an HTML report or a round file from a round's home page. Settings (keybinds, macros, snippets, colors) back up and restore as a bundle.</li>
           </ul>
         </section>
@@ -513,7 +513,7 @@
           <h2>Tournaments &amp; the dashboard</h2>
           <p>
             The dashboard groups your flows by tournament. <b>Link a folder</b>
-            points a tournament at a folder on disk — a Dropbox folder is fine —
+            points a tournament at a folder on disk - a Dropbox folder is fine -
             and every flow inside it, <b>including ones in per-round subfolders</b>,
             shows up under it.
           </p>
@@ -528,10 +528,10 @@
         <section id="sec-toolbar">
           <h2>The toolbar &amp; top bar</h2>
           <ul>
-            <li>The <b>top bar</b> carries the panels — speech doc, quick cards, timer, arguments, partner flow, manual, settings. <b>⤡</b> condenses it to icons when you want the vertical room; it does that on its own in a narrow window.</li>
-            <li>The <b>ribbon</b> below it has two densities — full and condensed — cycled by the <b>⇥⇤</b> button on its right. Both are the same height, so switching never shifts the grid.</li>
+            <li>The <b>top bar</b> carries the panels - speech doc, quick cards, timer, arguments, partner flow, manual, settings. <b>⤡</b> condenses it to icons when you want the vertical room; it does that on its own in a narrow window.</li>
+            <li>The <b>ribbon</b> below it has two densities - full and condensed - cycled by the <b>⇥⇤</b> button on its right. Both are the same height, so switching never shifts the grid.</li>
             <li>It resizes itself to fit whatever room it has, including when the speech doc is open beside it. The prep clocks stay pinned to the right so they're always reachable.</li>
-            <li>In the condensed ribbon the text-size and zoom readouts are hidden — zoom keeps its shortcuts and pinch, and text size is in Settings.</li>
+            <li>In the condensed ribbon the text-size and zoom readouts are hidden - zoom keeps its shortcuts and pinch, and text size is in Settings.</li>
           </ul>
         </section>
 
@@ -539,13 +539,13 @@
           <h2>Settings</h2>
           <p><kbd>{combosLabel(km.openSettings, mac)}</kbd> opens Settings, split into tabs:</p>
           <ul>
-            <li><b>Appearance</b> — theme, colors, default font, sizes, and the Speech Doc Style editor. Eight themes: Light, Snow, Paper, Cream, Sky and Mist, plus Slate and Dark.</li>
-            <li><b>Sheet tabs</b> — top or bottom, and <b>Tab size</b> (Compact / Regular / Large). Smaller tabs leave more of the window for the flow.</li>
-            <li><b>My column</b> — which side your own column sits on when a speech is split between you and your partner. Changes only your screen, never theirs and never the speech doc.</li>
-            <li><b>Editing</b> — macros and abbreviations.</li>
-            <li><b>Keyboard</b> — every rebindable shortcut, grouped.</li>
-            <li><b>Library</b> — folders Doc Search indexes.</li>
-            <li><b>Backup</b> — export/import your setup, and check for updates.</li>
+            <li><b>Appearance</b> - theme, colors, default font, sizes, and the Speech Doc Style editor. Eight themes: Light, Snow, Paper, Cream, Sky and Mist, plus Slate and Dark.</li>
+            <li><b>Sheet tabs</b> - top or bottom, and <b>Tab size</b> (Compact / Regular / Large). Smaller tabs leave more of the window for the flow.</li>
+            <li><b>My column</b> - which side your own column sits on when a speech is split between you and your partner. Changes only your screen, never theirs and never the speech doc.</li>
+            <li><b>Editing</b> - macros and abbreviations.</li>
+            <li><b>Keyboard</b> - every rebindable shortcut, grouped.</li>
+            <li><b>Library</b> - folders Doc Search indexes.</li>
+            <li><b>Backup</b> - export/import your setup, and check for updates.</li>
           </ul>
           <h3>Updating</h3>
           <p>
@@ -565,7 +565,7 @@
           </p>
           <p>
             The speech doc engine is <b>CardMirror</b> by <b>Anthony Trufanov</b>
-            (github.com/ant981228/cardmirror) — the real schema, importer and
+            (github.com/ant981228/cardmirror) - the real schema, importer and
             exporter, vendored into Nimbus.
           </p>
           <p>
@@ -658,7 +658,7 @@
     padding-bottom: 6px;
     border-bottom: 1px solid var(--border);
   }
-  /* Sub-heading inside a section — no rule under it, so it reads as part of the
+  /* Sub-heading inside a section - no rule under it, so it reads as part of the
      section rather than starting a new one. */
   h3 {
     font-size: 13.5px;

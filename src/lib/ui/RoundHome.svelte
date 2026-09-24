@@ -3,7 +3,7 @@
   import { ballotNotes, sheetAccent, uid, type Ballot } from "../model/types";
   import { exportRoundFile, exportRoundHtml } from "../model/export";
   import { saveToFile, saveAs, exportExcel, exportNimbus, renameFileToMatchTitle } from "../model/filedoc.svelte";
-  // DOCX-IMPORT feature — to remove: delete this import + the marked section
+  // DOCX-IMPORT feature - to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
 
@@ -14,7 +14,7 @@
   let renameText = $state("");
   /** How many pages a single "Add" click creates. */
   let addCount = $state(1);
-  // window.confirm() is a no-op inside the Tauri webview — two-step confirm.
+  // window.confirm() is a no-op inside the Tauri webview - two-step confirm.
   let confirmingId = $state<string | null>(null);
   // Drag & drop reordering
   let draggingId = $state<string | null>(null);
@@ -127,7 +127,7 @@
       r.rfd.ballots = r.rfd.ballots.map((b) => {
         if (b.id !== id) return b;
         const next = { ...b, [field]: value };
-        // Editing the notes retires the pre-1.2.8 split fields — their content
+        // Editing the notes retires the pre-1.2.8 split fields - their content
         // is already in the box being typed into (see ballotNotes), so leaving
         // them would duplicate it the next time this ballot was read.
         if (field === "notes") {
@@ -151,7 +151,7 @@
       r.rfd.notes = value;
     }, { coalesceText: true });
   }
-  /** The panel's overall decision. Not a vote — see the note on RFD.winner. */
+  /** The panel's overall decision. Not a vote - see the note on RFD.winner. */
   function setRfdWinner(value: "aff" | "neg" | "") {
     store.mutate((r) => {
       if (!r.rfd) r.rfd = { ballots: [], notes: "" };
@@ -207,7 +207,7 @@
     <header class="home-head">
       <!-- The title is the source of truth for what this flow is called, so on
            commit the file on disk is renamed to match and the dashboard picks
-           the new name up. Done on blur/Enter, never per keystroke — renaming a
+           the new name up. Done on blur/Enter, never per keystroke - renaming a
            file once per character would be madness. -->
       <input
         class="round-name"
@@ -328,7 +328,7 @@
       <!-- PANEL ONLY. A 3-judge panel can split 2–1 and the round still has one
            result, so the overall decision is recorded on its own rather than
            inferred. Deliberately has NO notes box: it is the outcome, not a
-           person — the feedback belongs to the judges below it. -->
+           person - the feedback belongs to the judges below it. -->
       {#if (round.rfd?.ballots.length ?? 0) > 1}
         <div class="overall">
           <span class="overall-t">Round won by</span>
@@ -380,7 +380,7 @@
           <textarea
             class="ballot-notes"
             value={ballotNotes(b)}
-            placeholder="Everything they said — RFD, feedback, speaker points…"
+            placeholder="Everything they said - RFD, feedback, speaker points…"
             use:autoGrow
             oninput={(e) => setBallot(b.id, "notes", e.currentTarget.value)}
           ></textarea>
@@ -401,11 +401,11 @@
     </section>
 
     <div class="tools">
-      <!-- DOCX-IMPORT feature (removable — see import comment above) -->
+      <!-- DOCX-IMPORT feature (removable - see import comment above) -->
       <details class="tool">
         <summary>Import speech doc (.docx)</summary>
         <div class="tool-body">
-          <p class="hint-line">Drop in their .docx — each position becomes a sheet, card tags become rows.</p>
+          <p class="hint-line">Drop in their .docx - each position becomes a sheet, card tags become rows.</p>
           <DocImport />
         </div>
       </details>
@@ -609,7 +609,7 @@
     resize: vertical;
   }
   /* Grows with the text (see the autoGrow action) and only scrolls once it is
-     already very tall — feedback is read back later, and a scrollbar inside a
+     already very tall - feedback is read back later, and a scrollbar inside a
      panel hides most of it. 70vh is roughly a screenful. */
   .ballot-notes {
     min-height: 120px;

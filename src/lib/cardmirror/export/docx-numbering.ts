@@ -6,7 +6,7 @@
  *   - role 'number' → `<w:numPr>` ilvl 0; role 'sub' → ilvl 1; 'none' → no numPr.
  *   - every restart boundary (a restarting card, a default-restart block, a
  *     pocket/hat) starts a fresh `numId`, and each numId is an independent Word
- *     counter — so Word restarts exactly where CardMirror does. A "continue"
+ *     counter - so Word restarts exactly where CardMirror does. A "continue"
  *     block simply keeps the running numId across its (numPr-less) heading.
  * All numIds share one abstractNum, whose two levels render `1.` and `a)` and
  * whose level-1 counter auto-restarts under level 0 (Word's default), matching
@@ -63,7 +63,7 @@ export function assignDocxNumbering(doc: PMNode): DocxNumbering {
           numIds.push(currentNumId);
           needNewRun = false;
         }
-        const heading = child.firstChild; // tag / analytic — the numPr lives here
+        const heading = child.firstChild; // tag / analytic - the numPr lives here
         if (heading) perHeading.set(heading, { numId: currentNumId, ilvl: role === 'number' ? 0 : 1 });
         return;
       }

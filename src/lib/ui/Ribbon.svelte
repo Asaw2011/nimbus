@@ -117,7 +117,7 @@
   let prepText = $state("");
 
   // Re-attach whenever the open round changes. A clock that was running when
-  // the app closed is still running — its elapsed time is real wall time — so
+  // the app closed is still running - its elapsed time is real wall time - so
   // this restarts the repaint pulse rather than the clock itself.
   $effect(() => {
     store.round?.id;
@@ -140,8 +140,8 @@
 
 <!-- The size container. The ribbon sits inside `.flow-pane`, so opening the
      built-in doc narrows it while the WINDOW stays exactly as wide as it was.
-     Width-based media queries can't see that — they only fire when the OS
-     window itself shrinks — so the bar kept full-size icons in a half-width
+     Width-based media queries can't see that - they only fire when the OS
+     window itself shrinks - so the bar kept full-size icons in a half-width
      column and clipped. Everything below queries THIS element instead, which
      narrows for any reason: OS splitscreen, the doc pane, or the doc pane
      inside a splitscreened window. -->
@@ -164,7 +164,7 @@
       </span>
       <button class="rb b" title="Bold (whole cell)" onclick={() => toggle("bold")}>B</button>
       <button class="rb i" title="Italic (whole cell)" onclick={() => toggle("italic")}>I</button>
-      <label class="rb swatch" title="Custom text color — right-click clears it back to automatic ink" oncontextmenu={(e) => { e.preventDefault(); ink(null); }}>
+      <label class="rb swatch" title="Custom text color - right-click clears it back to automatic ink" oncontextmenu={(e) => { e.preventDefault(); ink(null); }}>
         <span class="ink-a">A</span>
         <input type="color" oninput={(e) => ink(e.currentTarget.value)} />
       </label>
@@ -186,22 +186,22 @@
       <!-- ⚠ `onmousedown` preventDefault on all four: without it, pressing the
            button BLURS whatever you were typing in first. That is invisible for
            a cell (the grid cursor stays put) but fatal for an answer tile, whose
-           identity lives in `store.focusedAnswer` and was cleared on blur — so
+           identity lives in `store.focusedAnswer` and was cleared on blur - so
            the mark landed on the whole cell around the tile instead of the tile
            you were in. The keyboard shortcuts never blur, which is why they
            worked and these did not. -->
       <button class="rb dropped" title="They dropped this argument ({combosLabel(km.markDropped, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("dropped")}><span class="lbl">Dropped</span><span class="ico">⊘</span></button>
       <button class="rb star" title="Must answer in your next speech ({combosLabel(km.markStarred, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("starred")}><span class="lbl">★ Star</span><span class="ico">★</span></button>
-      <button class="rb analytic" title="This is an analytic — no card ({combosLabel(km.markAnalytic, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("analytic")}><span class="lbl">Analytic</span><span class="ico">An</span></button>
+      <button class="rb analytic" title="This is an analytic - no card ({combosLabel(km.markAnalytic, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("analytic")}><span class="lbl">Analytic</span><span class="ico">An</span></button>
       <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("card")}><span class="lbl">Card</span><span class="ico">Cd</span></button>
       <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}><span class="lbl">➜ Extend</span><span class="ico">➜</span></button>
-      <button class="rb reply" title="Answer this argument — jumps to your reply and links it, so sending to the doc writes “AT: this argument” ({combosLabel(km.replyToArg, mac)})" onclick={reply}><span class="lbl">↩ Answer</span><span class="ico">↩</span></button>
+      <button class="rb reply" title="Answer this argument - jumps to your reply and links it, so sending to the doc writes “AT: this argument” ({combosLabel(km.replyToArg, mac)})" onclick={reply}><span class="lbl">↩ Answer</span><span class="ico">↩</span></button>
       <!-- The lane collapse toggle used to live here. It moved onto each lane's
            own column header: a flow can now carry TWO split speeches, and one
            toolbar button cannot say which lane it means. Removing a button only
            frees width, so the ribbon budget is unaffected. -->
       {#if onsendspeech}
-        <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order — mirrors the flow and de-dupes. ({combosLabel(km.sendRowToDoc, mac)})" onclick={onsendspeech}><span class="lbl">↕ Send Entire Row</span><span class="ico">↕</span></button>
+        <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order - mirrors the flow and de-dupes. ({combosLabel(km.sendRowToDoc, mac)})" onclick={onsendspeech}><span class="lbl">↕ Send Entire Row</span><span class="ico">↕</span></button>
       {/if}
       {#if onsendcell}
         <button class="rb send-cell" title="Send the selected cell(s) to the doc AT THE CURSOR. Select a range first to send multiple cells. ({combosLabel(km.sendCellsToDoc, mac)})" onclick={onsendcell}><span class="lbl">⌖ {sendCellLabel}</span><span class="ico">⌖</span></button>
@@ -252,7 +252,7 @@
         {:else}
           <button
             class="prep-time"
-            title="{side === 'aff' ? 'Aff' : 'Neg'} prep remaining — click to correct it by hand"
+            title="{side === 'aff' ? 'Aff' : 'Neg'} prep remaining - click to correct it by hand"
             onclick={() => startEditPrep(side)}
           >{prep.label(side)}</button>
         {/if}
@@ -261,7 +261,7 @@
           title={prep.running(side)
             ? `Stop ${side === "aff" ? "aff" : "neg"} prep`
             : prep.spent(side)
-              ? "No prep left — right-click to reset"
+              ? "No prep left - right-click to reset"
               : `Start ${side === "aff" ? "aff" : "neg"} prep (stops the other team's clock)`}
           disabled={prep.spent(side) && !prep.running(side)}
           onclick={() => prep.toggle(side)}
@@ -274,7 +274,7 @@
   <button
     class="rb density-toggle"
     title={settings.ribbonMode === "full"
-      ? "Condense the toolbar — fits a splitscreen half"
+      ? "Condense the toolbar - fits a splitscreen half"
       : "Expand the toolbar to full width"}
     onclick={() => {
       settings.ribbonMode = settings.ribbonMode === "full" ? "compact" : "full";
@@ -290,7 +290,7 @@
      switching never reflows the grid underneath.
 
      ⚠ `overflow: hidden`, not `auto`. The old bar scrolled horizontally, which
-     is the thing being fixed — a toolbar you have to scroll is a toolbar whose
+     is the thing being fixed - a toolbar you have to scroll is a toolbar whose
      right-hand buttons you never find. Everything here is sized so it fits;
      if a future button breaks that, the fix is to shrink the set, not to bring
      the scrollbar back. */
@@ -300,7 +300,7 @@
     flex-shrink: 0;
   }
   .ribbon {
-    --rb-size: 32px;   /* icon button box — scaled down in compact */
+    --rb-size: 32px;   /* icon button box - scaled down in compact */
     --rb-font: 16px;
     --rb-gap: 3px;
     display: flex;
@@ -312,7 +312,7 @@
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     /* Last-resort only. The size steps below shrink the bar to fit the space it
-       actually has, so this should never engage in normal use — but there is a
+       actually has, so this should never engage in normal use - but there is a
        width at which 24 buttons genuinely cannot fit, and scrolling to reach a
        button beats the button not existing. `thin` so the scrollbar can't eat
        into the 46px. */
@@ -338,7 +338,7 @@
   .ribbon.compact .stepper { display: none; }
   /* Every labeled button carries a full-text .lbl and a single-glyph .ico.
      The bar is icon-only in both densities now, so .lbl is always hidden and
-     .ico always shown — the wording survives in each button's `title`, which
+     .ico always shown - the wording survives in each button's `title`, which
      is where it was already duplicated. Kept as two spans rather than deleting
      the labels so bringing text back is a CSS change, not a rewrite. */
   .lbl { display: none; }
@@ -570,11 +570,11 @@
   }
 
   /* ──────────────────────────────────────────────────────────────────────────
-     SIZE STEPS — deliberately LAST in this file.
+     SIZE STEPS - deliberately LAST in this file.
 
      ⚠ Two rules decide which of these wins, and both bit once:
        1. Specificity. A container query adds NONE, so every selector below is
-          repeated at `.ribbon.compact` specificity — a bare `.ribbon` rule
+          repeated at `.ribbon.compact` specificity - a bare `.ribbon` rule
           loses to the `.ribbon.compact` block above and compact came out
           LARGER than full at the same width.
        2. Source order. At EQUAL specificity the later rule wins, so these must
@@ -582,20 +582,20 @@
           above them, compact silently kept its base padding and overflowed a
           510px column by 69px while full only overflowed by 39px.
      ────────────────────────────────────────────────────────────────────────── */
-  /* Narrower still — a 1280 screen's half, or a dragged-in window. The bar
+  /* Narrower still - a 1280 screen's half, or a dragged-in window. The bar
      clips rather than scrolls, so it has to keep shrinking or buttons become
      unreachable. The side TAG goes first: the clocks are already colour-coded
      aff-blue and neg-red, so the letters are the redundant part. */
   /* ⚠ These narrow-width steps apply to BOTH densities, not just compact. The
      bar clips instead of scrolling, so a full-mode bar in a 640px window would
-     silently lose its right-hand buttons — worse than the scrollbar this
+     silently lose its right-hand buttons - worse than the scrollbar this
      replaced. Below these widths there is no room for full mode anyway, so it
      degrades into the same thing rather than breaking. */
   /* ⚠ Each selector is repeated at `.ribbon.compact` specificity. A media query
      adds NO specificity, so a bare `.ribbon` rule here loses to the
      `.ribbon.compact` block above it and compact would come out LARGER than
-     full at the same width — which is exactly what happened. */
-  /* Full mode needs ~1145px, so the first step has to fire not far below that —
+     full at the same width - which is exactly what happened. */
+  /* Full mode needs ~1145px, so the first step has to fire not far below that -
      otherwise opening the speech doc (which takes 380px by default) drops the
      bar to a 980px column while it is still drawing 32px icons, and it clips.
      That was the reported bug. Each step is measured, not guessed. */
@@ -621,7 +621,7 @@
     .ribbon .prep, .ribbon.compact .prep { padding: 0 1px 0 3px; }
     .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 3px; gap: 2px; }
     /* Measured: 24 buttons plus two clocks need ~794px here, and a 1366 laptop's
-       splitscreen half is 683. The two multi-part READOUTS are what gets cut —
+       splitscreen half is 683. The two multi-part READOUTS are what gets cut -
        together they are ~150px, and both have another way in: zoom has its
        keybinds and pinch-zoom, text size is in Settings. Cutting actual debate
        actions instead would be the wrong trade. */

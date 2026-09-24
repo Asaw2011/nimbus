@@ -22,7 +22,7 @@
   // ⚠ The version is recorded when the panel is SHOWN, not when it is
   // dismissed. Adam's spec is "first launch after an update, then never again".
   // Writing it in close() meant that quitting with the panel still open left it
-  // unrecorded, so it came back on the next launch — and the one after that —
+  // unrecorded, so it came back on the next launch - and the one after that -
   // until someone explicitly clicked it away. He hit exactly that on 1.2.2.
   //
   // ⚠ flushSave() as well as save(): save() debounces by 200ms and nothing else
@@ -53,7 +53,7 @@
 
 <!-- Closing on a backdrop click is done by comparing target to currentTarget
      rather than stopping propagation on the card. Same behaviour, but the card
-     needs no click handler of its own — a non-interactive element with a click
+     needs no click handler of its own - a non-interactive element with a click
      handler and no keyboard path is an accessibility warning, and Escape above
      is the keyboard path for the backdrop. -->
 <div
@@ -101,7 +101,7 @@
 </div>
 
 <style>
-  /* Below the login gate's z-index 1000 on purpose — this must never be able to
+  /* Below the login gate's z-index 1000 on purpose - this must never be able to
      paint over the sign-in screen even if the caller's guard were removed. */
   .wn-backdrop {
     position: fixed;

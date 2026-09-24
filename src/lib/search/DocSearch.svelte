@@ -12,7 +12,7 @@
     docOnly?: boolean;
   } = $props();
 
-  // CardMirror doc per file (fromDocx) — the exact card structure to insert.
+  // CardMirror doc per file (fromDocx) - the exact card structure to insert.
   const cmDocCache = new Map<string, unknown>();
 
   /** Parse a file with CardMirror's own fromDocx and cache the PM doc JSON. */
@@ -34,7 +34,7 @@
     }
   }
 
-  // In-place: strip emphasis/bold marks from whitespace-only text runs — a
+  // In-place: strip emphasis/bold marks from whitespace-only text runs - a
   // boxed/emphasised space renders as an empty box. Everything else is left as
   // CardMirror produced it.
   function cleanWhitespaceMarks(node: unknown): void {
@@ -129,7 +129,7 @@
     insertedTimer = setTimeout(() => (insertedMsg = ""), 1600);
   }
 
-  // Click-off to close — but keep the panel open when you click a flow cell
+  // Click-off to close - but keep the panel open when you click a flow cell
   // (to retarget the cursor for the next insert) or the speech doc.
   function onWindowPointerDown(e: PointerEvent) {
     const t = e.target as HTMLElement | null;
@@ -142,7 +142,7 @@
    * Last line of defence for the keyed lists below.
    *
    * ⚠ Both `{#each}`s here key on the file path, and in Svelte 5 a repeated key
-   * is a FATAL error (`each_key_duplicate`) — not a warning, not a double row:
+   * is a FATAL error (`each_key_duplicate`) - not a warning, not a double row:
    * the panel throws and Doc Search will not open at all. A Mac user hit exactly
    * that because his library roots overlapped, so the same file was indexed
    * twice under a byte-identical path.
@@ -179,7 +179,7 @@
   //
   // This used to be an $effect that started a full build the instant the mode
   // flipped. Indexing reads every .docx in the library, and on a Dropbox
-  // library those reads are downloads — one mis-click cost six minutes and
+  // library those reads are downloads - one mis-click cost six minutes and
   // 219 MB, with no way to stop it. Searching still works immediately against
   // whatever is already indexed; bringing the index up to date is now a button.
   function startIndex(force = false, includeOffline = false) {
@@ -228,7 +228,7 @@
         if (matchSet) {
           if (!matchSet.has(key)) return;
         } else if (n.level > capLevel) {
-          return; // deeper than the chosen level — hidden
+          return; // deeper than the chosen level - hidden
         }
         const capReached = !matchSet && n.level >= capLevel;
         const hasKids = n.children.length > 0;
@@ -297,7 +297,7 @@
 
   async function insertNode(node: DocNode) {
     // "To doc" mode only: send the EXACT CardMirror card into the speech doc.
-    // We NEVER auto-add to the doc from a flow insert — you might be flowing an
+    // We NEVER auto-add to the doc from a flow insert - you might be flowing an
     // opponent's cards, and those must not land in your speech. The full card
     // still rides along on the flow cell (cell.card), so you can send it to the
     // doc later with the explicit "Cell → Doc" / "Send to Doc" actions.
@@ -357,13 +357,13 @@
             card: c,
             cmNode: itemCM.get(c.text),
           }));
-          // Collapsed by default — the cell shows just the block header; click
+          // Collapsed by default - the cell shows just the block header; click
           // the ▸ to expand its cards.
           cell.expanded = false;
         }
       });
       // Advance to the next row so consecutive inserts stack down the column
-      // without manually clicking the next cell — like flowing top to bottom.
+      // without manually clicking the next cell - like flowing top to bottom.
       store.cursor = { row: row + 1, col };
     }
   }
@@ -519,7 +519,7 @@
             </span>
           {/if}
           <!-- Only ever an OPT-IN. These files are not on the disk and reading
-               them downloads every one — which is exactly what used to happen
+               them downloads every one - which is exactly what used to happen
                by accident. -->
           {#if coverage.offline > 0}
             <button
@@ -570,19 +570,19 @@
         <div class="ds-msg">
           {#if contentIndex.building}
             Indexing document contents… {contentIndex.built}/{contentIndex.total}
-            <div class="ds-msgsub">Stop at any time — what's been scanned is kept.</div>
+            <div class="ds-msgsub">Stop at any time - what's been scanned is kept.</div>
           {:else if !contentIndex.ready}
             Nothing is indexed yet.
             <div class="ds-msgsub">
               Searching by content needs to read your documents once. Press
-              <b>Index</b> above to start — it can be stopped at any time.
+              <b>Index</b> above to start - it can be stopped at any time.
             </div>
           {:else}
             Type a tagline / card / block to find which docs contain it.
             {#if coverage.indexed < coverage.local}
               <div class="ds-msgsub">
                 Searching {coverage.indexed.toLocaleString()} of
-                {coverage.local.toLocaleString()} documents — press <b>Index</b> to cover the rest.
+                {coverage.local.toLocaleString()} documents - press <b>Index</b> to cover the rest.
               </div>
             {/if}
           {/if}
@@ -720,7 +720,7 @@
     border-radius: 6px; padding: 3px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
   }
   .ds-scopebtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-  /* The index action reads as an offer, not as the selected mode — it must not
+  /* The index action reads as an offer, not as the selected mode - it must not
      look like the "By content" button it sits next to. */
   .ds-scopebtn.go { border-color: var(--accent); color: var(--accent); font-weight: 700; }
   .ds-scopebtn.go:hover { background: var(--accent); color: #fff; }
@@ -729,7 +729,7 @@
   .ds-scopeinfo { font-size: 11px; color: var(--text-dim); margin-left: auto; }
   .ds-scopeinfo.link { background: none; border: none; cursor: pointer; }
   .ds-scopeinfo.link:hover { color: var(--text); }
-  /* Not an error — these files are fine, they just aren't here. Dimmed rather
+  /* Not an error - these files are fine, they just aren't here. Dimmed rather
      than coloured, so it reads as information and not as something to fix. */
   .ds-scopeinfo.warn { margin-left: 0; text-decoration: underline dotted; }
   .ds-msgsub {

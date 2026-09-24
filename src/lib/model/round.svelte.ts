@@ -34,7 +34,7 @@ const HISTORY_BUDGET_CHARS = 75_000_000;
  *
  * ⚠ The ⌘J argument bank is stored SEPARATELY from the round, and that is a
  * memory decision, not a tidiness one. On a real flow the bank was 1.10 MB of a
- * 2.4 MB round — 45% of every snapshot — and it is imported reference material
+ * 2.4 MB round - 45% of every snapshot - and it is imported reference material
  * that typing in the grid never touches, so serializing it again for every
  * keystroke-session was copying the same megabyte hundreds of times.
  *
@@ -44,7 +44,7 @@ const HISTORY_BUDGET_CHARS = 75_000_000;
  *
  * ⚠ It is a stored snapshot, NOT a live reference. Undoing `clearBank()` or
  * `removeArg()` has to bring the old bank back, so the entry has to hold what
- * the bank WAS — re-attaching whatever the bank happens to be at restore time
+ * the bank WAS - re-attaching whatever the bank happens to be at restore time
  * would make emptying it permanent.
  */
 interface HistoryEntry {
@@ -65,7 +65,7 @@ export interface Cursor {
  *
  * `row`/`col` locate the BLOCK (the cell the part lives in) and `item` the part;
  * `speech` is the id of the column the tile is drawn in, which is what the
- * answer is stored under. `primary` marks the first column answering the block —
+ * answer is stored under. `primary` marks the first column answering the block -
  * the only one allowed to absorb a pre-tiles `responses` list.
  */
 export interface AnswerRef {
@@ -88,10 +88,10 @@ class RoundStore {
   round = $state<Round | null>(null);
   activeSheetId = $state<string | null>(null);
   cursor = $state<Cursor | null>(null);
-  /** Which surface was focused last — so the ribbon's text controls act on the
+  /** Which surface was focused last - so the ribbon's text controls act on the
    *  flow grid or the speech doc, whichever you were just editing. */
   activeSurface = $state<"flow" | "doc">("flow");
-  /** Font size (pt) of the doc's current selection — shown in the ribbon while
+  /** Font size (pt) of the doc's current selection - shown in the ribbon while
    *  the doc is the active surface. Updated by SpeechDoc. */
   docSelSize = $state(11);
   /**
@@ -104,16 +104,16 @@ class RoundStore {
   selection = $state<{ anchor: Cursor; focus: Cursor } | null>(null);
   /**
    * Which partner lane is yours on a split speech. Always 0 while flowing
-   * solo — you own the flow, so you own the first lane. A live partner session
+   * solo - you own the flow, so you own the first lane. A live partner session
    * sets it to 1 on the client that joined.
    *
    * ⚠ This is a property of the SESSION, not of a document. Read
    * {@link laneHere} instead anywhere the answer is "which column on screen is
-   * mine" — see the note there.
+   * mine" - see the note there.
    */
   myLane = $state(0);
   /**
-   * Other rounds open at the same time — your partner's flow in a
+   * Other rounds open at the same time - your partner's flow in a
    * separate-flows session. Only {@link round} is rendered; a mirror becomes
    * the rendered one via {@link switchDoc}, which swaps them over.
    */
@@ -122,7 +122,7 @@ class RoundStore {
    * Ids of rounds you do NOT own.
    *
    * ⚠ Load-bearing. A foreign round must never be written to a file path on
-   * this machine — that is how one client ends up autosaving another's flow
+   * this machine - that is how one client ends up autosaving another's flow
    * over its own file, which is the 2026-08-24 shape. `autosaveToFile` refuses
    * on this, on top of the fact that a mirror carries no `filePath`.
    */
@@ -135,11 +135,11 @@ class RoundStore {
   private ctx = new Map<string, DocCtx>();
   /**
    * Lane columns collapsed out of view, by SPEECH ID. Session-only and PURELY
-   * VISUAL — it must never change what the doc export produces, or the same
+   * VISUAL - it must never change what the doc export produces, or the same
    * flow would emit different speech docs depending on a view toggle.
    * `argBeingAnswered` reads {@link laneHere}, never this.
    *
-   * ⚠ Either lane collapses — yours as readily as your partner's. It used to be
+   * ⚠ Either lane collapses - yours as readily as your partner's. It used to be
    * one boolean meaning "hide whichever lane isn't mine", which could not
    * express "collapse my own and give their column the room".
    */
@@ -161,7 +161,7 @@ class RoundStore {
    *
    * ⚠ Refuses to hide a group's LAST visible lane. Hiding every lane of a group
    * would take its headers off screen with them, leaving nothing to click to
-   * get any of it back — the column would be unreachable for the rest of the
+   * get any of it back - the column would be unreachable for the rest of the
    * session. One lane always stays, and its header is what restores the other.
    */
   toggleLane(id: string): void {
@@ -180,7 +180,7 @@ class RoundStore {
     this.hiddenLanes = [...this.hiddenLanes, id];
   }
   /**
-   * The answer tile the caret is in, if any — `col` is the BLOCK's column and
+   * The answer tile the caret is in, if any - `col` is the BLOCK's column and
    * `item` the part being answered.
    *
    * ⚠ Exists so the card/analytic buttons and their keybinds can act on a tile
@@ -196,13 +196,13 @@ class RoundStore {
    * ⚠ Not the same question as {@link myLane}. Lane numbers belong to the flow
    * they were created in: `splitForSide` always makes lane 0 "You" and lane 1
    * "Partner" from the point of view of whoever created that round. So on a
-   * partner's mirrored flow the numbering is THEIRS — they are lane 0, you are
-   * lane 1 — and a session-level `myLane` of 0 points the hide toggle, the
+   * partner's mirrored flow the numbering is THEIRS - they are lane 0, you are
+   * lane 1 - and a session-level `myLane` of 0 points the hide toggle, the
    * "mylane" highlight and the "AT:" left-walk at your own column instead of
    * theirs.
    *
    * Reproduced live in a separate-flows session: on the guest, viewing the
-   * host's flow, ⇤ hid "Neg Block · Partner" — the guest's own lane — and left
+   * host's flow, ⇤ hid "Neg Block · Partner" - the guest's own lane - and left
    * the host's standing. A foreign round is always someone else's, so on one
    * of those you are always the second lane.
    */
@@ -213,8 +213,8 @@ class RoundStore {
     //
     // `myLane` is session state: set to 1 exactly once, when a guest adopts a
     // snapshot, and reset to 0 by `leave()` and by every app start. So the
-    // moment a guest left a session — or simply reopened their own flow the
-    // next day — their column was labelled "Partner" and the host's "You", and
+    // moment a guest left a session - or simply reopened their own flow the
+    // next day - their column was labelled "Partner" and the host's "You", and
     // they had to type in the one marked "Partner". Reported by a partner and
     // initially dismissed, because it never happens to whoever HOSTS: the host
     // is lane 0, so the reset value is accidentally correct for them.
@@ -232,7 +232,7 @@ class RoundStore {
    *
    * ⚠ Local to this machine and stripped from anything sent, like `filePath`.
    * It is the one field on a Round whose correct value DIFFERS per client, so
-   * syncing it would push one partner's point of view onto the other — the
+   * syncing it would push one partner's point of view onto the other - the
    * mistake `laneAbbr` exists to avoid.
    */
   setOwnLane(lane: number): void {
@@ -245,7 +245,7 @@ class RoundStore {
 
   /** Memoized normalized selection rectangle. Every visible cell asks whether
    *  it's in range (twice) on every drag frame, so this must not recompute
-   *  per-cell — as a plain getter it allocated a rect for each of them. */
+   *  per-cell - as a plain getter it allocated a rect for each of them. */
   private rect = $derived.by(() => {
     const s = this.selection;
     if (!s) return null;
@@ -262,14 +262,14 @@ class RoundStore {
   /** Running total of `round` JSON held by both stacks, in characters. */
   private historyChars = 0;
   /** The bank array the last snapshot serialized, and the string it produced.
-   *  See {@link bankSnapshot} — this is what makes an unchanged bank cost one
+   *  See {@link bankSnapshot} - this is what makes an unchanged bank cost one
    *  copy across the whole history instead of one per step. */
   private lastBankRef: ArgRef[] | undefined | null = null;
   private lastBankJson = "";
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** True while a text-edit session is coalescing keystrokes into one undo step. */
   private textSessionOpen = false;
-  /** True while a batch (macro) runs — inner mutations skip history pushes. */
+  /** True while a batch (macro) runs - inner mutations skip history pushes. */
   private suppressHistory = false;
 
   // ---- lifecycle ----------------------------------------------------------
@@ -341,7 +341,7 @@ class RoundStore {
   }
 
   /**
-   * Open a round alongside the current one — your partner's flow.
+   * Open a round alongside the current one - your partner's flow.
    *
    * ⚠ `filePath` is stripped. A mirror is a copy of a document that lives on
    * SOMEONE ELSE'S disk; keeping their path would point our autosave at a file
@@ -368,13 +368,13 @@ class RoundStore {
    *
    * ⚠ Call this BEFORE {@link clearMirrors} when a session ends. `clearMirrors`
    * closes the partner's flow, but "closing" it cannot unrender it while it is
-   * the round on screen — your own flow is sitting in `mirrors` and gets wiped
+   * the round on screen - your own flow is sitting in `mirrors` and gets wiped
    * instead, leaving you looking at a document that is no longer open, with no
    * switcher to get back. Nothing is lost (your flow is still in app data), but
    * it is a bad place to land after clicking Leave.
    *
    * A no-op when you are already on your own flow, which includes every shared
-   * session — an adopted round is yours to edit, not a mirror.
+   * session - an adopted round is yours to edit, not a mirror.
    */
   returnToOwnDoc(): void {
     if (!this.isForeign(this.round?.id)) return;
@@ -382,7 +382,7 @@ class RoundStore {
     if (mine) this.switchDoc(mine.id);
   }
 
-  /** Close every mirror — used when a session ends. Your own round is kept. */
+  /** Close every mirror - used when a session ends. Your own round is kept. */
   clearMirrors(): void {
     for (const m of this.mirrors) {
       this.foreign.delete(m.id);
@@ -421,7 +421,7 @@ class RoundStore {
     this.undoStack = saved?.undo ?? [];
     this.redoStack = saved?.redo ?? [];
     // The budget travels with the stacks. Recomputed rather than parked
-    // alongside them because the two must not be able to disagree — a total
+    // alongside them because the two must not be able to disagree - a total
     // carried over from the other document would evict this one's history.
     this.historyChars =
       this.undoStack.reduce((n, e) => n + e.round.length, 0) +
@@ -446,7 +446,7 @@ class RoundStore {
    *
    * The rendered round goes through {@link applyRemote} so it autosaves and
    * stays out of your undo stack. A mirror isn't reactive state, so it is
-   * mutated directly and persisted here — otherwise their flow would only be
+   * mutated directly and persisted here - otherwise their flow would only be
    * written to disk on the occasions you happened to be looking at it.
    */
   applyRemoteToDoc(id: string, fn: (round: Round) => void): boolean {
@@ -480,7 +480,7 @@ class RoundStore {
    *
    * ⚠ One place, called from everywhere history is discarded. `historyChars`
    * and the cached bank string are only correct if they are cleared with the
-   * stacks — a stale total would evict real history on the next push, and a
+   * stacks - a stale total would evict real history on the next push, and a
    * stale bank reference would attach the previous round's ⌘J bank to the
    * first snapshot of the new one.
    */
@@ -530,7 +530,7 @@ class RoundStore {
    *
    * Every bank mutator (`addCards`, `addArg`, `updateArg`, `removeArg`,
    * `clearBank`) builds a NEW array and assigns it, so an identity check is a
-   * sound "did this change" test — and on the overwhelmingly common path
+   * sound "did this change" test - and on the overwhelmingly common path
    * (typing in the grid, which never touches the bank) it costs one reference
    * comparison instead of serializing a megabyte.
    */
@@ -546,7 +546,7 @@ class RoundStore {
   private historySnapshot(): HistoryEntry {
     const bank = this.bankSnapshot();
     const trimmed = trimPadding(this.round!);
-    // Drop `cards` for the serialize only — `trimPadding` already returns a
+    // Drop `cards` for the serialize only - `trimPadding` already returns a
     // fresh shallow object, so deleting the key here cannot touch the round.
     delete (trimmed as Partial<Round>).cards;
     return { round: JSON.stringify(trimmed), bank };
@@ -625,14 +625,14 @@ class RoundStore {
   }
 
   /** How much blank paper each sheet currently has. History snapshots are
-   *  stored trimmed, so this is restored afterwards — otherwise undoing while
+   *  stored trimmed, so this is restored afterwards - otherwise undoing while
    *  scrolled down into empty rows would shrink the sheet under you. */
   private paperLevel(): Map<string, number> {
     return new Map((this.round?.sheets ?? []).map((s) => [s.id, s.rows.length]));
   }
 
   /** Undo/redo swaps in a whole different round object, so the cursor and the
-   *  active sheet can point at things that no longer exist — e.g. undoing an
+   *  active sheet can point at things that no longer exist - e.g. undoing an
    *  "add sheet" left activeSheetId dangling and the grid blank with no way back
    *  except clicking a tab. Re-anchor both to something real. */
   private afterTimeTravel(paper?: Map<string, number>): void {
@@ -678,7 +678,7 @@ class RoundStore {
     // for a long time:
     //
     //  - `openPath` decides which copy is newer by comparing `updatedAt` (never
-    //    mtime — see the 2026-08-24 invariants). A round whose only change was
+    //    mtime - see the 2026-08-24 invariants). A round whose only change was
     //    a renamed speech column looked UNCHANGED to that comparison and could
     //    lose to a staler file.
     //  - Partner sync now skips the diff for a document whose stamp has not
@@ -709,7 +709,7 @@ class RoundStore {
     await saveRoundJson(id, json);
   }
 
-  /** Flush only if there are unsaved edits — cheap to call from a heartbeat
+  /** Flush only if there are unsaved edits - cheap to call from a heartbeat
    *  or on window blur / hide / pagehide, so a crash or sleep can't lose work. */
   async autosaveIfDirty(): Promise<void> {
     if (this.dirty && this.round) await this.saveNow();
@@ -766,7 +766,7 @@ class RoundStore {
     });
   }
 
-  /** Reorder sheets (drag & drop) — the 2AC often answers in a different order than the 1NC read. */
+  /** Reorder sheets (drag & drop) - the 2AC often answers in a different order than the 1NC read. */
   reorderSheet(sheetId: string, targetIndex: number): void {
     if (!this.round) return;
     const i = this.round.sheets.findIndex((s) => s.id === sheetId);
@@ -797,7 +797,7 @@ class RoundStore {
         const cell = sheet.rows[row].cells[col];
         cell.text = text;
         // A banked author only stays bold while its exact substring survives in
-        // the text — edit it away and the bold signal drops with it.
+        // the text - edit it away and the bold signal drops with it.
         if (cell.author && !text.includes(cell.author)) delete cell.author;
         // Typing over an inserted card drops its source-type chip + stored card.
         if (!text.trim()) {
@@ -806,7 +806,7 @@ class RoundStore {
         }
         // LABEL cell: the first cell of the sheet's start column names the
         // sheet, so offs auto-label as you flow the 1NC. The title tracks the
-        // cell exactly — clearing the cell clears the name too.
+        // cell exactly - clearing the cell clears the name too.
         if (row === 0 && col === sheet.startCol) {
           sheet.title = text.trim();
         }
@@ -818,12 +818,12 @@ class RoundStore {
   // ---- argument bank (cards + analytics) ----------------------------------
 
   /** Bank arguments from an imported doc; dedupe by author+tag. Tags AND
-   *  analytics are both banked — each is an argument someone made. */
+   *  analytics are both banked - each is an argument someone made. */
   addCards(args: ArgRef[]): void {
     if (!this.round || args.length === 0) return;
     // Build a plain array and assign it back once. Pushing onto a captured
     // reference of a $state array doesn't update the proxy's length signal, so
-    // the cards silently never landed in the bank — reassign instead.
+    // the cards silently never landed in the bank - reassign instead.
     const bank = this.round.cards ? [...this.round.cards] : [];
     const key = (c: ArgRef) => (c.author ?? "") + "::" + c.tag;
     const seen = new Set(bank.map(key));
@@ -860,12 +860,12 @@ class RoundStore {
     return hits
       .map((c) => ({
         c,
-        // 0 sorts first — arguments already on the sheet lead the list.
+        // 0 sorts first - arguments already on the sheet lead the list.
         rank: sheetText.includes(c.tag.toLowerCase().slice(0, 20)) ? 0 : 1,
       }))
       .sort((a, b) => a.rank - b.rank)
       // No cap. This used to .slice(0, 12), which silently hid all but the first
-      // dozen of a real imported bank — an in-round dead end, since the card you
+      // dozen of a real imported bank - an in-round dead end, since the card you
       // wanted was usually past it and no amount of scrolling could reach it.
       // The dropdown scrolls (and keeps the selection in view), so length is its
       // problem, not ours. Sort is stable, so equal-rank items keep bank order.
@@ -908,7 +908,7 @@ class RoundStore {
   }
 
   /** Fill a cell from a quick-card's flow form (a dragged/clicked quick card),
-   *  building the SAME structured cell — chip + expandable items — a real card
+   *  building the SAME structured cell - chip + expandable items - a real card
    *  produces, rather than flat text. */
   setCellFromFlow(
     row: number,
@@ -938,7 +938,7 @@ class RoundStore {
   }
 
   /** Put a set of sub-items into a cell (from a block insert), collapsed by
-   *  default — the cell shows the block header; expand with the ▸ to see cards. */
+   *  default - the cell shows the block header; expand with the ▸ to see cards. */
   setCellItems(row: number, col: number, header: string, items: CellItem[]): void {
     const cell = this.cellAt(row, col);
     if (!cell) return;
@@ -950,7 +950,7 @@ class RoundStore {
   }
 
   /** Insert one sub-item (e.g. a typed response); returns its id. `at` is the
-   *  index to insert before — omit (or pass past the end) to append. */
+   *  index to insert before - omit (or pass past the end) to append. */
   addCellItem(row: number, col: number, kind: CellItem["kind"], text = "", at?: number): string {
     const cell = this.cellAt(row, col);
     if (!cell) return "";
@@ -1007,7 +1007,7 @@ class RoundStore {
   // ---- per-part answer tiles ----------------------------------------------
   // A real flow cell per part of a block PER SPEECH, stored ON the part so the
   // whole chain collapses, moves and saves with it. An {@link AnswerRef}'s `col`
-  // is the BLOCK's column — never the column the tile is drawn in, which is what
+  // is the BLOCK's column - never the column the tile is drawn in, which is what
   // `speech` identifies.
 
   /**
@@ -1087,7 +1087,7 @@ class RoundStore {
     });
   }
 
-  /** Wipe an ENTIRE cell — header text, chip, card, marks, items, everything —
+  /** Wipe an ENTIRE cell - header text, chip, card, marks, items, everything -
    *  back to a blank cell. */
   clearCell(row: number, col: number): void {
     const cell = this.cellAt(row, col);
@@ -1152,7 +1152,7 @@ class RoundStore {
   }
 
   /** Jump the cursor to the nearest cell WITH content above (-1) or below (+1)
-   *  in the current column — Excel's ⌘/Ctrl+↑/↓ "jump to the data", for pulling
+   *  in the current column - Excel's ⌘/Ctrl+↑/↓ "jump to the data", for pulling
    *  context off a nearby cell without arrowing through the blank paper between.
    *  Purely a cursor move: no mutation, so it costs no undo step. No-op if there
    *  is nothing filled that way. */
@@ -1193,7 +1193,7 @@ class RoundStore {
     }
     if (target < 0) return;
     // Extending INTO a split speech lands in the lane you own rather than
-    // whichever lane happens to sit leftmost — an extension is your own note,
+    // whichever lane happens to sit leftmost - an extension is your own note,
     // so it belongs on your side of the split. Extending FROM one lane to the
     // next speech is unaffected: that target isn't a lane.
     const group = speeches[target].laneGroup;
@@ -1216,7 +1216,7 @@ class RoundStore {
    *
    * The mirror image of {@link extendCell}, which walks to your own next
    * speech. The recorded link is what lets the doc export write the right
-   * "AT: …" header instead of guessing from whatever sits to the left — which
+   * "AT: …" header instead of guessing from whatever sits to the left - which
    * on a split speech is your partner's lane, not yours.
    */
   replyToCell(row: number, col: number): void {
@@ -1286,7 +1286,7 @@ class RoundStore {
     }
   }
 
-  /** Grow a sheet so `row` exists — paper never runs out. */
+  /** Grow a sheet so `row` exists - paper never runs out. */
   ensureRows(row: number, sheet = this.activeSheet): void {
     if (!sheet || row < sheet.rows.length) return;
     const missing = row - sheet.rows.length + 1;
@@ -1382,7 +1382,7 @@ class RoundStore {
       delete cell.chip;
       delete cell.card;
       // Also drop imported block contents (cards + responses), not just the
-      // flowed header text — a Delete on the selection clears the whole cell.
+      // flowed header text - a Delete on the selection clears the whole cell.
       delete cell.items;
       delete cell.expanded;
       delete cell.cmNode;
@@ -1528,7 +1528,7 @@ class RoundStore {
   }
 }
 
-/** True for a cell holding nothing at all — no text and no marks/items/source. */
+/** True for a cell holding nothing at all - no text and no marks/items/source. */
 function cellIsBlank(cell: Cell | undefined): boolean {
   if (!cell) return true;
   if ((cell.text ?? "") !== "") return false;
@@ -1547,7 +1547,7 @@ function cellIsBlank(cell: Cell | undefined): boolean {
  * A shallow copy of the round with each sheet's trailing BLANK rows dropped.
  *
  * "Unlimited paper" grows a sheet every time you scroll to its bottom, and those
- * blank rows used to persist forever — so a long session left thousands of empty
+ * blank rows used to persist forever - so a long session left thousands of empty
  * rows in the round, in every autosave and every undo snapshot. The padding is
  * regenerated on demand by Grid's ensureRows effect, so it never needs storing.
  * Only spines are copied (no deep clone), so this is cheap enough for the hot path.

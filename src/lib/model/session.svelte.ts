@@ -47,7 +47,7 @@ const RESUME_TTL_MS = 8 * 60 * 60 * 1000;
  * The room a flow was last shared in.
  *
  * ⚠ A HINT, NEVER AN ACTION. Nothing in here reconnects on its own. Sync must
- * not run without an explicit act, and it must never reach the launch path —
+ * not run without an explicit act, and it must never reach the launch path -
  * so this is only ever read to draw a button, and `resume()` is only ever
  * reached from a click. Two reasons that matters beyond the rule: a shared
  * session arrives as "adopt", which REPLACES the joiner's flow, so a silent
@@ -58,7 +58,7 @@ interface ResumeHint {
   code: string;
   mode: SessionMode;
   role: "host" | "guest";
-  /** The flow it was attached to — the offer only appears on that flow. */
+  /** The flow it was attached to - the offer only appears on that flow. */
   roundId: string;
   at: number;
 }
@@ -73,8 +73,8 @@ const CHUNK_CHARS = 48_000;
  * Biggest delta batch we will put in one broadcast frame.
  *
  * ⚠ The relay drops an oversized frame and the SENDER IS NOT TOLD. A browser
- * `ws.send()` does not throw on a large payload — it buffers it and the server
- * rejects it — so the send reports success, the shadow advances, and the edits
+ * `ws.send()` does not throw on a large payload - it buffers it and the server
+ * rejects it - so the send reports success, the shadow advances, and the edits
  * in that frame are recorded as delivered forever. That is how importing a 1NC
  * could leave a partner with none of the off-case pages and nothing to re-send
  * them, twice, in real tournaments.
@@ -105,12 +105,12 @@ export type Delta =
    *
    * ⚠ Needed because a CELL is not divisible any other way. An expanded block
    * with a dozen cards in it is one cell, and real ones measure 384KB and 507KB
-   * — past what the relay accepts, so they were being dropped in silence while
+   * - past what the relay accepts, so they were being dropped in silence while
    * every smaller cell around them arrived. The off-case page looked like it had
    * synced, with the biggest card in it missing.
    *
    * An older build has no case for this in `applyDelta`'s switch and ignores it,
-   * which is exactly what it does with these cells today — so a mixed pair is no
+   * which is exactly what it does with these cells today - so a mixed pair is no
    * worse off than before, and a matched pair is fixed.
    */
   | { t: "cellpart"; s: string; r: string; c: number; id: string; i: number; n: number; part: string };
@@ -136,7 +136,7 @@ function metaKey(s: Sheet): string {
  * A sheet's structure with none of its content: same id, title, kind, column
  * and the same rows BY ID, but every cell blank.
  *
- * This is what a new sheet travels as. The row ids have to be real — the whole
+ * This is what a new sheet travels as. The row ids have to be real - the whole
  * delta protocol addresses cells by row id, so a skeleton with invented ids
  * would leave every following cell delta landing nowhere. The cells themselves
  * follow one at a time through the ordinary path.
@@ -158,7 +158,7 @@ function skeletonOf(sheet: Sheet): Sheet {
 /**
  * Everything that changed between `prev` and the round as it is now.
  *
- * ⚠ `round` may be a LIVE `$state` proxy — `publish()` passes one deliberately,
+ * ⚠ `round` may be a LIVE `$state` proxy - `publish()` passes one deliberately,
  * to avoid deep-cloning megabytes on every tick. Reading a proxy is fine and
  * `JSON.stringify` works on one, but `structuredClone` THROWS on a `$state`
  * proxy, so anything that leaves this function inside a delta is taken with
@@ -186,13 +186,13 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
       // It used to ship complete, on the assumption that a sheet "is small at
       // creation". That is true when you press ＋, and false in the case that
       // matters: importing a 1NC creates a sheet ALREADY FULL of cards. Measured
-      // on real rounds, those sheets serialize to 124KB, 357KB, 595KB — one was
-      // 1.29 MB — in a SINGLE broadcast frame, well past what the relay accepts.
+      // on real rounds, those sheets serialize to 124KB, 357KB, 595KB - one was
+      // 1.29 MB - in a SINGLE broadcast frame, well past what the relay accepts.
       //
       // And the failure was silent in the worst way. `ws.send()` does not throw
       // on an oversized payload; it buffers it and the SERVER drops it. So the
       // send reported success, the shadow advanced, the sheet was recorded as
-      // delivered — and no later diff would ever mention it again. Your partner
+      // delivered - and no later diff would ever mention it again. Your partner
       // simply never got the off-case pages and had to rebuild them by hand.
       //
       // Sending the structure only, and letting the ordinary per-cell path carry
@@ -202,7 +202,7 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
       // falling through to the cell loop below is what emits them. Marking them
       // as already-sent here is precisely the bug above.
     }
-    // Only for a sheet they already had — the skeleton just carried all of this.
+    // Only for a sheet they already had - the skeleton just carried all of this.
     if (hadSheet && prev.sheetMeta.get(sheet.id) !== mk) {
       deltas.push({
         t: "sheetmeta", s: sheet.id, title: sheet.title, kind: sheet.kind,
@@ -219,7 +219,7 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
     // emitting inserts here would add one `rowins` per row of an imported 1NC.
     //
     // `beforeSet` stays EMPTY for a new sheet on purpose, and is a different
-    // question from this one — it means "rows the peer already had", which is
+    // question from this one - it means "rows the peer already had", which is
     // what decides whether a BLANK cell has to be sent. On a new sheet a blank
     // cell is already blank on the far side and sending it is pure noise; on an
     // existing row, blank means the text was deleted and must travel.
@@ -247,7 +247,7 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
   for (const id of prev.sheetOrder) if (!seen.has(id)) deltas.push({ t: "sheetdel", s: id });
 
   // ⚠ `rfd` is deliberately NOT here and must not be added. Judge feedback is
-  // each partner's own notes — see the note in `sendSnapshot`. Everything in
+  // each partner's own notes - see the note in `sendSnapshot`. Everything in
   // this list is a shared fact about the round (who judged, who you hit, the
   // team names), which is why those DO travel.
   const metaKeys = ["name", "tournament", "opponent", "judges", "affTeam", "negTeam"] as const;
@@ -266,7 +266,7 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
  * Deliberately TOLERANT: anything that refers to a sheet or row we don't have
  * is skipped rather than throwing. The two sides can briefly disagree during a
  * reconnect, and a thrown error inside the apply loop would strand the rest of
- * the batch — losing edits that were perfectly applicable.
+ * the batch - losing edits that were perfectly applicable.
  */
 function applyDelta(round: Round, d: Delta): void {
   const sheetOf = (id: string) => round.sheets.find((s) => s.id === id);
@@ -328,7 +328,7 @@ function applyDelta(round: Round, d: Delta): void {
       try {
         cell = JSON.parse(parts.join("")) as Cell;
       } catch {
-        // A corrupt reassembly is dropped rather than written — the next diff
+        // A corrupt reassembly is dropped rather than written - the next diff
         // of that cell will send it again.
         return;
       }
@@ -369,8 +369,8 @@ export interface JoinRequest {
 /**
  * How the two flows relate.
  *
- * - `shared`   — ONE flow, both of you on it, split into partner lanes.
- * - `separate` — TWO flows, one each, both open and both EDITABLE. You can drop
+ * - `shared`   - ONE flow, both of you on it, split into partner lanes.
+ * - `separate` - TWO flows, one each, both open and both EDITABLE. You can drop
  *                a block onto your partner's page while they're flowing it.
  */
 export type SessionMode = "shared" | "separate";
@@ -378,7 +378,7 @@ export type SessionMode = "shared" | "separate";
 /**
  * Where your partner is working, as broadcast.
  *
- * Position only. This is a presence hint, not part of the flow — it is never
+ * Position only. This is a presence hint, not part of the flow - it is never
  * persisted, never enters a delta, and never touches undo.
  */
 export interface PeerCursor {
@@ -403,7 +403,7 @@ class SessionStore {
   peerEmail = $state("");
   peerOnline = $state(false);
   error = $state("");
-  /** A partner asking to be let in. The host approves explicitly — the code
+  /** A partner asking to be let in. The host approves explicitly - the code
    *  alone is not enough to get into someone's flow. */
   pending = $state<JoinRequest | null>(null);
   /** Edits waiting on the socket. Surfaced so a stalled sync is visible. */
@@ -416,13 +416,13 @@ class SessionStore {
 
   private ch: Channel | null = null;
   private clientId = crypto.randomUUID();
-  /** One shadow per open document — a separate-flows session diffs both. */
+  /** One shadow per open document - a separate-flows session diffs both. */
   private shadows = new Map<string, Shadow>();
   /**
    * `updatedAt` of each document as of the last diff we actually delivered.
    *
    * Lets an idle tick cost one number comparison instead of a deep clone and a
-   * full re-serialize of every cell. Cleared — never merely updated — by
+   * full re-serialize of every cell. Cleared - never merely updated - by
    * anything that makes the shadow lie about what the peer holds, because the
    * stamp is a shortcut past the diff and a stale entry would suppress it.
    */
@@ -463,7 +463,7 @@ class SessionStore {
   /** Start a session and become lane 0. Returns the code to read out. */
   /**
    * Start hosting. `code` re-opens a specific room instead of making a new one,
-   * which is what resuming needs — a fresh code would leave the partner
+   * which is what resuming needs - a fresh code would leave the partner
    * knocking on a room number that no longer exists.
    */
   host(mode: SessionMode = "shared", code?: string): string {
@@ -505,7 +505,7 @@ class SessionStore {
    * The room this flow can be put back into, or null.
    *
    * ⚠ Deliberately narrow. It has to be THIS flow, recent, and there must be no
-   * session already running — otherwise the panel would offer to rejoin a room
+   * session already running - otherwise the panel would offer to rejoin a room
    * you are sitting in.
    */
   get resumable(): ResumeHint | null {
@@ -521,7 +521,7 @@ class SessionStore {
    * Put this flow back in its room. Only ever called from a click.
    *
    * Runs the ordinary host/join paths rather than anything bespoke, so the
-   * pairing, approval and snapshot rules are exactly the ones already proven —
+   * pairing, approval and snapshot rules are exactly the ones already proven -
    * this is a shortcut for typing the code, not a second way in. A dead room
    * therefore fails the way a wrong code fails.
    *
@@ -537,7 +537,7 @@ class SessionStore {
     else this.join(h.code);
   }
 
-  /** Forget the room — used when a session is ended on purpose. */
+  /** Forget the room - used when a session is ended on purpose. */
   private forget(): void {
     this.hint = null;
     void saveBlob(RESUME_BLOB, null);
@@ -548,7 +548,7 @@ class SessionStore {
   /**
    * The row the cursor is on, BY ID.
    *
-   * Row ids are the one thing an insert above cannot change — everything else
+   * Row ids are the one thing an insert above cannot change - everything else
    * about a row's position is a number that renumbers underneath you. The whole
    * sync layer already keys cells on row id for the same reason; the cursor was
    * the one place still trusting an index.
@@ -565,7 +565,7 @@ class SessionStore {
   /**
    * Move the cursor to wherever that row ended up.
    *
-   * Deltas apply synchronously, so nothing of the user's can interleave — the
+   * Deltas apply synchronously, so nothing of the user's can interleave - the
    * only thing that moved the row was their change. If the row is GONE (they
    * deleted the one you were on) the cursor is left alone: dropping it
    * somewhere arbitrary mid-typing would be its own version of this bug.
@@ -594,7 +594,7 @@ class SessionStore {
     this.sayHello();
     // Ask again on a timer. Covers a hello lost before the channel finished
     // joining AND, more importantly, a snapshot that was sent while this
-    // window was in the background and never arrived — without this the guest
+    // window was in the background and never arrived - without this the guest
     // sat on "Waiting for your partner to let you in" forever with no way out.
     this.joinRetry = setInterval(() => {
       if (this.status !== "joining") return this.stopJoinRetry();
@@ -645,7 +645,7 @@ class SessionStore {
   /**
    * End the session on purpose.
    *
-   * ⚠ Forgets the room, so "End session" means ended — no offer to rejoin it
+   * ⚠ Forgets the room, so "End session" means ended - no offer to rejoin it
    * afterwards. That is the whole distinction the resume hint turns on: closing
    * Nimbus, or stepping out of the flow, leaves the room on offer; pressing
    * this says you are done with it.
@@ -674,7 +674,7 @@ class SessionStore {
     this.missed.clear();
     this.inbound.clear();
     // Close the partner's flow. It is still saved in app data under its own
-    // id, so it stays reachable from the dashboard — this just stops rendering
+    // id, so it stays reachable from the dashboard - this just stops rendering
     // a document whose owner is no longer connected.
     //
     // ⚠ Order matters. If their flow is the one on screen, clearing the mirrors
@@ -704,7 +704,7 @@ class SessionStore {
     // ⚠ These go on HERE, not in goLive(). A guest waiting to be let in is the
     // most fragile moment in the whole flow: its window is behind the host's
     // while they click approve, so its timers are throttled and its socket can
-    // go stale — and with no listener attached it had no way back. That is the
+    // go stale - and with no listener attached it had no way back. That is the
     // "stuck on Waiting for your partner to let you in" hang.
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", this.flush);
@@ -740,7 +740,7 @@ class SessionStore {
           if (s === "joined" && this.status === "reconnecting") {
             this.status = "connected";
             // Announce we're back. `needSnapshot` is only true if we genuinely
-            // lost the flow (app restart) — otherwise a snapshot would land on
+            // lost the flow (app restart) - otherwise a snapshot would land on
             // top of whatever we typed while offline and delete it.
             this.ch?.broadcast("hello", {
               clientId: this.clientId,
@@ -772,7 +772,7 @@ class SessionStore {
    *
    * ⚠ Browsers throttle `setInterval` to about once a minute in a hidden tab,
    * and a minimised Tauri window is a hidden tab. Without this the moment you
-   * alt-tab away your edits stop reaching your partner until you come back —
+   * alt-tab away your edits stop reaching your partner until you come back -
    * reproduced exactly that way while building this. Receiving is unaffected,
    * since incoming websocket frames are event-driven and never throttled.
    *
@@ -781,7 +781,7 @@ class SessionStore {
    */
   private flush = (): void => {
     // Coming back from hidden is the moment to find out whether the connection
-    // survived being backgrounded — while hidden, our own timers were throttled
+    // survived being backgrounded - while hidden, our own timers were throttled
     // and the server may have dropped us without the socket noticing.
     this.ch?.ensureFresh();
     this.publish();
@@ -801,7 +801,7 @@ class SessionStore {
       this.ch?.broadcast("ping", { clientId: this.clientId });
       this.queued = this.ch?.pending ?? 0;
       if (this.peerOnline && Date.now() - this.lastHeard > PEER_TIMEOUT_MS) {
-        // A marker for someone who has gone quiet is worse than none — it
+        // A marker for someone who has gone quiet is worse than none - it
         // says they are somewhere they may have left minutes ago.
         this.peerOnline = false;
         this.peerCursor = null;
@@ -823,7 +823,7 @@ class SessionStore {
    * Make the next diff resend every cell we hold.
    *
    * The shadow keeps the sheet structure (so sheets aren't re-announced as new,
-   * which the far side would skip anyway) but forgets all CONTENT — so every
+   * which the far side would skip anyway) but forgets all CONTENT - so every
    * cell reads as changed and goes out on the next tick, in one batch.
    *
    * ⚠ Deliberately not a snapshot. `loadRound` would replace what they typed
@@ -854,7 +854,7 @@ class SessionStore {
    * Ask the peer to re-send any flow whose changes we had to drop.
    *
    * Runs on the existing diff tick rather than its own timer, and only once the
-   * flow is actually open — asking while it is still closed would get an answer
+   * flow is actually open - asking while it is still closed would get an answer
    * with nowhere to land, exactly the situation we are recovering from.
    *
    * The answer is `resendEverything()` on their side: cells only, never a
@@ -863,7 +863,7 @@ class SessionStore {
   private requestMissed(): void {
     if (!this.missed.size) return;
     for (const docId of [...this.missed]) {
-      if (!store.docById(docId)) continue; // still not open — keep waiting
+      if (!store.docById(docId)) continue; // still not open - keep waiting
       this.missed.delete(docId);
       this.ch?.broadcast("catchup", { from: this.clientId, doc: docId });
     }
@@ -873,12 +873,12 @@ class SessionStore {
     if (this.applying || this.status === "off") return;
     this.requestMissed();
     for (const doc of this.syncedDocs()) {
-      // ⚠ THE IDLE TICK IS THE COMMON ONE — skip it entirely.
+      // ⚠ THE IDLE TICK IS THE COMMON ONE - skip it entirely.
       //
       // Diffing meant deep-cloning the whole round ($state.snapshot) and
       // re-serializing every cell to ask "did anything change?". Measured on a
       // real 2.4 MB flow that is ~17ms of clone plus ~7ms of diff, four times a
-      // second, forever — including while you are listening to the other team
+      // second, forever - including while you are listening to the other team
       // and touching nothing. Five cells in that flow are over 50KB and one is
       // 507KB; all of them were being re-stringified 4x/second to be told they
       // were identical.
@@ -895,7 +895,7 @@ class SessionStore {
         continue;
       }
       // Usually one message per document per batch, so a burst of typing is one
-      // frame — but split when the batch is too big for the relay to accept.
+      // frame - but split when the batch is too big for the relay to accept.
       // `doc` is what lets the far side put these on the right flow; without it
       // an edit to your partner's page would land on your own.
       const sent = this.sendDeltas(doc.id, deltas);
@@ -906,7 +906,7 @@ class SessionStore {
       // once and then considered delivered forever. Drop your wifi for a few
       // seconds, import a 1NC, come back: the import was queued, the queue
       // overflowed (a 1NC is a sheet plus hundreds of cells, against a 500
-      // message cap), the frames were discarded — and because the shadow had
+      // message cap), the frames were discarded - and because the shadow had
       // already moved past them, no later diff would ever mention that sheet
       // again. Your partner never saw it and never could. Reported from a real
       // round, and it looked like a one-way connection rather than data loss.
@@ -935,7 +935,7 @@ class SessionStore {
    *
    * ⚠ Returns true ONLY if every frame reached the wire. A partial success must
    * read as a failure, because the caller uses this to decide whether to advance
-   * the shadow — and advancing it after frame 3 of 5 failed would record frames
+   * the shadow - and advancing it after frame 3 of 5 failed would record frames
    * 4 and 5 as delivered and never mention them again. Re-sending a few deltas
    * the peer already has is harmless: applying a cell it already holds is a
    * no-op, and `sheetadd` is ignored when the sheet exists.
@@ -948,7 +948,7 @@ class SessionStore {
       const n = JSON.stringify(d).length;
       if (n > FRAME_CHARS) {
         if (cur.length) { frames.push(cur); cur = []; curChars = 0; }
-        // A cell is the one delta that can still be split — and the one that
+        // A cell is the one delta that can still be split - and the one that
         // actually gets this big. Slice it; the far side reassembles.
         if (d.t === "cell") {
           const json = JSON.stringify(d.v);
@@ -961,7 +961,7 @@ class SessionStore {
             }]);
           }
         } else {
-          // Nothing else should reach this size — a skeleton `sheetadd` is
+          // Nothing else should reach this size - a skeleton `sheetadd` is
           // structure only. Send it alone so it cannot take a batch down too.
           frames.push([d]);
         }
@@ -999,7 +999,7 @@ class SessionStore {
     const doc = store.round?.id ?? "";
     const sheet = store.activeSheetId ?? "";
     if (!doc || !sheet || !c) return;
-    // "Typing" is inferred from the round having changed a moment ago — enough
+    // "Typing" is inferred from the round having changed a moment ago - enough
     // to tell writing from parking, with no extra plumbing through the editor.
     const typing = Date.now() - (store.round?.updatedAt ?? 0) < 1200;
     const key = doc + "|" + sheet + "|" + c.row + "|" + c.col + "|" + typing;
@@ -1032,7 +1032,7 @@ class SessionStore {
         // advanced by frames that actually left), so this is the other half of
         // that: when anyone announces a rejoin, resend our content in full.
         //
-        // Not a snapshot — a snapshot calls loadRound() over the top of
+        // Not a snapshot - a snapshot calls loadRound() over the top of
         // whatever they typed while the wifi was down, which is the destructive
         // path session 9 removed. This resends CELLS only, leaving their
         // offline work to merge normally.
@@ -1043,7 +1043,7 @@ class SessionStore {
         if (this.role !== "host") return;
         const req = { clientId: String(p.clientId ?? ""), email: String(p.email ?? "a partner") };
         if (!req.clientId) return;
-        // Already let in? Then this hello means they never got the flow —
+        // Already let in? Then this hello means they never got the flow -
         // resend it instead of asking us to approve them a second time.
         if (this.admitted.has(req.clientId)) {
           if (p.needSnapshot) {
@@ -1055,7 +1055,7 @@ class SessionStore {
           // ⚠ A reconnect must NOT be answered with a snapshot unless they
           // actually lost the flow. Re-sending it unconditionally made the
           // rejoining side call loadRound() over the top of everything they
-          // typed while the wifi was down — verified destroying an offline
+          // typed while the wifi was down - verified destroying an offline
           // edit. Their queued deltas replay on their own; only somebody who
           // restarted the app and has no round needs the flow again.
           if (p.needSnapshot) this.sendSnapshot(req.clientId);
@@ -1094,12 +1094,12 @@ class SessionStore {
         // store.cursor is an INDEX, and a row inserted above you renumbers
         // every row below it. Nothing was re-pointing the cursor, so the index
         // you were sitting on quietly came to mean the row ABOVE the one you
-        // were typing in — and because GridCell focuses whichever cell matches
+        // were typing in - and because GridCell focuses whichever cell matches
         // the cursor, your caret was dragged into it mid-word and the rest of
         // your sentence went into your partner's freshly inserted row, mixed in
         // with whatever was already there. Every time they pressed Enter above
         // you. Reported from a real round, and it corrupts live typing, so the
-        // anchor is by row id — the one thing an insert cannot renumber.
+        // anchor is by row id - the one thing an insert cannot renumber.
         const anchor = this.cursorAnchor();
         this.applying = true;
         try {
@@ -1108,13 +1108,13 @@ class SessionStore {
           });
           // ⚠ See the file header. Snapshot undo would restore a whole round
           // from before their edit and delete it. Until undo is patch-based,
-          // a remote change ends your undo history — but ONLY for the document
+          // a remote change ends your undo history - but ONLY for the document
           // that actually changed. An edit to their page must not cost you the
           // undo history of your own.
           if (landed && docId === store.round?.id) store.dropHistory();
           // ⚠ A DELTA THAT COULD NOT LAND IS LOST WORK, NOT A NO-OP.
           //
-          // `applyRemoteToDoc` returns false when that flow is not open here —
+          // `applyRemoteToDoc` returns false when that flow is not open here -
           // which happens the moment you open a different flow from the
           // dashboard while a session is running. Their edits kept arriving,
           // found no document to land on, and were dropped in silence; on their
@@ -1136,7 +1136,7 @@ class SessionStore {
           if (doc) {
             this.shadows.set(docId, diffRound($state.snapshot(doc) as Round, emptyShadow()).next);
             // The shadow now matches the document exactly, so there is nothing
-            // to send — and applying their change bumped `updatedAt`, which
+            // to send - and applying their change bumped `updatedAt`, which
             // would otherwise make the next tick do a full diff to discover
             // that. Recording the stamp alongside the shadow keeps the two
             // saying the same thing.
@@ -1174,8 +1174,8 @@ class SessionStore {
    * means we never have to know the server's payload ceiling.
    *
    * `kind` says what the far side should DO with it:
-   *  - `adopt`  — this becomes your flow (shared session; replaces your screen)
-   *  - `mirror` — open it alongside your own, editable, owned by me
+   *  - `adopt`  - this becomes your flow (shared session; replaces your screen)
+   *  - `mirror` - open it alongside your own, editable, owned by me
    */
   private sendSnapshot(to: string, kind: "adopt" | "mirror" = "adopt", round?: Round): void {
     const src = round ?? store.round;
@@ -1183,7 +1183,7 @@ class SessionStore {
     const payload = $state.snapshot(src) as Round;
     // ⚠ JUDGE FEEDBACK IS PER PARTNER AND NEVER TRAVELS.
     //
-    // You and your partner hear the same RFD and write down different things —
+    // You and your partner hear the same RFD and write down different things -
     // what you each took from it is your own note, not shared state. Deltas
     // already never carry `rfd` (it is not in the delta protocol; see the
     // `meta` keys), so during a session the two copies already diverge
@@ -1196,7 +1196,7 @@ class SessionStore {
     delete payload.rfd;
     // ⚠ And which lane is MINE is mine. It is the one field whose correct value
     // differs per machine, so sending it would tell my partner that my column
-    // is theirs — the exact confusion `laneAbbr` resolves at render time.
+    // is theirs - the exact confusion `laneAbbr` resolves at render time.
     delete payload.ownLane;
     const json = JSON.stringify(payload);
     const total = Math.max(1, Math.ceil(json.length / CHUNK_CHARS));
@@ -1235,21 +1235,21 @@ class SessionStore {
       return;
     }
     // ⚠ Their file path is THEIRS. Clearing it is what stops two clients
-    // autosaving one file — the shape of the 2026-08-24 data loss. `addMirror`
+    // autosaving one file - the shape of the 2026-08-24 data loss. `addMirror`
     // strips it too; both paths do it because it is the one rule here that
     // cannot be allowed to slip.
     delete round.filePath;
     // ⚠ Judge feedback is stripped on BOTH sides, not just on send.
     //
     // `sendSnapshot` already drops it, but every build up to 1.2.8 puts `rfd`
-    // in the snapshot, and partners update at different times — so a guest on
+    // in the snapshot, and partners update at different times - so a guest on
     // this build joining a host on an older one would still inherit their
     // notes. The receiving side is the one that can actually enforce the rule,
     // which is why `filePath` has always been cleared here too. Whatever this
     // round's feedback should be is decided below, from what WE already had.
     delete round.rfd;
     // Unconditional for the same reason `rfd` is: a partner on an older build
-    // still sends it, and theirs says lane 0 is the owner's — which on this
+    // still sends it, and theirs says lane 0 is the owner's - which on this
     // machine is exactly backwards. The correct value is set below, from what
     // WE are in this session, not from what they think.
     delete round.ownLane;
@@ -1278,7 +1278,7 @@ class SessionStore {
     // ⚠ KEEP OUR OWN JUDGE FEEDBACK ACROSS THE ADOPT, BY ROUND ID.
     //
     // An adopt REPLACES the flow on screen, and a rejoin after an app restart
-    // re-sends the snapshot — so without this, typing up the RFD and then
+    // re-sends the snapshot - so without this, typing up the RFD and then
     // reconnecting would silently erase it. Keyed on the round's identity, not
     // on the fact that a snapshot arrived: if this is the same flow we were
     // already in, the feedback we wrote about it is still ours to keep; if it

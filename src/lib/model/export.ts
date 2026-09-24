@@ -99,7 +99,7 @@ export function roundToHtml(round: Round): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(round.name)} — flow</title>
+<title>${esc(round.name)} - flow</title>
 <style>
   body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 32px auto; max-width: 1200px; padding: 0 16px; color: #1d1d1b; background: #fdfdfb; }
   h1 { margin-bottom: 2px; }

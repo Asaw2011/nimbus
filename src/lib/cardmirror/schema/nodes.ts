@@ -8,8 +8,8 @@
  *   how Word represents them in OOXML (paragraphs with Heading1-3 /
  *   Analytic styles, hierarchy implicit in document order + outline
  *   level). Tree-shaped grouping ("the cards under hat 2") is a derived
- *   view — the navigation panel walks paragraphs grouped by outline
- *   level — not a schema constraint.
+ *   view - the navigation panel walks paragraphs grouped by outline
+ *   level - not a schema constraint.
  *
  *   `card` *is* tree-structured: it has a required `tag` child, optional
  *   cite_paragraph or analytic, and zero+ card_body paragraphs. This
@@ -40,7 +40,7 @@ const indentAttr = {
  *  Stored as a plain `{ [attr]: value }` object whose keys are the
  *  OOXML attribute names (`w:before`, `w:after`, `w:line`,
  *  `w:lineRule`, etc.). Visual rendering is governed by per-type
- *  CSS, not this attr — see PROJECT.md's queued per-type display-
+ *  CSS, not this attr - see PROJECT.md's queued per-type display-
  *  spacing setting. Null when the source paragraph had no
  *  `<w:spacing>` element. */
 const spacingAttr = {
@@ -63,7 +63,7 @@ const headingAttrs = {
 
 /**
  * Auto-numbering skeleton (display-only; see NUMBERING_PLAN.md). The number
- * GLYPH ("1", "a") is NEVER stored — only the authorial role and restart flag,
+ * GLYPH ("1", "a") is NEVER stored - only the authorial role and restart flag,
  * from which `computeNumbering` derives numbers positionally at render time.
  *
  *   numRole    'none' = skipped, transparent to both counters (the default);
@@ -102,7 +102,7 @@ function indentToStyle(indent: unknown): string {
   return `padding-left: ${n / 15}px`;
 }
 
-/** Read a paragraph's left indent from its rendered HTML — used
+/** Read a paragraph's left indent from its rendered HTML - used
  *  by parseDOM for round-trip through our own toDOM and for paste
  *  from sources that wrote padding-left. Returns 0 when absent
  *  or non-px. */
@@ -123,7 +123,7 @@ function readIndentFromStyle(dom: HTMLElement): number {
  * height comes from `contain-intrinsic-size`. With the stylesheet's
  * one-size-fits-all 200px fallback, a nav jump into unvisited
  * territory runs its scroll math on guesses that are wrong by up to a
- * screenful per card — and the browser then spends SECONDS of main
+ * screenful per card - and the browser then spends SECONDS of main
  * thread correcting layout card-by-card as each materialization
  * replaces a guess with a real height and shifts everything below
  * (measured: 8 nav jumps on a ~1MB doc = ~1.8s of 60–250ms stalls;
@@ -133,7 +133,7 @@ function readIndentFromStyle(dom: HTMLElement): number {
  * keyword means the browser memoizes a card's REAL height after its
  * first render and ignores this value from then on. Calibrated for
  * default typography (11pt body ≈ 21px line at the editor's default
- * width, ~95 chars/line) — zoom, narrow multi-pane slots, images and
+ * width, ~95 chars/line) - zoom, narrow multi-pane slots, images and
  * tables all make it drift, which is fine; it stays far closer to
  * truth than the fixed fallback. Deliberately reads only textContent
  * and childCount: toDOM must never touch layout.
@@ -147,7 +147,7 @@ function intrinsicHeightStyle(node: PMNode): string {
 
 /**
  * Block-level content legal at the doc root. Note: `tag` and `analytic`
- * are *not* in this list — tags only appear as the required first child
+ * are *not* in this list - tags only appear as the required first child
  * of a `card`, analytics only appear inside an `analytic_unit` (or as a
  * cite-position alternative inside a card).
  *
@@ -180,7 +180,7 @@ export const nodes: { [name: string]: NodeSpec } = {
    * pixels at 96dpi.
    *
    * Atomic + draggable: ProseMirror treats the image as an indivisible
-   * inline glyph — cursor goes around it, not into it. `draggable` is
+   * inline glyph - cursor goes around it, not into it. `draggable` is
    * currently inert: the editor swallows all `dragstart` events (see
    * the text-drag-suppression plugin in `editor/index.ts`), so image
    * drag-and-drop needs a carve-out there before it works.
@@ -234,7 +234,7 @@ export const nodes: { [name: string]: NodeSpec } = {
         },
       },
       {
-        // Placeholder span — for non-browser-renderable formats (EMF /
+        // Placeholder span - for non-browser-renderable formats (EMF /
         // WMF / TIFF). Carries the same data attributes so re-saving
         // through DOM round-trip works.
         tag: 'span[data-pmd-image]',
@@ -289,7 +289,7 @@ export const nodes: { [name: string]: NodeSpec } = {
 
       // Placeholder for unsupported formats. Visual styling lives in
       // CSS (.pmd-image-placeholder); only per-instance dimensions are
-      // inline so they don't clobber other rules — particularly the
+      // inline so they don't clobber other rules - particularly the
       // `display: none` read-mode override.
       const sizeStyle = widthPx > 0 && heightPx > 0
         ? `width: ${widthPx}px; height: ${heightPx}px;`
@@ -306,7 +306,7 @@ export const nodes: { [name: string]: NodeSpec } = {
           'data-height-emu': String(heightEmu),
           'data-alt': alt,
           class: 'pmd-image-placeholder',
-          title: alt ? `${label} — ${alt}` : label,
+          title: alt ? `${label} - ${alt}` : label,
           style: sizeStyle,
         },
         label,
@@ -315,7 +315,7 @@ export const nodes: { [name: string]: NodeSpec } = {
   },
 
   /**
-   * Footnote / endnote reference — round-trips OOXML
+   * Footnote / endnote reference - round-trips OOXML
    * `<w:footnoteReference w:id>` (+ `word/footnotes.xml`) and the
    * endnote equivalents.
    *
@@ -326,7 +326,7 @@ export const nodes: { [name: string]: NodeSpec } = {
    * footnotes are near-always read-only source citations, so the
    * simplified-run model deliberately avoids ProseMirror's
    * nested-content footnote pattern (inner EditorView, selection/undo
-   * handoff) — display + light editing happens in the popover
+   * handoff) - display + light editing happens in the popover
    * (footnote-popover.ts).
    *
    * Rendering: an empty <sup>; the visible number is a pure CSS
@@ -343,7 +343,7 @@ export const nodes: { [name: string]: NodeSpec } = {
         default: 'footnote',
         validate: (v: unknown) => v === 'footnote' || v === 'endnote',
       },
-      /** Paragraphs of simplified runs — see FootnoteContent. */
+      /** Paragraphs of simplified runs - see FootnoteContent. */
       content: {
         default: [],
         validate: (v: unknown) =>
@@ -377,13 +377,13 @@ export const nodes: { [name: string]: NodeSpec } = {
   },
 
   /**
-   * Transclusion "live zone" — a region mirroring the contents under a heading
+   * Transclusion "live zone" - a region mirroring the contents under a heading
    * in another CardMirror file (see TRANSCLUSION_PLAN.md).
    *
    * The transcluded cards are REAL child nodes (same block content as the doc),
    * so the zone is self-contained (a `.cmir` renders its zones anywhere it's
    * moved; a judge with none of the source files still sees the evidence), the
-   * cards show up in the outline and Find, and — crucially — the zone is
+   * cards show up in the outline and Find, and - crucially - the zone is
    * EDITABLE: you can contextualise a tag or its highlighting in place without
    * breaking the link. Divergence from the last-pulled source is tracked by
    * `source_content_hash` (the NodeView shows an "edited" dot). Refresh
@@ -409,7 +409,7 @@ export const nodes: { [name: string]: NodeSpec } = {
         validate: (v: unknown) => typeof v === 'string',
       },
       /** How `source_ref` is anchored: 'doc' (relative to this document) or
-       *  'root' (relative to a configured library/Dropbox root — survives the
+       *  'root' (relative to a configured library/Dropbox root - survives the
        *  doc being moved within the shared folder). */
       source_ref_base: {
         default: 'doc',
@@ -422,7 +422,7 @@ export const nodes: { [name: string]: NodeSpec } = {
       },
       /** The absolute path the ref was created against, used ONLY as a resolve
        *  tie-breaker: if this exact path still exists here (and inside an allowed
-       *  root), it's the definitively-intended file — a local copy vs. the shared
+       *  root), it's the definitively-intended file - a local copy vs. the shared
        *  original, or a same-machine refresh. Machine-specific, so it silently
        *  doesn't match on another teammate's machine and resolution falls back to
        *  the relative `source_ref`. */
@@ -431,7 +431,7 @@ export const nodes: { [name: string]: NodeSpec } = {
         validate: (v: unknown) => typeof v === 'string',
       },
       /** Hash of the children AS LAST PULLED from source. The zone is "edited"
-       *  when the current children hash differs — that's how local
+       *  when the current children hash differs - that's how local
        *  contextualisation is detected without breaking the link. */
       source_content_hash: {
         default: '',
@@ -440,7 +440,7 @@ export const nodes: { [name: string]: NodeSpec } = {
       /** Id-INDEPENDENT hash of the source section as last pulled. Unlike
        *  `source_content_hash` (which includes the freshly-stamped child ids and
        *  so only detects LOCAL edits), this is the source's content signature
-       *  ignoring heading ids — so a later read of the source can be compared to
+       *  ignoring heading ids - so a later read of the source can be compared to
        *  it to tell whether the SOURCE has moved on ("diverged"), independent of
        *  any local edits to the mirror. '' on zones created before this existed;
        *  such zones fall back to the mirror's own shape when unedited. */
@@ -498,22 +498,22 @@ export const nodes: { [name: string]: NodeSpec } = {
   /**
    * Intra-document live window ("self-transclusion"). A by-REFERENCE, read-only
    * projection of another section of THIS document: it stores only which section
-   * it mirrors (`source_heading_id`) — no content copy — and its NodeView renders
+   * it mirrors (`source_heading_id`) - no content copy - and its NodeView renders
    * that section's current content live (self-transclusion-nodeview.ts). `atom`:
    * you edit at the source, never through the window (which is what makes it
-   * conflict-free — one editable copy, N live views). Flattens to plain cards on
+   * conflict-free - one editable copy, N live views). Flattens to plain cards on
    * `.docx` export (Word has no live-window concept); round-trips by reference in
    * `.cmir` (the source is in the same file, so the file stays self-contained).
    */
   self_ref: {
     // A live view holds its mirrored section as REAL, read-only child content
-    // (not a leaf atom). That's what makes native selection just work — there's
+    // (not a leaf atom). That's what makes native selection just work - there's
     // no atom boundary to get stuck on; a selection flows through it exactly like
     // a linked copy (`transclusion_ref`). The children are DERIVED: a plugin keeps
     // them equal to the projected source (id-less), edits inside are blocked by a
     // filterTransaction, and the children are kept OUT of collab sync (a
     // loro-prosemirror patch) so each peer re-derives them locally from the shared
-    // source — never a CRDT value, so no concurrent-re-projection conflict.
+    // source - never a CRDT value, so no concurrent-re-projection conflict.
     content: BLOCK_CONTENT,
     isolating: true,
     defining: true,
@@ -551,7 +551,7 @@ export const nodes: { [name: string]: NodeSpec } = {
   },
 
   /**
-   * Heading paragraphs — flat in document order, hierarchy via the
+   * Heading paragraphs - flat in document order, hierarchy via the
    * derived outline view, not schema containment.
    */
   pocket: {
@@ -622,20 +622,20 @@ export const nodes: { [name: string]: NodeSpec } = {
    * paragraphs (undertags, cite, card body) plus inline tables.
    *
    * Analytics are NOT card children: an analytic anchors its own
-   * `analytic_unit`. An analytic that ends up inside a card — a legacy
+   * `analytic_unit`. An analytic that ends up inside a card - a legacy
    * `.cmir` file, or a `.docx` whose author put an Analytic paragraph
-   * under a tag — is split out into a trailing analytic_unit (that
+   * under a tag - is split out into a trailing analytic_unit (that
    * absorbs the content below it) on load (`schema/migrate.ts`'s
    * `splitInCardAnalytics`) and on import, mirroring what pasting an
    * analytic into a card already does.
    *
    * Content after the tag is order-free rather than a strict
    * `tag undertag* cite_paragraph? card_body*` sequence, so editing
-   * operations can insert a card_body in any position — e.g., Enter at
+   * operations can insert a card_body in any position - e.g., Enter at
    * end of tag drops a new body directly under the tag, above any
    * pre-existing cite/body.
    *
-   * Undertags belong to the tag they follow — they don't mark a card
+   * Undertags belong to the tag they follow - they don't mark a card
    * boundary.
    */
   card: {
@@ -645,7 +645,7 @@ export const nodes: { [name: string]: NodeSpec } = {
     // It returns the FIRST textblock in the alternation. Putting
     // `card_body` first ensures that pressing Enter at the start of a
     // cite (or anywhere else inside a card) creates a normal body
-    // paragraph — never an undertag. Undertag styling is reserved for
+    // paragraph - never an undertag. Undertag styling is reserved for
     // text the user explicitly opts into.
     content: 'tag (card_body | undertag | cite_paragraph | table)*',
     defining: true,
@@ -709,7 +709,7 @@ export const nodes: { [name: string]: NodeSpec } = {
     },
   },
 
-  /** Card body paragraph — implicit Normal style on export. */
+  /** Card body paragraph - implicit Normal style on export. */
   card_body: {
     content: 'inline*',
     attrs: { ...indentAttr, ...spacingAttr },
@@ -726,7 +726,7 @@ export const nodes: { [name: string]: NodeSpec } = {
   },
 
   /**
-   * Analytic paragraph — outline-level-4 with stable id. Distinct from
+   * Analytic paragraph - outline-level-4 with stable id. Distinct from
    * a tag in styling (color #1F3864) and semantic role. Appears as the
    * required first child of an `analytic_unit`, OR as a cite-position
    * alternative inside a `card`.
@@ -753,14 +753,14 @@ export const nodes: { [name: string]: NodeSpec } = {
   /**
    * An analytic-rooted unit, peer to `card`. Required analytic, optional
    * undertag(s), zero+ body paragraphs, and cite_paragraphs. Cite
-   * paragraphs aren't a conventional part of an analytic — analytics
-   * are commentary, not external evidence — but allowing them here
+   * paragraphs aren't a conventional part of an analytic - analytics
+   * are commentary, not external evidence - but allowing them here
    * keeps cite-paste uniform across card and analytic_unit
    * destinations and avoids forced new-card creation when the user
    * just wants a cite below an analytic's body. Drags as a unit.
    */
   analytic_unit: {
-    // Same alternation shape as `card` — see its content expression's
+    // Same alternation shape as `card` - see its content expression's
     // comment for why `card_body` comes first.
     content: 'analytic (card_body | undertag | cite_paragraph | table)*',
     defining: true,
@@ -804,9 +804,9 @@ export const nodes: { [name: string]: NodeSpec } = {
     },
   },
 
-  /** Generic body paragraph — implicit Normal style. Optional
+  /** Generic body paragraph - implicit Normal style. Optional
    *  `alignment` attr surfaces OOXML's `<w:jc>` for paragraphs in
-   *  contexts where alignment matters (table cells especially —
+   *  contexts where alignment matters (table cells especially -
    *  Word tables routinely center their cell content). Null means
    *  default (left/inherited). Values match Word's set. */
   paragraph: {
@@ -856,7 +856,7 @@ export const nodes: { [name: string]: NodeSpec } = {
 
   // ---- Tables (prosemirror-tables compatible) -------------------
   // Round-tripped from OOXML <w:tbl> / <w:tr> / <w:tc>. Cells hold
-  // generic paragraphs only — no cards / analytics / pockets etc.
+  // generic paragraphs only - no cards / analytics / pockets etc.
   // inside cells (matches OOXML's "no nesting of structural debate
   // elements inside table cells" practice).
   //

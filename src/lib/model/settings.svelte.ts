@@ -34,7 +34,7 @@ export type LaneSide = "left" | "right";
 /**
  * Sheet-tab sizes, as the padding and text size the tab bar uses.
  *
- * `compact` is the bar as it was before the 1.3.0 look — the smallest that
+ * `compact` is the bar as it was before the 1.3.0 look - the smallest that
  * still reads. `large` is what 1.3.0 shipped. `regular` sits between them and
  * is the default, so the bar is no longer as tall as 1.3.0 made it but is not
  * squeezed to the old minimum either; anyone who wants either end has it.
@@ -63,7 +63,7 @@ export const THEMES: { id: Theme; label: string; bg: string }[] = [
   { id: "mist", label: "Mist", bg: "#f4f5f6" },
   { id: "slate", label: "Slate", bg: "#2b3038" },
   { id: "dark", label: "Dark", bg: "#0e0e10" },
-  // Dark app, white speech doc — the swatch is split to say so at a glance. The
+  // Dark app, white speech doc - the swatch is split to say so at a glance. The
   // doc stays light because the doc's dark CSS keys only on "dark"/"slate", so
   // this id never picks it up (see theme.css).
   { id: "midnight", label: "Dark · White Doc", bg: "linear-gradient(135deg, #0e0e10 55%, #ffffff 55%)" },
@@ -74,7 +74,7 @@ const THEME_IDS = new Set<string>(THEMES.map((t) => t.id));
 /**
  * Coerce a saved value onto a theme that actually exists.
  *
- * ⚠ It no longer collapses the tinted themes onto Light — that is what removed
+ * ⚠ It no longer collapses the tinted themes onto Light - that is what removed
  * somebody's grey out from under them. It only guards against a value with no
  * palette at all (a future rename, or a hand-edited settings file), which would
  * otherwise leave `data-theme` pointing at a block that does not exist and the
@@ -147,10 +147,13 @@ export interface Persisted {
   /** Countdown presets shown on the floating timer. */
   timerPresets?: TimerPreset[];
   /** Where flow cells "send to": the built-in offline speech doc, or the real
-   *  CardMirror Desktop over the bridge. Defaults to "builtin" — the bridge is
+   *  CardMirror Desktop over the bridge. Defaults to "builtin" - the bridge is
    *  an ADDITIONAL option, never a replacement, so an install that has never
    *  touched this setting keeps sending exactly where it always did. */
   docTarget?: "cardmirror" | "builtin";
+  /** Experimental: show the Smart blocks (beta) tray in the corner of the flow.
+   *  Off by default so the app stays clean until you opt in. */
+  smartBlocksEnabled?: boolean;
 }
 
 /** One countdown button on the timer. */
@@ -182,7 +185,7 @@ export const DEFAULT_READERS: Reader[] = [
 ];
 
 export interface DocTypography {
-  // Heading font sizes (pt) — Verbatim defaults.
+  // Heading font sizes (pt) - Verbatim defaults.
   sizePocket: number;
   sizeHat: number;
   sizeBlock: number;
@@ -227,12 +230,12 @@ export function clampPrepMinutes(n: number): number {
 
 /**
  * Ribbon density. Two options, on purpose: `full` fills the window, `compact`
- * fits a splitscreen half. Both are icon-only and the SAME HEIGHT — the only
+ * fits a splitscreen half. Both are icon-only and the SAME HEIGHT - the only
  * difference is scale and spacing, so switching never moves the grid.
  */
 export type RibbonMode = "full" | "compact";
 
-/** Anything that isn't "full" — including the retired "icons"/"slim" — is
+/** Anything that isn't "full" - including the retired "icons"/"slim" - is
  *  compact. Keeps an old save's intent instead of resetting it to full. */
 export function normalizeRibbonMode(m: string): RibbonMode {
   return m === "full" ? "full" : "compact";
@@ -286,13 +289,13 @@ class Settings {
    *  a missing entry falls back to the built-in label. Applied to every NEW
    *  round of that format, so you rename a speech once for all rounds. */
   templateAbbrs = $state<Record<number, string[]>>({});
-  /** Bottom by default — the Excel sheet-tab muscle memory. */
+  /** Bottom by default - the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
   /**
    * How much room the sheet tabs take.
    *
    * ⚠ Every pixel here comes out of the FLOW. The tab bar spans the bottom of
-   * the grid, so a taller tab is a row of argument you cannot see — which is
+   * the grid, so a taller tab is a row of argument you cannot see - which is
    * why this is a setting rather than a constant. The roomier bar reads better
    * on a big screen and costs real space on a laptop in a round.
    */
@@ -302,7 +305,7 @@ class Settings {
    *
    * ⚠ PURELY VISUAL, like the lane collapse. It reorders the two columns ON
    * SCREEN and changes nothing stored: not the template, not `sheet.startCol`,
-   * not which column answers which. Session 9's rule stands — a view toggle
+   * not which column answers which. Session 9's rule stands - a view toggle
    * must never change what the speech doc exports, or the same flow would emit
    * different "AT:" headers depending on a setting.
    *
@@ -339,6 +342,9 @@ class Settings {
   timerPresets = $state<TimerPreset[]>(structuredClone(DEFAULT_TIMER_PRESETS));
   /** Send target for flow cells; see Persisted.docTarget. Built-in by default. */
   docTarget = $state<"cardmirror" | "builtin">("builtin");
+  /** Experimental: the Smart blocks (beta) tray. Off by default - it is opt-in
+   *  from Settings → Experimental, so the flow stays uncluttered until asked. */
+  smartBlocksEnabled = $state(false);
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -361,7 +367,7 @@ class Settings {
         (JSON.parse(localStorage.getItem(LS_KEY) ?? "null") as Partial<Persisted> | null);
       if (cached) this.applyPersisted(cached);
     } catch {
-      // corrupted settings — fall back to defaults
+      // corrupted settings - fall back to defaults
     }
     void this.loadFromDisk();
   }
@@ -371,7 +377,7 @@ class Settings {
     if (disk) {
       this.applyPersisted(disk);
     } else {
-      // First run on this install — put current state on disk immediately so
+      // First run on this install - put current state on disk immediately so
       // macros/keybinds can never be lost to a webview storage wipe.
       this.save();
     }
@@ -379,7 +385,7 @@ class Settings {
 
   applyPersisted(p: Partial<Persisted>): void {
     if (p.theme) this.theme = normalizeTheme(p.theme);
-    // v3: re-assert bottom tabs (Excel-style) as the default — only saves made
+    // v3: re-assert bottom tabs (Excel-style) as the default - only saves made
     // at v3+ (i.e. a deliberate later toggle) keep a persisted position.
     if (p.tabsPosition && (p.version ?? 1) >= 3) {
       this.tabsPosition = p.tabsPosition;
@@ -400,8 +406,8 @@ class Settings {
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
     // The ribbon used to have three densities (full / icons / slim) cycled with
-    // one button. It is two now — full width, and a condensed half-width one for
-    // splitscreen — so both retired names load as "compact" rather than falling
+    // one button. It is two now - full width, and a condensed half-width one for
+    // splitscreen - so both retired names load as "compact" rather than falling
     // back to "full" and silently undoing someone's choice.
     if (p.ribbonMode) this.ribbonMode = normalizeRibbonMode(p.ribbonMode);
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
@@ -437,9 +443,10 @@ class Settings {
         .filter((r) => r && typeof r.name === "string")
         .map((r) => ({ name: r.name, wpm: Math.max(1, Math.round(r.wpm) || 200) }));
     if (p.docTarget !== undefined) this.docTarget = p.docTarget;
+    if (p.smartBlocksEnabled !== undefined) this.smartBlocksEnabled = p.smartBlocksEnabled;
     if (Array.isArray(p.timerPresets) && p.timerPresets.length) {
       // Always land exactly five slots, each sanitized against the default in
-      // that position — a truncated or corrupted save can't leave the timer with
+      // that position - a truncated or corrupted save can't leave the timer with
       // a missing preset or a zero-second countdown that can never be started.
       this.timerPresets = DEFAULT_TIMER_PRESETS.map((d, i) => {
         const s = p.timerPresets![i];
@@ -453,7 +460,7 @@ class Settings {
 
   setTimerPreset(i: number, patch: Partial<TimerPreset>): void {
     if (!this.timerPresets[i]) return;
-    // Build a new array rather than mutating in place — a captured $state array
+    // Build a new array rather than mutating in place - a captured $state array
     // ref doesn't re-notify on element assignment.
     const next = [...this.timerPresets];
     next[i] = {
@@ -474,6 +481,7 @@ class Settings {
       readers: $state.snapshot(this.readers) as Reader[],
       timerPresets: $state.snapshot(this.timerPresets) as TimerPreset[],
       docTarget: this.docTarget,
+      smartBlocksEnabled: this.smartBlocksEnabled,
       colMinWidth: this.colMinWidth,
       affColor: this.affColor,
       negColor: this.negColor,
@@ -628,7 +636,7 @@ class Settings {
   zoomReset(): void { this.setZoom(1); }
 
   /** Same three steps for the speech doc. The zoom keybinds act on whichever
-   *  surface you're in, so the doc needs its own — and they're the keyboard
+   *  surface you're in, so the doc needs its own - and they're the keyboard
    *  fallback for a touchpad pinch the webview never forwards to the page. */
   setDocZoom(n: number): void {
     this.docZoom = clampZoom(n);

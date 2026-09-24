@@ -1,4 +1,4 @@
-/* Vendored from CardMirror (PolyForm Noncommercial 1.0.0) — the card-content
+/* Vendored from CardMirror (PolyForm Noncommercial 1.0.0) - the card-content
  * rendering rules + the theme variables they depend on. This makes the speech
  * doc render debate cards exactly like CardMirror: highlighted = spoken,
  * underline = the cut, emphasis = boxed power words, tiny grey = unread. */
@@ -164,7 +164,7 @@
 
 /* Emphasis = a distinct character style. Base is underline + its display size;
  * bold / italic / box are GATED BY DISPLAY-TYPOGRAPHY FLAGS on the document
- * wrapper — exactly like CardMirror, so each person can match their own setup
+ * wrapper - exactly like CardMirror, so each person can match their own setup
  * (some run emphasis without a box). Plain bold (<strong>) stays just bold. */
 .pmd-document .pmd-emphasis {
   text-decoration: underline;
@@ -193,12 +193,12 @@
 .pmd-document .pmd-emphasis { font-variant-ligatures: none; }
 
 /* ProseMirror base */
-/* `white-space: pre-wrap` is REQUIRED by prosemirror-view — its own stylesheet
+/* `white-space: pre-wrap` is REQUIRED by prosemirror-view - its own stylesheet
  * sets it, and this hand-rolled base block (we never import that sheet) was
  * missing the line. Without it Chromium substitutes a NBSP for a trailing space
  * so the space stays visible; that NBSP then disagrees with the plain space in
  * PM's state, PM's DOM-change diff starts one character early, and a stored
- * mark applied to the next keystroke lands on the preceding space too — i.e.
+ * mark applied to the next keystroke lands on the preceding space too - i.e.
  * hitting ⌘/Ctrl+U after a space underlined the space as well. `break-spaces`
  * is the modern refinement (trailing spaces wrap rather than overflow); PM's
  * sheet declares both in this order as a progressive enhancement. */
@@ -222,11 +222,11 @@
  * body / cite text to zero, then restore size on highlighted runs and
  * cite marks. Headings stay visible. */
 /* Read mode = hide the UNREAD (condensed / small) text and stray paragraphs,
- * keep the read-aloud text exactly as it looks — highlighted (with its colour
- * band), underlined (the cut), emphasis-boxed, and the bold cite — flowing
+ * keep the read-aloud text exactly as it looks - highlighted (with its colour
+ * band), underlined (the cut), emphasis-boxed, and the bold cite - flowing
  * inline. This matches how the cut reads in the round. */
 
-/* Unread runs (no read marker) get this class from the read-mode plugin — the
+/* Unread runs (no read marker) get this class from the read-mode plugin - the
  * plugin also inserts a plain space after each so read words never jam.
  * Normal white-space so adjacent separators collapse to a single space. */
 .pmd-document.pmd-read-mode .pmd-rm-hide { display: none; }
@@ -240,17 +240,17 @@
   display: inline;
   margin: 0;
 }
-/* No ::after spacer here — the read-mode plugin inserts exactly one space per
+/* No ::after spacer here - the read-mode plugin inserts exactly one space per
  * hidden gap (including body boundaries). A CSS `pre` spacer stacked with those
  * and, being non-collapsing, produced large gaps between surviving words. */
-/* Hide the trailing/hard breaks ProseMirror adds — they cause a stray line
+/* Hide the trailing/hard breaks ProseMirror adds - they cause a stray line
  * break mid-sentence in read mode. The card should flow as one sentence. */
 .pmd-document.pmd-read-mode .pmd-card-body br,
 .pmd-document.pmd-read-mode .pmd-cite-para br,
 .pmd-document.pmd-read-mode .ProseMirror-trailingBreak {
   display: none;
 }
-/* Cite line stays on its own line, bold — hide the non-cite bracket detail. */
+/* Cite line stays on its own line, bold - hide the non-cite bracket detail. */
 .pmd-document.pmd-read-mode .pmd-cite-para .pmd-condensed { display: none; }
-/* Drop emphasis boxes in read mode — you're reading, not marking. */
+/* Drop emphasis boxes in read mode - you're reading, not marking. */
 .pmd-document.pmd-read-mode .pmd-emphasis { border: none; padding: 0; }

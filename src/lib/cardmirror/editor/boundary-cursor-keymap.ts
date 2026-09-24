@@ -2,29 +2,29 @@
  * Keep the caret in the leading block after a cross-boundary delete.
  *
  * A selection's end (`to`) can sit at `parentOffset === 0` of a later
- * textblock — the Ctrl/Alt-Shift-Down shape (and native Shift-Down past a
- * block's end) — so the paragraph break is inside the selection (see
+ * textblock - the Ctrl/Alt-Shift-Down shape (and native Shift-Down past a
+ * block's end) - so the paragraph break is inside the selection (see
  * `pilcrow-selection-plugin.ts`). Deleting such a selection leaves the caret
  * at the mapped selection END. When the two blocks merge (plain body
- * paragraphs) that's fine — the end maps into the merged block. But when the
+ * paragraphs) that's fine - the end maps into the merged block. But when the
  * merge is BLOCKED (an isolating tag/card boundary: the delete empties the
  * leading block yet leaves both blocks standing), the mapped end lands at the
- * START of the untouched trailing block — e.g. select a card's tag including
+ * START of the untouched trailing block - e.g. select a card's tag including
  * the break and delete, and the caret jumps to the next card. The break was
  * NOT consumed, so per our invariant the caret must stay in the leading block.
  *
  * `deleteSelectionKeepingLeadingCursor` decides what happened with a probe:
  * it runs `deleteSelection` and compares the textblock count. If the count is
- * UNCHANGED, the leading block survived (emptied) but didn't merge — so it
+ * UNCHANGED, the leading block survived (emptied) but didn't merge - so it
  * instead deletes only the leading block's selected content `[from,
  * leadingEnd]`, leaving the break and trailing block untouched, and the caret
  * maps cleanly into the (now empty) leading block. If the count DROPPED, the
  * blocks really merged (plain paragraphs) or the whole leading container was
- * removed (a tag-only card) — in both the leading block is gone, so the plain
+ * removed (a tag-only card) - in both the leading block is gone, so the plain
  * `deleteSelection` caret is correct and we use it. (Position-mapping the
  * survivor directly is unreliable: `deleteSelection` collapses content AND the
  * boundary into one ambiguous cut point, so no original position resolves back
- * inside the emptied block — hence the clean re-delete.)
+ * inside the emptied block - hence the clean re-delete.)
  *
  * Used by the Backspace/Delete keymap fallback below and the voice deletes.
  *
@@ -128,11 +128,11 @@ function findCutAfter($pos: ResolvedPos): ResolvedPos | null {
 
 /**
  * Backspace/Delete pressed while the caret sits at a GAP it shouldn't rest at
- * — e.g. a click that landed just past the last card, so `$head.parent` is the
+ * - e.g. a click that landed just past the last card, so `$head.parent` is the
  * doc/card rather than a textblock. The default would node-select the adjacent
  * body, and a bare swallow leaves the key dead (it only "works" after an arrow
  * round-trip normalizes the caret into the body). Instead, jump into the
- * adjacent body and delete there, so the key edits it immediately — exactly
+ * adjacent body and delete there, so the key edits it immediately - exactly
  * what the user expected from where they clicked. `dir` -1 = Backspace (the
  * node before), +1 = Delete (the node after).
  */
@@ -157,7 +157,7 @@ function editAdjacentBodyFromGap(
     tr.setSelection(TextSelection.create(tr.doc, at));
     dispatch(tr.scrollIntoView());
   } else {
-    // Empty target block — nothing to delete; just move the caret inside so
+    // Empty target block - nothing to delete; just move the caret inside so
     // the next keystroke edits it.
     dispatch(state.tr.setSelection(near).scrollIntoView());
   }
@@ -168,8 +168,8 @@ function editAdjacentBodyFromGap(
  * Stop Backspace from NODE-SELECTING a whole block or container.
  *
  * baseKeymap's Backspace chain ends in `selectNodeBackward`: at a backward
- * boundary where `joinBackward` can't merge — the caret at the start of a
- * block after an isolating card, or at a gap after the last card — it selects
+ * boundary where `joinBackward` can't merge - the caret at the start of a
+ * block after an isolating card, or at a gap after the last card - it selects
  * the node before as a `NodeSelection`. So one Backspace selects the entire
  * card / card_body and the next deletes it, a jarring two-step that should
  * never happen for structural nodes.
@@ -199,7 +199,7 @@ export const blockBackspaceNodeSelect: Command = (state, dispatch, view) => {
   const $cut = findCutBefore($head);
   const node = $cut?.nodeBefore;
   if (!node) return false;
-  if (joinBackward(state, undefined, view)) return false; // a real merge — allow it
+  if (joinBackward(state, undefined, view)) return false; // a real merge - allow it
   return !node.isAtom; // swallow node-selection of a block/container
 };
 

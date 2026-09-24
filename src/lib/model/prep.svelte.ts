@@ -13,7 +13,7 @@
 //
 // 2. TICKS NEVER TOUCH THE UNDO STACK. Prep is persisted through
 //    `store.applyRemote`, which autosaves without pushing history, and only on
-//    a discrete user action (start / pause / reset / edit) — never on the tick.
+//    a discrete user action (start / pause / reset / edit) - never on the tick.
 //    An undo step pushed from a timer poisons the stack; that is a known trap.
 //
 // 3. NO SESSION, NO TIMER. The interval only exists while a clock is actually
@@ -66,7 +66,7 @@ class Prep {
     return !!this.read(side).startedAt;
   }
 
-  /** True once a team has burned all of it — drives the spent styling. */
+  /** True once a team has burned all of it - drives the spent styling. */
   spent(side: PrepSide): boolean {
     return this.remaining(side) === 0;
   }
@@ -83,7 +83,7 @@ class Prep {
     if (this.running(side)) return;
     const left = this.remaining(side);
     if (left <= 0) return;
-    // Starting one team's clock stops the other's — both teams are never on
+    // Starting one team's clock stops the other's - both teams are never on
     // prep at once, and forgetting to stop the opponent's is the whole reason
     // the remaining time is editable.
     const other: PrepSide = side === "aff" ? "neg" : "aff";
@@ -105,7 +105,7 @@ class Prep {
     this.write(side, freshClock());
   }
 
-  /** Set the time left by hand — the fix for "nobody stopped the clock".
+  /** Set the time left by hand - the fix for "nobody stopped the clock".
    *  Pausing first means editing a running clock doesn't immediately re-subtract
    *  the time it was already running for. */
   setRemainingMs(side: PrepSide, ms: number): void {

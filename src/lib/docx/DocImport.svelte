@@ -41,7 +41,7 @@
 
   /**
    * Auto-detect the argument level: find the shallowest heading level that has
-   * 3+ nodes across the whole doc — that's almost always the "one sheet per
+   * 3+ nodes across the whole doc - that's almost always the "one sheet per
    * argument" level (H1 for a multi-advantage 1AC, H3 for a 1NC where all
    * off-case positions live under a single H2 "OFF" hat).
    * Falls back to the single-chain unwrap if no level clears 3 nodes.
@@ -56,7 +56,7 @@
       const at = nodesAtLevel(roots, level);
       if (at.length >= 3) return at;
     }
-    // Fewer than 3 nodes at every level — walk down single-child chains.
+    // Fewer than 3 nodes at every level - walk down single-child chains.
     let unwrapped = roots;
     while (unwrapped.length === 1 && unwrapped[0].children.length > 0) {
       unwrapped = unwrapped[0].children;
@@ -79,7 +79,7 @@
    * Best signal, independent of how anyone names their docs: the round
    * itself. If the doc's sections match existing sheets (an answer doc) and
    * those sheets are filled through some column, the answers belong in the
-   * NEXT column — rounds progress left to right.
+   * NEXT column - rounds progress left to right.
    */
   function guessColumnFromRound(targetIds: string[]): number | null {
     const matched = (store.round?.sheets ?? []).filter((s) =>
@@ -103,7 +103,7 @@
    *
    * ⚠ On a lane-split speech the column is literally named "1NC · You", so
    * matching a "…1NC.docx" filename against the full abbr found nothing at all
-   * — the plain "1NC" column does not exist once the speech is split.
+   * - the plain "1NC" column does not exist once the speech is split.
    */
   function baseAbbr(abbr: string): string {
     const i = abbr.lastIndexOf(" · ");
@@ -185,17 +185,17 @@
         // lands in YOUR lane, never your partner's.
         if (fromRound !== null) {
           speechIdx = myLaneOf(fromRound);
-          guessNote = `guessed — matched sheets are filled up to ${speeches[fromRound - 1]?.abbr ?? "?"}`;
+          guessNote = `guessed - matched sheets are filled up to ${speeches[fromRound - 1]?.abbr ?? "?"}`;
         } else if (fromName !== null) {
           speechIdx = myLaneOf(fromName);
           guessNote = "guessed from the filename";
         } else {
           const negIdx = speeches.findIndex((s) => s.side === "neg");
           speechIdx = myLaneOf(Math.max(0, negIdx));
-          guessNote = "default — double-check the column";
+          guessNote = "default - double-check the column";
         }
         if (nodes.length === 0) {
-          status = `Read ${base.paragraphCount} paragraphs but found no Heading styles — is this a Verbatim-formatted doc?`;
+          status = `Read ${base.paragraphCount} paragraphs but found no Heading styles - is this a Verbatim-formatted doc?`;
           parsed = null;
         }
       } catch (err) {
@@ -230,10 +230,12 @@
 
   function apply() {
     if (!parsed || !store.round) return;
-    // Always bank the doc's cards for author autocomplete (⌘Space), whatever
-    // the mode — this is the point of the "bank only" mode and a free win otherwise.
-    const banked = collectArguments(rawNodes);
-    store.addCards(banked);
+    // Bank the doc's arguments ONLY when the user picked "Bank arguments only".
+    // Importing pages must never quietly load the whole opponent doc into the
+    // author lookup (⌘J) bank - that is the user's explicit choice, not a side
+    // effect of making sheets.
+    const banked = mode === "bank_only" ? collectArguments(rawNodes) : [];
+    if (banked.length) store.addCards(banked);
 
     let created = 0;
     let filled = 0;
@@ -251,8 +253,8 @@
 
       // Stamp the row's evidence kind onto the cell so an imported 1AC/1NC gets
       // the same card/analytic ink an author-bank insert does. Touches ONLY
-      // `evidence` — a cell being overwritten may carry dropped/starred/color
-      // marks that aren't ours to clear — and clears a stale kind when the new
+      // `evidence` - a cell being overwritten may carry dropped/starred/color
+      // marks that aren't ours to clear - and clears a stale kind when the new
       // row has none, so re-importing over a sheet can't leave the old ink.
       const setEvidence = (cell: Cell, kind?: "analytic" | "card") => {
         if (kind) (cell.marks ??= {}).evidence = kind;
@@ -282,7 +284,7 @@
             filled++;
           } else {
             // When the title was taken from the section's first tagline, that
-            // same line comes back as the first flow row — the label cell would
+            // same line comes back as the first flow row - the label cell would
             // then print it twice. Drop the exact duplicate. A row whose text
             // differs (e.g. it carries a cite author, "Zhao '7-14  Hikes…") is
             // kept: it adds information the label doesn't have.
@@ -329,7 +331,7 @@
   {:else}
     <div class="preview">
       <div class="preview-head">
-        <strong>{fileName}</strong> — {parsed.headingCount} headings.
+        <strong>{fileName}</strong> - {parsed.headingCount} headings.
         <span class="col-pick">
           Split at:
           <select bind:value={splitLevel}>
@@ -353,7 +355,7 @@
       <div class="mode-pick">
         <label><input type="radio" name="import-mode" value="pages_tags" bind:group={mode} /> Pages + tags</label>
         <label><input type="radio" name="import-mode" value="pages_only" bind:group={mode} /> Pages only (no tag text)</label>
-        <label><input type="radio" name="import-mode" value="bank_only" bind:group={mode} /> Bank arguments only — no pages</label>
+        <label><input type="radio" name="import-mode" value="bank_only" bind:group={mode} /> Bank arguments only - no pages</label>
       </div>
       {#each sections as node, i (i)}
         <div class="node" class:dim={mode === "bank_only"}>

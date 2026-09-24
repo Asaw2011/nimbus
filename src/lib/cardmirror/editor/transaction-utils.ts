@@ -21,7 +21,7 @@ import { AddMarkStep, RemoveMarkStep } from 'prosemirror-transform';
  * against the post-state doc).
  *
  * For mark steps (AddMarkStep / RemoveMarkStep), `getMap` returns
- * `StepMap.empty` — the step doesn't shift any positions — so
+ * `StepMap.empty` - the step doesn't shift any positions - so
  * `forEach` yields nothing. Callers like `cite-classifier-plugin`
  * and `named-style-normalizer-plugin` care about mark changes
  * (a cite_mark add should promote the containing paragraph to

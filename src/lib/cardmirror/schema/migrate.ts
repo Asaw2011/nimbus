@@ -15,7 +15,7 @@ import { schema } from './index';
  * `analytic_unit`.
  *
  * `analytic` used to be legal card content (the "cite-slot" alternative). It no
- * longer is — an analytic anchors its own `analytic_unit` — so older docs (and
+ * longer is - an analytic anchors its own `analytic_unit` - so older docs (and
  * `.docx` imports that put an Analytic paragraph under a tag) can contain
  * `card[ tag, …, analytic, … ]`, which is now schema-invalid. This rewrites such
  * a card the same way pasting an analytic into a card does: the tag and the
@@ -82,7 +82,7 @@ export function flattenNestedZones(doc: PMNode): PMNode {
 /**
  * Drop any live zone that carries NO content. An empty `transclusion_ref`
  * renders invisibly (no cards, and the rail only shows on hover) yet is still a
- * real node — counted by "refresh all" and re-filled by a refresh, so it reads
+ * real node - counted by "refresh all" and re-filled by a refresh, so it reads
  * as a phantom zone that materialises out of nowhere. These arise when a zone's
  * cards are all deleted in place; heal them on load. (Zones live at the doc
  * root; any nested one is unwrapped by flattenNestedZones first.)
@@ -122,9 +122,9 @@ function unwrapZonesIn(frag: Fragment): Fragment {
 /**
  * Marks an inline image may carry. Everything else is visual
  * typography that cannot render on a replaced element without
- * artifacts — an inline mark span's height comes from font metrics,
+ * artifacts - an inline mark span's height comes from font metrics,
  * not from its image child, so e.g. the emphasis box borders a
- * text-height band straight through the image — and is meaningless
+ * text-height band straight through the image - and is meaningless
  * beyond the editor: `emitImageRun` writes no run styling, so Word
  * shows nothing either way. `comment_range` stays because comment
  * spans must be continuous across an inline image (the exporter's
@@ -178,7 +178,7 @@ function splitCardOnAnalytics(card: PMNode): PMNode[] {
   let i = 0;
 
   // Children before the first analytic (the tag is always first) stay in the
-  // card — all are still valid card content.
+  // card - all are still valid card content.
   const cardChildren: PMNode[] = [];
   while (i < kids.length && kids[i]!.type.name !== 'analytic') {
     cardChildren.push(kids[i]!);

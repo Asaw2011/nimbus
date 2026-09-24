@@ -1,5 +1,5 @@
 // Central crash reporting. A throw inside a Svelte `$effect` aborts the whole
-// reactive flush — the UI then looks "frozen" (buttons dead) while native
+// reactive flush - the UI then looks "frozen" (buttons dead) while native
 // contenteditable typing still works. Wrapping suspect effects in `guard()` and
 // routing everything here means a stray throw degrades gracefully AND leaves a
 // full trace on disk (config/crash-log.json) so it can be diagnosed after the

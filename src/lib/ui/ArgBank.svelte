@@ -10,7 +10,7 @@
   let newAuthor = $state("");
   let confirmClear = $state(false);
 
-  // Index into the FULL bank, with the row's live values — so edits/deletes hit
+  // Index into the FULL bank, with the row's live values - so edits/deletes hit
   // the right entry even while a filter is applied.
   const rows = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -54,7 +54,7 @@
     {#if rows.length === 0}
       <div class="ab-empty">
         {store.bank.length === 0
-          ? "No arguments banked yet — import a doc (they bank automatically) or add one below."
+          ? "No arguments banked yet - import a doc (they bank automatically) or add one below."
           : "No matches for that filter."}
       </div>
     {/if}
@@ -62,7 +62,7 @@
       <div class="ab-row" class:analytic={a.analytic}>
         <input
           class="ab-author"
-          placeholder={a.analytic ? "—" : "author"}
+          placeholder={a.analytic ? "-" : "author"}
           disabled={a.analytic}
           value={a.author ?? ""}
           onchange={(e) => store.updateArg(i, { author: e.currentTarget.value })}

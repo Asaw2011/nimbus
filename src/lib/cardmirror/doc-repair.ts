@@ -2,18 +2,18 @@
  * Deterministic document repair for structural states ProseMirror never
  * produces locally but external content can: DOCX imports with irregular
  * tables, and merged documents from a sync layer. Pure function of the
- * doc — identical input yields identical repairs everywhere, and the
+ * doc - identical input yields identical repairs everywhere, and the
  * pass is idempotent (a repaired doc yields no further repair).
  *
  * Three passes, in order:
- *   1. prosemirror-tables `fixTables` — pads ragged rows and clamps
+ *   1. prosemirror-tables `fixTables` - pads ragged rows and clamps
  *      colspan overflow so every row spans the same width.
- *   2. `excludes` sweep — text carrying both members of a mutually
+ *   2. `excludes` sweep - text carrying both members of a mutually
  *      exclusive mark pair keeps the earlier-declared mark and drops the
  *      later one. ProseMirror enforces `excludes` in `Mark.addToSet`
  *      (local editing) but not on node construction, so externally built
  *      content can carry both.
- *   3. Container first-child invariant — a `card` must open with `tag`,
+ *   3. Container first-child invariant - a `card` must open with `tag`,
  *      an `analytic_unit` with `analytic` (their content expressions
  *      require it, but `NodeType.create` does not validate); an empty
  *      heading is inserted when missing. Heading `id` stamping is left
@@ -28,7 +28,7 @@ import { schema } from './schema/index';
 /** Resolution order for mutually-exclusive marks: on a text node that
  *  (post-merge) carries two marks the schema declares as `excludes`,
  *  the HIGHER-priority one is kept and the other dropped. A single
- *  priority per mark makes the resolution a TOTAL ORDER — it cannot
+ *  priority per mark makes the resolution a TOTAL ORDER - it cannot
  *  form a cycle the way a hand-listed pairwise winner-table can, and a
  *  cycle would reintroduce order-dependent (non-converging) repair.
  *  Which pairs actually conflict is read from the schema itself
@@ -51,7 +51,7 @@ const MARK_PRIORITY: Readonly<Record<string, number>> = {
 /** Strip the lower-priority member of every present mutually-exclusive
  *  pair from `tr`. Mark-level and deterministic: every peer resolves to
  *  the same winner, so this is safe to run on ALL peers (unlike the
- *  structural repairs) — double-application converges under LWW. */
+ *  structural repairs) - double-application converges under LWW. */
 function sweepExclusiveMarks(tr: Transaction): void {
   tr.doc.descendants((node, pos) => {
     if (!node.isText) return true;
@@ -69,7 +69,7 @@ function sweepExclusiveMarks(tr: Transaction): void {
   });
 }
 
-/** Exclusive-marks resolution ONLY — no tables, no structural fixes.
+/** Exclusive-marks resolution ONLY - no tables, no structural fixes.
  *  Session repair runs this on every peer (mark-level, converges),
  *  while the structural half stays leader-gated (see collab-repair). */
 export function buildMarkRepairTr(state: EditorState): Transaction | null {
@@ -108,7 +108,7 @@ export function buildDocRepairTr(state: EditorState): Transaction | null {
 }
 
 /** Repair a standalone doc (no editor state), returning the repaired doc
- *  — or the same node when nothing needed repair. */
+ *  - or the same node when nothing needed repair. */
 export function repairDoc(doc: PMNode): PMNode {
   const tr = buildDocRepairTr(EditorState.create({ doc }));
   return tr ? tr.doc : doc;

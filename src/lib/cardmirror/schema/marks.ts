@@ -3,7 +3,7 @@
  *
  * The two main mark families (the rest are documented inline):
  *
- * 1. Named-style emphasis marks — round-trip to a Word character style:
+ * 1. Named-style emphasis marks - round-trip to a Word character style:
  *    - cite_mark   ↔ rStyle "Style13ptBold" (Cite)
  *    - underline_mark ↔ rStyle "StyleUnderline" + direct <w:u w:val="single"/>
  *      (dual representation per NOTES-verbatim.md §5 gotcha #1)
@@ -11,7 +11,7 @@
  *    - undertag_mark ↔ rStyle "UndertagChar"
  *    - analytic_mark ↔ rStyle "AnalyticChar"
  *
- * 2. Direct-formatting marks — round-trip to OOXML run properties:
+ * 2. Direct-formatting marks - round-trip to OOXML run properties:
  *    - bold      ↔ <w:b/>
  *    - italic    ↔ <w:i/> + <w:iCs/>
  *    - superscript ↔ <w:vertAlign w:val="superscript"/>
@@ -56,7 +56,7 @@ export function colorBand(hex: string): 'dark' | 'light' {
 /**
  * Perceived-luminance band for each OOXML named highlight color.
  * Mirrors the per-color CSS rules at `.pmd-highlight[data-highlight=...]`
- * — `light` backgrounds get black text, `dark` backgrounds get white.
+ * - `light` backgrounds get black text, `dark` backgrounds get white.
  * `none` opts out (no background fill, so no band-specific contrast
  * decision needed). Used as the source for `data-highlight-band`,
  * which downstream selectors read instead of expanding every named
@@ -106,7 +106,7 @@ export const marks: { [name: string]: MarkSpec } = {
       // (shrink/regrow cycle, smart shrink) applied the size; null for
       // sizes the user chose (size chip, ± nudge, pasted content). The
       // collab invariant heal strips ONLY 'shrink'-origin sizes that
-      // fuse with underline/emphasis at CRDT merge — Peritext range
+      // fuse with underline/emphasis at CRDT merge - Peritext range
       // marks cover concurrently-inserted interior text, so a partner's
       // underlined typing inside a shrunk span inherits the small size
       // with no op recording it. Intentionally absent from parseDOM/
@@ -132,7 +132,7 @@ export const marks: { [name: string]: MarkSpec } = {
       // Also publish the size as `--pmd-run-font-size`. The named-style
       // marks (cite/underline/emphasis) render INSIDE this wrapper and
       // would otherwise pin the glyph to their per-style display size,
-      // overriding an explicit per-run size — so their CSS reads this
+      // overriding an explicit per-run size - so their CSS reads this
       // variable first and falls back to the display size only when no
       // `font_size` mark is present. This matches `ptForRun`'s precedence
       // (a `font_size` mark is "direct" and wins) and Word's "direct
@@ -153,7 +153,7 @@ export const marks: { [name: string]: MarkSpec } = {
   cite_mark: {
     ...namedStyleMark(),
     // The three named-style "evidence" marks are mutually exclusive
-    // — at most one of {cite, underline, emphasis} on any character.
+    // - at most one of {cite, underline, emphasis} on any character.
     // Symmetric so that whichever mark is being added via tr.addMark
     // strips the others automatically. For passive coexistence
     // (legacy import data carrying overlapping marks), the named-
@@ -206,12 +206,12 @@ export const marks: { [name: string]: MarkSpec } = {
   },
 
   /**
-   * Pilcrow marker — a non-inclusive mark applied to the 6-pt `¶`
+   * Pilcrow marker - a non-inclusive mark applied to the 6-pt `¶`
    * characters Branch B inserts at original paragraph boundaries.
    * Non-inclusive so the cursor adjacent to a pilcrow doesn't pick
    * up its formatting and typing nearby stays at the surrounding
    * text size. Round-trips as `<w:r><w:rPr><w:sz w:val="12"/></w:rPr>
-   * <w:t>¶</w:t></w:r>` — the exporter writes the equivalent of a
+   * <w:t>¶</w:t></w:r>` - the exporter writes the equivalent of a
    * 6-pt `font_size` mark for any run carrying this marker, and the
    * importer recognizes the same pattern on the way back in.
    */
@@ -225,7 +225,7 @@ export const marks: { [name: string]: MarkSpec } = {
 
   bold: {
     inclusive: true,
-    // Mutually exclusive with bold_off — a run is either bold or
+    // Mutually exclusive with bold_off - a run is either bold or
     // explicitly-not-bold, never both.
     excludes: 'bold bold_off',
     parseDOM: [
@@ -237,7 +237,7 @@ export const marks: { [name: string]: MarkSpec } = {
   },
 
   /**
-   * Explicit "not bold" — overrides the bold a structural block (tag /
+   * Explicit "not bold" - overrides the bold a structural block (tag /
    * analytic / pocket / hat / block) renders by DEFAULT via CSS, so a word
    * inside a tag can be un-bolded. Renders an inline `font-weight: normal`,
    * which beats the `.pmd-tag { font-weight: bold }` rule, tagged with
@@ -245,8 +245,8 @@ export const marks: { [name: string]: MarkSpec } = {
    * `<w:b w:val="0"/>`. In body text (not bold by default) it's a harmless
    * no-op, but it still faithfully preserves an explicit Word "bold off".
    *
-   * Like `font_size`, it parses only its own `data-bold-off` span — NOT an
-   * arbitrary `font-weight: normal` — so it isn't sprayed onto every paste
+   * Like `font_size`, it parses only its own `data-bold-off` span - NOT an
+   * arbitrary `font-weight: normal` - so it isn't sprayed onto every paste
    * that carries an explicit-normal weight. The docx importer adds it
    * directly from `<w:b w:val="0"/>`.
    */
@@ -268,7 +268,7 @@ export const marks: { [name: string]: MarkSpec } = {
   },
 
   /**
-   * Strikethrough — `<w:strike/>` in OOXML. Renders as `<s>`. We don't
+   * Strikethrough - `<w:strike/>` in OOXML. Renders as `<s>`. We don't
    * differentiate single-strike vs double-strike (`<w:dstrike/>`); the
    * importer maps both to this mark and the exporter writes single-strike.
    */
@@ -284,7 +284,7 @@ export const marks: { [name: string]: MarkSpec } = {
   },
 
   /**
-   * Vertical alignment — `<w:vertAlign w:val="superscript|subscript"/>`
+   * Vertical alignment - `<w:vertAlign w:val="superscript|subscript"/>`
    * in OOXML. Two separate marks so the natural ProseMirror mark
    * lifecycle (toggle, exclude) handles mutual exclusion; a single
    * baseline of normal is the absence of either mark. Renders as
@@ -335,11 +335,11 @@ export const marks: { [name: string]: MarkSpec } = {
   },
 
   /**
-   * Shading — `<w:shd w:fill="…"/>`, an RGB background that survives
+   * Shading - `<w:shd w:fill="…"/>`, an RGB background that survives
    * Word's "remove highlighting" (which only strips `<w:highlight>`).
    * Verbatim's `HighlightToBackgroundColor` uses this as "protected
    * highlight" (canonically D2D2D2 grey). Defined BEFORE `highlight`
-   * so highlight nests inside shading in the DOM — when both marks
+   * so highlight nests inside shading in the DOM - when both marks
    * coexist on the same run, highlight's background wins visually.
    */
   shading: {
@@ -367,7 +367,7 @@ export const marks: { [name: string]: MarkSpec } = {
       // named color via `data-highlight=...`). Without it, a docx
       // with yellow shading (FFFF00, from Verbatim's
       // HighlightToBackgroundColor macro) would render the contained
-      // text in the themed text color — white in dark mode — on a
+      // text in the themed text color - white in dark mode - on a
       // bright yellow bg, which is unreadable. The band attribute
       // forces black/white based on the shading's luminance.
       // `--sh` mirrors the fill so the optional shading-cue CSS (the
@@ -413,13 +413,13 @@ export const marks: { [name: string]: MarkSpec } = {
     // inner border edge with no gap, even though emphasis is OUTER to
     // highlight in mark rank (a continuous emphasis run renders as one
     // `.pmd-emphasis` span regardless of which sub-runs carry
-    // highlight — no phantom internal borders).
+    // highlight - no phantom internal borders).
     toDOM: (mark) => {
       const color = String(mark.attrs['color'] ?? 'yellow');
       // `data-highlight-band` = perceived-luminance bucket for the
       // named color, so downstream CSS matches one band attribute
       // instead of 16 `:has(.pmd-highlight[data-highlight=…])` checks
-      // per `.pmd-underline` — a large style-recalc win when cv:auto
+      // per `.pmd-underline` - a large style-recalc win when cv:auto
       // cards stream into view. "none" for the explicit no-highlight
       // value keeps the selector chain off transparent containers.
       return [
@@ -483,7 +483,7 @@ export const marks: { [name: string]: MarkSpec } = {
   /**
    * Per-run font family override. Round-trips to OOXML `<w:rFonts>`
    * (importer reads w:ascii / w:hAnsi / w:cs; exporter emits all three
-   * to the same value). Intentionally NOT rendered in the editor — the
+   * to the same value). Intentionally NOT rendered in the editor - the
    * mark is data-only, with a span wrapper carrying a `data-font-family`
    * attribute. The body font (settings.bodyFont) governs how the editor
    * renders. Round-trip preserves the user's per-run font overrides
@@ -515,7 +515,7 @@ export const marks: { [name: string]: MarkSpec } = {
   },
 
   /**
-   * Comment anchor — references a thread in the comments plugin
+   * Comment anchor - references a thread in the comments plugin
    * state via `threadId`. Non-inclusive so typing past either end
    * of a commented range doesn't extend the anchor. Renders as a
    * span with a `data-comment-id` attribute the CSS uses to draw

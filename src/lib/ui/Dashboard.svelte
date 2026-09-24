@@ -30,13 +30,13 @@
   /** Absolute path of the home library's `tournaments/` folder. */
   let homeTournamentsDir = $state("");
 
-  /** Tournaments shown under the TOURNAMENTS heading — everything except the
+  /** Tournaments shown under the TOURNAMENTS heading - everything except the
    *  home library itself, which gets its own section at the top. */
   const tourneyList = $derived(
     tournaments.list.filter((t) => t.id !== homeTourney?.id),
   );
 
-  /** True for a flow the home scan found inside the `tournaments/` sub-folder —
+  /** True for a flow the home scan found inside the `tournaments/` sub-folder -
    *  those belong to their tournament's section, not the home list. */
   function relUnderTournaments(rel?: string): boolean {
     const r = (rel ?? "").replace(/\\/g, "/").toLowerCase();
@@ -48,7 +48,7 @@
   /** Tournaments folded down to just their name. Session-only (nothing is
    *  persisted) and seeded with every existing tournament on mount, so opening
    *  the app always shows a short, scannable list. A tournament you create or
-   *  link during the session is left expanded — you just made it to put flows
+   *  link during the session is left expanded - you just made it to put flows
    *  in it. */
   let collapsed = $state<string[]>([]);
   let showSettings = $state(false);
@@ -59,7 +59,7 @@
 
   const templates = builtinTemplates();
   // The default speech format lives in settings (disk-backed), so whatever you
-  // pick here is the primary option next time — no re-selecting Policy each run.
+  // pick here is the primary option next time - no re-selecting Policy each run.
   function defaultTpl(): SpeechTemplate {
     const i = settings.defaultTemplate;
     const base = (templates[i] ?? templates[0]) as SpeechTemplate;
@@ -73,14 +73,14 @@
   }
 
   // Which side you're flowing from, chosen HERE because it decides how many
-  // columns the round has — every sheet stores a start-column index, so the
+  // columns the round has - every sheet stores a start-column index, so the
   // count can't change once sheets exist. "neutral" is solo flowing and is the
   // default: picking a side is opting IN to partner lanes.
   const savedSide = typeof localStorage !== "undefined" ? localStorage.getItem(LS_SIDE) : null;
   let mySide = $state<Side>(
     savedSide === "aff" || savedSide === "neg" ? savedSide : "neutral",
   );
-  /** The template as the round will actually be created — the chosen format's
+  /** The template as the round will actually be created - the chosen format's
    *  speech renames applied by `defaultTpl()`, then lanes split in. Also tells
    *  the UI whether this format HAS a splittable speech. */
   const pickedTemplate = $derived.by(() => splitForSide(defaultTpl(), mySide));
@@ -99,13 +99,13 @@
   let renamingTourney = $state<string | null>(null);
   let renameTourneyText = $state("");
 
-  // Drag state — move a flow file (or an unfiled round) into a tournament
+  // Drag state - move a flow file (or an unfiled round) into a tournament
   let draggingFlow = $state<FlowFile | null>(null);
   let draggingRoundId = $state<string | null>(null);
   let dragOver = $state<string | null>(null);
   /** The tournament being dragged to a new position, and the one it is over.
    *  Kept apart from `draggingFlow`/`dragOver` because the two gestures land on
-   *  the same element and mean opposite things — reorder vs. file into. */
+   *  the same element and mean opposite things - reorder vs. file into. */
   let draggingTourney = $state<string | null>(null);
   let tourneyOver = $state<string | null>(null);
   // Two-step delete confirms
@@ -245,7 +245,7 @@
    *  are no longer split. Gated so it runs once. */
   async function migrateUnfiledIntoHome() {
     if (settings.homeMigrated || !homeTourney || !("__TAURI_INTERNALS__" in window)) return;
-    // Snapshot first — `unfiled` is derived and shifts as we move each one.
+    // Snapshot first - `unfiled` is derived and shifts as we move each one.
     for (const meta of unfiled.slice()) {
       const round = await loadRound(meta.id);
       if (!round) continue;
@@ -262,7 +262,7 @@
   }
 
   /** A minimal, self-contained round for seeding examples (no open-round side
-   *  effects — mirrors store.newRound's shape). */
+   *  effects - mirrors store.newRound's shape). */
   function exampleRound(name: string): Round {
     return {
       id: Math.random().toString(36).slice(2, 12),
@@ -285,7 +285,7 @@
       let files = await tournaments.flows(t);
       // The home folder is scanned recursively, so it also turns up the flows in
       // its tournaments/ sub-folder. Those belong to their tournament's section,
-      // not the home list — drop them here.
+      // not the home list - drop them here.
       if (homeTourney && t.id === homeTourney.id) {
         files = files.filter((f) => !relUnderTournaments(f.rel));
       }
@@ -298,7 +298,7 @@
   //
   // A flow filed in a tournament used to render TWICE: once from the folder
   // listing, and again under "not in a tournament". Opening one is what creates
-  // the second copy — openPath() mirrors every flow it opens into app data (so
+  // the second copy - openPath() mirrors every flow it opens into app data (so
   // the autosave heartbeat has something to write to), and listRounds() returns
   // all of app data with no filtering. Matching the two by path collapses them
   // back into a single card, shown where the file actually lives.
@@ -329,7 +329,7 @@
     tournaments.list.map((t) => normPath(t.path).replace(/\/+$/, "") + "/"),
   );
 
-  /** The genuinely unfiled flows — no file at all, or a file that lives outside
+  /** The genuinely unfiled flows - no file at all, or a file that lives outside
    *  every linked tournament folder. The prefix test is a belt-and-braces
    *  companion to the exact-path match: a flow anywhere under a tournament's
    *  tree belongs to that tournament, so it must never also be listed here. */
@@ -382,7 +382,7 @@
    * Open a flow listed in a tournament folder.
    *
    * "Which copy is newer" is decided inside `openPath`, by comparing the two
-   * rounds' own `updatedAt` values — NOT here against `file.modified`. The
+   * rounds' own `updatedAt` values - NOT here against `file.modified`. The
    * filesystem mtime is not a usable signal: Dropbox rewrites it on sync, and a
    * rename rewrites the file (bumping mtime to now) while leaving the content
    * as stale as it was. Trusting mtime is what let a freshly renamed, stale file
@@ -395,7 +395,7 @@
   /**
    * Keep the app-data mirror pointing at its file after the file moves or is
    * renamed. Without this the mirror still holds the old path, stops matching
-   * anything in the folder listing, and the flow starts rendering twice again —
+   * anything in the folder listing, and the flow starts rendering twice again -
    * once in its tournament, once as "not in a tournament".
    */
   async function repointMirror(oldPath: string, newPath: string, newName?: string) {
@@ -432,7 +432,7 @@
 
   async function createRound() {
     // Save straight into the default library folder so every flow is organized
-    // on disk and auto-saved (no "Save As" step) — same path as "+ New flow" in
+    // on disk and auto-saved (no "Save As" step) - same path as "+ New flow" in
     // a tournament. Falls back to an app-data-only round if there's no library
     // (e.g. the browser build).
     if (homeTourney && "__TAURI_INTERNALS__" in window) {
@@ -495,7 +495,7 @@
     tourneyName = "";
     if (!name) return;
     // Tournaments now always live inside the home library's tournaments/ folder,
-    // so there's no folder picker — falls back to the picker only if the home
+    // so there's no folder picker - falls back to the picker only if the home
     // folder isn't set up (e.g. a browser build).
     const t = homeTournamentsDir
       ? await tournaments.createInHome(homeTournamentsDir, name)
@@ -511,7 +511,7 @@
   async function newFlowInTournament(t: Tournament) {
     // Resolve the title BEFORE the round exists. "New Flow" is a guaranteed
     // collision the second time round, and the title has to match the file it
-    // gets written to — autosave renames the file to follow round.name, so a
+    // gets written to - autosave renames the file to follow round.name, so a
     // round still called "New Flow" would rename itself back on top of the
     // first one's file.
     const name = await tournaments.uniqueFlowName(t, "New Flow");
@@ -707,7 +707,7 @@
         {#if dupes.length > 0}
           <span
             class="dupe-badge"
-            title="This flow also exists at:&#10;{dupes.map((d) => d.path).join('\n')}&#10;&#10;Showing the live copy. The others are older leftovers — delete them in Finder/Explorer if you don't want them."
+            title="This flow also exists at:&#10;{dupes.map((d) => d.path).join('\n')}&#10;&#10;Showing the live copy. The others are older leftovers - delete them in Finder/Explorer if you don't want them."
           >{dupes.length + 1} copies</span>
         {/if}
         <span class="row-sp"></span>
@@ -845,7 +845,7 @@
       </section>
     {/each}
 
-    <!-- Home library, shown as RECENT FLOWS beneath the tournaments — no folder
+    <!-- Home library, shown as RECENT FLOWS beneath the tournaments - no folder
          icon or count, per the flatter look. -->
     {#if homeTourney}
       <div class="tourney-head">
@@ -867,7 +867,7 @@
             {@render flowRow(file, dupes)}
           {/each}
           {#if rowsFor(homeTourney).length === 0}
-            <p class="empty-hint row-empty">No flows yet — press New flow, or Start flowing above.</p>
+            <p class="empty-hint row-empty">No flows yet - press New flow, or Start flowing above.</p>
           {/if}
         </div>
       </section>
@@ -932,7 +932,7 @@
     /* ⚠ `border-box` is load-bearing, not tidiness. With the default
        content-box, `height: 100%` measures the CONTENT box, so the 40px of
        bottom padding was added on top of it and this element came out 40px
-       TALLER than the `.dashboard` it sits in — which is `overflow: hidden`.
+       TALLER than the `.dashboard` it sits in - which is `overflow: hidden`.
        Two things went wrong: the last 40px of the scroll viewport was clipped
        and unreachable, and `.dashboard` itself became scrollable (scrollHeight
        674 against clientHeight 634), so dragging into that region scrolled the
@@ -968,7 +968,7 @@
     animation: nimbus-rain 1.5s linear infinite;
   }
   /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
-     the drops don't march across in a diagonal wave — it reads as real rain. */
+     the drops don't march across in a diagonal wave - it reads as real rain. */
   .rain span:nth-child(1) { left: 6px;  animation-delay: -0.15s; animation-duration: 1.5s; }
   .rain span:nth-child(2) { left: 18px; animation-delay: -0.95s; animation-duration: 1.3s; }
   .rain span:nth-child(3) { left: 30px; animation-delay: -0.45s; animation-duration: 1.7s; }
@@ -1078,7 +1078,7 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
   }
   .folder-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
-  /* Reorder grip. Faint until the row is hovered — it is a power feature, and
+  /* Reorder grip. Faint until the row is hovered - it is a power feature, and
      a permanent handle on every folder is clutter on a page you mostly read. */
   .t-grip {
     cursor: grab; user-select: none; line-height: 1;
@@ -1168,7 +1168,7 @@
   }
   /* Delete button: inline at the row's right edge, always visible (dim), brighter
      on row hover. The two-step confirm below still guards against a misclick.
-     ⚠ Selectors are `.flow-row .row-x` (specificity 0,2,0) on purpose — the base
+     ⚠ Selectors are `.flow-row .row-x` (specificity 0,2,0) on purpose - the base
      `.x` rule sets `position: absolute; top/right: 8px` and is declared LATER in
      this file, so a bare `.row-x` (0,1,0) lost the tie and the button flew to the
      window's top-right corner instead of sitting in the row. */

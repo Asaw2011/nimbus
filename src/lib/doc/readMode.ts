@@ -1,6 +1,6 @@
 // Read-mode plugin (CardMirror's approach). When on, every run inside a card
-// body / cite paragraph that has NO "read" marker — highlight (spoken),
-// underline (the cut), emphasis, or cite — is decorated hidden. What's left is
+// body / cite paragraph that has NO "read" marker - highlight (spoken),
+// underline (the cut), emphasis, or cite - is decorated hidden. What's left is
 // exactly the read-aloud text, flowing inline. Robust regardless of font size.
 
 import { Plugin, PluginKey } from "prosemirror-state";
@@ -15,7 +15,7 @@ interface ReadState {
 }
 
 // Marks that mean "this text is read aloud". Read mode shows ONLY the
-// highlighted (spoken) text — not underlined-only or emphasized-only runs.
+// highlighted (spoken) text - not underlined-only or emphasized-only runs.
 // The cite line (cite_mark) stays so you can read the source.
 const READ_MARKS = new Set(["highlight", "cite_mark"]);
 // Only hide runs inside these evidence containers (never headings).
@@ -33,15 +33,15 @@ function buildDecos(doc: PMNode, on: boolean): DecorationSet {
   const decos: Decoration[] = [];
   // Walk each evidence body and decide, run by run, what's read aloud. A run is
   // SHOWN only if it carries a read marker (highlight / cite) AND has a real
-  // (non-whitespace) character — a highlighted space renders as an empty box or
+  // (non-whitespace) character - a highlighted space renders as an empty box or
   // "_" dash otherwise. Everything else is hidden. To keep the shown words from
   // jamming together we drop exactly ONE space where a hidden GROUP was, not one
   // per hidden run (that produced huge gaps through long stretches of cut text).
-  // ONE space is dropped wherever hidden content — a run, or a whole body —
+  // ONE space is dropped wherever hidden content - a run, or a whole body -
   // separates two surviving words. `pendingGap` persists ACROSS bodies (there is
   // no per-body CSS spacer any more; this plugin is the sole spacing authority),
   // so no matter how many hidden runs or fully-hidden paragraphs sit between two
-  // read-aloud words, they end up exactly one space apart — never a big gap.
+  // read-aloud words, they end up exactly one space apart - never a big gap.
   let pendingGap = false;
   doc.descendants((node, pos) => {
     if (!BODY_NODES.has(node.type.name)) return true;

@@ -112,7 +112,7 @@ const RELS_CLOSE = '</Relationships>';
 const HEADING_LIKE = new Set(['pocket', 'hat', 'block', 'tag', 'analytic']);
 
 /** Schema container nodes whose children we emit at the parent level. A
- *  `transclusion_ref` (live zone) flattens here too — docx has no transclusion
+ *  `transclusion_ref` (live zone) flattens here too - docx has no transclusion
  *  concept, so its cards emit as ordinary content (TRANSCLUSION_PLAN.md §10). */
 const TRANSPARENT_CONTAINERS = new Set([
   'doc',
@@ -128,7 +128,7 @@ class DocxExporter {
   private imageRels: ImageRel[] = [];
   private mediaParts: ExportedMediaPart[] = [];
   // rId1 = styles (always present), rId2 = settings (Verbatim
-  // recognition surface — see Docx.empty() + buildRelsXml). Dynamic
+  // recognition surface - see Docx.empty() + buildRelsXml). Dynamic
   // rels (hyperlinks / images / comments) claim rId3+.
   private nextRelId = 3;
   private nextImageIdx = 1;
@@ -176,7 +176,7 @@ class DocxExporter {
 
     this.parts.push(DOCUMENT_OPEN);
     this.emitChildren(doc);
-    // Close any comment ranges still open at end of doc (defensive —
+    // Close any comment ranges still open at end of doc (defensive -
     // shouldn't normally happen, but guards against schema drift).
     this.closeOpenCommentRanges();
     this.parts.push(SECT_PR_AND_DOCUMENT_CLOSE);
@@ -426,7 +426,7 @@ class DocxExporter {
       pPrInner += `<w:ind w:left="${indent}"/>`;
     }
     // Auto-numbering: a numbered tag/analytic gets its `<w:numPr>` so Word draws
-    // the number. No number is written — Word computes it from numId + ilvl.
+    // the number. No number is written - Word computes it from numId + ilvl.
     const num = this.numberingByNode.get(node);
     if (num) pPrInner += numPrXml(num);
     const pPr = pPrInner ? `<w:pPr>${pPrInner}</w:pPr>` : '';
@@ -476,7 +476,7 @@ class DocxExporter {
     // Close any comment ranges still open at the paragraph
     // boundary. OOXML accepts ranges that cross paragraphs, but
     // most readers (including Word) handle per-paragraph ranges
-    // more predictably — so we close+reopen at boundaries.
+    // more predictably - so we close+reopen at boundaries.
     this.closeOpenCommentRanges();
   }
 
@@ -553,7 +553,7 @@ class DocxExporter {
 
   /** Emit a `<w:footnoteReference w:id>` (or endnote) run and queue
    *  the note body for the footnotes/endnotes part. Ids are fresh,
-   *  1-based, assigned in reference order per part — Word renumbers
+   *  1-based, assigned in reference order per part - Word renumbers
    *  visually anyway. Superscript via direct formatting so the doc
    *  needs no FootnoteReference style entry. */
   private emitFootnoteRef(node: PMNode): void {
@@ -600,7 +600,7 @@ class DocxExporter {
         runChildren.push('<w:tab/>');
       } else if (ch === '\n') {
         // Importer maps `<w:br/>` → '\n'. (A page break also imports as
-        // '\n', so it re-exports as a line break — the doc model keeps
+        // '\n', so it re-exports as a line break - the doc model keeps
         // the break but not its type.)
         flush();
         runChildren.push('<w:br/>');
@@ -653,7 +653,7 @@ class DocxExporter {
     if (marks.some((m) => m.type.name === 'bold')) {
       props.push('<w:b/>');
     } else if (marks.some((m) => m.type.name === 'bold_off')) {
-      // Explicit "bold off" — overrides the bold a bold-by-default style
+      // Explicit "bold off" - overrides the bold a bold-by-default style
       // (e.g. Heading4/tag) would otherwise inherit.
       props.push('<w:b w:val="0"/>');
     }
@@ -690,7 +690,7 @@ class DocxExporter {
       props.push(emptyEl('w:sz', { 'w:val': hp }));
       props.push(emptyEl('w:szCs', { 'w:val': hp }));
     } else if (marks.some((m) => m.type.name === 'pilcrow_marker')) {
-      // pilcrow_marker carries no attrs — Verbatim's canonical 6-pt
+      // pilcrow_marker carries no attrs - Verbatim's canonical 6-pt
       // pilcrow encoding is `<w:sz w:val="12"/>`. Emit when no explicit
       // font_size is present (font_size takes precedence if both are
       // somehow set on the same run, though that shouldn't happen in
@@ -703,7 +703,7 @@ class DocxExporter {
       marks.some((m) => m.type.name === 'underline_mark' || m.type.name === 'underline_direct')
     ) {
       // underline_mark: dual-encoding per NOTES-verbatim.md §5 gotcha
-      //   #1 — rStyle="StyleUnderline" (already emitted above) AND
+      //   #1 - rStyle="StyleUnderline" (already emitted above) AND
       //   <w:u w:val="single"/>.
       // underline_direct: just <w:u w:val="single"/>, no rStyle.
       props.push(emptyEl('w:u', { 'w:val': 'single' }));
@@ -743,7 +743,7 @@ class DocxExporter {
     // pick it up. Without the link, Word skips settings.xml and the
     // <w:attachedTemplate> recognition surface inside it is
     // invisible to Verbatim's ribbon-visibility callback. Hardcoded
-    // rId2 because `this.nextRelId` starts at 2 — any dynamic rel
+    // rId2 because `this.nextRelId` starts at 2 - any dynamic rel
     // (hyperlink / image / comments) added below claims rId3+.
     inner.push(
       '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>',
@@ -751,7 +751,7 @@ class DocxExporter {
     for (const rel of this.rels) {
       // Hyperlink Targets are user-supplied URLs and commonly
       // contain `&` (query-string separators), which is illegal
-      // raw in an XML attribute — Word flags the doc as corrupted
+      // raw in an XML attribute - Word flags the doc as corrupted
       // and opens it in recovery mode. The rId is internally
       // generated and safe. Image / styles / settings Targets are
       // internally controlled, but image targets (below) are
@@ -814,7 +814,7 @@ class DocxExporter {
         );
         const paragraphs = c.text.split('\n');
         for (let i = 0; i < paragraphs.length; i++) {
-          // Only the FIRST paragraph carries the paraId — that's
+          // Only the FIRST paragraph carries the paraId - that's
           // what commentsExtended links against. Subsequent
           // paragraphs of multi-line comments are body content.
           const idAttr = i === 0 ? ` w14:paraId="${paraId}"` : '';
@@ -866,7 +866,7 @@ class DocxExporter {
 /**
  * Build the OOXML drawing XML for an inline picture. Self-contains the
  * required namespaces (wp, a, pic) so we don't have to hoist them onto
- * <w:document>. Standard inline-picture shape — no effects, no
+ * <w:document>. Standard inline-picture shape - no effects, no
  * positioning, no theme styling.
  */
 function buildDrawingXml(opts: {
@@ -914,7 +914,7 @@ function buildDrawingXml(opts: {
 
 /** Build word/footnotes.xml or word/endnotes.xml (+ the part's rels
  *  file when any note run carries a hyperlink). Word requires the
- *  separator (-1) and continuationSeparator (0) entries — omitting
+ *  separator (-1) and continuationSeparator (0) entries - omitting
  *  them triggers a repair prompt. Note runs use direct formatting
  *  only, so no styles.xml additions are needed. */
 function buildNotesXml(
@@ -972,7 +972,7 @@ function buildNotesXml(
 }
 
 /** Public API: schema doc → docx parts (document.xml + rels, media,
- *  comments, footnotes/endnotes — see `ExportResult`). */
+ *  comments, footnotes/endnotes - see `ExportResult`). */
 export function exportDoc(doc: PMNode, opts: ExportOptions = {}): ExportResult {
   return new DocxExporter().exportDoc(doc, opts);
 }

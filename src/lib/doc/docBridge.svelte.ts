@@ -1,7 +1,7 @@
 // Pop-out speech-doc windows. Each doc can pop out into its OWN OS window
 // (multiple at once); the window edits that doc's content blob directly, so no
 // cross-window content handoff is needed. The DOCKED (main) doc is always the
-// one linked to the flow — a popped-out doc is never also the docked one.
+// one linked to the flow - a popped-out doc is never also the docked one.
 
 import { saveBlob, loadBlob, dropBlobCache } from "$lib/model/blobs";
 
@@ -10,7 +10,7 @@ const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
 /** Blob key for a doc's content (shared with docs.svelte.ts). Uses only
  *  filename-safe chars so it actually persists to DISK, not just localStorage. */
 export const docContentBlob = (id: string) => `doc_${id}`;
-/** The original key used a colon — an invalid filename char on Windows — so the
+/** The original key used a colon - an invalid filename char on Windows - so the
  *  Rust blob store rejected it and doc content only ever lived in localStorage
  *  (and got quota-evicted once several large/uploaded docs were open). Read this
  *  once to migrate any such docs onto disk under the safe name above. */
@@ -68,7 +68,7 @@ class DocBridge {
     }
     const win = new WebviewWindow(label, {
       url: `/?docwin=1&docid=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`,
-      title: `Nimbus — ${name}`,
+      title: `Nimbus - ${name}`,
       width: 820,
       height: 1000,
       minWidth: 480,

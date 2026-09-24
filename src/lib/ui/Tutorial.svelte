@@ -25,7 +25,7 @@
     <div class="grid">
       <div class="item">
         <span class="k">Type anywhere</span>
-        It's a grid like Excel. Columns are speeches, rows are arguments —
+        It's a grid like Excel. Columns are speeches, rows are arguments -
         just click a cell and go.
       </div>
       <div class="item">
@@ -36,7 +36,7 @@
       <div class="item">
         <span class="k">See many at once</span>
         Hit <kbd>{combosLabel(km.toggleSpread, mac)}</kbd> or <b>Stack / Split</b> to lay several flows side by
-        side — the paper-on-your-desk view.
+        side - the paper-on-your-desk view.
       </div>
       <div class="item">
         <span class="k">Colors do the work</span>
@@ -45,12 +45,12 @@
       </div>
       <div class="item">
         <span class="k">A real speech doc</span>
-        <kbd>{combosLabel(km.toggleDoc, mac)}</kbd> opens a full CardMirror-style doc — cut, highlight, read
+        <kbd>{combosLabel(km.toggleDoc, mac)}</kbd> opens a full CardMirror-style doc - cut, highlight, read
         mode, and one-click <b>Send to Doc</b> from your flow.
       </div>
       <div class="item">
         <span class="k">Make it yours</span>
-        <kbd>{combosLabel(km.openSettings, mac)}</kbd> opens Settings — themes, custom keybinds, and JavaScript
+        <kbd>{combosLabel(km.openSettings, mac)}</kbd> opens Settings - themes, custom keybinds, and JavaScript
         macros for one-key argument blocks.
       </div>
       <div class="item">

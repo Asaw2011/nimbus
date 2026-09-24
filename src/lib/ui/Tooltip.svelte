@@ -15,7 +15,7 @@
   const DELAY = 350; // hover dwell before the bubble appears
   const HALF = 150;  // conservative half-width for edge clamping
   let timer: ReturnType<typeof setTimeout> | null = null;
-  // The element we lifted a title off, and its value, so we can put it back —
+  // The element we lifted a title off, and its value, so we can put it back -
   // tracked so a title is never lost even if a later handler throws.
   let stripped: { el: Element; title: string } | null = null;
 
@@ -65,7 +65,7 @@
     // Capture phase so it sees the hover before anything can stop propagation.
     document.addEventListener("mouseover", onOver, true);
     document.addEventListener("mouseout", onOut, true);
-    // A click, scroll or window blur dismisses at once — a bubble left hanging
+    // A click, scroll or window blur dismisses at once - a bubble left hanging
     // over a menu you just opened is worse than no bubble.
     const dismiss = () => hide();
     document.addEventListener("mousedown", dismiss, true);

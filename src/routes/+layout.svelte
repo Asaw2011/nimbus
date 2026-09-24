@@ -15,8 +15,8 @@
     document.documentElement.dataset.theme = settings.theme;
   });
 
-  // Sheet-tab size. Same mechanism as the grid geometry below — a custom
-  // property on the root — so the tab bar restyles without remounting the grid
+  // Sheet-tab size. Same mechanism as the grid geometry below - a custom
+  // property on the root - so the tab bar restyles without remounting the grid
   // or touching the flow's own layout.
   $effect(() => {
     const root = document.documentElement.style;

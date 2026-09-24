@@ -1,4 +1,4 @@
-// Minimal Supabase Realtime client — enough to run a partner flowing session,
+// Minimal Supabase Realtime client - enough to run a partner flowing session,
 // and nothing more.
 //
 // Supabase Realtime is a Phoenix channels server. The wire protocol is small
@@ -8,7 +8,7 @@
 // fetch rather than the SDK.
 //
 // What this is used for: BROADCAST only. No database tables, no schema, no
-// migrations — a channel is just a name, and the server relays messages
+// migrations - a channel is just a name, and the server relays messages
 // between whoever joined it. Nothing about a flow is ever stored server-side.
 //
 // ⚠ This is NOT on the launch path and must never become so. A partner session
@@ -23,7 +23,7 @@ const SUPABASE_KEY = "sb_publishable_4xgCsUBklrsJUOspF4a6VA_maYxtlHg";
 /** Phoenix expects a heartbeat well inside its 60s idle timeout. */
 const HEARTBEAT_MS = 25_000;
 /** Reconnect backoff, in order; the last value repeats forever. Deliberately
- *  capped low — tournament wifi drops constantly and we want to be back fast. */
+ *  capped low - tournament wifi drops constantly and we want to be back fast. */
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000];
 /**
  * Heard nothing for this long while supposedly joined = the connection is dead
@@ -32,7 +32,7 @@ const BACKOFF_MS = [500, 1000, 2000, 4000, 8000];
  * ⚠ This is not paranoia, it is reproduced behaviour. A hidden tab (which is
  * what a minimised Tauri window is) has its timers throttled to roughly once a
  * minute, so our 25s heartbeat stops landing, the server drops us, and the
- * WebSocket sits at readyState OPEN receiving nothing — verified with a direct
+ * WebSocket sits at readyState OPEN receiving nothing - verified with a direct
  * probe that never arrived. Heartbeat replies alone keep this fresh in a normal
  * tab, so anything past 45s of total silence is genuinely wrong.
  */
@@ -43,12 +43,12 @@ export type RealtimeStatus =
   | "connecting"
   | "joined"
   | "reconnecting"
-  /** The relay refused us and retrying won't help — a dead end, not a wait. */
+  /** The relay refused us and retrying won't help - a dead end, not a wait. */
   | "refused"
   | "closed";
 
 export interface PresencePeer {
-  /** The presence key — our per-client id. */
+  /** The presence key - our per-client id. */
   key: string;
   meta: Record<string, unknown>;
 }
@@ -83,7 +83,7 @@ export class Channel {
   private closed = false;
   private joined = false;
   /** Broadcasts made while the socket was down, replayed on rejoin. Bounded so
-   *  a long outage can't grow without limit — a resync covers the rest. */
+   *  a long outage can't grow without limit - a resync covers the rest. */
   private outbox: Array<{ event: string; payload: unknown }> = [];
   private presence = new Map<string, PresencePeer>();
   /** Set once the outbox has had to drop a message. Past that point the two
@@ -101,8 +101,8 @@ export class Channel {
     /**
      * Supplies a currently-valid access token, or "" when there isn't one.
      *
-     * ⚠ Sent so the RELAY can tell who is connecting. Nothing checks it yet —
-     * the server currently accepts the publishable key alone — but a token
+     * ⚠ Sent so the RELAY can tell who is connecting. Nothing checks it yet -
+     * the server currently accepts the publishable key alone - but a token
      * cannot be added to a build that is already on someone's disk, so it ships
      * ahead of the check. When authorization is switched on, every client that
      * has updated by then keeps working and only genuinely old builds are cut
@@ -126,7 +126,7 @@ export class Channel {
    * new build and no coordinated release:
    *
    * - Today, public is allowed, so the first attempt succeeds and this costs
-   *   exactly nothing — the behaviour is identical to before it existed.
+   *   exactly nothing - the behaviour is identical to before it existed.
    * - Turn "Allow public access to channels" off on the project, and the first
    *   attempt is refused. This client then retries privately with the user's
    *   token, which the RLS policy answers: subscribers are let in, everybody
@@ -163,7 +163,7 @@ export class Channel {
 
     ws.onopen = async () => {
       // ⚠ The token is fetched HERE rather than before opening the socket, so a
-      // slow or failed refresh can't stop us connecting — it only decides
+      // slow or failed refresh can't stop us connecting - it only decides
       // whether a private join can prove who we are.
       let token = "";
       if (this.mode === "private") {
@@ -181,7 +181,7 @@ export class Channel {
         event: "phx_join",
         payload: {
           config: {
-            // We never want our own messages echoed back — the local store has
+            // We never want our own messages echoed back - the local store has
             // already applied them, and re-applying would fight the cursor.
             broadcast: { self: false },
             presence: { key: this.presenceKey },
@@ -265,7 +265,7 @@ export class Channel {
       case "phx_error":
       case "phx_close":
         // The SERVER dropped us from the topic while the socket stayed up.
-        // Marking ourselves un-joined is not enough — nothing would ever
+        // Marking ourselves un-joined is not enough - nothing would ever
         // rejoin, and we would sit silently deaf. Tear the socket down and let
         // the retry loop own recovery.
         this.joined = false;
@@ -285,7 +285,7 @@ export class Channel {
     this.handlers.onPresence?.([...this.presence.values()]);
   }
 
-  /** Announce ourselves. Re-sent after every rejoin — presence is per-socket,
+  /** Announce ourselves. Re-sent after every rejoin - presence is per-socket,
    *  so a reconnect starts with us absent from our own channel. */
   private track(): void {
     this.send({
@@ -304,10 +304,10 @@ export class Channel {
    *
    * Returns TRUE only if the frame actually went out. Queued is not sent, and
    * `joined` is not the same as deliverable: a socket can be closing, or
-   * already dead, while we still think we are joined — so callers that must
+   * already dead, while we still think we are joined - so callers that must
    * know whether the far side really got it have to read this, not `joined`.
    *
-   * `queueIfDown: false` is for traffic that REGENERATES itself — the cell
+   * `queueIfDown: false` is for traffic that REGENERATES itself - the cell
    * diff, which recomputes from scratch every tick. Queueing that is pointless
    * and actively harmful: it fills the outbox with work the next diff would
    * produce anyway, and an outbox that overflows is what marks the session
@@ -361,7 +361,7 @@ export class Channel {
       // ⚠ Access tokens expire inside an hour; a round plus prep can outlast
       // one. Phoenix keeps the socket open either way, but once the relay
       // starts checking the token, an expired one makes the channel go quiet
-      // rather than error — the worst possible failure mid-round. Rotate it on
+      // rather than error - the worst possible failure mid-round. Rotate it on
       // the heartbeat we already send, and only when it has actually changed.
       void this.refreshToken();
     }, HEARTBEAT_MS);
@@ -371,25 +371,25 @@ export class Channel {
    * The relay refused the join.
    *
    * ⚠ Measured, not assumed: Supabase Realtime rejects a malformed or expired
-   * JWT outright — the channel never joins and the socket just sits there. So
+   * JWT outright - the channel never joins and the socket just sits there. So
    * attaching a token is NOT free, and a client whose token is bad for a reason
    * it can't see (a rotated project secret, a skewed clock) would silently lose
    * partner flowing with no message.
    *
    * While nothing checks the token, one retry WITHOUT it restores exactly the
    * old behaviour, so a bad token can never be worse than no token. Once the
-   * relay starts requiring one, that retry is refused too — which is the
+   * relay starts requiring one, that retry is refused too - which is the
    * correct outcome, and the point at which this should surface a real message
    * rather than a silent retry.
    */
   private onJoinRejected(response: unknown): void {
     if (this.mode === "public") {
-      // Public is closed on this project — climb to a private, authorised join.
+      // Public is closed on this project - climb to a private, authorised join.
       this.mode = "private";
       this.forceReconnect();
       return;
     }
-    // Private was refused too: this account genuinely isn't allowed on. Stop —
+    // Private was refused too: this account genuinely isn't allowed on. Stop -
     // retrying forever would just look like a connection that never comes up.
     this.closed = true;
     this.stopHeartbeat();
@@ -401,7 +401,7 @@ export class Channel {
 
   /** Hand the relay a newer token if ours has been rotated since we joined. */
   private async refreshToken(): Promise<void> {
-    // A public channel isn't authorised, so there is nothing to keep fresh —
+    // A public channel isn't authorised, so there is nothing to keep fresh -
     // and asking for a token on every heartbeat would be pure waste today.
     if (this.mode !== "private") return;
     let token = "";

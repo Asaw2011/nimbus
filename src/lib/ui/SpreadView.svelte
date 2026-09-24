@@ -1,13 +1,14 @@
 <script lang="ts">
   // The paper spread: multiple sheets on screen at once, stacked vertically
   // (columns align across flows) or laid side-by-side. Each flow scrolls
-  // independently — they're different papers. The picker bar chooses which
+  // independently - they're different papers. The picker bar chooses which
   // flows are on the desk.
 
   import type { Sheet } from "../model/types";
   import { sheetAccent } from "../model/types";
   import { store } from "../model/round.svelte";
   import Grid from "./Grid.svelte";
+  import CxGrid from "./CxGrid.svelte";
 
   let {
     sheets,
@@ -26,7 +27,7 @@
 
   const visible = $derived(sheets.filter((s) => !hidden.includes(s.id)));
 
-  // Drag a panel by its header to reorder flows — same as dragging tabs.
+  // Drag a panel by its header to reorder flows - same as dragging tabs.
   let draggingPanel = $state<string | null>(null);
   let dragOverIdx = $state<number | null>(null);
   let dragBefore = $state(true);
@@ -153,7 +154,7 @@
 </script>
 
 <!-- While any drag is live the whole view is the drop zone: chips snap by
-     horizontal position only, panels by their axis — drops can't miss. -->
+     horizontal position only, panels by their axis - drops can't miss. -->
 <div
   class="spread-wrap"
   role="application"
@@ -236,7 +237,11 @@
         </header>
         <!-- Vertical stack pads columns so speeches align across flows;
              side-by-side keeps each sheet trimmed to its own columns. -->
-        <Grid sheet={s} spread={direction === "vertical"} />
+        {#if s.kind === "cx"}
+          <CxGrid sheet={s} spread={direction === "vertical"} />
+        {:else}
+          <Grid sheet={s} spread={direction === "vertical"} />
+        {/if}
       </section>
       {#if k < visible.length - 1}
         <div
@@ -248,7 +253,7 @@
         ></div>
       {/if}
     {:else}
-      <p class="none">Nothing on the desk — pick flows above.</p>
+      <p class="none">Nothing on the desk - pick flows above.</p>
     {/each}
   </div>
 </div>
@@ -412,7 +417,7 @@
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.04em;
-    /* Each flow's title in its own color — instant recognition on the desk */
+    /* Each flow's title in its own color - instant recognition on the desk */
     color: var(--stripe);
     background: var(--panel);
     border-bottom: 1px solid var(--border);

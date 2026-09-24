@@ -1,7 +1,7 @@
 // Core data model for the flow.
 //
 // A Round holds many Sheets (one per position: each off-case, each advantage).
-// Speech columns are defined by the round's SpeechTemplate — never hardcoded,
+// Speech columns are defined by the round's SpeechTemplate - never hardcoded,
 // so side order is fully configurable (e.g. neg-speaks-first PF).
 //
 // A Sheet is a plain grid, like Excel or a sheet of paper: rows already exist
@@ -20,7 +20,7 @@ export interface Speech {
   /**
    * Partner lanes. When one speech is split so both partners can flow it side
    * by side, each lane is a real column carrying the same `laneGroup` id and a
-   * different `lane` index. Absent on every ordinary column — a template with
+   * different `lane` index. Absent on every ordinary column - a template with
    * no lanes behaves exactly as it did before lanes existed.
    */
   laneGroup?: string;
@@ -34,7 +34,7 @@ export interface Speech {
   answersId?: string;
   /**
    * Lane owner, for live partner sessions. Unset means anyone may type here.
-   * Nothing reads this yet — it exists so a shared session can assign lanes
+   * Nothing reads this yet - it exists so a shared session can assign lanes
    * without migrating rounds created before that shipped.
    */
   owner?: string;
@@ -52,7 +52,7 @@ export interface CellMarks {
   dropped?: boolean;
   /** Flag: must address in next speech */
   starred?: boolean;
-  /** What kind of argument this is — colors the ink (settings-configurable). */
+  /** What kind of argument this is - colors the ink (settings-configurable). */
   evidence?: "analytic" | "card";
   /** Custom ink color for this cell (overrides side/evidence ink). */
   color?: string;
@@ -61,7 +61,7 @@ export interface CellMarks {
 }
 
 /**
- * A sub-entry inside a cell — a block expands into several of these (its cards),
+ * A sub-entry inside a cell - a block expands into several of these (its cards),
  * and you can add your own typed responses alongside them. "Multiple cells
  * inside one cell."
  */
@@ -74,18 +74,18 @@ export interface CellItem {
   chip?: string;
   /** Full source node (for "Send to Doc"). */
   card?: unknown;
-  /** The exact CardMirror node JSON (with images/formatting) — sent to the doc
+  /** The exact CardMirror node JSON (with images/formatting) - sent to the doc
    *  verbatim so images survive, unlike the text-only `card` adapter path. */
   cmNode?: unknown;
   /** Your responses to THIS part of the block, shown beneath it when the cell
-   *  is expanded (and hidden — with a count badge — when collapsed).
+   *  is expanded (and hidden - with a count badge - when collapsed).
    *
    *  ⚠ SUPERSEDED by {@link answer}, and kept so flows written before tiles
    *  still read. Nothing writes it any more; {@link answerOf} folds it into the
    *  tile's text the first time you edit one. */
   responses?: string[];
   /**
-   * This part's row across the rest of the flow — one real cell per speech,
+   * This part's row across the rest of the flow - one real cell per speech,
    * keyed by SPEECH ID.
    *
    * A block part isn't answered once; it gets answered, then that answer gets
@@ -95,7 +95,7 @@ export interface CellItem {
    * highlighting, and reads like any other tile.
    *
    * ⚠ Keyed by speech id, not column index, for the same reason `repliesTo` is:
-   * columns move. It also gives each partner lane its OWN answer to a part —
+   * columns move. It also gives each partner lane its OWN answer to a part -
    * with a single shared field both lanes were editing one box.
    *
    * Optional and additive: a round with none behaves as it always did, and an
@@ -114,7 +114,7 @@ export interface Cell {
   /** Extension arrow: this cell continues an argument from an earlier speech. */
   ext?: boolean;
   /**
-   * "This answers THAT argument" — the id of the speech whose cell on this same
+   * "This answers THAT argument" - the id of the speech whose cell on this same
    * row this one is a response to. Set by the reply action.
    *
    * Without it, the doc export guesses by walking left to the nearest non-empty
@@ -127,13 +127,13 @@ export interface Cell {
   /** Source type chip (POC/HAT/BLK/TAG/ANL) when dragged in from Doc Search. */
   chip?: string;
   /** The full card (DocNode) this cell was filled from, so "Send to Doc"
-   *  can re-send the real substance — not just the block name. */
+   *  can re-send the real substance - not just the block name. */
   card?: unknown;
-  /** The exact CardMirror node JSON (with images) for a single-card cell —
+  /** The exact CardMirror node JSON (with images) for a single-card cell -
    *  sent to the doc verbatim so images survive. */
   cmNode?: unknown;
   /** The card's author, stored as the exact substring that lives inside `text`
-   *  (not offsets — self-heals when you edit around it) so it renders bold. */
+   *  (not offsets - self-heals when you edit around it) so it renders bold. */
   author?: string;
 }
 
@@ -196,8 +196,8 @@ export interface RoundPrep {
 // ---- partner lanes ---------------------------------------------------------
 //
 // A split speech is TWO real columns sharing a `laneGroup`. Everything that
-// makes the grid work — one row per argument, row inserts spanning every
-// column — is untouched by this, so lanes stay lined up with the speech they
+// makes the grid work - one row per argument, row inserts spanning every
+// column - is untouched by this, so lanes stay lined up with the speech they
 // answer for free. These helpers exist so the few places that reason about
 // "the column to my left" don't have to know about lanes individually.
 
@@ -218,7 +218,7 @@ export function isOtherLane(sp: Speech | undefined, myLane: number): boolean {
  * ⚠ `splitForSide` bakes "You" and "Partner" into the lane's stored `abbr` and
  * `label` when the round is CREATED, so they carry the creator's point of view
  * and travel unchanged to a partner in the join snapshot. That left both
- * clients showing "You" on the host's column and "Partner" on the guest's own —
+ * clients showing "You" on the host's column and "Partner" on the guest's own -
  * reported from a real round. The lane a client owns is `laneHere`, so the
  * suffix is resolved against that HERE, at render time.
  *
@@ -228,7 +228,7 @@ export function isOtherLane(sp: Speech | undefined, myLane: number): boolean {
  * column is the correct outcome, not a bug.
  *
  * A header the user has renamed no longer matches the generated shape and is
- * returned verbatim — an explicit rename outranks the swap.
+ * returned verbatim - an explicit rename outranks the swap.
  */
 function lanePov(
   sp: Speech | undefined,
@@ -243,7 +243,7 @@ function lanePov(
   const at = text.lastIndexOf(sep);
   if (at < 0) return text;
   const suffix = text.slice(at + sep.length);
-  if (suffix !== mine && suffix !== theirs) return text; // renamed — leave it
+  if (suffix !== mine && suffix !== theirs) return text; // renamed - leave it
   return text.slice(0, at) + sep + (sp.lane === laneHere ? mine : theirs);
 }
 
@@ -254,7 +254,7 @@ export function laneAbbr(sp: Speech | undefined, laneHere: number): string {
 
 /** Full speech name for `sp`, with any lane suffix in the reader's terms. */
 export function laneLabel(sp: Speech | undefined, laneHere: number): string {
-  return lanePov(sp, laneHere, sp?.label ?? "", " — ", "you", "partner");
+  return lanePov(sp, laneHere, sp?.label ?? "", " - ", "you", "partner");
 }
 
 /** The lane columns of a group, in lane order. Empty when `id` isn't a group. */
@@ -267,12 +267,12 @@ export function laneCols(template: SpeechTemplate, laneGroup: string): number[] 
 }
 
 /**
- * The column whose expanded block this column writes responses into — i.e. the
+ * The column whose expanded block this column writes responses into - i.e. the
  * source of its block-answer mirror.
  *
  * Ordinary columns read the one to their left, exactly as before. A lane reads
  * whatever its `answersId` names, which `splitForSide` sets to the column
- * before the lane group — so partner B answers the same speech partner A does
+ * before the lane group - so partner B answers the same speech partner A does
  * instead of answering partner A. Returns -1 when there is no source.
  */
 export function sourceCol(template: SpeechTemplate, col: number): number {
@@ -292,7 +292,7 @@ export function sourceCol(template: SpeechTemplate, col: number): number {
  *
  * ⚠ `foldLegacy` folds a pre-tiles `responses` list into the text so answers
  * typed before tiles existed still show up instead of silently vanishing. Only
- * the FIRST answering column passes it — otherwise the same old text would
+ * the FIRST answering column passes it - otherwise the same old text would
  * appear again in every later speech. This is a read-time view: the fold is
  * written back the first time you actually edit that tile (see
  * `store.editAnswer`), so opening an old flow never rewrites it.
@@ -307,19 +307,19 @@ export function answerOf(item: CellItem, speechId: string, foldLegacy = false): 
   return { text: "" };
 }
 
-/** True when any speech holds an answer to this part — the collapsed-block cue. */
+/** True when any speech holds an answer to this part - the collapsed-block cue. */
 export function isAnswered(item: CellItem): boolean {
   if (item.responses?.some((r) => r.trim())) return true;
   return Object.values(item.answers ?? {}).some((a) => a.text?.trim());
 }
 
 /**
- * A banked argument — either a carded tag (has an author) or an analytic (no
+ * A banked argument - either a carded tag (has an author) or an analytic (no
  * card behind it). Both are arguments someone made; the argument bank holds
  * both so you can pull either while flowing.
  */
 export interface ArgRef {
-  /** The argument text — a card's tag, or the analytic's text. */
+  /** The argument text - a card's tag, or the analytic's text. */
   tag: string;
   /** Author (carded evidence only); absent for analytics. */
   author?: string;
@@ -327,11 +327,11 @@ export interface ArgRef {
   /** True when this is an analytic (no card / author). */
   analytic?: boolean;
   /** The full card/analytic node (DocNode) behind this argument, so inserting
-   *  it carries the real substance — not just tag + author — and it can be
+   *  it carries the real substance - not just tag + author - and it can be
    *  sent to the speech doc. */
   card?: unknown;
 }
-/** @deprecated old name — kept so existing imports still type-check. */
+/** @deprecated old name - kept so existing imports still type-check. */
 export type CardRef = ArgRef;
 
 export interface Round {
@@ -363,14 +363,14 @@ export interface Round {
   /** Arguments (cards + analytics) banked from imported docs, for the argument
    *  lookup (⌘J). Field name kept as `cards` for save-file compatibility. */
   cards?: ArgRef[];
-  /** Judge decision(s) for the round — see {@link RFD}. Absent on rounds saved
+  /** Judge decision(s) for the round - see {@link RFD}. Absent on rounds saved
    *  before the RFD panel existed, and on rounds where nothing was recorded. */
   rfd?: RFD;
   /**
    * Which partner lane belongs to whoever holds THIS copy of the flow.
    *
    * ⚠ LOCAL ONLY. Stripped from every snapshot, like `filePath`, and never in a
-   * delta — its correct value is different on each partner's machine, so
+   * delta - its correct value is different on each partner's machine, so
    * sending it would push one person's point of view onto the other. Absent on
    * a flow you created (you are lane 0) and on every round saved before this
    * existed, both of which read as lane 0.
@@ -392,7 +392,7 @@ export interface Ballot {
    * Everything the judge said, as ONE block.
    *
    * ⚠ Deliberately not split into reason / feedback / points. Nobody takes
-   * feedback down in categories — it arrives as bullet points, in whatever
+   * feedback down in categories - it arrives as bullet points, in whatever
    * order the judge says it, and being asked which box a sentence belongs in
    * while they are still talking is the opposite of useful.
    */
@@ -450,7 +450,7 @@ export interface RoundMeta {
   filePath?: string;
 }
 
-/** Rows a fresh sheet starts with — like a blank sheet of paper. */
+/** Rows a fresh sheet starts with - like a blank sheet of paper. */
 export const INITIAL_ROWS = 16;
 
 let counter = 0;

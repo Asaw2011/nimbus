@@ -20,10 +20,10 @@
  *     and the cursor stays at the original tag's start.
  *
  * Same rules apply to `analytic` (in `analytic_unit`, or in a card's
- * cite slot — though we only override when the analytic is the root
+ * cite slot - though we only override when the analytic is the root
  * of an analytic_unit).
  *
- * Pocket / Hat / Block use ProseMirror's default behavior — no
+ * Pocket / Hat / Block use ProseMirror's default behavior - no
  * overrides needed.
  */
 
@@ -31,7 +31,7 @@ import { Selection, TextSelection, type Command, type EditorState, type Transact
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index';
 import { newHeadingId } from '../schema/ids';
-// Nimbus has no transclusion 'live zones' — stub so the zone command no-ops.
+// Nimbus has no transclusion 'live zones' - stub so the zone command no-ops.
 function enclosingZoneDepth(_pos: unknown): number { return 0; }
 
 const HEAD_NODE_TYPES = new Set(['tag', 'analytic']);
@@ -188,7 +188,7 @@ function findNextParagraph(
  * (`prev`) survives; the second (`next`) dissolves. The merged head
  * receives the concatenated content of both heads; the prev container
  * also absorbs any non-head children of next (cite, body, undertags).
- * Cursor lands at the merge point — the boundary between the two
+ * Cursor lands at the merge point - the boundary between the two
  * heads' content within the merged head.
  *
  * Caller responsibilities:
@@ -246,7 +246,7 @@ function mergeAdjacentTagContainers(
   tr = tr.delete(mappedNextFrom, mappedNextTo);
 
   // 4. Cursor at merge point (mapped through all the changes). assoc=-1
-  // pins the cursor to the BEFORE side of step 1's insertion — i.e.,
+  // pins the cursor to the BEFORE side of step 1's insertion - i.e.,
   // exactly between the prev head's original content and the appended
   // next head content. Default assoc=1 would land us at the end of
   // the merged text, which isn't where the user came from in either
@@ -260,7 +260,7 @@ function mergeAdjacentTagContainers(
 /**
  * Shared shortcut for both Backspace and Delete: if the head is empty
  * AND it's the only child of its card/analytic_unit (no body, no cite,
- * no undertag — nothing else to preserve), delete the whole container.
+ * no undertag - nothing else to preserve), delete the whole container.
  * Returns true if the command was handled (or would be, when dispatch
  * is null), false otherwise. Caller is expected to fall through to its
  * own logic when this returns false.
@@ -335,7 +335,7 @@ function tryMergeEmptyHeadIntoPrev(
  * success / dry-run, false if there's nothing to merge.
  *
  * Callers ensure the head is blank and there's at least one
- * surviving child before invoking — those preconditions guard the
+ * surviving child before invoking - those preconditions guard the
  * rule, not the mechanic.
  */
 function performEmptyHeadMerge(
@@ -391,7 +391,7 @@ function toAnalyticUnitChild(child: PMNode): PMNode {
 }
 
 /** Coerce a card child to a node valid at doc level. A `card_body` downcasts to
- *  a plain `paragraph` — left as-is it would render with card-body styling but
+ *  a plain `paragraph` - left as-is it would render with card-body styling but
  *  belong to no card. `cite_paragraph` / `undertag` are meaningful, valid
  *  doc-level nodes and pass through unchanged; an `analytic` must be wrapped in
  *  an `analytic_unit`. */
@@ -408,17 +408,17 @@ function liftSurvivorToDocLevel(child: PMNode): PMNode {
 
 /**
  * Backspace at the start of a tag/analytic. Cases:
- *   - Empty head in a head-only container — delete the whole container.
- *   - Empty head with surviving siblings — delete the head and merge
+ *   - Empty head in a head-only container - delete the whole container.
+ *   - Empty head with surviving siblings - delete the head and merge
  *     the rest into whatever doc-level node sits before it.
- *   - Previous paragraph is blank (whitespace-only) — delete it.
+ *   - Previous paragraph is blank (whitespace-only) - delete it.
  *     If it's the lone head of a previous container, drop the whole
  *     container so we don't leave an orphan.
  *   - Previous paragraph is also a tag/analytic (head of a head-only
- *     previous container) — merge the two containers via
+ *     previous container) - merge the two containers via
  *     `mergeAdjacentTagContainers`. Card body of the next container
  *     is preserved on the surviving (prev) container.
- *   - Anything else — prohibit (swallow the event).
+ *   - Anything else - prohibit (swallow the event).
  */
 export const backspaceAtTagStart: Command = (state, dispatch) => {
   const ctx = getTagContext(state);
@@ -429,7 +429,7 @@ export const backspaceAtTagStart: Command = (state, dispatch) => {
   if (tryMergeEmptyHeadIntoPrev(state, ctx, dispatch, -1)) return true;
 
   const prev = findPrevParagraph(state.doc, ctx.containerFrom);
-  if (!prev) return false; // no previous paragraph — let default handle (no-op typically)
+  if (!prev) return false; // no previous paragraph - let default handle (no-op typically)
 
   // Priority: BLANK wins. Backspace at start of tag deletes the
   // immediately-preceding paragraph if it's blank, regardless of
@@ -441,7 +441,7 @@ export const backspaceAtTagStart: Command = (state, dispatch) => {
     if (!dispatch) return true;
     let tr = state.tr;
     if (prev.isContainerHead) {
-      // The blank paragraph is the only tag of a preceding card —
+      // The blank paragraph is the only tag of a preceding card -
       // delete the whole card so we don't leave an orphan head.
       const $beforeContainer = state.doc.resolve(ctx.containerFrom);
       const prevContainer = $beforeContainer.nodeBefore!;
@@ -462,7 +462,7 @@ export const backspaceAtTagStart: Command = (state, dispatch) => {
     const prevContainer = $beforeContainer.nodeBefore!;
     const prevContainerFrom = ctx.containerFrom - prevContainer.nodeSize;
     const tr = mergeAdjacentTagContainers(state, prevContainerFrom, ctx.containerFrom);
-    if (!tr) return true; // merge precondition failed — prohibit
+    if (!tr) return true; // merge precondition failed - prohibit
     dispatch(tr.scrollIntoView());
     return true;
   }
@@ -473,11 +473,11 @@ export const backspaceAtTagStart: Command = (state, dispatch) => {
 
 /**
  * Forward Delete at the end of a tag/analytic. Cases:
- *   - Empty head in a head-only container — delete the whole container.
- *   - Next paragraph is also a tag/analytic — merge the two heads and
+ *   - Empty head in a head-only container - delete the whole container.
+ *   - Next paragraph is also a tag/analytic - merge the two heads and
  *     migrate the next container's body/cite/undertags into the
  *     surviving container.
- *   - Anything else — prohibit (swallow the event).
+ *   - Anything else - prohibit (swallow the event).
  */
 export const deleteAtTagEnd: Command = (state, dispatch) => {
   const ctx = getTagContext(state);
@@ -489,7 +489,7 @@ export const deleteAtTagEnd: Command = (state, dispatch) => {
 
   // The head must be the LAST child of its container; if there's a
   // sibling after it (undertag / cite / body), forward-delete would
-  // pull that sibling in — which is never another tag — so prohibit.
+  // pull that sibling in - which is never another tag - so prohibit.
   if (ctx.container.lastChild !== ctx.head) {
     return true;
   }
@@ -514,11 +514,11 @@ export const deleteAtTagEnd: Command = (state, dispatch) => {
 /**
  * Backspace at the start of the FIRST body slot of a card or
  * analytic_unit (the body whose previous sibling is the container's
- * anchor — typically a `cite_paragraph` right after the tag, but the
+ * anchor - typically a `cite_paragraph` right after the tag, but the
  * rule applies to any body type there).
  *
  * Word's default `joinBackward` would merge the body's inline
- * content into the tag — silently mixing cite-styled text or body
+ * content into the tag - silently mixing cite-styled text or body
  * text into the heading. We refuse that:
  *
  *   - If the head is blank (whitespace-only): drop the head and
@@ -528,14 +528,14 @@ export const deleteAtTagEnd: Command = (state, dispatch) => {
  *     card's cite-slot → card_body when merging into an
  *     analytic_unit).
  *   - If the head is non-empty and the body is EMPTY: the user is just
- *     removing a blank line below the tag — there's nothing to collide,
+ *     removing a blank line below the tag - there's nothing to collide,
  *     so delete the empty paragraph and put the cursor at the end of the
  *     tag.
  *   - If the head is non-empty and the body has content: no-op, swallow
  *     the event (don't merge body text into the heading).
  *
  * Bodies that aren't the first (cursor at start of body2 in
- * `[tag, body1, body2]`) fall through — default `joinBackward`
+ * `[tag, body1, body2]`) fall through - default `joinBackward`
  * correctly joins them with their previous sibling in the same
  * container.
  */
@@ -559,7 +559,7 @@ export const backspaceAtFirstBodyStart: Command = (state, dispatch) => {
   const cursorChild = $from.node(childDepth);
   // Anchor handler covers cursor-in-head; bail.
   if (HEAD_NODE_TYPES.has(cursorChild.type.name)) return false;
-  // Only the first body slot — i.e., previous sibling is the anchor.
+  // Only the first body slot - i.e., previous sibling is the anchor.
   let cursorIdx = -1;
   container.forEach((c, _o, i) => {
     if (cursorIdx === -1 && c === cursorChild) cursorIdx = i;
@@ -581,23 +581,23 @@ export const backspaceAtFirstBodyStart: Command = (state, dispatch) => {
     const bodyFrom = $from.before(childDepth);
     let tr = state.tr.delete(bodyFrom, bodyFrom + cursorChild.nodeSize);
     // `bodyFrom - 1` is the last position inside the head (just before
-    // its close token) — i.e., the end of the tag's content.
+    // its close token) - i.e., the end of the tag's content.
     tr = tr.setSelection(TextSelection.create(tr.doc, bodyFrom - 1));
     dispatch(tr.scrollIntoView());
     return true;
   }
-  // Non-empty head, non-empty body — refuse default joinBackward.
+  // Non-empty head, non-empty body - refuse default joinBackward.
   return true;
 };
 
 /**
  * Forward Delete at the end of the LAST child of a card or
- * analytic_unit (when that last child is a body slot — card_body /
+ * analytic_unit (when that last child is a body slot - card_body /
  * undertag / cite_paragraph / in-card analytic, anything but the
  * container's anchor).
  *
  * Word's default behavior would pull the next paragraph into the
- * current body as plain text — destructive on a tag/analytic boundary.
+ * current body as plain text - destructive on a tag/analytic boundary.
  * We refuse that:
  *
  *   - If the next doc-level sibling is a card or analytic_unit whose
@@ -609,7 +609,7 @@ export const backspaceAtFirstBodyStart: Command = (state, dispatch) => {
  *     a heading, a paragraph, end-of-doc), no-op and swallow the
  *     event so the destructive default doesn't fire.
  *
- * Cursor stays where it was — at the end of the original body — which
+ * Cursor stays where it was - at the end of the original body - which
  * after the merge is the new boundary between the original last body
  * and the absorbed survivors.
  */
@@ -644,7 +644,7 @@ export const deleteAtContainerEnd: Command = (state, dispatch) => {
   const $afterContainer = state.doc.resolve(containerTo);
   const next = $afterContainer.nodeAfter;
 
-  if (!next) return false; // end of doc — let default handle (no-op).
+  if (!next) return false; // end of doc - let default handle (no-op).
 
   // Only cards / analytic_units with a blank head trigger the absorb.
   if (!CARD_NODE_TYPES.has(next.type.name)) {
@@ -673,7 +673,7 @@ export const deleteAtContainerEnd: Command = (state, dispatch) => {
   const nextTo = containerTo + next.nodeSize;
   let tr = state.tr.replaceWith(containerFrom, nextTo, mergedContainer);
   // The cursor's pre-merge position is at the end of the original
-  // last body — positions before the merge point are unchanged, so
+  // last body - positions before the merge point are unchanged, so
   // $from.pos still resolves to the same spot.
   tr = tr.setSelection(Selection.near(tr.doc.resolve($from.pos), -1));
   dispatch(tr.scrollIntoView());
@@ -731,8 +731,8 @@ export const enterMidTag: Command = (state, dispatch) => {
 
 /**
  * Enter at the end of a tag/analytic. Creates a new card_body
- * directly under the head — above any existing cite, undertag, or
- * card body — and moves the cursor into it: the new paragraph lands
+ * directly under the head - above any existing cite, undertag, or
+ * card body - and moves the cursor into it: the new paragraph lands
  * right below the tag (§12 boundary rule). The card / analytic_unit
  * content schemas permit a body in this position.
  */
@@ -748,7 +748,7 @@ export const enterAtTagEnd: Command = (state, dispatch) => {
   if (!empty) return false;
 
   // Insert right after the head (which is the first child of the
-  // container) — i.e., at the position immediately after the head's
+  // container) - i.e., at the position immediately after the head's
   // close token.
   const insertPos = ctx.containerFrom + 1 + ctx.head.nodeSize;
 
@@ -769,13 +769,13 @@ const HEADING_TYPES = new Set(['pocket', 'hat', 'block']);
  *     cursor moves into it. (Default ProseMirror would create a Pocket
  *     because Pocket is the first textblock in the doc's content
  *     alternation.)
- *   - Anywhere else (start or middle): split — the pre-cursor content
+ *   - Anywhere else (start or middle): split - the pre-cursor content
  *     becomes a new heading of the same type inserted before, the
  *     post-cursor content remains in the original heading. Cursor
  *     stays at the start of the post-cursor side.
  *
  * The same-type-split rule means a Hat splits into two Hats, a Block
- * into two Blocks, a Pocket into two Pockets — never the wrong type.
+ * into two Blocks, a Pocket into two Pockets - never the wrong type.
  */
 export const enterInHeading: Command = (state, dispatch) => {
   if (!state.selection.empty) return false;

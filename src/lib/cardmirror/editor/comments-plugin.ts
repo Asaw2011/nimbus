@@ -54,7 +54,7 @@ export interface CommentsState {
   threads: Map<string, Thread>;
   /** Threads the GC removed (their `comment_range` mark was gone) but
    *  kept around so an UNDO that restores the mark can resurrect the
-   *  thread — the GC removal is non-undoable, so doc history alone can't
+   *  thread - the GC removal is non-undoable, so doc history alone can't
    *  bring the comment content back. Per-document (lives in plugin state,
    *  not a module global) so it can't leak across docs/panes; cleared on
    *  `load`. */
@@ -92,7 +92,7 @@ export const commentsPlugin: Plugin<CommentsState> = new Plugin<CommentsState>({
         case 'load': {
           const threads = new Map<string, Thread>();
           for (const t of meta.threads) threads.set(t.id, t);
-          // Fresh document — drop any tombstones from the previous one.
+          // Fresh document - drop any tombstones from the previous one.
           return { ...prev, threads, tombstone: new Map() };
         }
         case 'gc': {
@@ -141,7 +141,7 @@ export const commentsPlugin: Plugin<CommentsState> = new Plugin<CommentsState>({
           const t = threads.get(meta.threadId);
           if (t) {
             const comments = t.comments.filter((c) => c.id !== meta.commentId);
-            // If we just removed the root, drop the whole thread —
+            // If we just removed the root, drop the whole thread -
             // the `comment_range` mark gets stripped separately by
             // the caller (otherwise the mark would point at
             // nothing).
@@ -155,12 +155,12 @@ export const commentsPlugin: Plugin<CommentsState> = new Plugin<CommentsState>({
         }
         case 'sync-load': {
           // Collab-session refresh: the shared thread map is the source
-          // of truth FOR LIVE THREADS — one absent from the map was
+          // of truth FOR LIVE THREADS - one absent from the map was
           // deleted remotely, and delete beats local state. Parking is
           // different: it is local-only by design (seedFromView shares
           // only live threads, and gc metas are never mirrored), so a
           // parked thread ABSENT from the map was most likely never
-          // shared at all — dropping it killed the resurrection path for
+          // shared at all - dropping it killed the resurrection path for
           // every pre-session parked thread (audit find, 2026-07-10).
           // Seed the tombstone from prev so those survive; parked threads
           // that ARE in the map get their content refreshed (a later
@@ -190,7 +190,7 @@ export const commentsPlugin: Plugin<CommentsState> = new Plugin<CommentsState>({
  * Reconcile plugin state with the doc's live `comment_range` marks:
  * threads whose mark is gone are parked in the tombstone map, and
  * tombstoned threads whose mark reappeared (undo/redo/paste) are
- * resurrected — dispatched as one `gc` meta. No-op when nothing
+ * resurrected - dispatched as one `gc` meta. No-op when nothing
  * changed. Exported so editor/index.ts can trigger it from a
  * debounced idle callback (and from the Save As flow to flush
  * before export).
@@ -209,7 +209,7 @@ export function gcOrphanThreads(view: { state: EditorState; dispatch: (tr: Trans
   let changed = false;
 
   // Resurrect: a tombstoned thread whose `comment_range` mark is live
-  // again — i.e. an undo/redo/paste brought the anchor back.
+  // again - i.e. an undo/redo/paste brought the anchor back.
   for (const id of liveIds) {
     if (!nextThreads.has(id)) {
       const parked = nextTombstone.get(id);
@@ -259,7 +259,7 @@ function collectLiveThreadIds(doc: PMNode): Set<string> {
 // ----------------------- helpers / commands ----------------------
 
 /** Generate a fresh comment id. Stringified integers keep round-trip with
- *  Word's `w:id` (a non-negative 32-bit integer) trivial — the counter
+ *  Word's `w:id` (a non-negative 32-bit integer) trivial - the counter
  *  starts small and is advanced past any loaded ids (see
  *  `seedCommentIdCounter`) rather than seeded from `Date.now()`, whose
  *  ~1.7e12 values overflow int32 into ids Word can't represent. */
@@ -281,7 +281,7 @@ export function setCommentIdSessionResolver(fn: (() => boolean) | null): void {
   sessionIdResolver = fn;
 }
 
-/** Drop the issued-random-id dedup set — called when the last session ends so
+/** Drop the issued-random-id dedup set - called when the last session ends so
  *  it doesn't grow across the app's lifetime. */
 export function resetSessionCommentIds(): void {
   issuedSessionIds.clear();
@@ -295,7 +295,7 @@ export function newCommentId(): string {
         issuedSessionIds.add(id);
         // Deliberately NOT bumping the sequential counter: the random range
         // starts at 1,000,000 precisely so the two ranges can't collide, and
-        // bumping pushed every later sequential id (in EVERY doc — the
+        // bumping pushed every later sequential id (in EVERY doc - the
         // counter is window-global) past a billion (audit find, 2026-07-10).
         return id;
       }
@@ -326,7 +326,7 @@ export function loadThreads(state: EditorState, threads: Thread[]): Transaction 
   return state.tr.setMeta(commentsKey, { type: 'load', threads }).setMeta('addToHistory', false);
 }
 
-/** Apply a `sync-load` transaction — collab refresh from the shared
+/** Apply a `sync-load` transaction - collab refresh from the shared
  *  thread map. Keeps tombstones (see the apply case); still seeds the
  *  id counter so counter-mode allocation after the session ends can't
  *  collide with partner-created ids. */
@@ -337,7 +337,7 @@ export function syncLoadThreads(state: EditorState, threads: Thread[]): Transact
     .setMeta('addToHistory', false);
 }
 
-/** Read-only accessor — the side column UI calls this to render. */
+/** Read-only accessor - the side column UI calls this to render. */
 export function getCommentsState(state: EditorState): CommentsState {
   return (
     commentsKey.getState(state) ?? { threads: new Map(), tombstone: new Map(), visible: false }

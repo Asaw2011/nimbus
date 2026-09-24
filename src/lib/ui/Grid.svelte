@@ -16,18 +16,18 @@
   } = $props();
 
   const speeches = $derived(store.round?.template.speeches ?? []);
-  // Off-case pages start at the 1NC, overviews at the block — like the
+  // Off-case pages start at the 1NC, overviews at the block - like the
   // prototype sheets in a Verbatim flow template. No wasted columns.
   // In spread view every sheet renders the full range so speech columns
   // align vertically across all visible flows; pre-start cells are dead.
   const colStart = $derived(spread ? 0 : sheet.startCol);
-  // Either lane can be collapsed to declutter. Purely a view filter — the cells
+  // Either lane can be collapsed to declutter. Purely a view filter - the cells
   // still exist and still export; only the rendering skips them.
   const visibleSpeeches = $derived(
     speeches.slice(colStart).filter((s) => !store.isLaneHidden(s.id)),
   );
   // Color follows the SPEECH, not the page: aff columns blue, neg columns
-  // red on every sheet — like flowing with two pens. Template-driven, so it
+  // red on every sheet - like flowing with two pens. Template-driven, so it
   // works for Policy, LD, and PF (either speaking order) automatically.
   // Columns stretch to fill the window; scroll horizontally only when the
   // window is narrower than nCols × colMinWidth.
@@ -35,10 +35,10 @@
     `repeat(${visibleSpeeches.length}, minmax(${settings.colMinWidth}px, 1fr))`,
   );
   // The column indices each row renders. One shared array beats `.slice()` per
-  // row — that allocated a copy of every row's cells on every grid render.
+  // row - that allocated a copy of every row's cells on every grid render.
   // Real column indices, in render order. Derived from the SAME filter as the
   // headers rather than `colStart + k`, which silently desynced from them the
-  // moment a lane was hidden — the headers would shift left while the cells
+  // moment a lane was hidden - the headers would shift left while the cells
   // stayed put.
   const colIdx = $derived.by(() => {
     const cols = speeches
@@ -46,20 +46,20 @@
       .filter((c) => c >= colStart && !store.isLaneHidden(speeches[c].id));
     if (settings.myLaneSide !== "right") return cols;
     // ⚠ RENDER ORDER ONLY. The values in `cols` are real template indices and
-    // stay real — everything downstream (the cell lookup, `sourceCol`, the
+    // stay real - everything downstream (the cell lookup, `sourceCol`, the
     // "AT:" walk, `sheet.startCol`) keeps addressing columns by those numbers.
     // Only the order they are drawn in changes, which is what keeps session 9's
     // rule intact: a view setting must not change what the speech doc exports.
     //
     // Lanes of a group are adjacent, so this swaps within each group's slot
-    // rather than sorting globally — a sort would be free to move columns that
+    // rather than sorting globally - a sort would be free to move columns that
     // have nothing to do with lanes.
     const out = cols.slice();
     for (let i = 0; i < out.length - 1; i++) {
       const a = speeches[out[i]];
       const b = speeches[out[i + 1]];
       if (!a?.laneGroup || a.laneGroup !== b?.laneGroup) continue;
-      // Put MY lane second. `laneHere`, never lane 0 — the whole point is that
+      // Put MY lane second. `laneHere`, never lane 0 - the whole point is that
       // "mine" differs between the two partners.
       if (a.lane === store.laneHere) {
         out[i] = out[i + 1];
@@ -73,7 +73,7 @@
   /**
    * How many grid rows one flow row needs.
    *
-   * One, as it always was — unless a block is expanded somewhere in the row.
+   * One, as it always was - unless a block is expanded somewhere in the row.
    * Then each of its parts gets a track of its own (plus a last track for the
    * block's "+ response" button), and the block and the column answering it
    * both lay themselves out against those tracks with `subgrid`. That is what
@@ -116,7 +116,7 @@
   }
   // Where each column's block-answer mirror reads from. Normally the column to
   // the left; a partner lane points past its sibling at the speech both lanes
-  // answer. Computed once per template rather than per cell — every rendered
+  // answer. Computed once per template rather than per cell - every rendered
   // cell asks for it.
   const srcCol = $derived.by(() => {
     const t = store.round?.template;
@@ -129,12 +129,12 @@
 
   /**
    * For each column in one row, the column holding the open block whose parts it
-   * carries — the nearest one to its LEFT, or -1.
+   * carries - the nearest one to its LEFT, or -1.
    *
    * ⚠ Not `srcCol`. A part of a block isn't answered once and finished: the
    * answer gets answered, and that gets answered, out to the last speech. So
    * every column after a block carries that block's parts, not just the one
-   * column that directly answers it. A block carries nobody else's parts — it
+   * column that directly answers it. A block carries nobody else's parts - it
    * is busy laying out its own.
    */
   function blockColFor(row: Row): number[] {
@@ -155,7 +155,7 @@
   // ---- Doc Search drag bridge ------------------------------------------
   // Blocks dragged from DocSearch carry a 'text/nimbus-block' MIME type.
   // Drop onto any cell: the header + full card go into the FLOW cell only.
-  // Dropping never touches the speech doc — cards reach the doc only via the
+  // Dropping never touches the speech doc - cards reach the doc only via the
   // explicit "Cell → Doc" / "Send to Doc" actions (you might be flowing an
   // opponent's cards and don't want them landing in your speech).
 
@@ -222,7 +222,7 @@
     const chip = node ? nodeChip(node) : undefined;
     // A dragged block/hat carries its cards in `node.children`. This path used to
     // write only the header and throw them away, so dropping a block gave you a
-    // bare title with its cards invisible and unreachable — while inserting the
+    // bare title with its cards invisible and unreachable - while inserting the
     // SAME node with Enter in Doc Search built the expandable multi-item cell.
     // Mirror insertNode()'s cardsUnder() walk so both routes agree.
     const cards: DocNode[] = [];
@@ -558,7 +558,7 @@
               class:restoring={restores}
               title={restores
                 ? "Bring the other lane back"
-                : `Collapse ${otherLane ? "your partner's" : "your"} lane — view only, it changes nothing you send to the doc`}
+                : `Collapse ${otherLane ? "your partner's" : "your"} lane - view only, it changes nothing you send to the doc`}
               onclick={(e) => { e.stopPropagation(); store.toggleLane(speech.id); }}
             >{restores ? "⇥" : "⇤"}</button>
           {/if}
@@ -685,7 +685,7 @@
     opacity: 0.25;
   }
   /* A partner lane is dimmed so the pair reads as one speech split in two,
-     and the lane that is YOURS is the one at full strength — at a glance you
+     and the lane that is YOURS is the one at full strength - at a glance you
      can tell which side of the split you should be typing in. The lanes keep
      their speech's aff/neg colour; only the weight changes. */
   .header.lane {
@@ -708,7 +708,7 @@
   .header.lane:hover .lane-hide {
     opacity: 0.8;
   }
-  /* While renaming, the input fills the header cell — a lane's dimming must not
+  /* While renaming, the input fills the header cell - a lane's dimming must not
      wash out the field you're typing in, so opacity is reset here too. */
   .header.editing {
     padding: 0;

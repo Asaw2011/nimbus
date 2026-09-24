@@ -1,22 +1,22 @@
-// Content index — maps every library .docx to the text of its headings (hats,
+// Content index - maps every library .docx to the text of its headings (hats,
 // blocks, tags, cards, analytics) so "search by content" can find which doc a
 // tagline lives in without re-parsing anything on each keystroke.
 //
 // Cost strategy (fast + low power):
 //  1. Parse each doc's HEADINGS ONLY (extractHeadings skips body runs).
-//  2. Build INCREMENTALLY — a file already indexed at the same mtime is reused.
-//  3. THROTTLE — yield to the event loop every few files so the UI never stalls.
-//  4. PERSIST to disk — subsequent launches reload instantly and only re-parse
+//  2. Build INCREMENTALLY - a file already indexed at the same mtime is reused.
+//  3. THROTTLE - yield to the event loop every few files so the UI never stalls.
+//  4. PERSIST to disk - subsequent launches reload instantly and only re-parse
 //     files that actually changed.
-//  5. SEARCH scans cached lowercased strings only — no file I/O, no parsing.
+//  5. SEARCH scans cached lowercased strings only - no file I/O, no parsing.
 //
 // ── ⚠ INDEXING IS EXPLICIT, AND INTERRUPTIBLE ──────────────────────────────
 //
 // Building this index reads every .docx in the library. On a Dropbox or
 // OneDrive library that is not a cheap read: the files are PLACEHOLDERS, and
 // reading one downloads it and keeps it on the disk from then on. It used to
-// start the moment you selected "By content" — one click, no confirmation and
-// no way to stop it — which on a real library meant six minutes of work and
+// start the moment you selected "By content" - one click, no confirmation and
+// no way to stop it - which on a real library meant six minutes of work and
 // 219 MB pulled down by someone who had clicked the wrong button.
 //
 // So: nothing here starts on its own (`build()` is only ever reached from a
@@ -53,7 +53,7 @@ class ContentIndexStore {
    *  Surfaced so the panel can say "partly indexed" instead of implying the
    *  library was covered. */
   stopped = $state(false);
-  /** Library files skipped because they are not downloaded — see
+  /** Library files skipped because they are not downloaded - see
    *  {@link LibFile.offline}. Shown as a count so the skipping is visible
    *  rather than silent, with an opt-in to include them. */
   skippedOffline = $state(0);
@@ -73,7 +73,7 @@ class ContentIndexStore {
     const cached = loadBlobCached<{ docs: ContentDoc[]; builtAt: number }>(BLOB);
     if (cached?.docs) this.apply(cached);
     // The index can exceed the localStorage quota (many docs) and then live only
-    // on disk — load that async so we don't needlessly re-parse everything.
+    // on disk - load that async so we don't needlessly re-parse everything.
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
       void loadBlob<{ docs: ContentDoc[]; builtAt: number }>(BLOB).then((disk) => {
         if (disk?.docs && (disk.builtAt ?? 0) >= this.builtAt) this.apply(disk);
@@ -131,7 +131,7 @@ class ContentIndexStore {
 
   /**
    * Build / refresh the content index for every library .docx. Incremental and
-   * throttled. Safe to call repeatedly — a file unchanged since last time is
+   * throttled. Safe to call repeatedly - a file unchanged since last time is
    * reused, so a re-build after the first is nearly free.
    */
   async build(force = false, includeOffline = false): Promise<void> {
@@ -193,7 +193,7 @@ class ContentIndexStore {
       }
       this.stopped = this.cancel;
       this.publish(result);
-      // ⚠ Persist a halted build too. The reads already happened — throwing the
+      // ⚠ Persist a halted build too. The reads already happened - throwing the
       // parse away would mean doing them again next time, which on a cloud
       // library is the expensive half. `builtAt` only moves on a COMPLETE pass,
       // so a stopped build still reads as "not fully indexed".
@@ -208,7 +208,7 @@ class ContentIndexStore {
   /**
    * Halt a build in progress. Everything parsed so far is kept and saved.
    *
-   * Takes effect at the next yield point (at most a few files later) — the
+   * Takes effect at the next yield point (at most a few files later) - the
    * in-flight `read_binary_file` cannot be recalled, so one more file may
    * finish downloading after the click. Stopping is not a rollback.
    */

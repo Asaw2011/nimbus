@@ -1,4 +1,4 @@
-// Multiple speech docs — each an independent document with its own content,
+// Multiple speech docs - each an independent document with its own content,
 // switchable via tabs. The list (id/name/active) persists in one blob; each
 // doc's content lives in its own blob so large docs (images) don't bloat the
 // index. Migrates the old single "speech-doc-json" doc on first run.
@@ -14,7 +14,7 @@ export interface DocEntry {
 
 // Doc lists are scoped PER FLOW: each round keeps its own set of speech docs, so
 // opening ten source docs while flowing one round never bleeds into the next
-// one — a fresh flow starts with a single clean Speech doc. The list blob is
+// one - a fresh flow starts with a single clean Speech doc. The list blob is
 // keyed by round id (`docs-list-<roundId>`; round ids are alphanumeric, so the
 // blob-name sanitizer leaves them intact). Doc CONTENT stays keyed by its own
 // unique doc id, so it never needs round scoping.
@@ -23,7 +23,7 @@ const LIST_PREFIX = "docs-list-";
 class DocsStore {
   docs = $state<DocEntry[]>([]);
   activeId = $state<string | null>(null);
-  // The doc that receives ` / ~ "send to speech" sends — your speech in progress.
+  // The doc that receives ` / ~ "send to speech" sends - your speech in progress.
   // CardMirror/Verbatim call this "the speech"; here it's marked with a ★ on its tab.
   speechDocId = $state<string | null>(null);
   private currentRoundId: string | null = null;
@@ -151,7 +151,7 @@ export const docsStore = new DocsStore();
  * Its content only reaches a blob through a debounce, and it is the one surface
  * with nothing else backing it up: the round has an autosave heartbeat and a
  * pop-out doc window has its own pagehide handler, but the docked editor is torn
- * down with the main window — and closing Nimbus force-quits the process, which
+ * down with the main window - and closing Nimbus force-quits the process, which
  * fires no pagehide at all. Anything typed since the last debounce was simply lost.
  */
 let docFlush: (() => Promise<void> | void) | null = null;

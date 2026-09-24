@@ -59,7 +59,7 @@ export function importComments(
       author: a['w:author'] ?? '',
       initials: a['w:initials'] ?? '',
       date: a['w:date'] ?? '',
-      // Plain-text body for now — strip formatting. Multi-paragraph
+      // Plain-text body for now - strip formatting. Multi-paragraph
       // comments collapse to newline-separated plain text.
       text: extractCommentText(node),
       paraId,

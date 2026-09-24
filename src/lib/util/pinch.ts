@@ -3,11 +3,11 @@
 // Zoom can arrive four different ways depending on the machine, so all four are
 // handled and normalized into the same clamped scale factor:
 //
-//  1. ctrl+wheel — what Chromium (and WebView2) synthesizes for a precision
+//  1. ctrl+wheel - what Chromium (and WebView2) synthesizes for a precision
 //     touchpad pinch, and what a real mouse wheel sends with Ctrl held.
-//  2. WebKit `gesture*` events — macOS WKWebView / Safari.
-//  3. Two-finger pointer pinch — touchscreens (and 2-in-1 laptops).
-//  4. The zoomIn/zoomOut/zoomReset keybinds — the fallback that always works
+//  2. WebKit `gesture*` events - macOS WKWebView / Safari.
+//  3. Two-finger pointer pinch - touchscreens (and 2-in-1 laptops).
+//  4. The zoomIn/zoomOut/zoomReset keybinds - the fallback that always works
 //     even when the webview swallows the gesture ones. Handled by each surface
 //     (FlowView.onkeydown, SpeechDoc.docKeydown) so they zoom whichever one
 //     you're in, and stay rebindable in Settings.
@@ -31,7 +31,7 @@ export interface PinchOpts {
  *  jumped straight to the zoom limit instead of stepping. */
 const MAX_STEP_PX = 60;
 /** Scale per pixel of delta. A capped wheel notch ≈ 1.16×, a touchpad tick
- *  ≈ 1.008× — coarse input steps visibly, fine input stays smooth. */
+ *  ≈ 1.008× - coarse input steps visibly, fine input stays smooth. */
 const SCALE_PER_PX = 0.0025;
 
 /** Wheel delta in pixels, whatever unit the device reports it in. */

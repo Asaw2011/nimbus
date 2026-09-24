@@ -1,6 +1,6 @@
 <script lang="ts">
   // Standalone pop-out window for ONE doc. Reads its doc id from the URL and
-  // edits that doc's content blob directly — independent of the main window and
+  // edits that doc's content blob directly - independent of the main window and
   // of any other popped-out doc.
   import { onMount, onDestroy } from "svelte";
   import SpeechDoc from "./SpeechDoc.svelte";
@@ -48,7 +48,7 @@
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     // Never persist a null editor snapshot over real content (mirrors the main
-    // window's guard) — a mid-teardown flush was blanking the doc.
+    // window's guard) - a mid-teardown flush was blanking the doc.
     if (docRef) {
       const json = docRef.getDocJSON();
       if (json != null) saveDocContent(docId, json);
@@ -82,7 +82,7 @@
     const { emit } = await import("@tauri-apps/api/event");
     await emit("nimbus:send-to-speech", { nodes, atCursor: false });
   }
-  // Rebindable variant — send to the main speech doc AT ITS CURSOR.
+  // Rebindable variant - send to the main speech doc AT ITS CURSOR.
   async function sendToSpeechCursor(nodes: unknown[]) {
     if (!nodes.length) return;
     const { emit } = await import("@tauri-apps/api/event");

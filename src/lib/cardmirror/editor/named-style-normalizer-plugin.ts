@@ -16,7 +16,7 @@
  *
  * 2. **Cite / emphasis precedence over underline (in body
  *    contexts).** A character carrying `cite_mark` or `emphasis_mark`
- *    plus an underline mark gets the underline mark stripped — the
+ *    plus an underline mark gets the underline mark stripped - the
  *    cite / emphasis style governs the visual underline (or lack of
  *    it). Active F8 / F9 / F10 commands use `tr.addMark`, which
  *    auto-strips via schema `excludes`, so this normalization is
@@ -26,9 +26,9 @@
  *
  * 3. **Images carry only functional marks** (`IMAGE_ALLOWED_MARKS`:
  *    `comment_range`, `link`). Visual marks cannot render on a
- *    replaced element without artifacts — a mark span's height comes
+ *    replaced element without artifacts - a mark span's height comes
  *    from font metrics, not its image child, so a box/band decoration
- *    cuts through the image — and the exporter writes no run styling
+ *    cuts through the image - and the exporter writes no run styling
  *    on image runs, so they mean nothing in Word either. Range-mark
  *    commands (`tr.addMark`) cover every inline node in the selection,
  *    images included; this strips what they deposit. Load-time
@@ -94,7 +94,7 @@ export const namedStyleNormalizerPlugin: Plugin = new Plugin({
             tr.removeMark(pos, pos + node.nodeSize, directMark);
           }
         } else if (hasDirect) {
-          // No conflict — flip direct → named (body uses the named
+          // No conflict - flip direct → named (body uses the named
           // style).
           if (!tr) tr = newState.tr;
           tr.removeMark(pos, pos + node.nodeSize, directMark);
@@ -166,7 +166,7 @@ export function normalizeUnderlineMarks(doc: PMNode): PMNode {
       });
       return changed ? node.copy(Fragment.fromArray(children)) : node;
     }
-    // Container — recurse.
+    // Container - recurse.
     const children: PMNode[] = [];
     let changed = false;
     node.forEach((child) => {

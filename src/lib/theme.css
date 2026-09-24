@@ -45,13 +45,13 @@
   color-scheme: light;
 }
 /* ── Dark · White Doc ───────────────────────────────────────────────────────
-   The full Dark palette for the whole app — same values as the :root default
-   above — but under its own id so the speech doc stays WHITE. The doc's dark
+   The full Dark palette for the whole app - same values as the :root default
+   above - but under its own id so the speech doc stays WHITE. The doc's dark
    styling (SpeechDoc.svelte, cardmirror.css) keys ONLY on "dark" and "slate",
    so this theme never triggers it: the grid, ribbon, tabs and panels go dark
    while the doc page renders on white with its normal card/analytic ink, which
    is what you want when you're reading cards. Ink is the dark-tuned family on
-   purpose — those colors sit on the dark FLOW grid, not on the doc. */
+   purpose - those colors sit on the dark FLOW grid, not on the doc. */
 :root[data-theme="midnight"] {
   --bg: #08080a;
   --panel: #16161b;
@@ -80,7 +80,7 @@
 
    ⚠ These carry their OWN accent and ink on purpose, unlike Dark/Light above
    which deliberately share one family. A flow's aff/neg colors are tuned to
-   the surface they sit on — the blue that reads right on white is not the one
+   the surface they sit on - the blue that reads right on white is not the one
    that reads right on #2b3038. */
 :root[data-theme="slate"] {
   --bg: #2b3038;

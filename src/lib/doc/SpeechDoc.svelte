@@ -4,7 +4,7 @@
   import { EditorView } from "prosemirror-view";
   import { toggleMark, setBlockType, baseKeymap, chainCommands } from "prosemirror-commands";
   // CardMirror's authoritative tag/analytic boundary editing (ported from
-  // ant981228/cardmirror src/editor/tag-keymap.ts) — Backspace/Delete/Enter.
+  // ant981228/cardmirror src/editor/tag-keymap.ts) - Backspace/Delete/Enter.
   import {
     backspaceAtTagStart, deleteAtTagEnd, backspaceAtFirstBodyStart,
     deleteAtContainerEnd, enterMidTag, enterAtTagEnd, enterInHeading,
@@ -47,14 +47,14 @@
     /** Identifies which doc is loaded. When it changes, the editor swaps to that
      *  doc's cached state (preserving its undo history) instead of remounting. */
     docId?: string | null;
-    /** The doc's display name — used for Export / Send filenames. */
+    /** The doc's display name - used for Export / Send filenames. */
     docName?: string;
     onpopout?: (() => void) | null;
     onexpand?: (() => void) | null;
     expanded?: boolean;
     poppedOut?: boolean;
     /** When set, pressing ` / ~ sends the current card/selection here (used by
-     *  source docs to "send to speech"). Fixed key — not rebindable. */
+     *  source docs to "send to speech"). Fixed key - not rebindable. */
     onTilde?: ((cmNodes: unknown[]) => void) | null;
     /** Like onTilde, but sends to the speech doc AT ITS CURSOR rather than the
      *  end. Bound to the rebindable `sendToSpeechCursor` action. */
@@ -76,7 +76,7 @@
   let selTick = $state(0);
 
   // ── Heading outline (collapsible nav tree, like CardMirror) ──────
-  /** `key` is the heading's stable UUID (`id` attr — see schema/ids.ts), NOT its
+  /** `key` is the heading's stable UUID (`id` attr - see schema/ids.ts), NOT its
    *  document position: positions shift on every keystroke, so a collapse set
    *  keyed by them came apart the moment you typed above a collapsed heading and
    *  the whole tree sprang open. `pos` is still carried for scroll-to. */
@@ -139,7 +139,7 @@
   }
   /** Level the outline is collapsed to when a document opens: Hat. A real file
    *  has hundreds of blocks and cards, and a fully expanded tree (the old
-   *  default) is unreadable — pockets + hats is what you actually navigate by.
+   *  default) is unreadable - pockets + hats is what you actually navigate by.
    *  Applied on open only, so it never re-collapses what you expand while working. */
   const OUTLINE_OPEN_LEVEL = 2;
 
@@ -177,12 +177,12 @@
       const lvl = HEADING_LEVEL[node.type.name];
       if (lvl !== undefined) {
         // A card / analytic_unit is a wrapper whose first child is the heading
-        // (tag / analytic). Use that child's text and DON'T descend — otherwise
+        // (tag / analytic). Use that child's text and DON'T descend - otherwise
         // the inner heading (also level 4) would push a second, doubled item.
         if (node.type.name === "card" || node.type.name === "analytic_unit") {
           const head = node.firstChild;
           const text = head ? head.textContent.trim() : "";
-          // Skip still-empty headings — don't clutter the outline with
+          // Skip still-empty headings - don't clutter the outline with
           // "(untitled)" the instant you make a tag/analytic. It appears once
           // you type its text. The id lives on the head (tag/analytic), not the
           // wrapper, so key off that.
@@ -206,7 +206,7 @@
    *  (tags + analytics + highlights). */
   function countSpokenWords(doc: PMNode): number {
     let words = 0;
-    // Counted by hand instead of `s.trim().match(/\S+/g).length` — that built a
+    // Counted by hand instead of `s.trim().match(/\S+/g).length` - that built a
     // trimmed copy AND an array of every word for each text node in the doc,
     // and this walks the whole document on each rebuild.
     const wc = (s: string) => {
@@ -256,7 +256,7 @@
     const clamped = Math.min(pos + 1, state.doc.content.size);
     try {
       const tr = state.tr.setSelection(TextSelection.near(state.doc.resolve(clamped)));
-      // Don't use PM's scrollIntoView — its minimal scroll lands the target at
+      // Don't use PM's scrollIntoView - its minimal scroll lands the target at
       // the BOTTOM edge. Instead scroll the heading to the TOP of the pane, the
       // way CardMirror's outline jumps work.
       view.dispatch(tr);
@@ -267,14 +267,14 @@
           const dom = view.domAtPos(clamped).node;
           const el = (dom.nodeType === 3 ? dom.parentElement : dom) as HTMLElement | null;
           el?.scrollIntoView({ block: "start", inline: "nearest" });
-        } catch { /* non-fatal — selection already moved */ }
+        } catch { /* non-fatal - selection already moved */ }
       });
     } catch { rebuildOutline(); }
   }
   let applyingExternal = false;
 
   // Per-doc EditorState cache so switching tabs and coming back keeps that doc's
-  // full undo history — remounting the editor would throw the history away.
+  // full undo history - remounting the editor would throw the history away.
   // Capped: each entry holds a whole document PLUS its undo stack, so an
   // unbounded map meant memory grew for every doc opened all tournament.
   const STATE_CACHE_MAX = 8;
@@ -316,11 +316,11 @@
         // and finally to baseKeymap.
         //
         // Order matters and is deliberate:
-        //   backspaceEmptyBlock    — ours, first: an EMPTY heading/tag is removed
+        //   backspaceEmptyBlock    - ours, first: an EMPTY heading/tag is removed
         //                            outright rather than converted. It bails on
         //                            `content.size !== 0`, so it never competes
         //                            with the two rules below.
-        //   backspaceHeadingToBody — ours: start of a NON-empty pocket/hat/block
+        //   backspaceHeadingToBody - ours: start of a NON-empty pocket/hat/block
         //                            becomes body text.
         //   then CardMirror's tag rules, which own tags *inside* cards.
         keymap({
@@ -361,8 +361,8 @@
       // immediately. Runs before the base keymap so it can override ⌘←/⌘↑/etc.
       handleKeyDown: (_v, e) => docKeydown(e),
       // NOTE: no "---" → em dash conversion here (removed deliberately). "---"
-      // is the Verbatim separator debate docs are written in — 1NC---K,
-      // OFF---PTX, Adv---Costs — and our own importer keys off it
+      // is the Verbatim separator debate docs are written in - 1NC---K,
+      // OFF---PTX, Adv---Costs - and our own importer keys off it
       // (cleanSectionTitle / isOffContainer in docx/parse.ts). Auto-converting
       // it fought the convention and stopped a typed tag from round-tripping
       // back through import. The grid's oninput drops it for the same reason.
@@ -377,7 +377,7 @@
         // importer keys off it, so that substitution silently corrupts every tag.
         // The OS delivers it as a cancelable insertReplacementText beforeinput;
         // cancel the ones whose replacement is an em/en dash so the hyphens the
-        // user actually typed survive. (Real typed em dashes are unaffected — they
+        // user actually typed survive. (Real typed em dashes are unaffected - they
         // arrive as normal insertText, not a replacement.)
         beforeinput: (_v, e) => {
           const ie = e as InputEvent;
@@ -397,7 +397,7 @@
         if (tr.selectionSet || tr.docChanged) syncDocSelSize();
         if (tr.docChanged) {
           // Both were running on EVERY keystroke and walking / serializing the
-          // whole doc — the lag on big docs. The outline rebuild is now
+          // whole doc - the lag on big docs. The outline rebuild is now
           // debounced, and the parent serializes lazily inside its own save
           // debounce (onchange is just a "something changed" ping).
           scheduleOutline();
@@ -410,7 +410,7 @@
     view.focus();
   });
 
-  // Switching tabs changes docId. Swap the editor to that doc's state — its
+  // Switching tabs changes docId. Swap the editor to that doc's state - its
   // cached state (undo history intact) if we've edited it this session, else a
   // fresh one from the loaded content. No remount, so history survives.
   $effect(() => {
@@ -422,7 +422,7 @@
     if (id) cacheState(id, next);
     view.updateState(next);
     rebuildOutline();
-    // Switching tabs is opening a document too — and the collapsed set is keyed
+    // Switching tabs is opening a document too - and the collapsed set is keyed
     // by position, so carrying the previous doc's over would be meaningless.
     collapseOutlineTo(OUTLINE_OPEN_LEVEL);
     syncDocSelSize();
@@ -430,7 +430,7 @@
   });
 
   /** Drop a non-active doc's cached editor state so the next switch to it
-   *  rebuilds from its (updated) blob — used after a background send-to-speech
+   *  rebuilds from its (updated) blob - used after a background send-to-speech
    *  appends to a docked-but-not-shown doc. */
   export function invalidateCache(id: string): void {
     if (id !== currentDocId) stateCache.delete(id);
@@ -471,8 +471,8 @@
   export function toggleBold() { mark("bold"); }
   export function toggleItalic() { mark("italic"); }
 
-  /** Base size (pt) for the block the cursor is in — headings size by type, body
-   *  is 11pt — used when a run carries no explicit font_size mark. */
+  /** Base size (pt) for the block the cursor is in - headings size by type, body
+   *  is 11pt - used when a run carries no explicit font_size mark. */
   function baseSizeForSelection(): number {
     if (!view) return 11;
     const dt = settings.docTypography;
@@ -494,7 +494,7 @@
    *  mark if present, else the block's base size. */
   function effectiveDocFontSize(): number {
     if (!view) return 11;
-    // Runs inside a reactive effect, so it must NEVER throw — a throw here
+    // Runs inside a reactive effect, so it must NEVER throw - a throw here
     // aborts Svelte's render flush and freezes the whole doc UI (dead tabs,
     // can't switch/set the speech doc). Clamp every position into the current
     // doc (a fresh/empty or just-swapped doc can leave the selection out of
@@ -560,7 +560,7 @@
    *
    * ⚠ This is where a quick card's formatting lives. `pmToDocNode` used to
    * return `runs: []` and `bodyRuns: []` unconditionally and read only
-   * `.textContent`, so every quick card captured came back as flat text —
+   * `.textContent`, so every quick card captured came back as flat text -
    * dragging or clicking one onto the flow dropped the underlining (the cut),
    * the highlighting, emphasis and the cite style, and sending that cell on to
    * the speech doc or CardMirror emitted an unmarked card. Reported from a real
@@ -575,9 +575,9 @@
       for (const m of child.marks) {
         switch (m.type.name) {
           case "highlight": run.hl = m.attrs.color; break;
-          // ⚠ BOTH underline marks. CardMirror stores underline two ways — the
+          // ⚠ BOTH underline marks. CardMirror stores underline two ways - the
           // named `underline_mark` (card bodies) and a direct <u>
-          // `underline_direct` (HEADINGS) — see toggleUnderline below. Handling
+          // `underline_direct` (HEADINGS) - see toggleUnderline below. Handling
           // only the named one silently loses the underlining on every tag and
           // heading, which is most of what a quick card is.
           case "underline_mark":
@@ -647,7 +647,7 @@
       if (CHIP[t]) {
         // ⚠ The FIRST heading names the capture; every later one is kept as a
         // part of it. This used to be `CHIP[t] && !header`, with no other branch
-        // for a heading — so selecting two blocks put the first one's title on
+        // for a heading - so selecting two blocks put the first one's title on
         // the cell and quietly demoted the second to a typed "response", losing
         // its BLK chip and its node. Anything highlighted comes back.
         if (!header) {
@@ -660,7 +660,7 @@
             text: txt,
             kind: "card",
             chip: CHIP[t],
-            // ⚠ Real runs, not `[]` — a heading carries its own underlining and
+            // ⚠ Real runs, not `[]` - a heading carries its own underlining and
             // highlighting, and hardcoding empty runs threw them away. Same bug
             // as pmToDocNode had; see pmRuns.
             card: { level: LEVEL[t] ?? 3, isAnalytic: false, text: txt, runs: pmRuns(node), children: [], body: [], bodyRuns: [] },
@@ -769,7 +769,7 @@
     view.dispatch(state.tr.insert(state.doc.content.size, nodes).scrollIntoView());
   }
 
-  /** Rich insert from Doc Search / drag — full CardMirror card structure. */
+  /** Rich insert from Doc Search / drag - full CardMirror card structure. */
   export function appendNode(node: DocNode) {
     try {
       insertAtEnd(nodesFromDocNode(node));
@@ -826,11 +826,11 @@
     if (type === "tag") { makeCard(); return; }
     // Pocket/Hat/Block are top-level headings that a card / analytic_unit's
     // (isolating) content spec forbids, so plain setBlockType silently fails
-    // when the cursor sits inside one — the "can't write a block under a card"
+    // when the cursor sits inside one - the "can't write a block under a card"
     // bug. setStructure handles both the normal and the locked-inside cases.
     if (type === "pocket" || type === "hat" || type === "block") { setStructure(type); return; }
     // "Body" is illegal inside a card/analytic_unit, so it needs the same
-    // escape hatch — otherwise the button silently does nothing and you're
+    // escape hatch - otherwise the button silently does nothing and you're
     // stuck in tag formatting with no way back to plain text.
     if (type === "paragraph") { setBody(); return; }
     const nt = schema.nodes[type];
@@ -838,11 +838,11 @@
     view.focus();
   }
 
-  /** "Body" — plain, unformatted text wherever the cursor is.
+  /** "Body" - plain, unformatted text wherever the cursor is.
    *  At the doc level that's a paragraph. Inside a card / analytic_unit a
    *  paragraph is illegal (the content spec forbids it), so: a non-head line
    *  becomes the unit's own body paragraph, and the HEAD line unwraps the whole
-   *  unit back into plain paragraphs — "this isn't a card after all". */
+   *  unit back into plain paragraphs - "this isn't a card after all". */
   function setBody() {
     if (!view) return;
     const { state } = view;
@@ -882,7 +882,7 @@
 
   /** Apply a top-level heading style (pocket/hat/block). When the cursor is at
    *  the doc level, this is just setBlockType. When it's trapped inside a card
-   *  or analytic_unit — whose content can't hold a heading — lift the current
+   *  or analytic_unit - whose content can't hold a heading - lift the current
    *  line OUT into a new heading placed right after that unit, so the button
    *  always does something instead of quietly failing. */
   function setStructure(type: string) {
@@ -892,20 +892,20 @@
     const { state } = view;
     // Normal path: a directly-convertible block (top-level paragraph/cite/heading).
     if (setBlockType(nt)(state, view.dispatch)) { view.focus(); return; }
-    // Locked inside an isolating card / analytic_unit — extract instead.
+    // Locked inside an isolating card / analytic_unit - extract instead.
     const rpos = state.selection.$from;
     let unitDepth = -1;
     for (let d = rpos.depth; d >= 1; d--) {
       const name = rpos.node(d).type.name;
       if (name === "card" || name === "analytic_unit") { unitDepth = d; break; }
     }
-    if (unitDepth < 0) { view.focus(); return; } // some other lock — no-op, as before
+    if (unitDepth < 0) { view.focus(); return; } // some other lock - no-op, as before
     try {
       const unit = rpos.node(unitDepth);
       const unitFrom = rpos.before(unitDepth);
       const unitTo = rpos.after(unitDepth);
       const lineIndex = rpos.index(unitDepth);
-      // Index 0 is the required tag/analytic head — never remove it (that would
+      // Index 0 is the required tag/analytic head - never remove it (that would
       // orphan the card's body). Only body lines get pulled out.
       const onHead = lineIndex === 0;
       const headingText = onHead ? "" : rpos.parent.textContent;
@@ -940,7 +940,7 @@
     const head = (content: Fragment) =>
       schema.nodes[headType].create({ id: crypto.randomUUID() }, content);
     if (node.type.name === "card" || node.type.name === "analytic_unit") {
-      // Swap only the head node's type — card and analytic_unit share the same
+      // Swap only the head node's type - card and analytic_unit share the same
       // body content spec, so the evidence underneath carries over untouched.
       const kids: PMNode[] = [head(node.firstChild?.content ?? Fragment.empty)];
       node.forEach((child, _o, i) => { if (i !== 0) kids.push(child); });
@@ -957,8 +957,8 @@
    *    (it used to convert only the first).
    *  - A cursor/selection inside one node: at the doc level the line is replaced
    *    in place; on a unit's HEAD line the whole unit converts (tag ⇄ analytic);
-   *    on a body line inside an isolating unit — where nesting is illegal and a
-   *    plain replace would THROW — the line is extracted into a new sibling unit. */
+   *    on a body line inside an isolating unit - where nesting is illegal and a
+   *    plain replace would THROW - the line is extracted into a new sibling unit. */
   function makeUnit(unitType: "card" | "analytic_unit") {
     if (!view) return;
     const headType = unitType === "card" ? "tag" : "analytic";
@@ -995,7 +995,7 @@
       }
 
       if (unitDepth < 0) {
-        // Top-level line — replace it in place.
+        // Top-level line - replace it in place.
         const from = rpos.before();
         const to = rpos.after();
         const tr = state.tr.replaceWith(from, to, asUnit(rpos.parent, unitType));
@@ -1061,8 +1061,8 @@
   /**
    * Underline toggle that can always turn itself back OFF.
    *
-   * CardMirror stores underline two ways — the named `underline_mark` (body)
-   * and a direct `<u>` `underline_direct` (headings) — and its normalizer
+   * CardMirror stores underline two ways - the named `underline_mark` (body)
+   * and a direct `<u>` `underline_direct` (headings) - and its normalizer
    * plugin, which keeps them from coexisting, isn't part of this editor. The
    * browser's native ⌘U removes only the direct one, so text that picked up
    * both stayed underlined with no way to clear it. Clearing BOTH whenever
@@ -1152,11 +1152,11 @@
 
   /** Backspace at the very START of a NON-empty Pocket / Hat / Block turns it
    *  back into ordinary body text. Without this, backspacing out of the front of
-   *  a heading did nothing at all — the only way to undo a mis-styled heading was
+   *  a heading did nothing at all - the only way to undo a mis-styled heading was
    *  to find the style buttons. Deliberately scoped to the three container
    *  headings: tags and analytics have their own boundary rules.
    *
-   *  Runs AFTER backspaceEmptyBlock in the chain, which is what you want — that
+   *  Runs AFTER backspaceEmptyBlock in the chain, which is what you want - that
    *  one only fires on an EMPTY block (it bails on `content.size !== 0`), so the
    *  two never contend: empty heading → removed, typed-in heading → body text. */
   function backspaceHeadingToBody(
@@ -1195,7 +1195,7 @@
     for (let d = at.depth - 1; d >= 0; d--) {
       const node = at.node(d);
       if (node.type.name === "card" || node.type.name === "analytic_unit") {
-        if (node.textContent.trim() !== "") return false; // has real content — keep it
+        if (node.textContent.trim() !== "") return false; // has real content - keep it
         if (dispatch) {
           dispatch(state.tr.delete(at.before(d), at.after(d)).scrollIntoView());
         }
@@ -1207,7 +1207,7 @@
 
   /** Section depth of a TOP-LEVEL node type: pocket < hat < block < card.
    *  Cards/analytics are self-contained units (level 4). Everything else
-   *  (paragraph, cite, undertag, table…) is body — it belongs to whatever
+   *  (paragraph, cite, undertag, table…) is body - it belongs to whatever
    *  heading precedes it and has no section of its own. */
   function topLevelRank(name: string): number | undefined {
     switch (name) {
@@ -1225,7 +1225,7 @@
    * - an explicit text selection → exactly what's selected;
    * - the cursor on a HEADING (pocket/hat/block) → that heading plus everything
    *   beneath it, up to (not including) the next heading at the same-or-shallower
-   *   level — i.e. the whole hat, or the whole block, and nothing else;
+   *   level - i.e. the whole hat, or the whole block, and nothing else;
    * - the cursor on a single card/analytic (or loose body) → just that one node.
    */
   function captureForTilde(): unknown[] {
@@ -1276,7 +1276,7 @@
    *  tab (not currently shown). Targets that doc's cached editor state so the
    *  cards land where its cursor last was. Returns the updated content JSON to
    *  persist, or null if there's no cached state (the doc was never opened this
-   *  session) — the caller should then fall back to appending at the end. */
+   *  session) - the caller should then fall back to appending at the end. */
   export function insertCMAtCachedCursor(id: string, nodes: unknown[]): unknown | null {
     if (!view || !nodes.length) return null;
     if (id === currentDocId) { insertCMAtCursor(nodes); return view.state.doc.toJSON(); }
@@ -1326,24 +1326,24 @@
   /** Route a doc keydown through the configurable keymap. Returns true (and lets
    *  ProseMirror preventDefault) when the event matched a doc action. */
   function docKeydown(e: KeyboardEvent): boolean {
-    // Zoom keybinds act on the surface you're in — in the doc they zoom the
+    // Zoom keybinds act on the surface you're in - in the doc they zoom the
     // PAGE, not the flow. Same rebindable actions the flow uses, and the
     // keyboard fallback for a touchpad pinch the webview never forwards.
     if (matchesAny(e, settings.keymap.zoomReset)) { e.preventDefault(); settings.docZoomReset(); return true; }
     if (matchesAny(e, settings.keymap.zoomIn)) { e.preventDefault(); settings.docZoomIn(); return true; }
     if (matchesAny(e, settings.keymap.zoomOut)) { e.preventDefault(); settings.docZoomOut(); return true; }
-    // FIXED (unchangeable) — ` / ~ sends the current card/selection to the
+    // FIXED (unchangeable) - ` / ~ sends the current card/selection to the
     // speech doc at the cursor, like CardMirror/Verbatim "send to speech".
     if (onTilde && (e.key === "`" || e.key === "~") && !e.metaKey && !e.ctrlKey && !e.altKey) {
       onTilde(captureForTilde());
       return true;
     }
-    // Rebindable variant — send to the speech doc AT ITS CURSOR (` = end).
+    // Rebindable variant - send to the speech doc AT ITS CURSOR (` = end).
     if (onTildeCursor && matchesAny(e, settings.keymap.sendToSpeechCursor)) {
       onTildeCursor(captureForTilde());
       return true;
     }
-    // Undo/redo — handled explicitly here (this runs before every other keymap)
+    // Undo/redo - handled explicitly here (this runs before every other keymap)
     // so the doc always undoes its OWN history, never the flow's, regardless of
     // plugin ordering or which surface the window's key handler thinks is active.
     if ((e.metaKey || e.ctrlKey) && !e.altKey) {
@@ -1351,7 +1351,7 @@
       if (k === "z" && !e.shiftKey) { if (view) undo(view.state, view.dispatch); return true; }
       if ((k === "z" && e.shiftKey) || k === "y") { if (view) redo(view.state, view.dispatch); return true; }
       // ⌘/Ctrl+U must be OURS. Left to the browser it applies a native <u>,
-      // a second underline representation our toggle can't see — which is how
+      // a second underline representation our toggle can't see - which is how
       // text ended up permanently underlined with no way to switch it off.
       if (k === "u") { toggleUnderline(); return true; }
     }
@@ -1375,7 +1375,7 @@
     return false;
   }
 
-  // The active heading style at the cursor — for button highlighting. A tag /
+  // The active heading style at the cursor - for button highlighting. A tag /
   // analytic lives inside a card / analytic_unit, so walk the ancestor chain.
   // `_tick` is unused but, passed from the template, makes the call re-run when
   // the selection changes (Svelte tracks the reactive read at the call site).
@@ -1388,7 +1388,7 @@
     return false;
   }
 
-  /** ⌘← — strip all read/format marks from the selection (CardMirror "Clear"). */
+  /** ⌘← - strip all read/format marks from the selection (CardMirror "Clear"). */
   function clearMarks() {
     if (!view) return;
     const { from, to, empty } = view.state.selection;
@@ -1433,14 +1433,14 @@
    *
    *  ProseMirror's own `tr.scrollIntoView()` can't do this for find: while the
    *  find bar is open the DOM selection lives in the SEARCH INPUT, so PM starts
-   *  its scroll-parent walk from that input — which is a sibling of the doc's
-   *  scroller, not inside it — and nothing scrolls at all. Measure the position
+   *  its scroll-parent walk from that input - which is a sibling of the doc's
+   *  scroller, not inside it - and nothing scrolls at all. Measure the position
    *  and move the scroller directly instead. */
   function scrollPosIntoView(pos: number) {
     if (!view) return;
     const box = docScroller();
     if (!box) return;
-    // Prefer the rendered highlight's own rect — it's the exact thing the user
+    // Prefer the rendered highlight's own rect - it's the exact thing the user
     // is looking for, and it stays correct even where coordsAtPos can't measure
     // (content-visibility subtrees, freshly-inserted decorations).
     let top: number | null = null;
@@ -1456,7 +1456,7 @@
         top = c.top;
         bottom = c.bottom;
       } catch {
-        return; // not measurable — the decoration still marks the hit
+        return; // not measurable - the decoration still marks the hit
       }
     }
     const rect = box.getBoundingClientRect();
@@ -1483,13 +1483,13 @@
       tr.setMeta("addToHistory", false);
       view.dispatch(tr);
       // PM updates the DOM synchronously in updateState, so the "current" match
-      // decoration already exists — scroll now rather than from a rAF, which
+      // decoration already exists - scroll now rather than from a rAF, which
       // never fires while the pane/window isn't compositing (a background or
       // popped-out doc would silently never scroll).
       scrollPosIntoView(m.from);
     }
   }
-  /** True while the current query hasn't been navigated yet — so the FIRST
+  /** True while the current query hasn't been navigated yet - so the FIRST
    *  Enter lands on match 1 (the thing you just searched for) instead of
    *  skipping to match 2, which typing-ahead had already selected. */
   let searchFresh = true;
@@ -1624,7 +1624,7 @@
 
   /** Insert CardMirror-schema nodes (from fromDocx) directly at the doc end. */
   // A whitespace-only text run must never carry a *visible* character mark
-  // (emphasis box / cite / underline) — it renders as an empty box or a stray
+  // (emphasis box / cite / underline) - it renders as an empty box or a stray
   // "_ _" gap. Strip those marks from blank runs before insert; keep highlight
   // (a highlighted space is invisible and harmless, and preserves spacing).
   function stripBlankRunMarks(node: unknown): void {
@@ -1639,13 +1639,13 @@
   }
 
   // ── cite on hover (CardMirror's floating author label) ───────────
-  // Hovering a card shows its cite — the bold "Snyder 09" — pinned to the right
+  // Hovering a card shows its cite - the bold "Snyder 09" - pinned to the right
   // edge, level with the line under the pointer.
   //
   // Read straight off the DOM, deliberately NOT as a ProseMirror decoration: a
   // decoration set would have to be recomputed across the whole document on every
   // transaction for something only ever needed under the pointer. It also never
-  // writes into the editor's own DOM — PM's DOMObserver watches attributes, so
+  // writes into the editor's own DOM - PM's DOMObserver watches attributes, so
   // stamping one onto a card would dirty that node on every hover.
   //
   // `pointerover` (not `pointermove`) fires exactly when the pointer crosses into
@@ -1656,7 +1656,7 @@
   let citeText = "";
 
   /** A card's cite: the bold cite run, else a whole cite paragraph. "" when the
-   *  card has no cite at all (hand-typed cards, analytics) — no label then. */
+   *  card has no cite at all (hand-typed cards, analytics) - no label then. */
   function citeOf(unit: HTMLElement): string {
     const el = unit.querySelector(".pmd-cite") ?? unit.querySelector(".pmd-cite-para");
     const t = (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -1665,8 +1665,8 @@
 
   /** Vertical offset of `el` within `root` (which must be positioned). Walks the
    *  offsetParent chain rather than using rects: `.doc-scroll` carries the doc
-   *  zoom, so getBoundingClientRect reports zoomed pixels while the label — a
-   *  child of that same zoomed box — is positioned in unzoomed ones. */
+   *  zoom, so getBoundingClientRect reports zoomed pixels while the label - a
+   *  child of that same zoomed box - is positioned in unzoomed ones. */
   function offsetWithin(el: HTMLElement, root: HTMLElement): number {
     let y = 0;
     let n: HTMLElement | null = el;
@@ -1799,16 +1799,16 @@
       {/if}
     </div>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn" class:active={quickOpen} onclick={() => (quickOpen = true)} title="Quick cards — save & reuse snippets ({keyHint('docQuickCards')})">★ Quick</button>
+    <button class="tb-btn" class:active={quickOpen} onclick={() => (quickOpen = true)} title="Quick cards - save & reuse snippets ({keyHint('docQuickCards')})">★ Quick</button>
     <button class="tb-btn icon" class:active={searchOpen} onclick={openSearch} title="Find in doc ({keyHint('docFind')})">⌕</button>
-    <button class="tb-btn read" class:active={readMode} onclick={toggleReadMode} title="Read mode — show only the read-aloud text">Read</button>
+    <button class="tb-btn read" class:active={readMode} onclick={toggleReadMode} title="Read mode - show only the read-aloud text">Read</button>
     <button class="tb-btn" onclick={clearDoc} title="Clear the whole document">Clear Doc</button>
     <button class="tb-btn" onclick={exportDoc} title="Export a plain .docx of everything here (keeps analytics)">Export</button>
     <button class="tb-btn send" onclick={sendDoc} title="Send the speech doc as .docx (analytics stripped)">Send</button>
     {#if sendStatus}<span class="send-status">{sendStatus}</span>{/if}
     <div class="toolbar-sep"></div>
     {#if settings.readers.length}
-      <div class="read-time" title="Estimated read-aloud time (tags + analytics + highlighted words) at each reader's words-per-minute — set in Settings">
+      <div class="read-time" title="Estimated read-aloud time (tags + analytics + highlighted words) at each reader's words-per-minute - set in Settings">
         <span class="rt-words">{spokenWords.toLocaleString()}</span>
         {#each settings.readers as r (r.name)}
           <span class="rt-reader"><span class="rt-name">{r.name}</span> {readTime(spokenWords, r.wpm)}</span>
@@ -1932,7 +1932,7 @@
   .toolbar-sep { width: 1px; height: 26px; background: var(--border); margin: 0 3px; }
   /* ── Compact density ──────────────────────────────────────────────────
      Tightens the toolbar (so it wraps into fewer rows) and narrows the
-     outline + page gutters, handing the reclaimed space to the document —
+     outline + page gutters, handing the reclaimed space to the document -
      the whole point when the doc lives in the split-screen side panel.
      Toggle in Settings → Appearance ("Compact doc chrome"). */
   .speech-doc.compact .doc-toolbar { padding: 3px 8px; gap: 3px 4px; }
@@ -2128,12 +2128,12 @@
     container-type: inline-size;
   }
   /* When the rail is dragged narrow, drop the "Outline" word rather than let it
-     clip to a ragged sliver — the collapse buttons carry it. */
+     clip to a ragged sliver - the collapse buttons carry it. */
   @container (max-width: 124px) {
     .outline-title { display: none; }
     .outline .outline-head { justify-content: flex-end; }
   }
-  /* Draggable seam between the outline rail and the page — set the rail to any
+  /* Draggable seam between the outline rail and the page - set the rail to any
      width you like; it's remembered. Thin, with a grip so it reads as grabbable. */
   .outline-divider {
     width: 5px;
@@ -2206,7 +2206,7 @@
   .outline-row.lvl1 .outline-item { font-weight: 700; }
   .outline-row.lvl2 .outline-item { font-weight: 600; }
   .outline-row.lvl4 .outline-item { color: var(--text-dim); }
-  /* Full-bleed editor (like CardMirror) — no floating "paper" page, the text
+  /* Full-bleed editor (like CardMirror) - no floating "paper" page, the text
      fills the whole panel edge to edge, top to bottom. */
   .doc-scroll {
     flex: 1;
@@ -2217,7 +2217,7 @@
     position: relative;
   }
   /* The hovered card's cite, at the right edge and level with the line under the
-     pointer. Informational only — it must never take a click or a caret. */
+     pointer. Informational only - it must never take a click or a caret. */
   .cite-hover {
     position: absolute;
     right: 6px;

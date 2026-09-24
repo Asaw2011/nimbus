@@ -1,5 +1,5 @@
 // Access to Nimbus is tied to a nimbusdebate.com account (Supabase, email +
-// password — that project has no OAuth providers enabled, so there is no
+// password - that project has no OAuth providers enabled, so there is no
 // redirect/deep-link dance to do here).
 //
 // Constraints that matter MORE than the gate itself:
@@ -8,7 +8,7 @@
 //     session is cached on disk and the app opens offline indefinitely. Losing
 //     the network must never lock somebody out of their own local flow files.
 //   * This code runs on the LAUNCH PATH. Every failure mode here fails OPEN
-//     whenever a session already exists — a thrown error in this file would
+//     whenever a session already exists - a thrown error in this file would
 //     otherwise brick the whole app, which is strictly worse than an ungated
 //     one.
 //
@@ -19,7 +19,7 @@
 import { saveBlob, loadBlob, loadBlobCached } from "./blobs";
 
 const SUPABASE_URL = "https://oovgzakdweswenhohgwh.supabase.co";
-/** Supabase "publishable" key. Designed to ship inside client apps — it is the
+/** Supabase "publishable" key. Designed to ship inside client apps - it is the
  *  same key nimbusdebate.com serves in its own page source, and it grants only
  *  what the project's RLS policies allow. Not a secret, not a leak. */
 const SUPABASE_KEY = "sb_publishable_4xgCsUBklrsJUOspF4a6VA_maYxtlHg";
@@ -61,7 +61,7 @@ function toSession(data: TokenResponse, fallbackEmail: string): AuthSession {
 function messageFor(status: number, data: Record<string, unknown>): string {
   const raw = String(data?.msg ?? data?.error_description ?? data?.error ?? "");
   if (/email not confirmed/i.test(raw)) {
-    return "Confirm your email first — check your inbox for the link.";
+    return "Confirm your email first - check your inbox for the link.";
   }
   if (/invalid login credentials/i.test(raw) || status === 400) {
     return "That email and password don't match an account. You can make one at nimbusdebate.com.";
@@ -92,7 +92,7 @@ class AuthStore {
    * Empty string when there isn't one (signed out, or offline with a stale
    * token and no way to renew it).
    *
-   * ⚠ For the partner relay, which has to prove WHO is connecting — the flow
+   * ⚠ For the partner relay, which has to prove WHO is connecting - the flow
    * itself never needs this. Unlike {@link revalidate} on the launch path, a
    * failure here is not a sign-out: it just means we cannot vouch for this
    * client right now, and the caller decides what that's worth. Keep it that
@@ -118,7 +118,7 @@ class AuthStore {
   async init(): Promise<void> {
     try {
       const disk = await loadBlob<AuthSession>(BLOB);
-      // Disk is authoritative — the localStorage mirror can be wiped by the
+      // Disk is authoritative - the localStorage mirror can be wiped by the
       // webview, and can also be STALER than disk after a refresh on a previous
       // run wrote a rotated token.
       if (disk && (!this.session || disk.verifiedAt >= this.session.verifiedAt)) {
@@ -133,7 +133,7 @@ class AuthStore {
   /**
    * Refresh the token, which doubles as "does this account still exist?".
    *
-   * Supabase rotates refresh tokens, so the new one is persisted immediately —
+   * Supabase rotates refresh tokens, so the new one is persisted immediately -
    * dropping it would strand the session on the next launch.
    */
   private async revalidate(): Promise<void> {
@@ -151,7 +151,7 @@ class AuthStore {
         await saveBlob(BLOB, $state.snapshot(this.session));
         return;
       }
-      // Only a DEFINITIVE rejection signs somebody out — the account was
+      // Only a DEFINITIVE rejection signs somebody out - the account was
       // deleted, or the refresh token was revoked. A 5xx or a network failure
       // must not, or a server hiccup locks people out of their own local flows
       // mid-round. This is the one lever that can revoke access remotely.
@@ -188,7 +188,7 @@ class AuthStore {
       return true;
     } catch {
       this.error =
-        "Couldn't reach nimbusdebate.com. Check your internet — you only need to sign in once.";
+        "Couldn't reach nimbusdebate.com. Check your internet - you only need to sign in once.";
       return false;
     } finally {
       this.busy = false;

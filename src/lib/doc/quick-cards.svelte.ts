@@ -1,4 +1,4 @@
-// Quick Cards — a persistent, reusable library of rich-text snippets captured
+// Quick Cards - a persistent, reusable library of rich-text snippets captured
 // from the speech doc (CardMirror's Quick Cards). Save a selection with a name
 // + tags, then drop it back into any doc later from the search palette.
 // Persisted through the same disk-backed blob store as settings/snippets.
@@ -12,7 +12,7 @@ import { uid } from "$lib/model/types";
 export interface QuickCardFlow {
   header: string;
   chip?: string;
-  /** Full node (DocNode) for a single carded capture — sends to the doc. */
+  /** Full node (DocNode) for a single carded capture - sends to the doc. */
   card?: unknown;
   /** Sub-items for a header + cards/responses capture. */
   items?: { text: string; kind: "card" | "response"; chip?: string; card?: unknown }[];
@@ -20,7 +20,7 @@ export interface QuickCardFlow {
 
 export interface QuickCard {
   id: string;
-  /** Shortcut/label — defaults to the smallest enclosing heading. */
+  /** Shortcut/label - defaults to the smallest enclosing heading. */
   name: string;
   /** Organizing tags (display casing). */
   tags: string[];

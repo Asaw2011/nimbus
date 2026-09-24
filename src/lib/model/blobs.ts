@@ -1,6 +1,6 @@
 // Write-through persistence for user configuration (settings, macros,
 // snippets, folders). localStorage is the fast synchronous cache; the disk
-// (app data dir, next to saved rounds) is the durable copy — customization
+// (app data dir, next to saved rounds) is the durable copy - customization
 // must survive webview storage wipes, app updates, and reinstalls.
 
 const LS_PREFIX = "debate-flow:blob:";
@@ -17,7 +17,7 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 /**
  * Largest payload we mirror into the localStorage cache when a disk is
  * available. `setItem` is SYNCHRONOUS, so mirroring a multi-megabyte doc there
- * every few keystrokes stalls the main thread — and it crowds the small
+ * every few keystrokes stalls the main thread - and it crowds the small
  * localStorage quota, which is what used to evict doc content. Big blobs go to
  * disk only; the sync cache exists for small first-paint reads (settings, the
  * doc list), which all sit far below this.
@@ -28,7 +28,7 @@ const LS_MAX_CHARS = 128 * 1024;
  * Save to localStorage immediately and to disk in the background.
  *
  * Returns the disk write so a caller that is about to tear the app down can
- * AWAIT it — closing Nimbus force-quits the process, which would otherwise kill
+ * AWAIT it - closing Nimbus force-quits the process, which would otherwise kill
  * an in-flight IPC write. Every other caller can keep ignoring the result.
  */
 export function saveBlob(name: string, value: unknown): Promise<void> {
@@ -38,7 +38,7 @@ export function saveBlob(name: string, value: unknown): Promise<void> {
     try {
       localStorage.setItem(LS_PREFIX + name, json);
     } catch {
-      // storage full/blocked — the disk write below still protects the data
+      // storage full/blocked - the disk write below still protects the data
     }
   } else {
     // Disk-only from here on. Drop any smaller cached copy from when this blob
@@ -62,7 +62,7 @@ export async function loadBlob<T>(name: string): Promise<T | null> {
     try {
       return JSON.parse(await invoke<string>("load_blob", { name })) as T;
     } catch {
-      // not on disk yet — fall through to localStorage + migrate
+      // not on disk yet - fall through to localStorage + migrate
     }
   }
   try {

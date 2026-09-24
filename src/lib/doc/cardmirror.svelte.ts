@@ -1,7 +1,7 @@
 // CardMirror bridge client (frontend). Talks to CardMirror Desktop through the
 // Rust `cm_*` commands (src-tauri/src/cmbridge.rs). All shapes mirror
 // reference-docs/cardmirror-plugin-api.md. Outside Tauri (plain web build) it's
-// inert so the app still runs — the built-in SpeechDoc stays the fallback there.
+// inert so the app still runs - the built-in SpeechDoc stays the fallback there.
 
 function inTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -60,7 +60,7 @@ class CardMirror {
   /** CardMirror Desktop is reachable (session file present + ping ok). */
   running = $state(false);
   appVersion = $state<string | null>(null);
-  /** Last request came back `pending:"consent"` — user must approve "nimbus" in
+  /** Last request came back `pending:"consent"` - user must approve "nimbus" in
    *  CardMirror → Settings → Plugins → External apps. Drives the consent banner. */
   needsConsent = $state(false);
   docs = $state<CmDoc[]>([]);
@@ -94,7 +94,7 @@ class CardMirror {
     return d.find((x) => x.isSpeech) ?? d.find((x) => x.focusedWindow) ?? d[0] ?? null;
   }
 
-  /** The FILENAME of the doc a send should go to. This — not the uid — is what
+  /** The FILENAME of the doc a send should go to. This - not the uid - is what
    *  the queue addresses by, because the plugin identifies its window with
    *  `document.title`, which CardMirror builds from the filename. */
   get speechTitle(): string | null {
@@ -139,7 +139,7 @@ class CardMirror {
    *  This is the lossless route: highlights, cites and structure survive, the
    *  insert lands in the named doc, and it does not steal focus.
    *
-   *  `target` must come from a `refreshDocs()` in the SAME send — targets are
+   *  `target` must come from a `refreshDocs()` in the SAME send - targets are
    *  session-scoped and a stale one is refused as `target-not-found` rather
    *  than silently landing somewhere else. There is deliberately no
    *  "unaddressed" form; with no doc to name, the caller falls back to the
@@ -165,7 +165,7 @@ class CardMirror {
   }
 
   /** Send a sequence of items. Sets `needsConsent` when CardMirror prompts.
-   *  ⚠ Superseded by `insertHtml` for card sends — this drops formatting. */
+   *  ⚠ Superseded by `insertHtml` for card sends - this drops formatting. */
   async insert(
     items: CmInsertItem[],
     target?: string | null,

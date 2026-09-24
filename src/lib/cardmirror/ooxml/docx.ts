@@ -2,14 +2,14 @@
  * .docx zip read/write helpers.
  *
  * A .docx is a zip with a specific file layout:
- *   [Content_Types].xml          — declares MIME types per part
- *   _rels/.rels                  — top-level relationships
- *   word/document.xml            — the actual document content
- *   word/styles.xml              — style definitions
- *   word/_rels/document.xml.rels — document part relationships
- *   word/settings.xml            — editor settings
- *   word/fontTable.xml           — fonts referenced
- *   word/webSettings.xml, etc.   — optional
+ *   [Content_Types].xml          - declares MIME types per part
+ *   _rels/.rels                  - top-level relationships
+ *   word/document.xml            - the actual document content
+ *   word/styles.xml              - style definitions
+ *   word/_rels/document.xml.rels - document part relationships
+ *   word/settings.xml            - editor settings
+ *   word/fontTable.xml           - fonts referenced
+ *   word/webSettings.xml, etc.   - optional
  *
  * For our v0 we emit a minimal but valid set: document.xml + styles.xml +
  * the boilerplate Content_Types + rels files. Anything more elaborate
@@ -24,7 +24,7 @@ import { XML_PROLOG, escText } from './xml';
 const utf8Decoder = new TextDecoder('utf-8');
 const utf8Encoder = new TextEncoder();
 
-/** Loaded docx — an in-memory zip we can read parts from and modify.
+/** Loaded docx - an in-memory zip we can read parts from and modify.
  *
  *  Backed by fflate (the same DEFLATE the `.cmir` codec uses) over a
  *  part-name → bytes Map. Insertion order is preserved through
@@ -40,7 +40,7 @@ export class Docx {
     const entries = unzipSync(u8);
     const parts = new Map<string, Uint8Array>();
     for (const [path, data] of Object.entries(entries)) {
-      // Skip explicit directory entries — parts are files; consumers
+      // Skip explicit directory entries - parts are files; consumers
       // (`paths()` copy-through, media enumeration) expect file paths.
       if (path.endsWith('/')) continue;
       parts.set(path, data);
@@ -112,7 +112,7 @@ export class Docx {
   }
 
   /** Write the CardMirror `docId` as a custom document property
-   *  (`docProps/custom.xml`) — verified to survive a real Word round-trip.
+   *  (`docProps/custom.xml`) - verified to survive a real Word round-trip.
    *  Adds the part, its content-type override, and a package relationship.
    *  Merges into an existing `custom.xml`, replacing any prior `cmirDocId`
    *  while preserving other custom properties the user or Word set. */
@@ -224,16 +224,16 @@ const EMPTY_DOCUMENT_XML = `${XML_PROLOG}
   </w:body>
 </w:document>`;
 
-// `word/settings.xml` — minimum Verbatim-recognition payload: a
+// `word/settings.xml` - minimum Verbatim-recognition payload: a
 // single <w:attachedTemplate> element. The r:id resolves against
-// `word/_rels/settings.xml.rels`, NOT document.xml.rels — an easy
+// `word/_rels/settings.xml.rels`, NOT document.xml.rels - an easy
 // mix-up.
 const SETTINGS_XML = `${XML_PROLOG}
 <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:attachedTemplate r:id="rId1"/>
 </w:settings>`;
 
-// `word/_rels/settings.xml.rels` — Verbatim's `GetRibbonVisibility`
+// `word/_rels/settings.xml.rels` - Verbatim's `GetRibbonVisibility`
 // callback checks `ActiveDocument.AttachedTemplate.Name`. Word
 // reads the basename of the Target URI for this property; it
 // doesn't validate that a file actually exists at the path. So a

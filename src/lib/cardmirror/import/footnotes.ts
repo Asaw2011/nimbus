@@ -5,7 +5,7 @@
  * `<w:footnoteReference w:id>` / `<w:endnoteReference w:id>` in runs.
  *
  * Word's separator machinery (`w:type="separator"` /
- * `"continuationSeparator"`, ids -1 and 0) is skipped — those are
+ * `"continuationSeparator"`, ids -1 and 0) is skipped - those are
  * rendering furniture, not notes. Hyperlinks inside notes resolve
  * their targets through the part's own rels file
  * (`word/_rels/footnotes.xml.rels`), captured as `link` on the runs.
@@ -60,7 +60,7 @@ function flattenRun(rNode: XmlNode, link: string | undefined): FootnoteRun | nul
       }
     }
     // w:footnoteRef / w:endnoteRef (the number inside the note body)
-    // and everything else is dropped — the number is recomputed.
+    // and everything else is dropped - the number is recomputed.
   }
   if (text.length === 0) return null;
   const run: FootnoteRun = { text };
@@ -73,7 +73,7 @@ function flattenRun(rNode: XmlNode, link: string | undefined): FootnoteRun | nul
 
 /** One note paragraph → runs (hyperlinks unwrapped with link attr).
  *  Word opens each note body with a marker run (`w:footnoteRef` /
- *  `w:endnoteRef`) followed by a spacer — both furniture (the number
+ *  `w:endnoteRef`) followed by a spacer - both furniture (the number
  *  is recomputed on display), so when a marker is present the leading
  *  whitespace it drags along is stripped too. */
 function flattenParagraph(pNode: XmlNode, rels: Map<string, string>): FootnoteRun[] {

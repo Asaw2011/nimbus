@@ -1,4 +1,4 @@
-// Remappable keybindings. Core grid motions (Enter, Tab, arrows) are fixed —
+// Remappable keybindings. Core grid motions (Enter, Tab, arrows) are fixed -
 // they're the Excel/paper muscle memory the app is built around. Everything
 // else can be rebound in Settings.
 
@@ -69,7 +69,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   insertRow3Below: "Insert several rows below",
   insertRow3Above: "Insert several rows above",
   deleteRow: "Delete row",
-  clearCell: "Delete cell (this cell only — the row stays)",
+  clearCell: "Delete cell (this cell only - the row stays)",
   jumpFilledUp: "Jump to filled cell above (in column)",
   jumpFilledDown: "Jump to filled cell below (in column)",
   extendArg: "Extend argument (arrow to next speech)",
@@ -124,14 +124,14 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   insertRow3Below: [{ key: "enter", mod: true, alt: true }],
   insertRow3Above: [{ key: "enter", mod: true, alt: true, shift: true }],
   deleteRow: [{ key: "backspace", mod: true, shift: true }],
-  // Ctrl/⌘+Alt+Backspace — sits beside Delete row (Ctrl+Shift+Backspace): same
+  // Ctrl/⌘+Alt+Backspace - sits beside Delete row (Ctrl+Shift+Backspace): same
   // key, different modifier, so the pair reads as "cell vs row".
   //
   // This was Ctrl+Shift+Delete and that DID NOT WORK in the packaged build.
   // WebView2 handles Ctrl+Shift+Delete itself (the browser "clear browsing
   // data" accelerator) and never forwards it to the page, so the keybind was
   // silently dead while every other bind on the same handler worked. Note this
-  // is NOT true of browser accelerators generally — Ctrl+Shift+C (devtools
+  // is NOT true of browser accelerators generally - Ctrl+Shift+C (devtools
   // inspect) and Ctrl+D (bookmark) both reach the page fine and are already
   // bound here; only the few Edge handles at browser level get eaten. Don't
   // reintroduce a binding on those.
@@ -140,7 +140,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   // Ctrl+Backspace, which would shadow delete-previous-word while typing.
   clearCell: [{ key: "backspace", mod: true, alt: true }],
   // Excel's "jump to the data". Shares Ctrl/⌘+↑/↓ with docUnderline/docEmphasis
-  // — a FOURTH deliberate cross-surface collision (see the note above): these
+  // - a FOURTH deliberate cross-surface collision (see the note above): these
   // fire from GridCell's editor, those from the speech doc's, so neither can
   // reach the other. Rebindable in Settings → Keyboard if the overlap grates.
   jumpFilledUp: [{ key: "arrowup", mod: true }],
@@ -163,7 +163,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   // Was hard-wired to ⌘D, which collided with Mark dropped. Its own rebindable
   // action now, on a free key.
   toggleDoc: [{ key: "e", mod: true }],
-  // NOT Ctrl/⌘+T — that is newSheet, and both handlers are window-level on the
+  // NOT Ctrl/⌘+T - that is newSheet, and both handlers are window-level on the
   // flow, so sharing it would genuinely double-fire (not a cross-surface
   // overlap like the ⌘↑/↓ pair). Ctrl+Shift+T was the other candidate and was
   // passed over deliberately: it's the browser "reopen closed tab" accelerator,
@@ -177,7 +177,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   zoomIn: [{ key: "=", mod: true }],
   zoomOut: [{ key: "-", mod: true }],
   zoomReset: [{ key: "0", mod: true, shift: true }],
-  // NOT ⌘Space — macOS Spotlight eats that before the app sees it. ⌘J is free.
+  // NOT ⌘Space - macOS Spotlight eats that before the app sees it. ⌘J is free.
   authorLookup: [{ key: "j", mod: true }],
   // Flow → speech doc sends. Bare ` (the tilde key) sends the cell/selection;
   // Ctrl+` the whole row; Ctrl+Delete clears the cell and pulls its card back
@@ -245,7 +245,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
   },
 ];
 
-/** Fixed behaviors that live OUTSIDE the remappable keymap — the sheet-number
+/** Fixed behaviors that live OUTSIDE the remappable keymap - the sheet-number
  *  jumps, clipboard, Save, and the core grid motions. They can't be rebound,
  *  but the rebinder warns before letting a new binding shadow one of them, so
  *  "silent" overlaps like the old ⌘D one can't creep back in. */
@@ -305,7 +305,7 @@ export function reservedBinding(combo: Combo): string | null {
 }
 
 // Mac uses compact symbols with no separator (⌘⇧↵); Windows/Linux use word
-// modifiers joined with "+" (Ctrl+Shift+Enter) — the native, readable style,
+// modifiers joined with "+" (Ctrl+Shift+Enter) - the native, readable style,
 // and no cramped ⇧ arrow.
 const KEY_LABELS_MAC: Record<string, string> = {
   enter: "↵",
@@ -346,7 +346,7 @@ export function comboLabel(combo: Combo, isMac: boolean): string {
 }
 
 export function combosLabel(combos: Combo[] | undefined, isMac: boolean): string {
-  if (!combos || combos.length === 0) return "—";
+  if (!combos || combos.length === 0) return "-";
   return combos.map((c) => comboLabel(c, isMac)).join(" / ");
 }
 

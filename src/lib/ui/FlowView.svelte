@@ -4,6 +4,7 @@
   import { isOtherLane, sheetAccent } from "../model/types";
   import { matchesAny, combosLabel } from "../model/keymap";
   import Grid from "./Grid.svelte";
+  import CxGrid from "./CxGrid.svelte";
   import Icon from "./Icon.svelte";
   import Ribbon from "./Ribbon.svelte";
   import RoundHome from "./RoundHome.svelte";
@@ -75,7 +76,7 @@
     dragOverIdx = null;
   }
   let showSettings = $state(false);
-  /** The floating timer. Deliberately NOT modal and not tied to a sheet — it
+  /** The floating timer. Deliberately NOT modal and not tied to a sheet - it
    *  stays up across sheet/flow switches for the length of the round. */
   let showTimer = $state(false);
   /** The argument-bank manager (edit what ⌘J draws from). */
@@ -85,7 +86,7 @@
    * The partner button has THREE states, not two.
    *
    * `session.active` is "a session exists", `status` is "the relay is
-   * answering", `peerOnline` is "they are actually there" — and all three can
+   * answering", `peerOnline` is "they are actually there" - and all three can
    * disagree. Only the combination is trustworthy, so it is computed once here
    * rather than re-derived at each use.
    *
@@ -94,13 +95,13 @@
    */
   const partnerOk = $derived(session.status === "connected" && session.peerOnline);
   const partnerTrouble = $derived(session.active && !partnerOk);
-  /** Just the local part of the partner's email — a top-bar tab has no room
+  /** Just the local part of the partner's email - a top-bar tab has no room
    *  for "reian@nimbusdebate.com's". */
   const peerFirstName = $derived.by(() => {
     const raw = (session.peerEmail || "Partner").split("@")[0].split(/[._]/)[0];
     return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Partner";
   });
-  /** Transient confirmation for a CardMirror send — the card lands in another
+  /** Transient confirmation for a CardMirror send - the card lands in another
    *  app's window, so without this there's no on-screen sign anything happened. */
   let sendFlash = $state("");
   let sendFlashTimer: ReturnType<typeof setTimeout> | null = null;
@@ -149,7 +150,7 @@
   let renamingDocId = $state<string | null>(null);
   let docStatus = $state("");
 
-  // Bring up the docs library the first time the doc opens — and reload it when
+  // Bring up the docs library the first time the doc opens - and reload it when
   // the open flow changes, so each flow keeps its OWN set of docs (a new flow
   // starts clean, never inheriting the previous flow's docs).
   let docsRoundId = $state<string | null>(null);
@@ -164,14 +165,14 @@
     docsReady = true;
   }
 
-  // Debounced doc-content save — the editor's onchange fires per keystroke, but
+  // Debounced doc-content save - the editor's onchange fires per keystroke, but
   // writing the (possibly image-heavy) doc to disk every stroke is wasteful.
   let docSaveTimer: ReturnType<typeof setTimeout> | null = null;
   /** Edits exist that the blob doesn't have yet. Lets the flush hooks below be
    *  free when nothing changed, instead of re-serializing a multi-MB doc. */
   let docDirty = false;
   // The editor signals a change per keystroke, but we only serialize the
-  // (possibly multi-MB) doc ONCE when the debounce fires — serializing on every
+  // (possibly multi-MB) doc ONCE when the debounce fires - serializing on every
   // stroke is what made large docs laggy.
   function onDocChange() {
     const id = docsStore.activeId;
@@ -202,7 +203,7 @@
 
   // The docked editor is the one surface nothing else backs up: the round has an
   // autosave heartbeat, and a popped-out doc window flushes itself on pagehide,
-  // but this one only ever reached its blob through the 350ms debounce above —
+  // but this one only ever reached its blob through the 350ms debounce above -
   // which RESTARTS on every keystroke, so steady typing never flushed at all.
   // Hand the flush to the app-level autosave (heartbeat + blur/hide/close), which
   // is also the only path that runs on quit: closing Nimbus force-quits the
@@ -218,14 +219,14 @@
    * Two things went wrong without this:
    *
    * 1. The editor is UNMOUNTED while the pane is closed and rebuilt from
-   *    `activeContent` when it reopens — but `activeContent` was only refreshed
+   *    `activeContent` when it reopens - but `activeContent` was only refreshed
    *    when the doc's identity changed. Reopening therefore rebuilt the editor
    *    from a snapshot taken when the pane first opened, silently reverting
    *    everything typed since; the next keystroke then saved that revert back
-   *    over the good content. Re-read the blob (the authority — sends can append
+   *    over the good content. Re-read the blob (the authority - sends can append
    *    to it directly too) before mounting.
    * 2. Setting `docOpen` only SCHEDULES the mount, so callers that immediately
-   *    reached for `docRef` — a ` send, a Doc Search insert — found it null and
+   *    reached for `docRef` - a ` send, a Doc Search insert - found it null and
    *    silently did nothing whenever the pane had been closed.
    */
   async function ensureDocOpen(): Promise<void> {
@@ -245,7 +246,7 @@
     }
   }
 
-  /** Show/hide the doc pane. Closing it destroys the editor, so flush first —
+  /** Show/hide the doc pane. Closing it destroys the editor, so flush first -
    *  otherwise the pending debounce fired against a null `docRef` and dropped
    *  whatever had just been typed. */
   function toggleDocPane() {
@@ -350,7 +351,7 @@
 
   // "Send to speech": ` / ~ from ANY source doc (a popped-out window) sends its
   // current card to the designated speech doc (★). The MAIN window is the sole
-  // router — popped-out windows don't load docsStore, so only here do we know
+  // router - popped-out windows don't load docsStore, so only here do we know
   // which doc is the target and where it currently lives.
   $effect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
@@ -369,12 +370,12 @@
     return () => un?.();
   });
 
-  // Drop a .docx onto the doc pane to open it — no Open dialog. The window has
+  // Drop a .docx onto the doc pane to open it - no Open dialog. The window has
   // `dragDropEnabled: false`, so OS file drops arrive as ordinary HTML5 drop
   // events (dataTransfer.files) rather than Tauri's drag-drop event.
   let docDragOver = $state(false);
   function onDocDragOver(e: DragEvent) {
-    if (!e.dataTransfer?.types?.includes("Files")) return; // internal drag — leave it to the editor
+    if (!e.dataTransfer?.types?.includes("Files")) return; // internal drag - leave it to the editor
     e.preventDefault();
     docDragOver = true;
   }
@@ -385,7 +386,7 @@
   }
   async function onDocDrop(e: DragEvent) {
     const file = e.dataTransfer?.files?.[0];
-    if (!file) return; // not a file — let ProseMirror handle internal drops
+    if (!file) return; // not a file - let ProseMirror handle internal drops
     e.preventDefault();
     e.stopPropagation();
     docDragOver = false;
@@ -412,7 +413,7 @@
     }
   }
 
-  /** Append CardMirror node JSON to the end of a stored doc's content — used
+  /** Append CardMirror node JSON to the end of a stored doc's content - used
    *  when the speech doc isn't open anywhere (no live cursor to insert at). */
   function appendCMToDocJSON(content: unknown, nodes: unknown[]): unknown {
     const doc =
@@ -429,7 +430,7 @@
     const id = docsStore.speechDocId ?? docsStore.activeId;
     if (!id) return;
     if (id === docsStore.activeId && !docBridge.isPoppedOut(id) && docRef) {
-      // The speech doc is the live editor — insert at its cursor either way.
+      // The speech doc is the live editor - insert at its cursor either way.
       docOpen = true;
       docRef.insertCMAtCursor(nodes);
     } else if (docBridge.isPoppedOut(id)) {
@@ -437,7 +438,7 @@
       await emit("nimbus:insert-into-speech", { id, nodes });
     } else if (atCursor && docRef) {
       // Background tab, cursor variant: insert at that doc's cached cursor and
-      // persist the result (no invalidate — we just updated its cache). Falls
+      // persist the result (no invalidate - we just updated its cache). Falls
       // back to appending if the doc has no cached cursor yet (never opened).
       const updated = docRef.insertCMAtCachedCursor(id, nodes);
       if (updated != null) {
@@ -544,7 +545,7 @@
   // or a DocNode (text-only adapter path).
   type DocOp = { cm: unknown } | { node: DocNode };
 
-  /** True when a cell holds ONLY manually-typed text — no imported block, card,
+  /** True when a cell holds ONLY manually-typed text - no imported block, card,
    *  or captured node. Such a cell exports as one analytic. */
   function isManualAnalyticCell(cell: Cell | undefined): boolean {
     return !!cell?.text?.trim() && !cell.items?.length && !cell.card && !cell.cmNode;
@@ -553,7 +554,7 @@
   /** The label of the argument this cell answers: an explicit reply link if one
    *  was set, otherwise the nearest non-empty cell to the LEFT in the same row
    *  (an argument from an earlier speech), within the sheet's visible columns.
-   *  "" if this is an original argument (nothing to its left) — so only genuine
+   *  "" if this is an original argument (nothing to its left) - so only genuine
    *  responses get an "AT:" header.
    *
    *  ⚠ The left-walk SKIPS your partner's lane. On a split speech their lane is
@@ -563,7 +564,7 @@
    *  doc must not depend on a view setting.
    *
    *  ⚠ `laneHere`, not `myLane`, so this stays in step with the grid's own
-   *  "which column is mine" — session 9's rule that the two left-walk sites
+   *  "which column is mine" - session 9's rule that the two left-walk sites
    *  must never diverge. On your own flow the two are identical; they differ
    *  only on a partner's mirrored flow, where lane 1 is you. */
   function argBeingAnswered(sheet: Sheet, row: number, col: number): { text: string; author?: string } {
@@ -572,10 +573,10 @@
       const prev = sheet.rows[row]?.cells[c];
       const text = prev?.text?.trim() || (prev?.card as { text?: string } | undefined)?.text?.trim() || "";
       // The card's author (e.g. "Jiang 25") is what names the answered argument
-      // in the "AT:" header — a whole tag is too long to sit atop an analytic.
+      // in the "AT:" header - a whole tag is too long to sit atop an analytic.
       return { text, author: prev?.author };
     };
-    // An explicit "answer this" link wins over any guess — including a link to
+    // An explicit "answer this" link wins over any guess - including a link to
     // your partner's lane, which is the whole point of being able to set it.
     const linked = sheet.rows[row]?.cells[col]?.repliesTo;
     if (linked) {
@@ -592,7 +593,7 @@
      * ⚠ NEVER YOUR OWN SIDE. The walk used to return the first non-empty cell
      * to the left whatever it was, so the moment the opponent's column was
      * blank on that row it kept going and headed your answer with one of YOUR
-     * OWN earlier arguments — an aff answer in the 1AR coming out as
+     * OWN earlier arguments - an aff answer in the 1AR coming out as
      * "AT: <your own 2AC>". Reported from a real round. "AT:" means answering
      * the other team; a cell on your side is never the thing being answered.
      *
@@ -611,7 +612,7 @@
      *
      * ⚠ Pass 1 is new, and is the other half of the report. Skipping their lane
      * outright meant that when the argument you were answering had been flowed
-     * by your PARTNER — which is most of them, that being the point of lanes —
+     * by your PARTNER - which is most of them, that being the point of lanes -
      * the walk found nothing and the answer went to the doc with no block
      * header at all. Their lane holds the OPPONENT'S words too; preferring
      * yours is right, ignoring theirs is not.
@@ -628,7 +629,7 @@
   }
 
   /** "Jiang 25" → "Jiang '25" so a card author reads like a cite in the header.
-   *  Idempotent — an author already carrying the apostrophe is left as is. */
+   *  Idempotent - an author already carrying the apostrophe is left as is. */
   function apostropheYear(author: string): string {
     return author.replace(/\s+'?(\d{2,4})\s*$/, " '$1");
   }
@@ -640,7 +641,7 @@
   }
 
   /**
-   * "AT: Jiang '25---1AR" — the answered argument named by its card author (or,
+   * "AT: Jiang '25---1AR" - the answered argument named by its card author (or,
    * for an analytic with no author, its text), followed by the speech you're
    * answering in. Keeps the header short: a full card tag on top of every
    * analytic was unreadable.
@@ -661,7 +662,7 @@
     if (cell.items?.length) {
       const out: DocOp[] = [];
       if (text) {
-        // Header only — its child cards live in `items`, don't duplicate them.
+        // Header only - its child cards live in `items`, don't duplicate them.
         out.push({ node: cell.card ? { ...(cell.card as DocNode), children: [] } : stubNode(text, { level: CHIP_LEVEL[cell.chip ?? ""] ?? 3 }) });
       }
       for (const it of cell.items) {
@@ -710,7 +711,7 @@
       const cell = sheet.rows[r].cells[col];
       if (!cell) continue;
       const t = cell.text?.trim();
-      // A manual response emits an "AT:" Block just before its analytic — slot
+      // A manual response emits an "AT:" Block just before its analytic - slot
       // that label in first so the pair stays adjacent and correctly ordered.
       if (t && isManualAnalyticCell(cell)) {
         const answered = argBeingAnswered(sheet, r, col);
@@ -729,15 +730,15 @@
   }
 
   /** Send a set of doc ops to the docked doc.
-   *  - "cursor": drop them where the cursor is, in order, no reordering — for a
+   *  - "cursor": drop them where the cursor is, in order, no reordering - for a
    *    cell / range / text grab that you're placing by hand.
    *  - "flow": de-dup by label (re-send replaces) and reorder the whole doc to
-   *    match the flow — for building the whole speech top-to-bottom. */
+   *    match the flow - for building the whole speech top-to-bottom. */
   async function sendOpsToDoc(ops: DocOp[], col: number, mode: "flow" | "cursor") {
     // ── CardMirror target ───────────────────────────────────────────────
     // Every send in the app funnels through here, so this one branch routes all
     // of them. Deliberately BEFORE ensureDocOpen(): when you're sending to
-    // CardMirror the built-in doc pane must NOT pop open — the two targets are
+    // CardMirror the built-in doc pane must NOT pop open - the two targets are
     // alternatives, and the built-in doc stays exactly as it was.
     // We serialize to CardMirror's own rich clipboard HTML and push it straight
     // into the addressed doc via the targeted /insert (CardMirror >= 1.5.0),
@@ -745,30 +746,30 @@
     // lands on the clipboard every time, as the ⌘V fallback for every failure.
     if (settings.docTarget === "cardmirror" && ops.length) {
       // Ask CardMirror which doc is the speech doc RIGHT NOW rather than
-      // trusting a cached answer — you re-designate it between speeches, and
+      // trusting a cached answer - you re-designate it between speeches, and
       // targets are session-scoped, so a cached one dies with a restart.
       await cardmirror.prepare();
       const doc = cardmirror.speechDoc;
-      // Address by CardMirror's doc UID, never the title — an unsaved doc has no
+      // Address by CardMirror's doc UID, never the title - an unsaved doc has no
       // usable title on either side. The title is only for the message below.
       const { html, resp } = await sendOpsToCardMirror(ops, doc?.target ?? null);
       const where = doc?.title ?? "CardMirror";
       if (!html) flashSend("Nothing to send");
-      else if (!cardmirror.running) flashSend("CardMirror isn't running — card copied, ⌘V to paste");
-      else if (!doc) flashSend("No CardMirror doc open — card copied, ⌘V to paste");
+      else if (!cardmirror.running) flashSend("CardMirror isn't running - card copied, ⌘V to paste");
+      else if (!doc) flashSend("No CardMirror doc open - card copied, ⌘V to paste");
       else if (resp?.pending === "consent")
-        flashSend("Approve Nimbus in CardMirror → Settings → Plugins — card copied, ⌘V to paste");
+        flashSend("Approve Nimbus in CardMirror → Settings → Plugins - card copied, ⌘V to paste");
       // The doc was open when we listed it and gone by the time we pushed. The
       // insert is refused outright rather than redirected into another document,
       // so nothing landed anywhere and the clipboard is the whole recovery.
       else if (resp?.error === "target-not-found")
-        flashSend(`${where} closed mid-send — card copied, ⌘V to paste`);
+        flashSend(`${where} closed mid-send - card copied, ⌘V to paste`);
       else if (resp && resp.ok === false)
-        flashSend(`CardMirror refused the card (${resp.error ?? "unknown"}) — copied, ⌘V to paste`);
+        flashSend(`CardMirror refused the card (${resp.error ?? "unknown"}) - copied, ⌘V to paste`);
       else flashSend(`Sent to ${where}`);
       return;
     }
-    // The editor has to exist before we can insert into it — with the pane
+    // The editor has to exist before we can insert into it - with the pane
     // closed, every one of these calls used to hit a null `docRef` and vanish.
     await ensureDocOpen();
     if (mode === "cursor") {
@@ -809,8 +810,8 @@
     });
   }
 
-  // Selection send → AT THE CURSOR: the current cell, or — when a range is
-  // selected — every selected cell's content, dropped where the cursor is.
+  // Selection send → AT THE CURSOR: the current cell, or - when a range is
+  // selected - every selected cell's content, dropped where the cursor is.
   function sendCellToDoc() {
     if (!store.activeSheetId) return;
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
@@ -843,6 +844,8 @@
   }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
+  /** Which kind of flow the "New flow" dialog will create. */
+  let newSheetKind = $state<"custom" | "cx">("custom");
   // Tab right-click menu + inline rename.
   let tabMenu = $state<{ id: string; x: number; y: number } | null>(null);
   let menuEl = $state<HTMLElement>();
@@ -988,7 +991,7 @@
     // also fire off the same keypress.
     // The timer is checked BEFORE that guard, and before the `inField` one
     // below: it's a floating window-level panel that has to open from anywhere
-    // in the round — mid-cell, mid-speech-doc, or with a rename box focused.
+    // in the round - mid-cell, mid-speech-doc, or with a rename box focused.
     // Safe to hoist because it is the one action with no counterpart on the doc
     // side, so there is nothing here for it to double-fire with.
     if (matchesAny(e, km.toggleTimer)) {
@@ -1087,9 +1090,14 @@
   }
 
   function createSheet() {
-    if (!newSheetTitle.trim()) return;
-    const id = store.addSheet(newSheetTitle.trim());
+    const cx = newSheetKind === "cx";
+    // A cross-ex flow can go in untitled - it defaults to "Cross-ex"; an
+    // ordinary flow still needs a name so its tab reads as something.
+    const title = newSheetTitle.trim() || (cx ? "Cross-ex" : "");
+    if (!title) return;
+    const id = store.addSheet(title, cx ? "cx" : "custom");
     newSheetTitle = "";
+    newSheetKind = "custom";
     addingSheet = false;
     openSheet(id);
   }
@@ -1173,7 +1181,7 @@
         </span>
       {/if}
       <!-- Document switcher: only exists when a partner's flow is open beside
-           yours (a "a flow each" session). Shown even in the compact top bar —
+           yours (a "a flow each" session). Shown even in the compact top bar -
            knowing WHOSE page you are typing on matters more than the space. -->
       {#if store.mirrors.length}
         <div class="docsw" title="Which flow you're looking at. Both are editable.">
@@ -1194,7 +1202,7 @@
         title={settings.compactTopBar ? "Show the full top bar" : "Compact top bar (hide the words)"}
       ><Icon name={settings.compactTopBar ? "maximize" : "minimize"} /></button>
       <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})"><Icon name="doc" /><span class="btn-lbl">Speech doc</span></button>
-      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards — drag onto the flow"><Icon name="layers" /><span class="btn-lbl">Quick cards</span></button>
+      <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards - drag onto the flow"><Icon name="layers" /><span class="btn-lbl">Quick cards</span></button>
       <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop running with the Nimbus plugin; the built-in doc always works offline.">
         <span class="send-to-label">Send to</span>
         <button
@@ -1228,10 +1236,10 @@
           </select>
         {/if}
       </div>
-      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer — stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})"><Icon name="clock" /><span class="btn-lbl">Timer</span></button>
-      <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank — edit what {combosLabel(km.authorLookup, mac)} offers"><Icon name="archive" /><span class="btn-lbl">Arguments</span></button>
+      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer - stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})"><Icon name="clock" /><span class="btn-lbl">Timer</span></button>
+      <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank - edit what {combosLabel(km.authorLookup, mac)} offers"><Icon name="archive" /><span class="btn-lbl">Arguments</span></button>
       <!-- ⚠ THREE states, not two. This used to be `connected ? live : idle`,
-           so a session that had dropped looked EXACTLY like no session at all —
+           so a session that had dropped looked EXACTLY like no session at all -
            same icon, same label, same colour. Mid-round that is the one thing
            you cannot afford to be ambiguous: a partner reported losing the
            connection, carrying on flowing, and only finding out later that
@@ -1239,7 +1247,7 @@
            currently delivering now says so on the toolbar, where you can see it
            without opening anything.
            `session.active` is "a session exists", `status` is "the relay is
-           answering", `peerOnline` is "they are actually there" — all three can
+           answering", `peerOnline` is "they are actually there" - all three can
            disagree, and the worrying combinations must not read as healthy. -->
       <button
         class="icon-btn"
@@ -1249,9 +1257,9 @@
         onclick={() => (showPartner = !showPartner)}
         title={session.active
           ? partnerOk
-            ? `Partner session ${session.code} — connected, edits are reaching ${session.peerEmail}`
-            : `Partner session ${session.code} — NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
-          : "Flow with a partner — share this flow live"}
+            ? `Partner session ${session.code} - connected, edits are reaching ${session.peerEmail}`
+            : `Partner session ${session.code} - NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
+          : "Flow with a partner - share this flow live"}
       ><Icon name={partnerOk ? "users" : partnerTrouble ? "alert" : "user"} /><span class="btn-lbl"
         >{partnerOk
           ? "Partner · live"
@@ -1261,7 +1269,7 @@
               : "Partner · reconnecting"
             : "Partner flow"}</span
       ></button>
-      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual — how everything works"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
+      <button class="icon-btn" onclick={() => (showManual = true)} title="Manual - how everything works"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
       <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">Keys</span></button>
     </div>
@@ -1281,7 +1289,7 @@
           use:pinchZoom={flowZoomOpts}
         >
           <!-- The formatting ribbon lives at the top of the FLOW column, not
-               spanning the whole window — so with the doc open it locks over the
+               spanning the whole window - so with the doc open it locks over the
                flow only and the doc gets its own full-height column beside it. -->
           {#if !atHome}
             <Ribbon
@@ -1310,10 +1318,14 @@
             <!-- Zoom applies to the single main flow only (WebView2/Chromium
                  `zoom`); the spread view zooms its own panels independently. -->
             <div class="zoom-wrap" style="zoom: {settings.zoom}">
-              <Grid {sheet} />
+              {#if sheet.kind === "cx"}
+                <CxGrid {sheet} />
+              {:else}
+                <Grid {sheet} />
+              {/if}
             </div>
           {/if}
-          {#if round}
+          {#if round && settings.smartBlocksEnabled}
             <SmartTray
               onjump={(sheetId, row, col) => {
                 openSheet(sheetId);
@@ -1352,10 +1364,10 @@
                   <button
                     class="doc-tab-star"
                     class:on={isSpeech}
-                    title={isSpeech ? "This is your speech doc — ` / ~ from any other doc sends cards here" : "Make this the speech doc (the ` / ~ send target)"}
+                    title={isSpeech ? "This is your speech doc - ` / ~ from any other doc sends cards here" : "Make this the speech doc (the ` / ~ send target)"}
                     onclick={() => makeSpeechDoc(d.id)}
                   >{isSpeech ? "★" : "☆"}</button>
-                  <button class="doc-tab-name" onclick={() => docTabClick(d.id)} ondblclick={() => (renamingDocId = d.id)} title={out ? "In its own window — click to focus it" : "Double-click to rename"}>{d.name}</button>
+                  <button class="doc-tab-name" onclick={() => docTabClick(d.id)} ondblclick={() => (renamingDocId = d.id)} title={out ? "In its own window - click to focus it" : "Double-click to rename"}>{d.name}</button>
                   {#if out}
                     <button class="doc-tab-icon" title="Dock back into Nimbus (make it the main doc)" onclick={() => dockDoc(d.id)}>⤓</button>
                   {:else}
@@ -1418,12 +1430,31 @@
           role="dialog"
           tabindex="-1"
         >
-          <h3>New sheet</h3>
+          <h3>New flow</h3>
+          <div class="kind-pick">
+            <button
+              class="seg"
+              class:on={newSheetKind === "custom"}
+              onclick={() => (newSheetKind = "custom")}
+            >Flow sheet</button>
+            <button
+              class="seg"
+              class:on={newSheetKind === "cx"}
+              onclick={() => (newSheetKind = "cx")}
+            >Cross-ex (Q&amp;A)</button>
+          </div>
           <input
-            placeholder="Title (e.g. Cap K, Econ DA, T-Subsets)"
+            placeholder={newSheetKind === "cx"
+              ? "Title (e.g. 1AC CX) - optional"
+              : "Title (e.g. Cap K, Econ DA, T-Subsets)"}
             bind:value={newSheetTitle}
             onkeydown={(e) => e.key === "Enter" && createSheet()}
           />
+          <p class="kind-note">
+            {newSheetKind === "cx"
+              ? "A simple two-column flow: the question asked, and the answer."
+              : "A normal flow sheet across the round's speech columns."}
+          </p>
           <button class="primary" onclick={createSheet}>Create</button>
         </div>
       </div>
@@ -1464,7 +1495,7 @@
     <!-- A partner asking to be let in must be seen even with the panel shut. -->
     {#if session.pending && !showPartner}
       <button class="join-toast" onclick={() => (showPartner = true)}>
-        <strong>{session.pending.email}</strong> wants to join your flow — review
+        <strong>{session.pending.email}</strong> wants to join your flow - review
       </button>
     {/if}
 
@@ -1673,7 +1704,7 @@
     font-size: 11px;
     letter-spacing: 0.01em;
   }
-  /* ⚠ Compact is a splitscreen/second-monitor size — the words go, and every
+  /* ⚠ Compact is a splitscreen/second-monitor size - the words go, and every
      button returns to the 20px circle it was before labels existed. Measured at
      1366 and 1024 wide; see the note on .topbar.compact. */
   .topbar.compact .btn-lbl { display: none; }
@@ -1685,7 +1716,7 @@
   }
   /* A live session that is NOT currently delivering. Deliberately loud: the
      failure this replaces was silent, and amber next to the green "live" state
-     is the whole point — you must be able to tell them apart at a glance,
+     is the whole point - you must be able to tell them apart at a glance,
      mid-speech, without reading the label. */
   .icon-btn.trouble {
     border-color: #b8860b;
@@ -1895,7 +1926,7 @@
     border-radius: 0;
     /* Tab text takes the sheet's color, like your template's blue/red pages */
     color: var(--stripe, var(--text-dim));
-    /* Inactive tabs recede — no stripe, half opacity — so the current sheet
+    /* Inactive tabs recede - no stripe, half opacity - so the current sheet
      * reads unambiguously. */
     opacity: 0.5;
     /* Settings → Sheet tabs → Size. Falls back to the 1.3.0 values so the bar
@@ -2026,6 +2057,21 @@
     margin: 0;
     font-size: 14px;
   }
+  .kind-pick {
+    display: flex;
+    gap: 8px;
+  }
+  .kind-pick .seg {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 12px;
+    text-align: center;
+  }
+  .kind-note {
+    margin: -4px 0 0;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
   .modal input {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -2074,12 +2120,12 @@
 
   /* ⚠ LAST IN THE FILE, deliberately. These re-state `.icon-btn` at the same
      specificity as the base rule above, so source order is the only thing that
-     makes them win — move this block up and the labelled sizing takes over again
+     makes them win - move this block up and the labelled sizing takes over again
      at every width. (Same trap the ribbon's size steps hit twice.)
 
      A plain width query is correct HERE, unlike the ribbon: the top bar sits
      above the panes and spans the whole window, so opening the speech doc does
-     not narrow it. Measured both ways — 1280px with the doc open and closed.
+     not narrow it. Measured both ways - 1280px with the doc open and closed.
 
      The breakpoint is measured, not guessed. Labelled, the bar needs ~1100px for
      a short round name; at 1024 it overflowed by 49px and the last button sat

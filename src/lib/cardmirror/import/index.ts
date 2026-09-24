@@ -24,7 +24,7 @@ const IMAGE_CONTENT_TYPES: Record<string, string> = {
   webp: 'image/webp',
   tif: 'image/tiff',
   tiff: 'image/tiff',
-  // Windows metafile formats — common in Word docs (vector graphics
+  // Windows metafile formats - common in Word docs (vector graphics
   // pasted from Excel, PowerPoint, etc.).
   emf: 'image/x-emf',
   wmf: 'image/x-wmf',
@@ -43,7 +43,7 @@ function inferContentType(path: string): string {
  */
 export async function fromDocx(
   bytes: Uint8Array | ArrayBuffer,
-  /** When provided, is filled with `headingId → srcPara` for every heading —
+  /** When provided, is filled with `headingId → srcPara` for every heading -
    *  the provenance the `.docx` source-anchor injector needs. Omitted on the
    *  normal import path (zero extra cost). */
   provenanceOut?: Map<string, number>,

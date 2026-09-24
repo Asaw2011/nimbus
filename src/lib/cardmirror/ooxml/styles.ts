@@ -4,20 +4,20 @@
  * Per ARCHITECTURE.md §3 (round-trip contract / fungibility), our exports
  * must produce style definitions matching what Verbatim itself produces.
  * This block is sourced verbatim (heh) from `Debate.dotm:word/styles.xml`
- * — see NOTES-verbatim.md §1, §7 for the canonical names and inheritance.
+ * - see NOTES-verbatim.md §1, §7 for the canonical names and inheritance.
  *
  * Style IDs we emit (the docx-level identifiers, not the display aliases):
- *   - Heading1 (alias: Pocket)        — paragraph style, outline level 0
- *   - Heading2 (alias: Hat)           — paragraph style, outline level 1
- *   - Heading3 (alias: Block)         — paragraph style, outline level 2
- *   - Heading4 (alias: Tag)           — paragraph style, outline level 3
- *   - Style13ptBold (alias: Cite)     — character style
- *   - StyleUnderline (alias: Underline) — character style
- *   - Emphasis                        — character style (with bdr)
- *   - Analytic / AnalyticChar         — Advanced Verbatim linked pair
- *   - Undertag / UndertagChar         — Advanced Verbatim linked pair
- *   - Normal                          — required default style
- *   - DefaultParagraphFont            — required default character style
+ *   - Heading1 (alias: Pocket)        - paragraph style, outline level 0
+ *   - Heading2 (alias: Hat)           - paragraph style, outline level 1
+ *   - Heading3 (alias: Block)         - paragraph style, outline level 2
+ *   - Heading4 (alias: Tag)           - paragraph style, outline level 3
+ *   - Style13ptBold (alias: Cite)     - character style
+ *   - StyleUnderline (alias: Underline) - character style
+ *   - Emphasis                        - character style (with bdr)
+ *   - Analytic / AnalyticChar         - Advanced Verbatim linked pair
+ *   - Undertag / UndertagChar         - Advanced Verbatim linked pair
+ *   - Normal                          - required default style
+ *   - DefaultParagraphFont            - required default character style
  */
 
 import { XML_PROLOG } from './xml';
@@ -335,18 +335,18 @@ export const PSTYLE_TO_NODE: Record<string, string> = {
 
 /** Parsed metadata for one `<w:style>` from `word/styles.xml`. */
 export interface StyleInfo {
-  /** styleId — the `w:styleId` attr, i.e. the token a paragraph's
+  /** styleId - the `w:styleId` attr, i.e. the token a paragraph's
    *  `<w:pStyle w:val>` references. */
   id: string;
   /** Human-readable name from `<w:name w:val>`, or null if absent. */
   name: string | null;
   /** `w:type` attr: 'paragraph' | 'character' | 'table' | 'numbering'. */
   type: string | null;
-  /** Effective outline level — the style's own `<w:pPr>/<w:outlineLvl>`, else
+  /** Effective outline level - the style's own `<w:pPr>/<w:outlineLvl>`, else
    *  resolved through `basedOn` (or null). Used to place legacy heading styles at
    *  the right level, and to recognize a heading/tag authored only via a style. */
   outlineLevel?: number | null;
-  /** Effective bold — the style's own `<w:rPr>/<w:b>`, else resolved through
+  /** Effective bold - the style's own `<w:rPr>/<w:b>`, else resolved through
    *  `basedOn` (true / false / null). Used to recognize a tag whose bold comes
    *  from its style chain rather than direct run formatting. */
   bold?: boolean | null;
@@ -405,7 +405,7 @@ export function fallbackNodeType(info: StyleInfo | undefined): string | null {
  *
  *  The export side always normalizes back to the modern styleId,
  *  so round-tripping an old file through CardMirror produces a
- *  doc with current rStyle ids — no need to track which dialect
+ *  doc with current rStyle ids - no need to track which dialect
  *  the file came from. */
 export const RSTYLE_TO_MARK: Record<string, string> = {
   // ─── Underline named-style ──────────────────────────────────
@@ -422,7 +422,7 @@ export const RSTYLE_TO_MARK: Record<string, string> = {
   // (styleId `StyleStyleBold12pt`) as the cite character style.
   StyleStyleBold12pt: 'cite_mark',
   // Some files carry the cite style under its alias as the styleId
-  // (`Cite`) instead of `Style13ptBold` — e.g. after a rename, or in an
+  // (`Cite`) instead of `Style13ptBold` - e.g. after a rename, or in an
   // older/variant Verbatim distribution. Safe to map: an `rStyle` only ever
   // references a character style, so a run-level `Cite` is the cite mark.
   Cite: 'cite_mark',

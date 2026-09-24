@@ -34,8 +34,8 @@ export function newHeadingId(): string {
  *  The cmir loader runs this to repair pre-alpha.6 files: the F2
  *  schema-fitter could synthesize tag nodes from `attrs.default`
  *  (`id: null`), bypassing `newHeadingId()`. An id-less heading is
- *  functionally invisible — the nav pane skips it and the
- *  cursor→nav highlight falls back to the previous tag — so we
+ *  functionally invisible - the nav pane skips it and the
+ *  cursor→nav highlight falls back to the previous tag - so we
  *  stamp at load. This also catches any future code path that
  *  constructs a heading without `newHeadingId()`. */
 export function stampMissingHeadingIds(doc: PMNode): PMNode {

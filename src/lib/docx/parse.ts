@@ -9,7 +9,7 @@ import { unzipSync, strFromU8 } from "fflate";
 
 /**
  * A single formatting run inside a card body paragraph. Debate cards are
- * defined by their run-level formatting — the highlighted words are what's
+ * defined by their run-level formatting - the highlighted words are what's
  * read aloud, underlined words are the "cut", bold words are emphasis, and
  * tiny (≤8pt) words are unread context. Flattening this to plain text (the
  * old behaviour) destroys the card. We preserve it.
@@ -20,18 +20,18 @@ export interface DocRun {
   u?: boolean;
   /** Bold / Emphasis (power words) */
   b?: boolean;
-  /** OOXML highlight NAME (yellow/cyan/green/…) — the spoken/read-aloud portion.
+  /** OOXML highlight NAME (yellow/cyan/green/…) - the spoken/read-aloud portion.
    *  CardMirror's schema + CSS colour it via a data-highlight attribute. */
   hl?: string;
   /** Small / condensed unread context (≤8pt, no highlight/underline) */
   sm?: boolean;
   /** Font size in half-points (OOXML), when explicitly set. */
   sz?: number;
-  /** Cite text (Style13ptBold / Cite) — author + year. */
+  /** Cite text (Style13ptBold / Cite) - author + year. */
   cite?: boolean;
   /** Italic (journal names, emphasis). */
   i?: boolean;
-  /** Emphasis character style — boxed + underlined + 11pt (distinct from plain bold). */
+  /** Emphasis character style - boxed + underlined + 11pt (distinct from plain bold). */
   emph?: boolean;
 }
 
@@ -112,7 +112,7 @@ function extractRuns(p: Element): DocRun[] {
       const iVal = attrVal(iEl, "val");
       const hasI = !!iEl && iVal !== "0" && iVal !== "false";
 
-      // Highlight (spoken) — keep the OOXML name so CardMirror's schema/CSS
+      // Highlight (spoken) - keep the OOXML name so CardMirror's schema/CSS
       // renders the exact highlighter colour via a data-highlight attribute.
       const hlVal = attrVal(firstChild(rPr, "highlight"), "val");
       const hl = hlVal && hlVal !== "none" ? hlVal : undefined;
@@ -159,7 +159,7 @@ const VERBATIM_STYLE_LEVEL: Record<string, number> = {
 export function parseDocx(buf: ArrayBuffer): ParsedDoc {
   const files = unzipSync(new Uint8Array(buf));
   const docXml = files["word/document.xml"];
-  if (!docXml) throw new Error("No word/document.xml — is this a .docx?");
+  if (!docXml) throw new Error("No word/document.xml - is this a .docx?");
   const xml = new DOMParser().parseFromString(strFromU8(docXml), "application/xml");
   if (xml.querySelector("parsererror")) {
     throw new Error("Couldn't parse the document XML.");
@@ -180,7 +180,7 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
     // Analytics behave like a tag-level heading (they carry their own body).
     const level = analytic ? 4 : headingLevel(p);
     if (level === null) {
-      // Body text belongs to the deepest open heading — keep both the plain
+      // Body text belongs to the deepest open heading - keep both the plain
       // text (for the flow) and the styled runs (for the speech doc).
       const top = stack[stack.length - 1];
       if (top) {
@@ -211,21 +211,21 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
 
 /**
  * Lightweight heading-only extraction for the content index. Parses the docx and
- * collects ONLY heading/tag/analytic paragraph texts — it never touches body
+ * collects ONLY heading/tag/analytic paragraph texts - it never touches body
  * runs (the expensive part of parseDocx), so indexing a whole library stays
  * cheap. Body paragraphs cost only a pStyle check before they're skipped.
  */
 export function extractHeadings(buf: ArrayBuffer): Array<{ text: string; level: number; analytic: boolean }> {
   const files = unzipSync(new Uint8Array(buf));
   const docXml = files["word/document.xml"];
-  if (!docXml) throw new Error("No word/document.xml — is this a .docx?");
+  if (!docXml) throw new Error("No word/document.xml - is this a .docx?");
   const xml = new DOMParser().parseFromString(strFromU8(docXml), "application/xml");
   if (xml.querySelector("parsererror")) throw new Error("Couldn't parse the document XML.");
   const out: Array<{ text: string; level: number; analytic: boolean }> = [];
   for (const p of Array.from(xml.getElementsByTagNameNS("*", "p"))) {
     const analytic = isAnalyticStyle(p);
     const level = analytic ? 4 : headingLevel(p);
-    if (level === null) continue; // body text — skip (that's what keeps this light)
+    if (level === null) continue; // body text - skip (that's what keeps this light)
     const text = paragraphText(p).trim();
     if (text) out.push({ text, level, analytic });
   }
@@ -273,7 +273,7 @@ function paragraphText(p: Element): string {
 /** Short type chip for a node (shown on the flow cell it's dropped into). */
 export function nodeChip(node: DocNode): string {
   if (node.isAnalytic) return "ANL";
-  // Level 4 is a CARD (a tag is just the front of a card — never labelled "TAG").
+  // Level 4 is a CARD (a tag is just the front of a card - never labelled "TAG").
   return ["", "POC", "HAT", "BLK", "CARD"][node.level] ?? "CARD";
 }
 
@@ -281,10 +281,10 @@ export function nodeChip(node: DocNode): string {
  *  author) plus the bare author, so the receiving cell can render it bold. */
 export interface FlowRow {
   text: string;
-  /** The cite author, when this row is a card — recorded so the cell bolds it. */
+  /** The cite author, when this row is a card - recorded so the cell bolds it. */
   author?: string;
   /**
-   * Evidence kind, taken from the row's STRUCTURAL role in the doc — the same
+   * Evidence kind, taken from the row's STRUCTURAL role in the doc - the same
    * split the walk below already makes, and the same one the adapter uses
    * (isAnalytic → analytic, level ≥ 4 tag → card). Carried through so an
    * imported flow marks its cells the way an author-bank insert does.
@@ -297,7 +297,7 @@ export interface FlowRow {
 }
 
 /**
- * Flatten a section into flow rows — ONE row per card/analytic tag beneath it.
+ * Flatten a section into flow rows - ONE row per card/analytic tag beneath it.
  * Pocket/hat/block headings are structural only: they never become their own
  * row (that's why a block header no longer appears in the flow). Each carded
  * tag leads with its cite author ("Weissmann 16  Rates DA"), and the author is
@@ -319,7 +319,7 @@ export function flowRows(node: DocNode): FlowRow[] {
           );
         }
       }
-      // Shallower headings contribute no row of their own — recurse to reach
+      // Shallower headings contribute no row of their own - recurse to reach
       // the tags beneath them.
       walk(child);
     }
@@ -337,11 +337,11 @@ export function flowLines(node: DocNode): string[] {
 // The naive "one sheet per top-level heading" collapses a 1NC's whole off-case
 // block (all under one "OFF" hat) into a single sheet. positionSections walks
 // past wrapper headings to the level that actually holds positions, and expands
-// an OFF *container* into its children — while keeping an "Adv---Costs" whole
+// an OFF *container* into its children - while keeping an "Adv---Costs" whole
 // (all of it answers one advantage → one sheet).
 
 /**
- * A heading that merely GROUPS off-cases — a bare "OFF" / "1NC — Off-Case" hat
+ * A heading that merely GROUPS off-cases - a bare "OFF" / "1NC - Off-Case" hat
  * with the actual positions beneath it, which must be expanded so each position
  * gets its own sheet.
  *
@@ -352,7 +352,7 @@ export function flowLines(node: DocNode): string[] {
  *    made "OFF---PTX" a container, so its four taglines each became a sheet.
  * 2. A container holds positions, so at least one child must itself be a
  *    heading. When everything under it is a card/analytic tag, this IS the
- *    position — expanding it is what produced one sheet per tagline.
+ *    position - expanding it is what produced one sheet per tagline.
  */
 function isOffContainer(node: DocNode): boolean {
   if (node.children.length < 2) return false;
@@ -365,7 +365,7 @@ function isOffContainer(node: DocNode): boolean {
 /** Strip speech suffixes (Costs---1AC → Costs) and an Adv--- prefix. */
 export function cleanSectionTitle(raw: string): string {
   let t = raw.trim();
-  // Leading speech marker: "1NC---OFF" → "OFF", "2AC — AT: Cap" → "AT: Cap".
+  // Leading speech marker: "1NC---OFF" → "OFF", "2AC - AT: Cap" → "AT: Cap".
   // "off" is in here too so "OFF---PTX" → "PTX", matching how 1NC---/ADV--- are
   // already stripped. A separator is required, so a bare "OFF" heading is left
   // alone and still falls through to the generic-title path below.
@@ -378,7 +378,7 @@ export function cleanSectionTitle(raw: string): string {
     "",
   );
   t = t.replace(/^\s*adv(antage)?\s*[-–—:]+\s*/i, ""); // Adv---Costs → Costs
-  // Trailing speech marker: "Costs---1AC", "Impact — 2NC".
+  // Trailing speech marker: "Costs---1AC", "Impact - 2NC".
   t = t.replace(/\s*[-–—]{1,3}\s*(1ac|2ac|1nc|2nc|1nr|2nr|1ar|2ar|cx|nc|nr|ac|ar)\s*$/i, "");
   return t.trim() || raw.trim();
 }
@@ -429,7 +429,7 @@ export function firstTagText(node: DocNode): string {
  * Could this text plausibly be a POSITION NAME ("Rates DA", "States CP",
  * "T-Substantial") rather than a card's tagline?
  *
- * Position names are short labels — a few words at most. A tagline is a whole
+ * Position names are short labels - a few words at most. A tagline is a whole
  * claim ("Dems win the House now, despite gerrymandering."), which makes a
  * terrible sheet name AND, since it's also the section's first flow row, ends
  * up printed twice. So anything sentence-shaped is rejected: better to leave a
@@ -441,13 +441,13 @@ function isNameLike(t: string): boolean {
   if (s.length > 40) return false; // a label is short; this is prose
   if (s.split(/\s+/).filter(Boolean).length > 4) return false; // >4 words = a claim
   if (/[.!?:;,]$/.test(s)) return false; // sentence / lead-in punctuation
-  if (/,/.test(s)) return false; // clause punctuation — not a label
+  if (/,/.test(s)) return false; // clause punctuation - not a label
   return true;
 }
 
 /**
  * Display title per section. A cleaned title is kept as-is UNLESS it's useless
- * as a sheet name — either generic ("OFF", "1NC") or shared by 2+ sections (the
+ * as a sheet name - either generic ("OFF", "1NC") or shared by 2+ sections (the
  * classic 1NC where every off-case block is labeled "1NC---OFF"). In that case
  * we fall back to the section's first tagline ONLY when it reads like a name
  * ("T-Taxes", "Rates DA", …); otherwise the section is left untitled rather
@@ -471,7 +471,7 @@ export function sectionTitles(sections: DocNode[]): string[] {
     const useless =
       generic.has(key) || (counts.get(key) ?? 0) >= 2 || !isNameLike(clean);
     if (!useless) return clean;
-    // Not a usable name — fall back to the first tagline, but only if it reads
+    // Not a usable name - fall back to the first tagline, but only if it reads
     // like a label. A full sentence is left untitled instead.
     const first = firstTagText(s);
     return isNameLike(first) ? first : "";
@@ -498,7 +498,7 @@ export function normalizeAuthor(raw: string): string {
 
 /**
  * The tidied cite author of a card node ("Pestaina 24"), or "" when it has no
- * cite — an analytic, or a tag whose cite we could not parse.
+ * cite - an analytic, or a tag whose cite we could not parse.
  *
  * Exported so a block's parts can render author-first with the author bold, the
  * way a card inserted straight into a cell already does. Derived on demand from
@@ -526,15 +526,15 @@ export interface BankArg {
   cite?: string;
   analytic?: boolean;
   /** The full parsed card/analytic node, so an inserted argument carries its
-   *  real substance (body + cite) — you can send it to the speech doc intact. */
+   *  real substance (body + cite) - you can send it to the speech doc intact. */
   card?: DocNode;
 }
 
 /**
  * Walk the heading tree and bank every ARGUMENT: carded tags (a tag with a real
  * cite author) and analytics (a deliberate, separately-styled argument with no
- * card behind it). An author-LESS tag — a section label styled as a tag, a
- * stray header — is NOT a card and is skipped, so the author bank stays clean.
+ * card behind it). An author-LESS tag - a section label styled as a tag, a
+ * stray header - is NOT a card and is skipped, so the author bank stays clean.
  */
 export function collectArguments(nodes: DocNode[]): BankArg[] {
   const out: BankArg[] = [];
@@ -542,7 +542,7 @@ export function collectArguments(nodes: DocNode[]): BankArg[] {
     for (const n of ns) {
       const text = n.text.trim();
       if (n.isAnalytic) {
-        // Analytics are their own style, not tagline text — always bank them.
+        // Analytics are their own style, not tagline text - always bank them.
         if (text) out.push({ tag: text, analytic: true, card: n });
       } else if (n.level >= 4) {
         const cite = citeTextOf(n);
@@ -562,7 +562,7 @@ export function collectArguments(nodes: DocNode[]): BankArg[] {
 export const collectCards = collectArguments;
 
 // ---- matching answer docs to existing sheets ------------------------------
-// A 2AC doc says "AT: Cap K" / "A2 Econ DA" — strip the answer prefixes and
+// A 2AC doc says "AT: Cap K" / "A2 Econ DA" - strip the answer prefixes and
 // fuzzy-match against existing sheet titles so answers land on the right flow.
 
 const ANSWER_PREFIX_RE =

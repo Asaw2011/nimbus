@@ -1,7 +1,7 @@
 // .docx exporter that round-trips into CardMirror. CardMirror's importer maps
 // by character-style ID (Emphasis → emphasis_mark, Style13ptBold → cite_mark,
 // StyleUnderline → underline_mark) and paragraph style (Heading1-4 → Pocket/
-// Hat/Block/Tag), so we emit those exact styles — not just direct formatting —
+// Hat/Block/Tag), so we emit those exact styles - not just direct formatting -
 // plus a styles.xml that defines them. Analytics are omitted on export.
 
 import { zipSync, strToU8 } from "fflate";
@@ -62,7 +62,7 @@ function paraXml(node: PMNode, styleName: string): string {
 
 function walk(node: PMNode, out: string[]): void {
   const name = node.type.name;
-  // Analytics are the flow-er's own analysis — omitted from the sent doc.
+  // Analytics are the flow-er's own analysis - omitted from the sent doc.
   if (name === "analytic_unit" || name === "analytic") return;
   const style = P_STYLE[name];
   if (style && node.inlineContent) {

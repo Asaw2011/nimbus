@@ -8,7 +8,7 @@ export const debateSchema = new Schema({
   nodes: {
     doc: { content: "block+" },
 
-    // Debate heading hierarchy — each carries a stable UUID for future transclusion
+    // Debate heading hierarchy - each carries a stable UUID for future transclusion
     pocket: {
       content: "inline*",
       group: "block",

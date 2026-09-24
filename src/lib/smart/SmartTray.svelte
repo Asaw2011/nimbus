@@ -2,7 +2,7 @@
   // Smart blocks tray. Collapsed it is one small pill in the corner of
   // the flow; open it shows suggestions and the round kit.
   //
-  // ⚠ It never takes a keystroke from the grid and never inserts on its own —
+  // ⚠ It never takes a keystroke from the grid and never inserts on its own -
   // every insert is a click. Tab-to-accept, which does touch cell key
   // handling, is deliberately a later step.
   import { untrack } from "svelte";
@@ -143,7 +143,7 @@
   }
 
   /**
-   * The File tab's rows — the same tree Ctrl+K shows inside a file: every
+   * The File tab's rows - the same tree Ctrl+K shows inside a file: every
    * heading and card, foldable, and while searching only matching branches
    * (with their ancestors) stay.
    */
@@ -324,7 +324,7 @@
               </div>
             {/each}
             {#if list.length > SHOWN}
-              <p class="empty">+{list.length - SHOWN} older — answer or × some of these to see them.</p>
+              <p class="empty">+{list.length - SHOWN} older - answer or × some of these to see them.</p>
             {/if}
           {/if}
         </div>
@@ -350,7 +350,7 @@
               {/if}
             </div>
             {#if !canInsert}
-              <p class="hint">Click a cell first, then click a block to put it there — or drag it onto any cell.</p>
+              <p class="hint">Click a cell first, then click a block to put it there - or drag it onto any cell.</p>
             {/if}
 
             {#if tab === "overviews"}
@@ -373,7 +373,7 @@
               {:else}
                 <p class="empty">
                   No overviews found. Nimbus looks for sections with a heading named <b>Main</b> and takes the first block under each one
-                  — and when you're aff, the first block of each advantage in a 2AC file's <b>CASE</b> section.
+                  - and when you're aff, the first block of each advantage in a 2AC file's <b>CASE</b> section.
                 </p>
               {/each}
             {:else}
@@ -443,7 +443,7 @@
                 class="pin"
                 class:on={pinned}
                 onclick={() => (pinned ? smartKit.unpin(f.key) : smartKit.pin(f.key))}
-                title={pinned ? "In every round — click to keep it in this round only" : "Keep this file in every round"}
+                title={pinned ? "In every round - click to keep it in this round only" : "Keep this file in every round"}
               >📌</button>
               <span class="fname" title={f.key.startsWith("copy:") ? "Not found in your Doc Search library, so Nimbus keeps a copy made when you dropped it. Drop it again to update it." : f.key}>
                 {f.name.replace(/\.docx$/i, "")}
@@ -470,14 +470,14 @@
           {#each smartKit.library as f (f.key)}
             {@render fileRow(f, true)}
           {:else}
-            <p class="empty">Pin 📌 a file below to keep it in every round — T, theory, framework, your case neg.</p>
+            <p class="empty">Pin 📌 a file below to keep it in every round - T, theory, framework, your case neg.</p>
           {/each}
 
           <div class="section">This round</div>
           {#each smartKit.files.filter((f) => !smartKit.inLibrary(f.key)) as f (f.key)}
             {@render fileRow(f, false)}
           {:else}
-            <p class="empty">No files yet. Add the exact files you want suggestions from — the newest midterms file, not all four.</p>
+            <p class="empty">No files yet. Add the exact files you want suggestions from - the newest midterms file, not all four.</p>
           {/each}
           <div class="dropzone">
             <button class="add" onclick={addFiles}>+ Add files…</button>
@@ -518,7 +518,7 @@
     ondragover={onDragOver}
     ondragleave={() => (dropping = false)}
     ondrop={onDrop}
-    title="Smart blocks (beta) — drop .docx files here to add them to the round kit"
+    title="Smart blocks (beta) - drop .docx files here to add them to the round kit"
   >
     ✦ {list.length ? `${list.length} suggestion${list.length === 1 ? "" : "s"}` : "Smart blocks"}
   </button>

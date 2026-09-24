@@ -37,7 +37,7 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     };
   } catch (err) {
     // Never swallow this silently. A missing capability grant or a bad manifest
-    // throws here and is otherwise indistinguishable from "you're up to date" —
+    // throws here and is otherwise indistinguishable from "you're up to date" -
     // which is exactly how a broken updater stays invisible for months.
     console.error("checkForUpdate failed", err);
     return null;
