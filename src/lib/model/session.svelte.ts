@@ -261,6 +261,90 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
 }
 
 /**
+ * After re-seeding a shadow from the whole document, put back everything of
+ * OURS that had not been sent yet, so the next diff still sends it.
+ *
+ * ⚠ THE SHADOW MUST NOT LIE — the receive-side route.
+ *
+ * Applying their change re-seeds the shadow from the document, so their edit
+ * isn't diffed straight back to them. But the document also holds OUR edits
+ * from since the last 250ms tick, and the re-seed recorded those as delivered
+ * too. With both partners typing (lanes), whatever you typed in a cell just
+ * before one of their frames landed never went out — usually the end of the
+ * cell, since the next keystroke would have resent the whole of it. Found by
+ * the two-lane test for the Cloudflare relay; it happened on Supabase too.
+ *
+ * `next` is the fresh shadow (mutated here), `old` the shadow before their
+ * change, `pending` our unsent deltas diffed against `old` BEFORE it landed,
+ * `theirs` what they sent. A cell they overwrote is left alone: both sides now
+ * hold their value. Returns true if anything was put back.
+ */
+function keepUnsent(next: Shadow, old: Shadow, pending: Delta[], theirs: Delta[]): boolean {
+  if (!pending.length) return false;
+  const touched = new Set<string>();
+  const touchedMeta = new Set<string>();
+  for (const d of theirs) {
+    if (d.t === "cell" || d.t === "cellpart") touched.add(`${d.s}|${d.r}|${d.c}`);
+    else if (d.t === "sheetmeta") touchedMeta.add(d.s);
+    else if (d.t === "meta") touchedMeta.add(`@${d.k}`);
+  }
+  const unset = (m: Map<string, string>, key: string, was: string | undefined) => {
+    if (was === undefined) m.delete(key);
+    else m.set(key, was);
+  };
+  let kept = false;
+  for (const d of pending) {
+    switch (d.t) {
+      case "cell": {
+        const key = `${d.s}|${d.r}|${d.c}`;
+        if (touched.has(key)) break;
+        unset(next.cells, key, old.cells.get(key));
+        kept = true;
+        break;
+      }
+      case "rowins": {
+        // Not theirs yet: forget the row, and its contents, so both re-send.
+        const rows = next.rows.get(d.s);
+        if (rows) next.rows.set(d.s, rows.filter((id) => id !== d.id));
+        for (const key of [...next.cells.keys()]) if (key.startsWith(`${d.s}|${d.id}|`)) next.cells.delete(key);
+        kept = true;
+        break;
+      }
+      case "rowdel": {
+        // Still theirs: remember the row so its removal is sent again.
+        const rows = next.rows.get(d.s);
+        if (rows && !rows.includes(d.r)) next.rows.set(d.s, [...rows, d.r]);
+        kept = true;
+        break;
+      }
+      case "sheetadd": {
+        const id = d.sheet.id;
+        next.sheetMeta.delete(id);
+        next.rows.delete(id);
+        for (const key of [...next.cells.keys()]) if (key.startsWith(`${id}|`)) next.cells.delete(key);
+        kept = true;
+        break;
+      }
+      case "sheetdel":
+        if (!next.sheetOrder.includes(d.s)) next.sheetOrder = [...next.sheetOrder, d.s];
+        kept = true;
+        break;
+      case "sheetmeta":
+        if (touchedMeta.has(d.s)) break;
+        unset(next.sheetMeta, d.s, old.sheetMeta.get(d.s));
+        kept = true;
+        break;
+      case "meta":
+        if (touchedMeta.has(`@${d.k}`)) break;
+        unset(next.sheetMeta, `@${d.k}`, old.sheetMeta.get(`@${d.k}`));
+        kept = true;
+        break;
+    }
+  }
+  return kept;
+}
+
+/**
  * Apply a delta from the other side.
  *
  * Deliberately TOLERANT: anything that refers to a sheet or row we don't have
@@ -1101,6 +1185,17 @@ class SessionStore {
         // you. Reported from a real round, and it corrupts live typing, so the
         // anchor is by row id - the one thing an insert cannot renumber.
         const anchor = this.cursorAnchor();
+        // What of OURS hasn't gone out yet — taken BEFORE their change lands,
+        // so the re-seed below can't swallow it. See `keepUnsent`. Skipped when
+        // the stamp says nothing changed since our last send (the usual case
+        // while only they are typing); the live document is diffed directly,
+        // which reads the proxy without cloning it.
+        const oldShadow = this.shadows.get(docId);
+        const before = store.docById(docId);
+        const unsent =
+          oldShadow && before && this.published.get(docId) !== (before.updatedAt ?? 0)
+            ? diffRound(before, oldShadow).deltas
+            : [];
         this.applying = true;
         try {
           const landed = store.applyRemoteToDoc(docId, (r) => {
@@ -1134,13 +1229,19 @@ class SessionStore {
           // Re-seed so their change isn't diffed back out as ours next tick.
           const doc = store.docById(docId);
           if (doc) {
-            this.shadows.set(docId, diffRound($state.snapshot(doc) as Round, emptyShadow()).next);
-            // The shadow now matches the document exactly, so there is nothing
-            // to send - and applying their change bumped `updatedAt`, which
-            // would otherwise make the next tick do a full diff to discover
-            // that. Recording the stamp alongside the shadow keeps the two
-            // saying the same thing.
-            this.published.set(docId, doc.updatedAt ?? 0);
+            const next = diffRound($state.snapshot(doc) as Round, emptyShadow()).next;
+            const kept = oldShadow ? keepUnsent(next, oldShadow, unsent, deltas) : false;
+            this.shadows.set(docId, next);
+            // With nothing of ours pending, the shadow now matches the document
+            // exactly, so there is nothing to send - and applying their change
+            // bumped `updatedAt`, which would otherwise make the next tick do a
+            // full diff to discover that. Recording the stamp alongside the
+            // shadow keeps the two saying the same thing.
+            // ⚠ But NOT when `keepUnsent` put something back: the stamp would
+            // make the next tick skip the diff, and the edit it just saved from
+            // the re-seed would sit unsent until something else changed.
+            if (kept) this.published.delete(docId);
+            else this.published.set(docId, doc.updatedAt ?? 0);
           }
         }
         return;
