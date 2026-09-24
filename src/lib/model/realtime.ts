@@ -757,9 +757,32 @@ class RelayChannel implements Channel {
     }, wait);
   }
 
-  /** Same staleness rule as SupabaseChannel.ensureFresh. */
+  /** Failed connection attempts since we were last joined. The coordinator
+   *  reads this to tell "the relay is unreachable" from "our timers were
+   *  asleep": a backgrounded window makes few attempts, a blocked one many. */
+  get failedAttempts(): number {
+    return this.attempt;
+  }
+
+  /**
+   * Same staleness rule as SupabaseChannel.ensureFresh — plus: if a reconnect
+   * is WAITING on its backoff timer, make it now.
+   *
+   * ⚠ This runs when the window comes back to the front. While hidden, that
+   * 500ms backoff timer can be held back for up to a minute, so without this
+   * a window brought back after a drop would sit "reconnecting" until the
+   * throttled timer finally fired.
+   */
   ensureFresh(): void {
-    if (this.closed || !this.joined) return;
+    if (this.closed) return;
+    if (!this.joined) {
+      if (this.retry) {
+        clearTimeout(this.retry);
+        this.retry = null;
+        this.connect();
+      }
+      return;
+    }
     if (Date.now() - this.lastFrameAt < STALE_MS) return;
     this.forceReconnect();
   }
@@ -819,6 +842,26 @@ const RELAY_GRACE_MS = 1_500;
 /** The partner missing from the relay this long mid-session: also listen on
  *  Supabase, in case THEY had to fall back to it. */
 const LURK_AFTER_MS = 8_000;
+/** OUR relay connection down this long mid-session, with at least
+ *  {@link RELAY_FAILOVER_ATTEMPTS} failed attempts, = the relay is unreachable
+ *  from here (e.g. we moved onto wifi that blocks it): move to Supabase. Both
+ *  conditions, because a backgrounded window's timers can sleep for a minute,
+ *  and time alone would mistake a sleeping window for a blocked network. */
+const RELAY_FAILOVER_MS = 30_000;
+const RELAY_FAILOVER_ATTEMPTS = 4;
+
+/** Recent transport events, newest last, for diagnosing a real session
+ *  (`globalThis.__nimbusRelayLog` in the console). Never persisted, never sent. */
+const relayLog: string[] = [];
+function note(event: string): void {
+  relayLog.push(`${new Date().toISOString().slice(11, 23)} ${event}`);
+  if (relayLog.length > 300) relayLog.shift();
+}
+try {
+  (globalThis as { __nimbusRelayLog?: string[] }).__nimbusRelayLog = relayLog;
+} catch {
+  // Diagnostics only.
+}
 
 /**
  * Runs a session on the Cloudflare relay when both partners can reach it, and
@@ -836,9 +879,16 @@ const LURK_AFTER_MS = 8_000;
  * Two partners can never settle on different relays, because each only
  * settles on the one it actually heard the other on.
  *
- * Mid-session, if the relay is lost for good (switched off, or refusing the
- * login), the session moves to Supabase, and the partner — seeing us vanish
- * from the relay — starts listening there too and follows. Either move is
+ * Mid-session, if the relay is lost for good (switched off, refusing the
+ * login, or unreachable from here for {@link RELAY_FAILOVER_MS}), the session
+ * moves to Supabase, and the partner — seeing us vanish from the relay —
+ * starts listening there too and follows.
+ *
+ * ⚠ "The partner is missing from the relay" only counts while OUR OWN relay
+ * connection is up and can see the room (the relay's presence list includes
+ * ourselves). A brief drop on our side — routine for a backgrounded window —
+ * empties our view of the room, and treating that as "they left" moved whole
+ * sessions onto Supabase for good after a blip. Found in the Lab. Either move is
  * presented to the sync layer as an ordinary reconnect ("reconnecting", then
  * "joined" only once the partner is present on the new relay), so the existing
  * rejoin → resendEverything machinery re-delivers anything said into the gap.
@@ -860,6 +910,9 @@ class DualChannel implements Channel {
   private graceTimer: ReturnType<typeof setTimeout> | null = null;
   private relayAbsentSince = 0;
   private lurkTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When OUR relay connection last dropped, mid-session; 0 while up. */
+  private relayDownSince = 0;
+  private failoverTimer: ReturnType<typeof setTimeout> | null = null;
   /** Mid-session move in progress: "joined" is held back until the partner is
    *  on the new relay, so the rejoin hello it triggers actually reaches them. */
   private switching = false;
@@ -947,6 +1000,13 @@ class DualChannel implements Channel {
     return peers.filter((p) => p.key !== this.key);
   }
 
+  /** Whether our relay connection can currently see the room. The relay's
+   *  presence list always includes ourselves while we are joined; an empty
+   *  list means OUR connection is down, not that the room is empty. */
+  private relaySees(): boolean {
+    return this.relayPeers.some((p) => p.key === this.key);
+  }
+
   // ---- arriving messages --------------------------------------------------
 
   private fromRelay(event: string, payload: unknown): void {
@@ -976,6 +1036,7 @@ class DualChannel implements Channel {
   // ---- deciding -----------------------------------------------------------
 
   private settleOnRelay(): void {
+    note("settled on the relay");
     this.active = "relay";
     this.relayAbsentSince = 0;
     // The partner is on the relay; Supabase is no longer needed.
@@ -991,7 +1052,9 @@ class DualChannel implements Channel {
    */
   private switchToSupa(): void {
     const wasLive = this.active === "relay";
+    note(wasLive ? "moved from the relay to Supabase mid-session" : "settled on Supabase");
     this.active = "supabase";
+    this.clearFailover();
     // Presented to the sync layer as a reconnect (see the class comment). Set
     // before opening Supabase, whose own "connecting" must not leak through.
     if (wasLive) {
@@ -1037,7 +1100,12 @@ class DualChannel implements Channel {
       return;
     }
     const left = RELAY_GRACE_MS - (Date.now() - this.heldSince);
-    if (left <= 0) return this.switchToSupa();
+    if (left <= 0) {
+      // Held on PRESENCE alone (no message) while our own relay view is blank:
+      // that is our blip, not their move. Stay put.
+      if (this.active === "relay" && !this.held.length && !this.relaySees()) return this.dropHeld();
+      return this.switchToSupa();
+    }
     if (!this.graceTimer) {
       this.graceTimer = setTimeout(() => {
         this.graceTimer = null;
@@ -1062,7 +1130,12 @@ class DualChannel implements Channel {
   private onRelayPresence(peers: PresencePeer[]): void {
     this.relayPeers = peers;
     if (this.active === "relay") {
-      if (this.others(peers).length) {
+      if (!this.relaySees()) {
+        // Our connection dropped; we can't see the room. Not evidence that the
+        // partner left — the failover timer covers a relay that stays down.
+        this.relayAbsentSince = 0;
+        this.clearLurk();
+      } else if (this.others(peers).length) {
         this.relayAbsentSince = 0;
         this.dropHeld();
         this.stopLurk();
@@ -1084,7 +1157,7 @@ class DualChannel implements Channel {
     if (this.active === "relay") {
       // Lurking, and the partner showed up on Supabase while absent from the
       // relay — they may have fallen back. Same grace as a held message.
-      if (this.others(peers).length && !this.others(this.relayPeers).length) {
+      if (this.others(peers).length && this.relaySees() && !this.others(this.relayPeers).length) {
         if (!this.heldSince) this.heldSince = Date.now();
         this.checkGrace();
       }
@@ -1099,6 +1172,7 @@ class DualChannel implements Channel {
     const left = LURK_AFTER_MS - (Date.now() - this.relayAbsentSince);
     if (left <= 0) {
       this.clearLurk();
+      note("partner missing from the relay; also listening on Supabase");
       this.openSupa();
       return;
     }
@@ -1112,7 +1186,10 @@ class DualChannel implements Channel {
 
   private stopLurk(): void {
     this.clearLurk();
-    if (this.active === "relay" && this.supa) this.closeSupa();
+    if (this.active === "relay" && this.supa) {
+      note("partner back on the relay; stopped listening on Supabase");
+      this.closeSupa();
+    }
   }
 
   private clearLurk(): void {
@@ -1130,10 +1207,41 @@ class DualChannel implements Channel {
 
   // ---- failures -----------------------------------------------------------
 
+  /**
+   * Our relay connection has been down a while: if it has also failed enough
+   * attempts, the relay is unreachable from here — move to Supabase.
+   */
+  private checkFailover(): void {
+    if (this.active !== "relay" || !this.relayDownSince || this.closed) return;
+    const left = RELAY_FAILOVER_MS - (Date.now() - this.relayDownSince);
+    const tries = this.relay?.failedAttempts ?? 0;
+    if (left <= 0 && tries >= RELAY_FAILOVER_ATTEMPTS) {
+      note(`relay unreachable for ${Math.round((Date.now() - this.relayDownSince) / 1000)}s after ${tries} attempts`);
+      this.onRelayDead();
+      return;
+    }
+    if (!this.failoverTimer) {
+      this.failoverTimer = setTimeout(() => {
+        this.failoverTimer = null;
+        this.checkFailover();
+      }, Math.max(left, 2_000) + 10);
+    }
+  }
+
+  private clearFailover(): void {
+    if (this.failoverTimer) clearTimeout(this.failoverTimer);
+    this.failoverTimer = null;
+    this.relayDownSince = 0;
+  }
+
   private onRelayDead(): void {
+    note("relay written off for this session");
     this.relayDead = true;
+    const dying = this.relay;
+    // Detach first (see closeRelay), then close — a failover leaves it open.
     this.relay = null;
     this.relayPeers = [];
+    dying?.close();
     if (this.active === "relay" || this.held.length) this.switchToSupa();
     else if (this.active === null) {
       this.openSupa();
@@ -1156,6 +1264,7 @@ class DualChannel implements Channel {
     this.closed = true;
     this.clearGrace();
     this.clearLurk();
+    this.clearFailover();
     this.closeRelay();
     this.handlers.onRejected?.(response);
     this.setStatus("refused");
@@ -1164,6 +1273,18 @@ class DualChannel implements Channel {
   // ---- status -------------------------------------------------------------
 
   private onSubStatus(which: "relay" | "supabase"): void {
+    if (which === "relay" && this.relay) {
+      const s = this.relay.status;
+      note(`relay ${s}`);
+      // Track how long OUR relay connection has been down, mid-session.
+      if (this.active === "relay") {
+        if (s === "joined") this.clearFailover();
+        else if (!this.relayDownSince) {
+          this.relayDownSince = Date.now();
+          this.checkFailover();
+        }
+      }
+    }
     if (this.switching) {
       if (which === "supabase") this.trySwitchDone();
       return;
@@ -1218,12 +1339,14 @@ class DualChannel implements Channel {
     this.supa?.ensureFresh();
     this.checkGrace();
     this.checkLurk();
+    this.checkFailover();
   }
 
   close(): void {
     this.closed = true;
     this.clearGrace();
     this.clearLurk();
+    this.clearFailover();
     this.closeRelay();
     this.closeSupa();
     this.setStatus("closed");
