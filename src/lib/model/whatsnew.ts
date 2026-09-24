@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.1",
+    headline: "Smart blocks is a switch now, you can flow a cross-ex, and importing is cleaner.",
+    items: [
+      "**Smart blocks is now optional.** It moved to **Settings -> Experimental** and starts off, so the flow stays clean until you want it. Turn it on and the ✦ Smart blocks tray comes back in the corner exactly as before.",
+      "**Flow a cross-ex.** The **+** new-flow button offers **Cross-ex (Q&A)** - a simple two-column sheet with the question on the left and the answer on the right. Enter jumps question to answer to the next question; undo, autosave and sharing with your partner all work the same as any other flow.",
+      "**Importing pages no longer fills your argument bank.** Bringing a doc in as sheets used to quietly load the whole thing into the author lookup. Now that only happens when you pick **Bank arguments only - no pages**, or bank something yourself.",
+      "**Cleaner text throughout.** Tidied the punctuation across the app.",
+    ],
+  },
+  {
     version: "1.4.0",
     headline: "Smart blocks: load your files for the round, and Nimbus offers the block that answers each argument.",
     items: [
