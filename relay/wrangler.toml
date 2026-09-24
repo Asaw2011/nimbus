@@ -1,0 +1,31 @@
+# Nimbus partner-flowing relay.
+#
+# Deploy: `npx wrangler deploy` from this folder, signed in to the Cloudflare
+# account that owns the Nimbus domain. Nothing here is secret — the Supabase URL
+# and publishable key are already compiled into every Nimbus build.
+
+name = "nimbus-relay"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# The custom domain goes here once it is known, e.g.
+# routes = [{ pattern = "relay.example.com", custom_domain = true }]
+
+[vars]
+# THE EMERGENCY SWITCH. "off" makes the relay refuse every new connection with
+# a close code clients understand, and they carry on over Supabase instead.
+# Change it in the Cloudflare dashboard (Worker → Settings → Variables) — no
+# app update, no redeploy of Nimbus.
+RELAY_MODE = "on"
+SUPABASE_URL = "https://oovgzakdweswenhohgwh.supabase.co"
+SUPABASE_KEY = "sb_publishable_4xgCsUBklrsJUOspF4a6VA_maYxtlHg"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+# SQLite-backed class: allowed on both the Free and the $5 plan. It stores
+# nothing — a room is a relay, exactly like the Supabase channel it replaces.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
