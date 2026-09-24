@@ -518,7 +518,7 @@ type PresenceMap = Record<string, { metas?: Array<Record<string, unknown>> }>;
  * ⚠ It must be a domain Adam controls, so it can be re-pointed without an app
  * update if the hosting ever has to move.
  */
-const RELAY_URL = "";
+const RELAY_URL = "wss://relay.nimbusdebate.com";
 /** A tester's override (localStorage): a ws(s):// URL, or "" to force Supabase. */
 const RELAY_URL_KEY = "nimbus.relayUrl";
 

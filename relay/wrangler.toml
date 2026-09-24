@@ -8,8 +8,10 @@ name = "nimbus-relay"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
 
-# The custom domain goes here once it is known, e.g.
-# routes = [{ pattern = "relay.example.com", custom_domain = true }]
+# The address baked into Nimbus. A domain Adam controls, so the relay can be
+# moved without an app update. Creates one DNS record for `relay` only; the
+# website on the bare domain is untouched.
+routes = [{ pattern = "relay.nimbusdebate.com", custom_domain = true }]
 
 [vars]
 # THE EMERGENCY SWITCH. "off" makes the relay refuse every new connection with
