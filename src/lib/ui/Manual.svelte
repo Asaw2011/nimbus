@@ -111,6 +111,16 @@
             <li><b>Rename / delete</b>: right-click a tab, or edit its LABEL cell.</li>
             <li>Off-case pages start at the 1NC column; overviews at the block - no wasted columns, like a Verbatim template.</li>
           </ul>
+          <h3>Cross-ex</h3>
+          <p>
+            The <b>+</b> tab offers <b>Cross-ex (Q&amp;A)</b>: questions on the left, answers on the right,
+            <kbd>Enter</kbd> to move from question to answer to the next question.
+          </p>
+          <ul>
+            <li>The bar at the top says whose cross-ex it is: <b>Cross-ex of 1AC · 1NC · 2AC · 2NC</b> (LD: AC · NC). The headers then say who asks and who answers.</li>
+            <li>A new cross-ex page takes the speech you pick. On a page that already has one, clicking another speech jumps to that speech's cross-ex page, making it the first time - so each cross-ex keeps its own questions.</li>
+            <li>Each one is its own tab (<b>1AC CX</b>, <b>2AC CX</b>…), and it shares with your partner like any other sheet.</li>
+          </ul>
         </section>
 
         <section id="sec-marks">
@@ -290,6 +300,7 @@
             <li>The cell shows a small <b>↩</b> tag naming the argument it answers.</li>
             <li>It's stored as the speech, not the column, so it survives renaming and reordering.</li>
             <li>Use it to answer your <b>partner's</b> lane deliberately - that's the case the left-to-right guess can't get right on its own.</li>
+            <li>The header ends with the speech you're answering in (<b>AT: Jiang '25---1AR</b>). For the <b>neg block</b>, choose <b>---2NC</b>, <b>---1NR</b> or nothing in <b>Settings → Flow &amp; Formats → Answer headers</b>.</li>
           </ul>
         </section>
 

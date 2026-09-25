@@ -59,6 +59,8 @@ are done. Nimbus tells you what changed the first time you open a new version.
   that part. You answer their third card, they answer that, you answer that, out
   to the last speech. The tiles are ordinary flow cells: mark them card or
   analytic, color them, star them. `Ctrl+Enter` inserts a row inside the block
+- **Cross-ex pages** — questions and answers, labelled with whose cross-ex it
+  is (1AC, 1NC, 2AC, 2NC), one tab each
 
 **Smart blocks** (beta)
 - Load the files for a round, and when the other team makes an argument — in
@@ -94,6 +96,8 @@ are done. Nimbus tells you what changed the first time you open a new version.
   destroyed, so Nimbus won't do it — you each save your own copy, always
 - Flowing solo is untouched: no session means no connection and no background
   work of any kind. Nothing about a flow is stored on a server
+- Sessions run on Nimbus's own relay, and fall back automatically if a network
+  blocks it
 
 **Prep time**
 - A **clock for each team** in the toolbar, counting down from 8 minutes

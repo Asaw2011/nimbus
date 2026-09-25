@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.3",
+    headline: "Cross-ex shows whose it is, block answers end the way you want, and partner flowing is steadier.",
+    items: [
+      "**Cross-ex says whose cross-ex it is.** A bar at the top of every cross-ex page reads **Cross-ex of 1AC · 1NC · 2AC · 2NC**, and the headers say who asks and who answers. Click a speech to jump to its cross-ex - each one keeps its own questions, on its own tab.",
+      "**Neg block answers end the way you want.** An answer you send with **~** no longer ends in \"---Neg Block\". Pick **---2NC**, **---1NR** or nothing in **Settings -> Flow & Formats -> Answer headers**.",
+      "**Nothing you type goes missing while your partner types too.** If your partner's edit arrived in the split second after you typed, the last few characters of your cell could fail to reach them until you edited it again. Fixed.",
+      "**Partner flowing runs on Nimbus's own servers.** It's steadier, and it keeps flowing costs low so it can stay free. If your network blocks the new servers, Nimbus quietly uses the old ones instead - nothing to set up.",
+    ],
+  },
+  {
     version: "1.4.2",
     headline: "Build your own flow formats - your columns, your names, your sides - and switch to one in a click.",
     items: [
