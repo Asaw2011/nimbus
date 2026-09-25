@@ -193,7 +193,7 @@
         {#if current}
           {asker ? `${asker} asks, ${answerer} answers` : ""}
         {:else}
-          Pick the speech being cross-examined
+          Pick the speech
         {/if}
       </span>
     </div>
@@ -242,11 +242,14 @@
   }
   /* The speech bar: part of the cross-ex page itself, not the app's top bar.
      Compact, but big enough that which cross-ex you're on is never in doubt. */
+  /* ONE line, always: if the prompt wrapped, picking a speech (which shortens
+     it) would shift every row up under the pointer. The hint truncates instead. */
   .cx-top {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 10px;
+    min-width: 0;
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
@@ -293,6 +296,14 @@
   .cx-who {
     font-size: 12px;
     color: var(--text-dim);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .cx-of,
+  .cx-seg {
+    flex-shrink: 0;
   }
   .cx-top.unset .cx-who {
     color: var(--text);
