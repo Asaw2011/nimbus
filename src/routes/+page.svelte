@@ -17,6 +17,8 @@
   } from "$lib/model/filedoc.svelte";
   import { checkForUpdate, type UpdateInfo } from "$lib/updater";
   import SpeechDocWindow from "$lib/doc/SpeechDocWindow.svelte";
+  import Timer from "$lib/ui/Timer.svelte";
+  import { isTimerWindow, initialTimerState, dockTimer } from "$lib/ui/timerWindow.svelte";
   import { flushDocs } from "$lib/doc/docs.svelte";
   import { reportError } from "$lib/model/crash";
   import { auth } from "$lib/model/auth.svelte";
@@ -28,6 +30,11 @@
   // Pop-out window mode: render ONLY the speech-doc editor.
   const isDocWindow =
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("docwin");
+  // Pop-out TIMER window: render ONLY the timer. Everything the doc window
+  // skips, this skips too - above all the close guard, which would quit the
+  // whole app the moment the timer window closed.
+  const isSubWindow = isDocWindow || isTimerWindow;
+  const timerStart = isTimerWindow ? initialTimerState() : null;
 
   let view: "dashboard" | "flow" = $state("dashboard");
   // Auth gate. `authChecked` flips once the on-disk session has been consulted;
@@ -62,7 +69,7 @@
     // window's setup applies here - and critically, the close guard would
     // force_quit the WHOLE app when the doc window is closed/docked back. So
     // skip all main-window setup in the doc window.
-    if (isDocWindow) return;
+    if (isSubWindow) return;
 
     // Auth gate. Both of these are fire-and-forget and both fail OPEN: neither
     // is awaited, so nothing here can delay or block the app starting. A user
@@ -311,6 +318,15 @@
   <!-- The pop-out doc window is a child of an already-signed-in main window.
        Gating it again would strand the editor behind a second login. -->
   <SpeechDocWindow />
+{:else if isTimerWindow}
+  <!-- The pop-out timer, like the doc window, is a child of the signed-in main
+       window: no second login, nothing but the timer. -->
+  <Timer
+    popout
+    initial={timerStart}
+    onclose={(s) => void dockTimer(s, false)}
+    ondock={(s) => void dockTimer(s, true)}
+  />
 {:else if versionBlock}
   <LoginGate block={versionBlock} />
 {:else if !auth.signedIn}
@@ -328,14 +344,14 @@
 
 <!-- First-run setup: gated behind the sign-in gate like the tutorial, and shown
      ahead of it (onMount only sets showTutorial once setup is done). -->
-{#if showSetup && auth.signedIn && !versionBlock && !isDocWindow}
+{#if showSetup && auth.signedIn && !versionBlock && !isSubWindow}
   <Setup onclose={onSetupDone} />
 {/if}
 
 <!-- Gated: the tutorial's backdrop is z-index 50, so on a first run it rendered
      straight over the sign-in screen. Nothing that overlays the app should be
      reachable before the user is through the gate. -->
-{#if showTutorial && !showSetup && auth.signedIn && !versionBlock && !isDocWindow}
+{#if showTutorial && !showSetup && auth.signedIn && !versionBlock && !isSubWindow}
   <Tutorial onclose={() => (showTutorial = false)} />
 {/if}
 
@@ -343,7 +359,7 @@
      until the user is through sign-in. `!showTutorial` is belt-and-braces -
      onMount already picks one or the other - so a future change to either can't
      stack two modals on a first run. -->
-{#if showWhatsNew && !showTutorial && auth.signedIn && !versionBlock && !isDocWindow}
+{#if showWhatsNew && !showTutorial && auth.signedIn && !versionBlock && !isSubWindow}
   <WhatsNew onclose={() => (showWhatsNew = false)} />
 {/if}
 
@@ -373,7 +389,7 @@
 <!-- App-wide hover tooltips: reads the native `title` on any control and shows
      a styled bubble instead of the slow OS one. Not in the pop-out doc window,
      which is its own render path. -->
-{#if !isDocWindow}
+{#if !isSubWindow}
   <Tooltip />
 {/if}
 

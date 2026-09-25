@@ -11,22 +11,66 @@
   //      Svelte's reactivity every frame for nothing.
   // Elapsed time is computed from Date.now() regardless, so the clock stays
   // correct across any tick jitter or throttling.
-  import { onDestroy } from "svelte";
+  //
+  // It also runs as the POP-OUT timer (`popout`): the only thing in its own
+  // small always-on-top window. See timerWindow.svelte.ts for the handoff.
+  import { onDestroy, untrack } from "svelte";
   import { settings } from "../model/settings.svelte";
+  import { playAlarm, type StopAlarm } from "../model/timerSound";
+  import {
+    SIZES,
+    POSITIONS,
+    setTimerSize,
+    setTimerPosition,
+    type SizeId,
+    type TimerState,
+  } from "./timerWindow.svelte";
 
-  let { onclose }: { onclose: () => void } = $props();
+  let {
+    onclose,
+    popout = false,
+    initial = null,
+    onpopout,
+    ondock,
+  }: {
+    /** Close the timer. In the pop-out, hands the state back too. */
+    onclose: (state: TimerState) => void;
+    /** Running as the pop-out window's whole content. */
+    popout?: boolean;
+    /** A timer handed over from the other window, carried on exactly. */
+    initial?: TimerState | null;
+    /** In the app: send this timer to its own always-on-top window. */
+    onpopout?: (state: TimerState) => void;
+    /** In the pop-out: hand the timer back into the app. */
+    ondock?: (state: TimerState) => void;
+  } = $props();
 
   type Mode = "countdown" | "stopwatch";
   const TICK_MS = 100; // fine enough for the stopwatch's tenths column
 
-  let mode = $state<Mode>("countdown");
+  const start0 = untrack(() => initial);
+  let mode = $state<Mode>(start0?.mode ?? "countdown");
   let running = $state(false);
-  let accumMs = $state(0); // time banked from previous runs (while paused)
+  let accumMs = $state(start0?.accumMs ?? 0); // time banked from previous runs (while paused)
   let startedAt = 0; // Date.now() when the current run started
-  let targetMs = $state((settings.timerPresets[0]?.seconds ?? 300) * 1000);
-  let activePreset = $state<number | null>(0);
+  let targetMs = $state(start0?.targetMs ?? (settings.timerPresets[0]?.seconds ?? 300) * 1000);
+  let activePreset = $state<number | null>(start0 ? start0.activePreset : 0);
   let now = $state(Date.now());
   let tick: ReturnType<typeof setInterval> | null = null;
+  let stopAlarm: StopAlarm = () => {};
+
+  /** Everything the other window needs to carry on this timer exactly. */
+  function snapshot(): TimerState {
+    return { mode, running, accumMs, startedAt, targetMs, activePreset };
+  }
+
+  // A handed-over RUNNING timer resumes from its original start time - the
+  // clock kept going while it moved windows, and so does the countdown.
+  if (start0?.running) {
+    startedAt = start0.startedAt;
+    running = true;
+    tick = setInterval(onTick, TICK_MS);
+  }
 
   function elapsedMs(): number {
     return accumMs + (running ? now - startedAt : 0);
@@ -51,6 +95,7 @@
   function start() {
     if (running) return;
     if (mode === "countdown" && targetMs <= 0) return;
+    stopAlarm();
     startedAt = Date.now();
     now = startedAt;
     running = true;
@@ -65,6 +110,7 @@
   }
   function toggle() { running ? pause() : start(); }
   function reset() {
+    stopAlarm();
     running = false;
     stopTick();
     accumMs = 0;
@@ -85,19 +131,30 @@
     targetMs = 0;
   }
 
+  /** The alarm at 0:00, in the sound and volume chosen in Settings → Timer.
+   *  Audio unavailable → the flashing display still signals 0:00. */
   function beep() {
-    try {
-      const Ctx =
-        window.AudioContext ??
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctx();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880; g.gain.value = 0.12;
-      o.start();
-      setTimeout(() => { o.stop(); void ctx.close(); }, 600);
-    } catch { /* audio unavailable - the flashing display still signals 0:00 */ }
+    stopAlarm();
+    void playAlarm(settings.timerSound, settings.timerVolume).then((stop) => (stopAlarm = stop));
+  }
+
+  // ── pop-out controls ──────────────────────────────────────────────
+  const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  let placing = $state(false);
+
+  async function startResize(e: PointerEvent) {
+    e.preventDefault();
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().startResizeDragging("SouthEast");
+  }
+
+  // Space starts/pauses and R resets, in the pop-out where there's nothing else
+  // to type into.
+  function onPopKey(e: KeyboardEvent) {
+    if (!popout || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === " ") { e.preventDefault(); toggle(); }
+    else if (e.key === "r" || e.key === "R") reset();
+    else if (e.key === "Escape") placing = false;
   }
 
   function fmt(ms: number): string {
@@ -134,34 +191,76 @@
     window.addEventListener("pointerup", up);
   }
 
-  onDestroy(stopTick);
+  onDestroy(() => {
+    stopTick();
+    stopAlarm();
+  });
 </script>
+
+<svelte:window onkeydown={onPopKey} />
 
 <div
   bind:this={panel}
   class="timer"
-  style={pos ? `left:${pos.x}px; top:${pos.y}px; right:auto; bottom:auto;` : ""}
+  class:pop={popout}
+  style={!popout && pos ? `left:${pos.x}px; top:${pos.y}px; right:auto; bottom:auto;` : ""}
 >
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="t-head" onpointerdown={startDrag}>
-    <span class="t-title">Timer</span>
-    <span class="t-mode">
-      {mode === "stopwatch"
-        ? "Stopwatch"
-        : activePreset !== null
-          ? settings.timerPresets[activePreset]?.label
-          : "Countdown"}
-    </span>
-    <span class="t-sp"></span>
-    <button class="t-x" title="Close" onclick={onclose}>✕</button>
-  </div>
+  {#if popout}
+    <!-- The top strip drags the window (Tauri drag region); the small buttons
+         set its size and place, dock it back, or close it. -->
+    <div class="p-head" data-tauri-drag-region>
+      <div class="p-sizes" role="group" aria-label="Timer size">
+        {#each Object.keys(SIZES) as id (id)}
+          <button class="p-btn" title={SIZES[id as SizeId].label} onclick={() => setTimerSize(id as SizeId)}>{id}</button>
+        {/each}
+      </div>
+      <button class="p-btn" class:on={placing} title="Move to a corner or edge of the screen" onclick={() => (placing = !placing)}>
+        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="6.5" y="2.5" width="3" height="3" fill="currentColor"/></svg>
+      </button>
+      <span class="p-sp" data-tauri-drag-region></span>
+      <button class="p-btn" title="Dock back into Nimbus" onclick={() => ondock?.(snapshot())}>
+        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M6 1.5v6m0 0L3.5 5M6 7.5 8.5 5M2 10.5h8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="p-btn" title="Close the timer" onclick={() => onclose(snapshot())}>✕</button>
+    </div>
+    {#if placing}
+      <div class="p-place" role="group" aria-label="Timer position">
+        {#each POSITIONS as p (p.id)}
+          <button
+            class="p-spot"
+            title={p.label}
+            onclick={() => { placing = false; void setTimerPosition(p.id); }}
+          ><span class="dot {p.id}"></span></button>
+        {/each}
+      </div>
+    {/if}
+  {:else}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="t-head" onpointerdown={startDrag}>
+      <span class="t-title">Timer</span>
+      <span class="t-mode">
+        {mode === "stopwatch"
+          ? "Stopwatch"
+          : activePreset !== null
+            ? settings.timerPresets[activePreset]?.label
+            : "Countdown"}
+      </span>
+      <span class="t-sp"></span>
+      {#if inTauri && onpopout}
+        <button class="t-x" title="Pop out: keep the timer on top of CardMirror and other apps" onclick={() => onpopout(snapshot())}>
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7 1.5h3.5V5M10.5 1.5 6 6M5 2.5H2.5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      {/if}
+      <button class="t-x" title="Close" onclick={() => onclose(snapshot())}>✕</button>
+    </div>
+  {/if}
 
-  <div class="t-display" class:running class:finished>{fmt(displayMs)}</div>
+  <div class="t-display" class:running class:finished data-tauri-drag-region={popout ? "" : undefined}>{fmt(displayMs)}</div>
 
   <div class="t-controls">
     <button class="t-btn primary" onclick={toggle}>{running ? "Pause" : "Start"}</button>
     <button class="t-btn" onclick={reset}>Reset</button>
-    <button class="t-btn" class:on={mode === "stopwatch"} onclick={useStopwatch}>Stopwatch</button>
+    <button class="t-btn sw" class:on={mode === "stopwatch"} onclick={useStopwatch}>Stopwatch</button>
   </div>
 
   <div class="t-presets">
@@ -177,7 +276,11 @@
       </button>
     {/each}
   </div>
-  <div class="t-hint">Adjust presets in Settings.</div>
+  <div class="t-hint">{popout ? "Space starts/pauses · R resets" : "Adjust presets in Settings."}</div>
+  {#if popout}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="p-grip" title="Drag to resize" onpointerdown={startResize}></div>
+  {/if}
 </div>
 
 <style>
@@ -257,4 +360,126 @@
   .tp-label { font-size: 11px; font-weight: 600; }
   .tp-time { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
   .t-hint { font-size: 10px; color: var(--text-dim); text-align: center; padding: 0 0 8px; }
+
+  /* ── the pop-out window ────────────────────────────────────────────
+     The timer fills its window, and what it shows follows the window's real
+     size (container queries), so the XS/S/M/L presets and dragging an edge
+     give the same result. Smallest: just the time. */
+  .timer.pop {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    container-type: size;
+  }
+  .p-head {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 4px;
+    border-bottom: 1px solid var(--border);
+    cursor: grab;
+    flex-shrink: 0;
+  }
+  .p-sizes { display: flex; gap: 2px; }
+  .p-sp { flex: 1; align-self: stretch; }
+  .p-btn {
+    min-width: 20px;
+    height: 18px;
+    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .p-btn:hover, .p-btn.on { color: var(--text); border-color: var(--border); background: var(--bg); }
+  .p-place {
+    position: absolute;
+    inset: 25px 4px 4px;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .p-spot {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    cursor: pointer;
+    min-height: 0;
+  }
+  .p-spot:hover { border-color: var(--accent); }
+  .dot { position: absolute; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  .dot.tl { top: 4px; left: 4px; }
+  .dot.t { top: 4px; left: calc(50% - 4px); }
+  .dot.tr { top: 4px; right: 4px; }
+  .dot.bl { bottom: 4px; left: 4px; }
+  .dot.b { bottom: 4px; left: calc(50% - 4px); }
+  .dot.br { bottom: 4px; right: 4px; }
+  .timer.pop .t-display {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: clamp(16px, min(24cqw, 42cqh), 140px);
+    cursor: grab;
+  }
+  .p-grip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 12px;
+    height: 12px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, var(--border) 50%);
+    z-index: 4;
+  }
+  /* Below Large: the hint, then the presets go (they need a Large window). */
+  @container (max-height: 240px) {
+    .timer.pop .t-hint { display: none; }
+  }
+  @container (max-height: 250px) {
+    .timer.pop .t-presets { display: none; }
+  }
+  /* Small: just Start/Reset under the time. */
+  @container (max-height: 120px) {
+    .timer.pop .t-controls { padding: 0 6px 5px; gap: 4px; }
+    .timer.pop .t-btn { padding: 2px 4px; font-size: 11px; }
+    .timer.pop .t-btn.sw { display: none; }
+    .timer.pop .t-display { font-size: clamp(16px, min(24cqw, 34cqh), 140px); }
+  }
+  /* Very small: only the time. The control strip floats over it on hover. */
+  @container (max-height: 80px) {
+    .timer.pop .t-controls { display: none; }
+    .timer.pop .p-head {
+      position: absolute;
+      inset: 0 0 auto;
+      z-index: 2;
+      background: var(--panel);
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+    .timer.pop:hover .p-head { opacity: 1; }
+    .timer.pop .t-display { font-size: clamp(16px, min(24cqw, 70cqh), 140px); }
+    .timer.pop .p-place { inset: 2px; }
+  }
 </style>

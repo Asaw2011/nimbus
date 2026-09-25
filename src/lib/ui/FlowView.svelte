@@ -21,6 +21,7 @@
   import Manual from "./Manual.svelte";
   import QuickCardsPanel from "./QuickCardsPanel.svelte";
   import Timer from "./Timer.svelte";
+  import { timerPop, type TimerState } from "./timerWindow.svelte";
   import ArgBank from "./ArgBank.svelte";
   import PartnerPanel from "./PartnerPanel.svelte";
   import SmartTray from "$lib/smart/SmartTray.svelte";
@@ -79,6 +80,23 @@
   /** The floating timer. Deliberately NOT modal and not tied to a sheet - it
    *  stays up across sheet/flow switches for the length of the round. */
   let showTimer = $state(false);
+  /** A timer coming back from the pop-out window, carried on exactly. */
+  let timerHandoff = $state<TimerState | null>(null);
+
+  async function popOutTimer(state: TimerState) {
+    // The in-app timer only closes once the window really exists - if it
+    // can't be made, the timer stays here and nothing is lost.
+    if (await timerPop.popOut(state)) showTimer = false;
+  }
+
+  // The pop-out docked or closed: take the timer back.
+  $effect(() => {
+    const d = timerPop.docked;
+    if (!d) return;
+    timerPop.docked = null;
+    timerHandoff = d.state;
+    showTimer = d.show;
+  });
   /** The argument-bank manager (edit what ⌘J draws from). */
   let showBank = $state(false);
   let showPartner = $state(false);
@@ -1003,7 +1021,9 @@
     // side, so there is nothing here for it to double-fire with.
     if (matchesAny(e, km.toggleTimer)) {
       e.preventDefault();
-      showTimer = !showTimer;
+      // While it's popped out, the shortcut brings that window forward.
+      if (timerPop.open) void timerPop.focus();
+      else showTimer = !showTimer;
       return;
     }
     if (e.target instanceof HTMLElement && e.target.closest(".speech-doc")) return;
@@ -1243,7 +1263,7 @@
           </select>
         {/if}
       </div>
-      <button class="icon-btn" class:active={showTimer} onclick={() => (showTimer = !showTimer)} title="Timer - stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})"><Icon name="clock" /><span class="btn-lbl">Timer</span></button>
+      <button class="icon-btn" class:active={showTimer || timerPop.open} onclick={() => { if (timerPop.open) void timerPop.focus(); else showTimer = !showTimer; }} title="Timer - stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})"><Icon name="clock" /><span class="btn-lbl">Timer</span></button>
       <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank - edit what {combosLabel(km.authorLookup, mac)} offers"><Icon name="archive" /><span class="btn-lbl">Arguments</span></button>
       <!-- ⚠ THREE states, not two. This used to be `connected ? live : idle`,
            so a session that had dropped looked EXACTLY like no session at all -
@@ -1488,7 +1508,11 @@
     {/if}
 
     {#if showTimer}
-      <Timer onclose={() => (showTimer = false)} />
+      <Timer
+        initial={timerHandoff}
+        onclose={() => { showTimer = false; timerHandoff = null; }}
+        onpopout={popOutTimer}
+      />
     {/if}
 
     {#if showBank}

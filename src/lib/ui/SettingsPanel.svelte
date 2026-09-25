@@ -12,8 +12,51 @@
   import { auth } from "../model/auth.svelte";
   import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
+  import { BUILTIN_SOUNDS, playAlarm, importSound, deleteSound, type StopAlarm } from "../model/timerSound";
 
   let { onclose, initialTab }: { onclose: () => void; initialTab?: string } = $props();
+
+  // ---- timer alarm ----------------------------------------------------------
+  let soundInput = $state<HTMLInputElement>();
+  let soundError = $state("");
+  let alarmPlaying = $state(false);
+  let stopPreview: StopAlarm = () => {};
+
+  async function previewAlarm() {
+    if (alarmPlaying) {
+      stopPreview();
+      alarmPlaying = false;
+      return;
+    }
+    alarmPlaying = true;
+    stopPreview = await playAlarm(settings.timerSound, settings.timerVolume);
+    // Every built-in pattern is under 3s; an imported one is cut at 8s.
+    setTimeout(() => (alarmPlaying = false), settings.timerSound.startsWith("custom:") ? 8000 : 3000);
+  }
+
+  async function onSoundFile(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ""; // so picking the same file again still fires
+    if (!file) return;
+    soundError = "";
+    try {
+      const s = await importSound(file);
+      settings.timerCustomSounds = [...settings.timerCustomSounds, s];
+      settings.timerSound = `custom:${s.id}`;
+      settings.save();
+    } catch (err) {
+      soundError = err instanceof Error ? err.message : "Couldn't import that sound.";
+    }
+  }
+
+  function removeCurrentSound() {
+    const id = settings.timerSound.slice(7);
+    settings.timerCustomSounds = settings.timerCustomSounds.filter((s) => s.id !== id);
+    settings.timerSound = "beep";
+    settings.save();
+    void deleteSound(id);
+  }
 
   let rebinding = $state<ActionId | null>(null);
   let rebindingMacro = $state<string | null>(null);
@@ -957,6 +1000,47 @@
           </div>
         {/each}
       </div>
+    </section>
+    <section>
+      <h3>Timer alarm</h3>
+      <p class="hint">
+        What the timer plays when a countdown hits 0:00. Import your own sound
+        (mp3, wav or ogg, up to 3 MB) and it's kept in Nimbus.
+      </p>
+      <label class="row">
+        Sound
+        <span class="inline">
+          <select
+            value={settings.timerSound}
+            onchange={(e) => { settings.timerSound = e.currentTarget.value; settings.save(); }}
+          >
+            {#each BUILTIN_SOUNDS as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+            {#each settings.timerCustomSounds as s (s.id)}<option value={"custom:" + s.id}>{s.name}</option>{/each}
+            <option value="none">No sound</option>
+          </select>
+          <button class="add-reader" onclick={previewAlarm}>{alarmPlaying ? "Stop" : "Play"}</button>
+        </span>
+      </label>
+      <label class="row">
+        Volume
+        <span class="inline">
+          <input
+            type="range" min="0" max="100" step="5"
+            value={Math.round(settings.timerVolume * 100)}
+            oninput={(e) => (settings.timerVolume = Number(e.currentTarget.value) / 100)}
+            onchange={() => settings.save()}
+          />
+          {Math.round(settings.timerVolume * 100)}%
+        </span>
+      </label>
+      <div class="inline">
+        <button class="add-reader" onclick={() => soundInput?.click()}>+ Import a sound…</button>
+        {#if settings.timerSound.startsWith("custom:")}
+          <button class="add-reader" onclick={removeCurrentSound}>Remove this sound</button>
+        {/if}
+        <input bind:this={soundInput} type="file" accept="audio/*" hidden onchange={onSoundFile} />
+      </div>
+      {#if soundError}<p class="hint" style="color: var(--mark-dropped, #c0392b)">{soundError}</p>{/if}
     </section>
     <section>
       <h3>Prep clocks</h3>

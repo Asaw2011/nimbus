@@ -3,6 +3,7 @@
 import type { ActionId, Combo } from "./keymap";
 import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_KEYMAP, reservedBinding, sameCombo } from "./keymap";
 import type { Macro } from "./macros";
+import type { CustomSound } from "./timerSound";
 import { defaultMacros, migrateLegacyMacro } from "./macros";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
 import { INITIAL_ROWS, uid, type Side, type SpeechTemplate } from "./types";
@@ -175,6 +176,23 @@ export interface Persisted {
    *  names the speech the block is actually given in - or nothing at all.
    *  Every other speech keeps its own name. */
   blockAtSuffix?: "2NC" | "1NR" | "none";
+  /** The timer's alarm at 0:00: a built-in id, "none", or "custom:<id>". */
+  timerSound?: string;
+  /** Alarm volume, 0–1. */
+  timerVolume?: number;
+  /** Sounds the user imported (audio lives in blobs; see timerSound.ts). */
+  timerCustomSounds?: CustomSound[];
+  /** Where the popped-out timer window was last, in logical pixels. Saved by
+   *  the MAIN window from what the pop-out reports when it docks - the pop-out
+   *  never saves settings itself (see timerWindow.svelte.ts). */
+  timerWin?: TimerWinBounds | null;
+}
+
+export interface TimerWinBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /** One countdown button on the timer. */
@@ -381,6 +399,11 @@ class Settings {
   smartBlocksEnabled = $state(false);
   /** See Persisted.blockAtSuffix. */
   blockAtSuffix = $state<"2NC" | "1NR" | "none">("2NC");
+  /** See Persisted.timerSound / timerVolume / timerCustomSounds / timerWin. */
+  timerSound = $state("beep");
+  timerVolume = $state(0.7);
+  timerCustomSounds = $state<CustomSound[]>([]);
+  timerWin = $state<TimerWinBounds | null>(null);
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -503,6 +526,18 @@ class Settings {
     if (p.blockAtSuffix === "2NC" || p.blockAtSuffix === "1NR" || p.blockAtSuffix === "none") {
       this.blockAtSuffix = p.blockAtSuffix;
     }
+    if (typeof p.timerSound === "string" && p.timerSound) this.timerSound = p.timerSound;
+    if (typeof p.timerVolume === "number" && Number.isFinite(p.timerVolume)) {
+      this.timerVolume = Math.max(0, Math.min(1, p.timerVolume));
+    }
+    if (Array.isArray(p.timerCustomSounds)) {
+      this.timerCustomSounds = p.timerCustomSounds.filter(
+        (s) => s && typeof s.id === "string" && typeof s.name === "string",
+      );
+    }
+    if (p.timerWin && [p.timerWin.x, p.timerWin.y, p.timerWin.w, p.timerWin.h].every(Number.isFinite)) {
+      this.timerWin = p.timerWin;
+    }
     if (Array.isArray(p.timerPresets) && p.timerPresets.length) {
       // Always land exactly five slots, each sanitized against the default in
       // that position - a truncated or corrupted save can't leave the timer with
@@ -542,6 +577,10 @@ class Settings {
       docTarget: this.docTarget,
       smartBlocksEnabled: this.smartBlocksEnabled,
       blockAtSuffix: this.blockAtSuffix,
+      timerSound: this.timerSound,
+      timerVolume: this.timerVolume,
+      timerCustomSounds: $state.snapshot(this.timerCustomSounds) as CustomSound[],
+      timerWin: this.timerWin,
       colMinWidth: this.colMinWidth,
       affColor: this.affColor,
       negColor: this.negColor,
