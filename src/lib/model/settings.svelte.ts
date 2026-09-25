@@ -5,7 +5,8 @@ import { actionLabel, DEFAULT_BULK_ROWS, DEFAULT_KEYMAP, reservedBinding, sameCo
 import type { Macro } from "./macros";
 import { defaultMacros, migrateLegacyMacro } from "./macros";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
-import { uid } from "./types";
+import { INITIAL_ROWS, uid, type Side, type SpeechTemplate } from "./types";
+import { blankCustomTemplate, builtinTemplates, cloneTemplate, defaultAbbrFor, makeSpeech } from "./templates";
 
 export interface LibraryRoot {
   id: string;
@@ -129,6 +130,21 @@ export interface Persisted {
   defaultTemplate: number;
   /** Per-format custom speech labels, keyed by format index. */
   templateAbbrs: Record<number, string[]>;
+  /**
+   * The user's own saved formats, each a full speech template (columns +
+   * names + sides). Additive: an install with none behaves exactly as before,
+   * and new flows keep using a built-in until you pick one of these.
+   */
+  customTemplates: SpeechTemplate[];
+  /**
+   * Which custom template new flows use, by id. "" (the default) means "use the
+   * built-in named by {@link defaultTemplate}", so the two selectors never
+   * disagree - picking a built-in clears this, picking a custom sets it.
+   */
+  defaultCustomId: string;
+  /** Rows a fresh sheet starts with. Paper still grows on demand; this only sets
+   *  the initial height. Clamped to a sane 4–80. */
+  startRows: number;
   /** Combo[] per action; old saves may hold a single Combo (normalized on load). */
   keymap: Partial<Record<ActionId, Combo | Combo[]>>;
   macros: Macro[];
@@ -216,6 +232,12 @@ export function clampBulkRows(n: number): number {
   return Math.min(50, Math.max(2, Math.round(n)));
 }
 
+/** A new sheet's starting row count, clamped to 4–80 (paper grows past it). */
+export function clampStartRows(n: number): number {
+  if (!Number.isFinite(n)) return INITIAL_ROWS;
+  return Math.min(80, Math.max(4, Math.round(n)));
+}
+
 /** Zoom is clamped to 0.5×–2.5×. */
 export function clampZoom(n: number): number {
   if (!Number.isFinite(n)) return 1;
@@ -289,6 +311,13 @@ class Settings {
    *  a missing entry falls back to the built-in label. Applied to every NEW
    *  round of that format, so you rename a speech once for all rounds. */
   templateAbbrs = $state<Record<number, string[]>>({});
+  /** The user's own saved formats (columns + names + sides). Editable in
+   *  Settings → Formats; usable by any new flow. */
+  customTemplates = $state<SpeechTemplate[]>([]);
+  /** Selected custom format id, or "" to use the built-in {@link defaultTemplate}. */
+  defaultCustomId = $state("");
+  /** Rows a fresh sheet starts with (paper still grows on demand). */
+  startRows = $state(INITIAL_ROWS);
   /** Bottom by default - the Excel sheet-tab muscle memory. */
   tabsPosition = $state<TabsPosition>("bottom");
   /**
@@ -417,6 +446,26 @@ class Settings {
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
     if (p.templateAbbrs && typeof p.templateAbbrs === "object") this.templateAbbrs = p.templateAbbrs;
+    if (Array.isArray(p.customTemplates)) {
+      // Sanitize each saved format: it must have an id, a name, and at least one
+      // column, or a hand-edited/corrupt file could leave a template that makes
+      // a zero-column flow. Drop anything that can't be repaired.
+      this.customTemplates = p.customTemplates
+        .filter((t): t is SpeechTemplate => !!t && Array.isArray(t.speeches) && t.speeches.length > 0)
+        .map((t) => ({
+          id: t.id || uid(),
+          name: typeof t.name === "string" && t.name.trim() ? t.name : "My Format",
+          speeches: t.speeches.map((s) => ({
+            ...s,
+            id: s.id || uid(),
+            abbr: s.abbr ?? defaultAbbrFor(s.side ?? "neutral"),
+            label: s.label ?? "",
+            side: s.side === "aff" || s.side === "neg" ? s.side : "neutral",
+          })),
+        }));
+    }
+    if (typeof p.defaultCustomId === "string") this.defaultCustomId = p.defaultCustomId;
+    if (p.startRows !== undefined) this.startRows = clampStartRows(p.startRows);
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
@@ -501,6 +550,9 @@ class Settings {
       defaultSaveFormat: this.defaultSaveFormat,
       defaultTemplate: this.defaultTemplate,
       templateAbbrs: this.templateAbbrs,
+      customTemplates: $state.snapshot(this.customTemplates) as SpeechTemplate[],
+      defaultCustomId: this.defaultCustomId,
+      startRows: this.startRows,
       bulkRows: this.bulkRows,
       zoom: this.zoom,
       docZoom: this.docZoom,
@@ -537,6 +589,165 @@ class Settings {
   /** Set the default speech format for New flow and persist it. */
   setDefaultTemplate(i: number): void {
     this.defaultTemplate = i;
+    this.save();
+  }
+
+  // ---- format selection (built-ins + custom templates) --------------------
+
+  /** A built-in with its per-format abbr renames applied - a fresh, isolated
+   *  copy so nothing edits the shared preset object. */
+  private builtinWithAbbrs(i: number): SpeechTemplate {
+    const list = builtinTemplates();
+    const base = list[i] ?? list[0];
+    const overrides = this.templateAbbrs[i] ?? [];
+    const tpl = structuredClone(base) as SpeechTemplate;
+    tpl.speeches.forEach((sp, j) => {
+      const o = overrides[j]?.trim();
+      if (o) sp.abbr = o;
+    });
+    return tpl;
+  }
+
+  /**
+   * Every format a new flow can start from: the built-ins (renames applied)
+   * followed by the user's custom templates. Each carries a stable choice `id`
+   * ("builtin:N" / "custom:<id>") for the picker, and a ready-to-use `template`.
+   */
+  templateChoices(): { id: string; name: string; custom: boolean; template: SpeechTemplate }[] {
+    const builtins = builtinTemplates().map((t, i) => ({
+      id: `builtin:${i}`,
+      name: t.name,
+      custom: false,
+      template: this.builtinWithAbbrs(i),
+    }));
+    const customs = (this.customTemplates ?? []).map((t) => ({
+      id: `custom:${t.id}`,
+      name: t.name,
+      custom: true,
+      template: structuredClone($state.snapshot(t)) as SpeechTemplate,
+    }));
+    return [...builtins, ...customs];
+  }
+
+  /** The currently selected choice id (drives the format dropdowns). */
+  get selectedTemplateId(): string {
+    if (this.defaultCustomId && this.customTemplates.some((t) => t.id === this.defaultCustomId)) {
+      return `custom:${this.defaultCustomId}`;
+    }
+    return `builtin:${this.defaultTemplate}`;
+  }
+
+  /** Choose the format new flows start from, by choice id. */
+  selectTemplate(id: string): void {
+    if (id.startsWith("custom:")) {
+      this.defaultCustomId = id.slice("custom:".length);
+    } else {
+      this.defaultCustomId = "";
+      this.defaultTemplate = Number(id.slice("builtin:".length)) || 0;
+    }
+    this.save();
+  }
+
+  /** The template a new flow should start from, per the current selection. A
+   *  fresh copy every call - the caller (store.newRound) owns it. */
+  newFlowTemplate(): SpeechTemplate {
+    if (this.defaultCustomId) {
+      const t = this.customTemplates.find((c) => c.id === this.defaultCustomId);
+      if (t) return structuredClone($state.snapshot(t)) as SpeechTemplate;
+    }
+    return this.builtinWithAbbrs(this.defaultTemplate);
+  }
+
+  // ---- custom template CRUD -----------------------------------------------
+
+  /** Reassign one custom template immutably (so the $state array re-notifies)
+   *  and persist. No-op if the id is unknown. */
+  private mutateTemplate(id: string, fn: (t: SpeechTemplate) => void): void {
+    let touched = false;
+    this.customTemplates = this.customTemplates.map((t) => {
+      if (t.id !== id) return t;
+      touched = true;
+      const next = structuredClone($state.snapshot(t)) as SpeechTemplate;
+      fn(next);
+      return next;
+    });
+    if (touched) this.save();
+  }
+
+  /** Create a blank custom format and select it. Returns its id. */
+  addCustomTemplate(name = "My Format"): string {
+    const t = blankCustomTemplate(name);
+    this.customTemplates = [...this.customTemplates, t];
+    this.defaultCustomId = t.id;
+    this.save();
+    return t.id;
+  }
+
+  /** Create a custom format seeded from a built-in (index) or another custom
+   *  (id), so you can tweak a real format instead of starting from scratch. */
+  duplicateAsCustom(choiceId: string): string {
+    const src = this.templateChoices().find((c) => c.id === choiceId);
+    const base = src?.template ?? this.newFlowTemplate();
+    const copy = cloneTemplate(base, `${base.name} copy`);
+    this.customTemplates = [...this.customTemplates, copy];
+    this.defaultCustomId = copy.id;
+    this.save();
+    return copy.id;
+  }
+
+  renameCustomTemplate(id: string, name: string): void {
+    const n = name.trim();
+    if (!n) return;
+    this.mutateTemplate(id, (t) => { t.name = n; });
+  }
+
+  deleteCustomTemplate(id: string): void {
+    this.customTemplates = this.customTemplates.filter((t) => t.id !== id);
+    if (this.defaultCustomId === id) this.defaultCustomId = "";
+    this.save();
+  }
+
+  /** Append a column of the given side to a custom template. */
+  addTemplateColumn(id: string, side: Side = "aff"): void {
+    this.mutateTemplate(id, (t) => {
+      t.speeches.push(makeSpeech(defaultAbbrFor(side), "New column", side));
+    });
+  }
+
+  updateTemplateColumn(
+    id: string,
+    speechId: string,
+    patch: { abbr?: string; label?: string; side?: Side },
+  ): void {
+    this.mutateTemplate(id, (t) => {
+      const sp = t.speeches.find((s) => s.id === speechId);
+      if (!sp) return;
+      if (patch.abbr !== undefined) sp.abbr = patch.abbr;
+      if (patch.label !== undefined) sp.label = patch.label;
+      if (patch.side !== undefined) sp.side = patch.side;
+    });
+  }
+
+  /** Remove a column, keeping at least one (a zero-column format is unusable). */
+  removeTemplateColumn(id: string, speechId: string): void {
+    this.mutateTemplate(id, (t) => {
+      if (t.speeches.length <= 1) return;
+      t.speeches = t.speeches.filter((s) => s.id !== speechId);
+    });
+  }
+
+  /** Move a column left (-1) or right (+1). */
+  moveTemplateColumn(id: string, speechId: string, dir: -1 | 1): void {
+    this.mutateTemplate(id, (t) => {
+      const i = t.speeches.findIndex((s) => s.id === speechId);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= t.speeches.length) return;
+      [t.speeches[i], t.speeches[j]] = [t.speeches[j], t.speeches[i]];
+    });
+  }
+
+  setStartRows(n: number): void {
+    this.startRows = clampStartRows(n);
     this.save();
   }
 

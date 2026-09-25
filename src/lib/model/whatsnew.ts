@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.2",
+    headline: "Build your own flow formats - your columns, your names, your sides - and switch to one in a click.",
+    items: [
+      "**Custom formats.** In **Settings -> Flow & Formats** you can now make your own format from scratch or by duplicating a built-in one. Add as many columns as you want, name each one, set its side (Aff / Neg / neutral), and reorder them - everything a built-in format has, under your control.",
+      "**Apply a format in one click.** Each format has a **Use** button and shows a **✓ In use** badge, so the one your new flows start with is obvious and one tap away - no hunting for a separate setting. Making or duplicating a format selects it for you.",
+      "**Jump straight to it.** The new-flow card has a **Manage…** link next to the format picker that opens **Flow & Formats** directly, and the format dropdown lists your custom formats alongside the built-ins.",
+      "**Set the starting height.** Choose how many rows a fresh sheet opens with - paper still grows as you flow past the bottom, this just sets where it starts.",
+    ],
+  },
+  {
     version: "1.4.1",
     headline: "Smart blocks is a switch now, you can flow a cross-ex, and importing is cleaner.",
     items: [

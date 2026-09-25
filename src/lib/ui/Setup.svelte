@@ -3,18 +3,14 @@
   // format, and how flows are saved. Everything here is also in Settings, so
   // this is a friendly starting point, not the only way to change any of it.
   import { settings, THEMES } from "../model/settings.svelte";
-  import { builtinTemplates } from "../model/templates";
 
   let { onclose }: { onclose: () => void } = $props();
 
-  const templates = builtinTemplates();
+  const templateChoices = $derived(settings.templateChoices());
 
   function pickTheme(id: (typeof THEMES)[number]["id"]) {
     settings.theme = id;
     settings.save();
-  }
-  function pickTemplate(i: number) {
-    settings.setDefaultTemplate(i);
   }
   function pickFormat(f: "nimbus" | "xlsx") {
     settings.defaultSaveFormat = f;
@@ -52,8 +48,8 @@
     <section class="block">
       <h2>Speech format</h2>
       <div class="chips">
-        {#each templates as t, i (t.id)}
-          <button class="chip" class:on={settings.defaultTemplate === i} onclick={() => pickTemplate(i)}>{t.name}</button>
+        {#each templateChoices as c (c.id)}
+          <button class="chip" class:on={settings.selectedTemplateId === c.id} onclick={() => settings.selectTemplate(c.id)}>{c.name}</button>
         {/each}
       </div>
     </section>

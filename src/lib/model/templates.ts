@@ -9,6 +9,42 @@ function sp(abbr: string, label: string, side: Side): Speech {
   return { id: uid(), abbr, label, side };
 }
 
+/** Build one speech column - the public form of {@link sp}, used by the custom
+ *  template editor to add a column with its own id. */
+export function makeSpeech(abbr: string, label: string, side: Side): Speech {
+  return sp(abbr, label, side);
+}
+
+/** A short abbr default for a freshly added column of a given side. */
+export function defaultAbbrFor(side: Side): string {
+  return side === "aff" ? "AFF" : side === "neg" ? "NEG" : "COL";
+}
+
+/**
+ * A minimal starting point for a user's own format: two columns, one per side.
+ * Columns, names, and sides are all editable afterwards in Settings → Formats.
+ */
+export function blankCustomTemplate(name = "My Format"): SpeechTemplate {
+  return {
+    id: uid(),
+    name,
+    speeches: [
+      sp("AFF", "Affirmative", "aff"),
+      sp("NEG", "Negative", "neg"),
+    ],
+  };
+}
+
+/** A deep, id-refreshed copy of a template - so a duplicate never shares speech
+ *  ids (which are foreign keys for lanes/replies) with its source. */
+export function cloneTemplate(src: SpeechTemplate, name = src.name): SpeechTemplate {
+  return {
+    id: uid(),
+    name,
+    speeches: src.speeches.map((s) => ({ ...s, id: uid() })),
+  };
+}
+
 export function policyTemplate(): SpeechTemplate {
   return {
     id: uid(),

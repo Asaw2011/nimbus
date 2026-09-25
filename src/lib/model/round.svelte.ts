@@ -5,6 +5,7 @@
 import type { ArgRef, Cell, CellItem, Round, Sheet, Side, Speech, SpeechTemplate } from "./types";
 import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
 import { saveRoundJson } from "./persist";
+import { settings } from "./settings.svelte";
 
 const HISTORY_LIMIT = 300;
 const SAVE_DEBOUNCE_MS = 400;
@@ -743,7 +744,7 @@ class RoundStore {
     const startCol = this.round
       ? defaultStartCol(this.round.template, kind)
       : 0;
-    const sheet = makeSheet(title, this.nCols, kind, startCol);
+    const sheet = makeSheet(title, this.nCols, kind, startCol, settings.startRows);
     this.mutate((r) => r.sheets.push(sheet));
     this.activeSheetId = sheet.id;
     this.cursor = { row: 0, col: startCol };

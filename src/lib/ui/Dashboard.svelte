@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Round, RoundMeta, Side, SpeechTemplate } from "../model/types";
-  import { builtinTemplates, splitForSide, splitTargetFor } from "../model/templates";
+  import { splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
@@ -52,24 +52,26 @@
    *  in it. */
   let collapsed = $state<string[]>([]);
   let showSettings = $state(false);
+  /** Which Settings tab to open on - set before opening to deep-link (e.g. the
+   *  "Manage formats" link jumps straight to Flow & Formats). */
+  let settingsTab = $state<string | undefined>(undefined);
+  function openSettings(tab?: string) {
+    settingsTab = tab;
+    showSettings = true;
+  }
   let converting = $state(false);
   let status = $state("");
 
   const LS_SIDE = "debate-flow:last-side";
 
-  const templates = builtinTemplates();
+  // Every format a new flow can start from - built-ins plus the user's own
+  // custom templates - kept reactive so a template edited in Settings shows up
+  // here without a reload.
+  const templateChoices = $derived(settings.templateChoices());
   // The default speech format lives in settings (disk-backed), so whatever you
   // pick here is the primary option next time - no re-selecting Policy each run.
   function defaultTpl(): SpeechTemplate {
-    const i = settings.defaultTemplate;
-    const base = (templates[i] ?? templates[0]) as SpeechTemplate;
-    const overrides = settings.templateAbbrs[i] ?? [];
-    const tpl = structuredClone(base) as SpeechTemplate;
-    tpl.speeches.forEach((sp, j) => {
-      const o = overrides[j]?.trim();
-      if (o) sp.abbr = o;
-    });
-    return tpl;
+    return settings.newFlowTemplate();
   }
 
   // Which side you're flowing from, chosen HERE because it decides how many
@@ -637,15 +639,19 @@
         <div class="newcard-accent" aria-hidden="true"></div>
         <div class="newcard-title">New flow</div>
         <label class="frow">
-          <span class="frow-label">Format</span>
+          <span class="frow-label">
+            Format
+            <button class="frow-link" type="button" onclick={() => openSettings("formats")}
+              title="Create or edit your own formats">Manage…</button>
+          </span>
           <select
             class="field"
-            value={settings.defaultTemplate}
+            value={settings.selectedTemplateId}
             aria-label="Format for the new flow"
-            onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}
+            onchange={(e) => settings.selectTemplate(e.currentTarget.value)}
           >
-            {#each templates as t, i (t.id)}
-              <option value={i}>{t.name}</option>
+            {#each templateChoices as c (c.id)}
+              <option value={c.id}>{c.name}{c.custom ? " (custom)" : ""}</option>
             {/each}
           </select>
         </label>
@@ -918,7 +924,7 @@
 </div>
 
 {#if showSettings}
-  <SettingsPanel onclose={() => (showSettings = false)} />
+  <SettingsPanel initialTab={settingsTab} onclose={() => { showSettings = false; settingsTab = undefined; }} />
 {/if}
 
 {#if showManual}
@@ -1008,7 +1014,12 @@
   }
   .newcard-title { font-size: 16px; font-weight: 700; color: var(--text); }
   .frow { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .frow-label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+  .frow-label { font-size: 13px; color: var(--text-dim); font-weight: 500; display: inline-flex; align-items: baseline; gap: 8px; }
+  .frow-link {
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: var(--accent); font-size: 11.5px; font-weight: 600; font-family: inherit;
+  }
+  .frow-link:hover { text-decoration: underline; }
   .field {
     flex: 1; max-width: 260px;
     background: var(--bg); border: 1px solid var(--border); color: var(--text);

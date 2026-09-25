@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { settings } from "../model/settings.svelte";
   import type { ActionId, Combo } from "../model/keymap";
   import { ACTION_GROUPS, actionLabel, comboFromEvent, comboLabel } from "../model/keymap";
@@ -12,7 +13,7 @@
   import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, initialTab }: { onclose: () => void; initialTab?: string } = $props();
 
   let rebinding = $state<ActionId | null>(null);
   let rebindingMacro = $state<string | null>(null);
@@ -30,20 +31,47 @@
   // Settings are split into tabs (CardMirror-style) instead of one long scroll.
   const TABS = [
     { id: "appearance", label: "Appearance" },
+    { id: "formats", label: "Flow & Formats" },
     { id: "editing", label: "Editing" },
     { id: "keyboard", label: "Keyboard" },
     { id: "library", label: "Library" },
     { id: "experimental", label: "Experimental" },
     { id: "backup", label: "Backup" },
   ] as const;
-  let tab = $state<(typeof TABS)[number]["id"]>("appearance");
+  // The panel remounts each time it opens, so reading the prop once at mount is
+  // exactly right - untrack keeps it out of the reactive graph (and quiet).
+  let tab = $state<(typeof TABS)[number]["id"]>(
+    untrack(() =>
+      TABS.some((t) => t.id === initialTab) ? (initialTab as (typeof TABS)[number]["id"]) : "appearance",
+    ),
+  );
 
-  // Speech-format (template) editor: rename a format's speeches for all new
-  // rounds, and pick which format new flows start with.
+  // Speech-format (template) editor: rename a built-in format's speeches for all
+  // new rounds, and pick which format new flows start with.
   const FORMAT_TEMPLATES = builtinTemplates();
   let fmtIdx = $state(settings.defaultTemplate);
   const speechAbbr = (format: number, j: number, fallback: string) =>
     settings.templateAbbrs[format]?.[j] ?? fallback;
+
+  // Every format a new flow can use (built-ins + custom), reactive so edits show
+  // up immediately in the pickers below.
+  const templateChoices = $derived(settings.templateChoices());
+  // Which custom format is open in the column editor, if any.
+  let editingCustomId = $state<string | null>(null);
+  const editingCustom = $derived(
+    settings.customTemplates.find((t) => t.id === editingCustomId) ?? null,
+  );
+  const SIDES: { id: "aff" | "neg" | "neutral"; label: string }[] = [
+    { id: "aff", label: "Aff" },
+    { id: "neg", label: "Neg" },
+    { id: "neutral", label: "—" },
+  ];
+  function newCustomFormat() {
+    editingCustomId = settings.addCustomTemplate("My Format");
+  }
+  function duplicateSelected() {
+    editingCustomId = settings.duplicateAsCustom(settings.selectedTemplateId);
+  }
 
   // Speech-doc style editor helpers.
   function patchDoc(patch: Partial<DocTypography>) {
@@ -442,15 +470,122 @@
       </label>
     </section>
 
+    {/if}
+
+    {#if tab === "formats"}
     <section>
-      <h3>Speech formats</h3>
-      <p class="hint">Pick the format new flows start with, and rename its speeches. Renames apply to every new round of that format.</p>
+      <h3>New flows</h3>
+      <p class="hint">Which format a new flow starts with, and how much blank paper it opens with. Both apply to every new flow you create.</p>
       <label class="row">
-        Default format for new flows
-        <select value={settings.defaultTemplate} onchange={(e) => settings.setDefaultTemplate(Number(e.currentTarget.value))}>
-          {#each FORMAT_TEMPLATES as t, i (t.id)}<option value={i}>{t.name}</option>{/each}
+        Default format
+        <select value={settings.selectedTemplateId} onchange={(e) => settings.selectTemplate(e.currentTarget.value)}>
+          {#each templateChoices as c (c.id)}<option value={c.id}>{c.name}{c.custom ? " (custom)" : ""}</option>{/each}
         </select>
       </label>
+      <label class="row">
+        Starting rows
+        <span class="inline">
+          <input
+            type="range" min="4" max="80" step="1"
+            value={settings.startRows}
+            oninput={(e) => settings.setStartRows(Number(e.currentTarget.value))}
+          />
+          {settings.startRows}
+        </span>
+      </label>
+      <p class="hint">Paper still grows as you flow past the bottom - this only sets how tall each new sheet opens.</p>
+    </section>
+
+    <section>
+      <h3>Custom formats</h3>
+      <p class="hint">
+        Build your own format - as many columns as you want, each with its own
+        name and side. Pick it under "Default format" (or when starting a flow)
+        to use it. Start from scratch, or duplicate the selected format to tweak
+        it.
+      </p>
+      <div class="backup-row" style="margin-bottom: 10px;">
+        <button class="chip" onclick={newCustomFormat}>+ New blank format</button>
+        <button class="chip" onclick={duplicateSelected}>Duplicate selected</button>
+      </div>
+
+      {#if settings.customTemplates.length === 0}
+        <p class="hint" style="margin-top: 2px;">No custom formats yet.</p>
+      {/if}
+
+      {#each settings.customTemplates as t (t.id)}
+        {@const inUse = settings.selectedTemplateId === `custom:${t.id}`}
+        <div class="cfmt" class:in-use={inUse}>
+          <div class="cfmt-head">
+            <input
+              class="cfmt-name"
+              value={t.name}
+              onchange={(e) => settings.renameCustomTemplate(t.id, e.currentTarget.value)}
+            />
+            <span class="cfmt-count">{t.speeches.length} column{t.speeches.length === 1 ? "" : "s"}</span>
+            {#if inUse}
+              <span class="use-badge" title="New flows use this format">✓ In use</span>
+            {:else}
+              <button class="chip use-btn" title="Use this format for new flows"
+                onclick={() => settings.selectTemplate(`custom:${t.id}`)}>Use</button>
+            {/if}
+            <button class="chip" onclick={() => (editingCustomId = editingCustomId === t.id ? null : t.id)}>
+              {editingCustomId === t.id ? "Done" : "Edit columns"}
+            </button>
+            <button class="icon danger" title="Delete this format"
+              onclick={() => { if (editingCustomId === t.id) editingCustomId = null; settings.deleteCustomTemplate(t.id); }}>×</button>
+          </div>
+
+          {#if editingCustomId === t.id && editingCustom}
+            <div class="cols">
+              {#each editingCustom.speeches as sp, j (sp.id)}
+                <div class="col-row">
+                  <span class="col-num">{j + 1}</span>
+                  <input
+                    class="col-abbr"
+                    value={sp.abbr}
+                    placeholder="Header"
+                    title="Column header (shown on the flow)"
+                    onchange={(e) => settings.updateTemplateColumn(t.id, sp.id, { abbr: e.currentTarget.value })}
+                  />
+                  <input
+                    class="col-label"
+                    value={sp.label}
+                    placeholder="Full name (optional)"
+                    onchange={(e) => settings.updateTemplateColumn(t.id, sp.id, { label: e.currentTarget.value })}
+                  />
+                  <div class="seg col-side">
+                    {#each SIDES as s (s.id)}
+                      <button
+                        class:on={sp.side === s.id}
+                        title="Side (colors the column)"
+                        onclick={() => settings.updateTemplateColumn(t.id, sp.id, { side: s.id })}
+                      >{s.label}</button>
+                    {/each}
+                  </div>
+                  <button class="col-move" title="Move left" disabled={j === 0}
+                    onclick={() => settings.moveTemplateColumn(t.id, sp.id, -1)}>◀</button>
+                  <button class="col-move" title="Move right" disabled={j === editingCustom.speeches.length - 1}
+                    onclick={() => settings.moveTemplateColumn(t.id, sp.id, 1)}>▶</button>
+                  <button class="col-del" title="Remove column" disabled={editingCustom.speeches.length <= 1}
+                    onclick={() => settings.removeTemplateColumn(t.id, sp.id)}>×</button>
+                </div>
+              {/each}
+            </div>
+            <div class="add-cols">
+              <span class="hint" style="margin:0;">Add column:</span>
+              <button class="chip" onclick={() => settings.addTemplateColumn(t.id, "aff")}>+ Aff</button>
+              <button class="chip" onclick={() => settings.addTemplateColumn(t.id, "neg")}>+ Neg</button>
+              <button class="chip" onclick={() => settings.addTemplateColumn(t.id, "neutral")}>+ Neutral</button>
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </section>
+
+    <section>
+      <h3>Built-in speech names</h3>
+      <p class="hint">Rename the columns of a built-in format. Renames apply to every new round of that format.</p>
       <label class="row">
         Edit speeches for
         <select value={fmtIdx} onchange={(e) => (fmtIdx = Number(e.currentTarget.value))}>
@@ -1103,6 +1238,59 @@
     background: var(--bg); color: var(--text);
   }
   .speech-input:focus { outline: none; border-color: var(--accent); }
+
+  /* Custom format editor */
+  .cfmt {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+  }
+  .cfmt.in-use {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  .cfmt-head { display: flex; align-items: center; gap: 8px; }
+  .use-btn { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .use-btn:hover { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+  .use-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent); font-size: 11px; font-weight: 700;
+    border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+  }
+  .cfmt-name {
+    flex: 1; min-width: 0; padding: 5px 9px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text);
+  }
+  .cfmt-name:focus { outline: none; border-color: var(--accent); }
+  .cfmt-count { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .cols { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .col-row { display: flex; align-items: center; gap: 6px; }
+  .col-num {
+    width: 18px; text-align: center; font-size: 11px; color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .col-abbr, .col-label {
+    padding: 4px 8px; font-size: 12px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--text); min-width: 0;
+  }
+  .col-abbr { width: 92px; flex-shrink: 0; font-weight: 600; }
+  .col-label { flex: 1; }
+  .col-abbr:focus, .col-label:focus { outline: none; border-color: var(--accent); }
+  .col-side { flex-shrink: 0; }
+  .col-side button { padding: 4px 8px; font-size: 11px; }
+  .col-move, .col-del {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 6px; padding: 3px 7px; cursor: pointer; font-size: 11px;
+    flex-shrink: 0; line-height: 1;
+  }
+  .col-move:hover:not(:disabled), .col-del:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .col-del:hover:not(:disabled) { color: var(--mark-dropped); border-color: var(--mark-dropped); }
+  .col-move:disabled, .col-del:disabled { opacity: 0.35; cursor: default; }
+  .add-cols { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   .color-group { display: flex; align-items: flex-end; gap: 16px; }
   .color-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; margin: 0; }
   .color-chip input[type="color"] {
