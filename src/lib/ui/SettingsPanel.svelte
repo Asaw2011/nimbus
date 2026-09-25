@@ -606,6 +606,26 @@
         {/each}
       </div>
     </section>
+
+    <section>
+      <h3>Answer headers</h3>
+      <p class="hint">
+        When you send an answer you typed yourself (with <kbd>~</kbd>), it gets a header like
+        <b>AT: Jiang '25---1AR</b>, ending with the speech you're answering in. Choose what
+        answers from the <b>neg block</b> end with. Every other speech keeps its own name.
+      </p>
+      <label class="row">
+        Neg block answers end with
+        <select
+          value={settings.blockAtSuffix}
+          onchange={(e) => { settings.blockAtSuffix = e.currentTarget.value as "2NC" | "1NR" | "none"; settings.save(); }}
+        >
+          <option value="2NC">2NC (AT: Jiang '25---2NC)</option>
+          <option value="1NR">1NR (AT: Jiang '25---1NR)</option>
+          <option value="none">Nothing (AT: Jiang '25)</option>
+        </select>
+      </label>
+    </section>
     {/if}
 
     {#if tab === "keyboard"}

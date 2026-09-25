@@ -170,6 +170,11 @@ export interface Persisted {
   /** Experimental: show the Smart blocks (beta) tray in the corner of the flow.
    *  Off by default so the app stays clean until you opt in. */
   smartBlocksEnabled?: boolean;
+  /** What a typed answer's "AT: ...---<speech>" header ends with when it is
+   *  sent from the NEG BLOCK column. Nobody's blocks end in "Neg Block", so it
+   *  names the speech the block is actually given in - or nothing at all.
+   *  Every other speech keeps its own name. */
+  blockAtSuffix?: "2NC" | "1NR" | "none";
 }
 
 /** One countdown button on the timer. */
@@ -374,6 +379,8 @@ class Settings {
   /** Experimental: the Smart blocks (beta) tray. Off by default - it is opt-in
    *  from Settings → Experimental, so the flow stays uncluttered until asked. */
   smartBlocksEnabled = $state(false);
+  /** See Persisted.blockAtSuffix. */
+  blockAtSuffix = $state<"2NC" | "1NR" | "none">("2NC");
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -493,6 +500,9 @@ class Settings {
         .map((r) => ({ name: r.name, wpm: Math.max(1, Math.round(r.wpm) || 200) }));
     if (p.docTarget !== undefined) this.docTarget = p.docTarget;
     if (p.smartBlocksEnabled !== undefined) this.smartBlocksEnabled = p.smartBlocksEnabled;
+    if (p.blockAtSuffix === "2NC" || p.blockAtSuffix === "1NR" || p.blockAtSuffix === "none") {
+      this.blockAtSuffix = p.blockAtSuffix;
+    }
     if (Array.isArray(p.timerPresets) && p.timerPresets.length) {
       // Always land exactly five slots, each sanitized against the default in
       // that position - a truncated or corrupted save can't leave the timer with
@@ -531,6 +541,7 @@ class Settings {
       timerPresets: $state.snapshot(this.timerPresets) as TimerPreset[],
       docTarget: this.docTarget,
       smartBlocksEnabled: this.smartBlocksEnabled,
+      blockAtSuffix: this.blockAtSuffix,
       colMinWidth: this.colMinWidth,
       affColor: this.affColor,
       negColor: this.negColor,

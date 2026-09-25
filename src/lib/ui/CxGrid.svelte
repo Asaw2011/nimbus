@@ -7,11 +7,90 @@
   // width of cells, so inserts, undo, autosave and partner sync all work exactly
   // as they do everywhere else. This view only ever shows and edits the first
   // two cells of each row - cell 0 the question, cell 1 the answer.
-  import type { Sheet } from "../model/types";
+  import type { Sheet, Speech } from "../model/types";
   import { makeRow } from "../model/types";
   import { store } from "../model/round.svelte";
 
-  let { sheet, spread = false }: { sheet: Sheet; spread?: boolean } = $props();
+  let {
+    sheet,
+    spread = false,
+    onopen,
+  }: {
+    sheet: Sheet;
+    spread?: boolean;
+    /** Opens another sheet. Without it (the spread view) the speech bar only
+     *  shows which speech this is, and can't switch. */
+    onopen?: (sheetId: string) => void;
+  } = $props();
+
+  // ---- which speech this cross-ex is ---------------------------------------
+  //
+  // Each cross-ex period is its own sheet, named "<speech> CX". The speech is
+  // read back from the TITLE, which is the one sheet property the partner sync
+  // already carries, so the label reaches a partner (even one on an older
+  // build, who just sees a sheet called "1AC CX") with no protocol change.
+
+  interface CxOption {
+    name: string;
+    side: Speech["side"];
+  }
+
+  /** The speeches that get cross-examined: every speech before the first
+   *  rebuttal, a partner-lane split counted once. Policy gives 1AC 1NC 2AC 2NC,
+   *  LD gives AC NC. A format with no rebuttals offers all its speeches. */
+  const options = $derived.by<CxOption[]>(() => {
+    const speeches = store.round?.template.speeches ?? [];
+    const isRebuttal = (s: Speech) =>
+      /rebuttal/i.test(s.label) || /^(1AR|2AR|1NR|2NR|NR|AR)$|\bReb\b/i.test(s.abbr);
+    const firstReb = speeches.findIndex(isRebuttal);
+    const pool = firstReb > 0 ? speeches.slice(0, firstReb) : speeches;
+    const seen = new Set<string>();
+    const out: CxOption[] = [];
+    for (const s of pool) {
+      if (s.laneGroup && seen.has(s.laneGroup)) continue;
+      if (s.laneGroup) seen.add(s.laneGroup);
+      // A lane's stored abbr carries " · You"/" · Partner"; the speech is the part before it.
+      let name = s.laneGroup ? s.abbr.split(" · ")[0] : s.abbr;
+      // The neg block's cross-ex is the 2NC's, nobody calls it "Neg Block CX".
+      if (/^2NC\b/i.test(s.label)) name = "2NC";
+      out.push({ name, side: s.side });
+    }
+    return out;
+  });
+
+  function speechOf(title: string): CxOption | null {
+    const t = title.trim().toLowerCase();
+    for (const o of options) {
+      const n = o.name.toLowerCase();
+      if (t === n || t.startsWith(`${n} cx`) || t.startsWith(`${n} cross`)) return o;
+      if (o.name === "2NC" && t.startsWith("neg block")) return o;
+    }
+    return null;
+  }
+
+  const current = $derived(speechOf(sheet.title));
+  const sideName = (s: Speech["side"]) => (s === "aff" ? "Aff" : s === "neg" ? "Neg" : "");
+  /** In a cross-ex, the OTHER side asks and the speaker answers. */
+  const asker = $derived(current ? sideName(current.side === "aff" ? "neg" : current.side === "neg" ? "aff" : current.side) : "");
+  const answerer = $derived(current ? sideName(current.side) : "");
+
+  /**
+   * Switch to a speech's cross-ex. A page that isn't labelled yet (a fresh
+   * "Cross-ex" sheet) takes the label; otherwise go to that speech's page,
+   * making it the first time.
+   */
+  function pick(o: CxOption) {
+    if (current?.name === o.name) return;
+    if (!current) {
+      store.renameSheet(sheet.id, `${o.name} CX`);
+      return;
+    }
+    if (!onopen) return;
+    const existing = store.round?.sheets.find(
+      (s) => s.kind === "cx" && s.id !== sheet.id && speechOf(s.title)?.name === o.name,
+    );
+    onopen(existing ? existing.id : store.addSheet(`${o.name} CX`, "cx"));
+  }
 
   /** Question lives in cell 0, answer in cell 1. */
   const Q = 0;
@@ -87,10 +166,42 @@
 </script>
 
 <div class="cx-wrap" class:spread>
+  {#if options.length}
+    <div class="cx-top" class:unset={!current}>
+      <span class="cx-of">Cross-ex of</span>
+      {#if onopen}
+        <div class="cx-seg" role="tablist" aria-label="Which speech is being cross-examined">
+          {#each options as o (o.name)}
+            <button
+              class="cx-sp"
+              class:on={current?.name === o.name}
+              role="tab"
+              aria-selected={current?.name === o.name}
+              title={current
+                ? current.name === o.name
+                  ? `This page is the ${o.name} cross-ex`
+                  : `Go to the ${o.name} cross-ex (made the first time)`
+                : `Label this page as the ${o.name} cross-ex`}
+              onclick={() => pick(o)}
+            >{o.name}</button>
+          {/each}
+        </div>
+      {:else}
+        <span class="cx-sp on static">{current?.name ?? "?"}</span>
+      {/if}
+      <span class="cx-who">
+        {#if current}
+          {asker ? `${asker} asks, ${answerer} answers` : ""}
+        {:else}
+          Pick the speech being cross-examined
+        {/if}
+      </span>
+    </div>
+  {/if}
   <div class="cx-scroll" bind:this={scroller}>
     <div class="cx-head">
-      <div class="cx-h q">Question asked</div>
-      <div class="cx-h a">Answer</div>
+      <div class="cx-h q">Question{asker ? ` (${asker})` : " asked"}</div>
+      <div class="cx-h a">Answer{answerer ? ` (${answerer})` : ""}</div>
     </div>
     {#each sheet.rows as row, r (row.id)}
       <div class="cx-row">
@@ -128,6 +239,64 @@
   .cx-scroll {
     flex: 1;
     overflow: auto;
+  }
+  /* The speech bar: part of the cross-ex page itself, not the app's top bar.
+     Compact, but big enough that which cross-ex you're on is never in doubt. */
+  .cx-top {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .cx-top.unset {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  }
+  .cx-of {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .cx-seg {
+    display: flex;
+    gap: 4px;
+  }
+  .cx-sp {
+    min-width: 52px;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .cx-sp:hover {
+    border-color: var(--accent);
+  }
+  .cx-sp.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast, #fff);
+  }
+  .cx-sp.static {
+    cursor: default;
+    display: inline-block;
+    text-align: center;
+  }
+  .cx-who {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .cx-top.unset .cx-who {
+    color: var(--text);
+    font-weight: 600;
   }
   /* The number gutter has no header cell, so the labels start at column 2. */
   .cx-head {

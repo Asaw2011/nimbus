@@ -637,7 +637,14 @@
   /** The speech name for a column, without any partner-lane suffix ("1AR · You"
    *  → "1AR"): the header names the SPEECH you're answering in, not the lane. */
   function speechAbbr(col: number): string {
-    return (store.round?.template.speeches[col]?.abbr ?? "").split(" · ")[0];
+    const sp = store.round?.template.speeches[col];
+    // The neg block is given as the 2NC or the 1NR, never as "Neg Block" - so
+    // its answers end with whichever the user picked, or with nothing. Matched
+    // by the built-in LABEL, which renaming the column's abbr doesn't touch.
+    if (sp && /^2NC\s*\/\s*1NR/i.test(sp.label)) {
+      return settings.blockAtSuffix === "none" ? "" : settings.blockAtSuffix;
+    }
+    return (sp?.abbr ?? "").split(" · ")[0];
   }
 
   /**
@@ -1319,7 +1326,7 @@
                  `zoom`); the spread view zooms its own panels independently. -->
             <div class="zoom-wrap" style="zoom: {settings.zoom}">
               {#if sheet.kind === "cx"}
-                <CxGrid {sheet} />
+                <CxGrid {sheet} onopen={openSheet} />
               {:else}
                 <Grid {sheet} />
               {/if}
