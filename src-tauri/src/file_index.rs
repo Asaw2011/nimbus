@@ -12,7 +12,7 @@ pub struct LibFile {
     pub path: String,
     /// File stem (no extension) — what's shown in search results.
     pub name: String,
-    /// "docx" or "nimbus"
+    /// "docx", "cmir" (CardMirror native) or "nimbus"
     pub ext: String,
     /// Milliseconds since Unix epoch (for sorting by recency).
     pub mtime: u64,
@@ -56,7 +56,7 @@ fn is_offline(_meta: &std::fs::Metadata) -> bool {
     false
 }
 
-/// Recursively walk every enabled root and return all .docx / .nimbus files,
+/// Recursively walk every enabled root and return all .docx / .cmir / .nimbus files,
 /// sorted by mtime descending (most recent first).
 ///
 /// Safety limits:
@@ -110,7 +110,7 @@ pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
                 None => continue,
             };
 
-            if ext != "docx" && ext != "nimbus" {
+            if ext != "docx" && ext != "cmir" && ext != "nimbus" {
                 continue;
             }
 

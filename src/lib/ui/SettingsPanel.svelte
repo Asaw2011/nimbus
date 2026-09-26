@@ -772,6 +772,18 @@
 
     {#if tab === "editing"}
     <section>
+      <h3>Pasting</h3>
+      <label class="row">
+        <span>Split pasted text into cells<br /><small class="sub">Off: a long block pasted from outside Nimbus goes into one cell. On: each line gets its own row. Copying Nimbus cells always pastes back as cells.</small></span>
+        <input
+          type="checkbox"
+          checked={settings.pasteSplitsCells}
+          onchange={(e) => { settings.pasteSplitsCells = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
+    </section>
+
+    <section>
       <h3>Macros</h3>
       <p class="hint">
         Macros are JavaScript. Your code runs at the cursor via the
@@ -914,7 +926,7 @@
     <section>
       <h3>Search Library</h3>
       <p class="hint">
-        Add your Dropbox or prep folders. Nimbus indexes all .docx files inside
+        Add your Dropbox or prep folders. Nimbus indexes all .docx and .cmir (CardMirror) files inside
         for Doc Search (⌘K) so you can find and drag blocks into the flow.
       </p>
       <div class="backup-row">

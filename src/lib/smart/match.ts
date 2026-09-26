@@ -271,7 +271,7 @@ export function guessFileForSheet(
   let best: string | null = null;
   let bestScore = 0;
   for (const f of files) {
-    const ft = tokens(`${f.name.replace(/\.docx$/i, "")} ${f.firstHeading}`);
+    const ft = tokens(`${f.name.replace(/\.(docx|cmir)$/i, "")} ${f.firstHeading}`);
     const shared = s.filter((t) => ft.includes(t));
     if (!shared.some((t) => !KIND.has(t))) continue;
     const score = shared.length / Math.min(s.length, ft.length);

@@ -721,13 +721,20 @@
   }
 
   function onpaste(e: ClipboardEvent) {
-    const text = e.clipboardData?.getData("text/plain") ?? "";
+    let text = e.clipboardData?.getData("text/plain") ?? "";
+    const multi = text.includes("\t") || text.includes("\n");
+    // Line endings normalized: the OS clipboard can hand \n back as \r\n.
+    const norm = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+    const fromNimbus = multi && !!store.copiedTsv && norm(text) === norm(store.copiedTsv);
+    // A long block from OUTSIDE Nimbus goes into this one cell by default -
+    // its lines and tabs become spaces (a cell is one run of text).
+    if (multi && !fromNimbus && !settings.pasteSplitsCells) {
+      text = text.replace(/\s*[\r\n\t]+\s*/g, " ").trim();
+    }
     // Multi-cell clipboard (tabs = columns, newlines = rows) → spread like Excel.
-    if (text.includes("\t") || text.includes("\n")) {
+    else if (multi) {
       e.preventDefault();
-      const grid = text
-        .replace(/\r\n/g, "\n")
-        .replace(/\n+$/, "")
+      const grid = norm(text)
         .split("\n")
         .map((line) => line.split("\t"));
       store.pasteBlock(row, col, grid);

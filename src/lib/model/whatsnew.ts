@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.5",
+    headline: "CardMirror .cmir files work in Ctrl+K and Smart blocks, pastes stay in one cell, and the condensed toolbar is slimmer.",
+    items: [
+      "**.cmir files work everywhere .docx does.** Ctrl+K lists and opens CardMirror .cmir files from your library, and you can add them to Smart blocks. Blocks and cards insert exactly as they do from a .docx.",
+      "**Pasting a long block keeps it in one cell.** Text pasted from outside Nimbus no longer splits into a new row per line. Copying a range of Nimbus cells and pasting it back still fills the same range. Want the old splitting back? Turn it on in **Settings -> Editing -> Pasting**.",
+      "**No Smart block suggestions for the 1NC.** The 1NC is read off a prepared shell, so suggestions for answering the 1AC are gone. Suggestions for the 2AC's answers to the 1NC (and everything after) are unchanged.",
+      "**The condensed toolbar is shorter.** Condensing the toolbar now shrinks its height too, so the flow gets more room when you're in splitscreen.",
+    ],
+  },
+  {
     version: "1.4.4",
     headline: "Pop the timer out so it stays on top of CardMirror, with real alarm sounds and shortcuts that work from anywhere.",
     items: [

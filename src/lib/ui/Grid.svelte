@@ -456,7 +456,9 @@
       store.selection = null;
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c" && !e.shiftKey) {
       e.preventDefault();
-      void navigator.clipboard.writeText(store.selectionTsv());
+      const tsv = store.selectionTsv();
+      store.copiedTsv = tsv;
+      void navigator.clipboard.writeText(tsv);
     } else if (matchesAny(e, km.markDropped)) {
       e.preventDefault();
       store.applyToSelection((c) => {

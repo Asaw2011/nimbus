@@ -74,6 +74,7 @@ are done. Nimbus tells you what changed the first time you open a new version.
   Link, Internal, Impact), plus each advantage's impact overview when you're aff
 - **File** tab: the sheet's file browsed like Doc Search, click or drag to insert
 - A **library** of files pinned into every round's kit
+- Reads `.docx` and CardMirror's native `.cmir` alike (so does Doc Search)
 - Matches your block headings — it's word matching, not AI, and runs fully
   offline
 

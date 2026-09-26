@@ -1,7 +1,8 @@
 <script lang="ts">
   import { fileIndex, relativeTime, type LibFile } from "./file-index.svelte";
   import { contentIndex } from "./content-index.svelte";
-  import { parseDocx, nodeChip, type DocNode } from "$lib/docx/parse";
+  import { nodeChip, type DocNode } from "$lib/docx/parse";
+  import { parseSpeechDoc, readCmirDoc, cmirTopLevel } from "$lib/docx/cmir";
   import { store } from "$lib/model/round.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
@@ -20,9 +21,19 @@
     if (cmDocCache.has(file.path)) return cmDocCache.get(file.path) as never;
     try {
       const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
-      const { fromDocx } = await import("$lib/cardmirror");
-      const doc = await fromDocx(new Uint8Array(bytes));
-      const json = doc.toJSON();
+      const { fromDocx, schema } = await import("$lib/cardmirror");
+      let json: unknown;
+      if (file.ext === "cmir") {
+        // A .cmir already IS CardMirror doc JSON - no conversion. Live zones
+        // are unwrapped so their cards are top-level like the rest. It must
+        // pass OUR schema, though: a file from a newer CardMirror can hold a
+        // node this build doesn't know, and then the DocNode adapter path is
+        // used instead of a silent failed insert.
+        json = { type: "doc", content: cmirTopLevel(readCmirDoc(new Uint8Array(bytes).buffer)) };
+        schema.nodeFromJSON(json).check();
+      } else {
+        json = (await fromDocx(new Uint8Array(bytes))).toJSON();
+      }
       // Clean up empty-box artifacts (emphasis/bold on whitespace-only runs);
       // otherwise preserve CardMirror's exact styles.
       cleanWhitespaceMarks(json);
@@ -30,6 +41,8 @@
       return json as never;
     } catch (err) {
       console.error("fromDocx failed", err);
+      // A .cmir that fails the schema fails every time - don't re-read it.
+      if (file.ext === "cmir") cmDocCache.set(file.path, null);
       return null;
     }
   }
@@ -260,7 +273,7 @@
     try {
       if (file.name.startsWith("~$")) throw new Error("Word lock file");
       const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
-      const parsed = parseDocx(new Uint8Array(bytes).buffer);
+      const parsed = parseSpeechDoc(new Uint8Array(bytes).buffer);
       cacheParse(file.path, parsed.nodes);
       setDived(file, parsed.nodes, keepQuery);
     } catch (err) {

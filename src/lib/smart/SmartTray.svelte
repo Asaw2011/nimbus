@@ -80,7 +80,7 @@
   async function addFiles() {
     if ("__TAURI_INTERNALS__" in window) {
       const { open: pick } = await import("@tauri-apps/plugin-dialog");
-      const picked = await pick({ multiple: true, filters: [{ name: "Word", extensions: ["docx"] }] });
+      const picked = await pick({ multiple: true, filters: [{ name: "Speech docs", extensions: ["docx", "cmir"] }] });
       if (!picked) return;
       await smartKit.addPaths(Array.isArray(picked) ? picked : [picked]);
     } else {
@@ -103,7 +103,7 @@
   }
 
   function fileName(key: string | null): string {
-    return smartKit.all.find((f) => f.key === key)?.name.replace(/\.docx$/i, "") ?? "";
+    return smartKit.all.find((f) => f.key === key)?.name.replace(/\.(docx|cmir)$/i, "") ?? "";
   }
 
   // ---- dropping files onto the tray ----------------------------------------
@@ -341,7 +341,7 @@
               <span>{sheet.title || "Untitled"}</span>
               <span class="dim">from</span>
               <span class="fromfile" title={sheetFile.key}>
-                {sheetFile.name.replace(/\.docx$/i, "")}{#if sheetFile.scope}<span class="dim"> › </span>{sheetFile.scope.text}{/if}
+                {sheetFile.name.replace(/\.(docx|cmir)$/i, "")}{#if sheetFile.scope}<span class="dim"> › </span>{sheetFile.scope.text}{/if}
               </span>
               {#if sheetFile.scope && tab === "file"}
                 <button class="mini" onclick={toggleWholeFile} title="Only this sheet's section is used for suggestions either way">
@@ -446,7 +446,7 @@
                 title={pinned ? "In every round - click to keep it in this round only" : "Keep this file in every round"}
               >📌</button>
               <span class="fname" title={f.key.startsWith("copy:") ? "Not found in your Doc Search library, so Nimbus keeps a copy made when you dropped it. Drop it again to update it." : f.key}>
-                {f.name.replace(/\.docx$/i, "")}
+                {f.name.replace(/\.(docx|cmir)$/i, "")}
                 {#if f.key.startsWith("copy:")}<span class="copytag">copy</span>{/if}
                 {#if !f.general && smartKit.isCaseNeg(f.key)}<span class="copytag casetag" title="Used on every aff (case) sheet">case neg</span>{/if}
                 {#if !f.general && smartKit.isTwoAC(f.key)}<span class="copytag casetag" title="When you're aff: its CASE section is used on every aff sheet, and each off-case sheet uses its own section">2AC</span>{/if}
@@ -481,9 +481,9 @@
           {/each}
           <div class="dropzone">
             <button class="add" onclick={addFiles}>+ Add files…</button>
-            <span class="dim">or drop .docx files anywhere on this panel</span>
+            <span class="dim">or drop .docx / .cmir files anywhere on this panel</span>
           </div>
-          <input bind:this={fileInput} type="file" accept=".docx" multiple hidden onchange={onBrowserFiles} />
+          <input bind:this={fileInput} type="file" accept=".docx,.cmir" multiple hidden onchange={onBrowserFiles} />
 
           {#if store.round?.sheets.length && smartKit.all.length}
             <div class="section">Which file each sheet uses</div>
@@ -499,7 +499,7 @@
                   </option>
                   <option value="">No file</option>
                   {#each smartKit.all.filter((f) => !f.general) as f (f.key)}
-                    <option value={f.key}>{f.name.replace(/\.docx$/i, "")}</option>
+                    <option value={f.key}>{f.name.replace(/\.(docx|cmir)$/i, "")}</option>
                   {/each}
                 </select>
               </div>
@@ -518,7 +518,7 @@
     ondragover={onDragOver}
     ondragleave={() => (dropping = false)}
     ondrop={onDrop}
-    title="Smart blocks (beta) - drop .docx files here to add them to the round kit"
+    title="Smart blocks (beta) - drop .docx or .cmir files here to add them to the round kit"
   >
     ✦ {list.length ? `${list.length} suggestion${list.length === 1 ? "" : "s"}` : "Smart blocks"}
   </button>

@@ -104,6 +104,13 @@ class RoundStore {
   /** Excel-style range selection on the active sheet (anchor→focus corners). */
   selection = $state<{ anchor: Cursor; focus: Cursor } | null>(null);
   /**
+   * The last range of cells copied out of Nimbus, as the TSV put on the
+   * clipboard. A paste of exactly this text came from Nimbus and spreads back
+   * over cells; any other multi-line paste is outside text and goes in one
+   * cell unless `settings.pasteSplitsCells`. Not reactive, not saved.
+   */
+  copiedTsv = "";
+  /**
    * Which partner lane is yours on a split speech. Always 0 while flowing
    * solo - you own the flow, so you own the first lane. A live partner session
    * sets it to 1 on the client that joined.

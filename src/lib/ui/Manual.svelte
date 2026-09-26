@@ -318,7 +318,7 @@
             prep files and insert cards straight into the flow.
           </p>
           <ul>
-            <li>Add folders in <b>Settings → Library</b>. Nimbus lists the .docx inside.</li>
+            <li>Add folders in <b>Settings → Library</b>. Nimbus lists the .docx and .cmir (CardMirror) files inside.</li>
             <li>Search <b>By name</b> (filename/heading) or <b>By content</b> (inside the cards).</li>
             <li>
               <b>By content needs the documents read once.</b> Choosing it doesn't start
@@ -347,7 +347,7 @@
           <ul>
             <li>
               <b>Kit</b> - the files for this round. Add them with <b>Add files…</b> or drop
-              .docx files onto the panel. Pick the exact files you want (the newest midterms
+              .docx or .cmir files onto the panel. Pick the exact files you want (the newest midterms
               file, not every copy) - suggestions only ever come from these.
             </li>
             <li>

@@ -285,9 +285,10 @@
 </div>
 
 <style>
-  /* One bar, two densities, ONE height. `full` fills the window; `compact`
-     fits a splitscreen half. Both are icon-only and both are 46px tall, so
-     switching never reflows the grid underneath.
+  /* One bar, two densities. `full` fills the window at 46px; `compact` fits a
+     splitscreen half and is also SHORTER - its height follows its (smaller)
+     icons, so condensing gives the flow back vertical room too. Asked for: the
+     condensed bar used to keep the full 46px around 22px icons.
 
      ⚠ `overflow: hidden`, not `auto`. The old bar scrolled horizontally, which
      is the thing being fixed - a toolbar you have to scroll is a toolbar whose
@@ -328,6 +329,8 @@
     --rb-font: 12px;
     --rb-gap: 0px;
     padding: 0 4px;
+    /* 4px above and below the icon box; tracks the size steps below. */
+    height: calc(var(--rb-size) + 8px);
   }
   .ribbon.compact .rb { padding: 0 2px; }
   /* The two multi-part readouts (text size −13+, zoom −70%+) are ~150px of the

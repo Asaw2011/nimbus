@@ -26,7 +26,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { saveBlob, loadBlob, loadBlobCached } from "$lib/model/blobs";
 import { fileIndex, type LibFile } from "./file-index.svelte";
-import { extractHeadings } from "$lib/docx/parse";
+import { extractSpeechDocHeadings } from "$lib/docx/cmir";
 
 interface ContentDoc {
   path: string;
@@ -118,7 +118,7 @@ class ContentIndexStore {
    */
   get coverage(): { indexed: number; local: number; offline: number } {
     const all = fileIndex.files.filter(
-      (f) => f.ext === "docx" && !f.name.startsWith("~$"),
+      (f) => (f.ext === "docx" || f.ext === "cmir") && !f.name.startsWith("~$"),
     );
     let indexed = 0;
     let offline = 0;
@@ -142,7 +142,7 @@ class ContentIndexStore {
     this.stopped = false;
     try {
       const all = fileIndex.files.filter(
-        (f) => f.ext === "docx" && !f.name.startsWith("~$"),
+        (f) => (f.ext === "docx" || f.ext === "cmir") && !f.name.startsWith("~$"),
       );
       // ⚠ Skip what isn't on the disk. A placeholder's bytes cost a download,
       // and a library search is not worth silently pulling someone's whole
@@ -175,7 +175,7 @@ class ContentIndexStore {
         } else {
           try {
             const bytes = await invoke<number[]>("read_binary_file", { path: f.path });
-            const heads = extractHeadings(new Uint8Array(bytes).buffer);
+            const heads = extractSpeechDocHeadings(new Uint8Array(bytes).buffer);
             const headings = heads.map((h) => h.text).slice(0, MAX_HEADINGS_PER_DOC);
             result.set(f.path, { path: f.path, mtime: f.mtime, headings });
           } catch {

@@ -9,7 +9,7 @@ import { settings } from "$lib/model/settings.svelte";
 export interface LibFile {
   path: string;
   name: string; // stem only, no extension
-  ext: string;  // "docx" | "nimbus"
+  ext: string;  // "docx" | "cmir" | "nimbus"
   mtime: number; // ms since epoch
   size: number;
   /**

@@ -118,6 +118,9 @@ export interface Persisted {
   /** Tighten the speech-doc toolbar + outline so the document gets more room
    *  (especially in the split-screen side panel). */
   compactDoc: boolean;
+  /** Pasting multi-line text from OUTSIDE Nimbus spreads it over cells (one
+   *  line per row, tabs across columns) instead of into the one cell. */
+  pasteSplitsCells?: boolean;
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
@@ -321,6 +324,9 @@ class Settings {
   /** Denser speech-doc chrome (toolbar + outline) so the document reads bigger
    *  in the side panel. On by default. */
   compactDoc = $state(true);
+  /** Off by default: a long block pasted from elsewhere lands in ONE cell.
+   *  Copying a range of Nimbus cells always pastes back as a range. */
+  pasteSplitsCells = $state(false);
   ribbonMode = $state<RibbonMode>("full");
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
@@ -471,6 +477,7 @@ class Settings {
     if (p.homeMigrated !== undefined) this.homeMigrated = p.homeMigrated;
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
+    if (p.pasteSplitsCells !== undefined) this.pasteSplitsCells = p.pasteSplitsCells;
     // The ribbon used to have three densities (full / icons / slim) cycled with
     // one button. It is two now - full width, and a condensed half-width one for
     // splitscreen - so both retired names load as "compact" rather than falling
@@ -605,6 +612,7 @@ class Settings {
       homeMigrated: this.homeMigrated,
       compactTopBar: this.compactTopBar,
       compactDoc: this.compactDoc,
+      pasteSplitsCells: this.pasteSplitsCells,
       ribbonMode: this.ribbonMode,
       prepMinutes: this.prepMinutes,
       lastSeenVersion: this.lastSeenVersion,

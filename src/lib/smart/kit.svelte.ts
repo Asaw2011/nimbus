@@ -13,7 +13,8 @@
 // itself (see SmartTray), which is also what makes a PARTNER's flowing produce
 // suggestions: their cells arrive, the round changes, the tray updates.
 
-import { parseDocx, nodeChip, type DocNode } from "$lib/docx/parse";
+import { nodeChip, type DocNode } from "$lib/docx/parse";
+import { parseSpeechDoc } from "$lib/docx/cmir";
 import { loadBlob, saveBlob } from "$lib/model/blobs";
 import { store } from "$lib/model/round.svelte";
 import { fileIndex } from "$lib/search/file-index.svelte";
@@ -206,7 +207,7 @@ class SmartKit {
 
   private ingest(key: string, buf: ArrayBuffer): void {
     try {
-      const { nodes } = parseDocx(buf);
+      const { nodes } = parseSpeechDoc(buf);
       this.setParsed(key, {
         roots: nodes,
         blocks: indexBlocks(key, nodes),
@@ -281,10 +282,11 @@ class SmartKit {
    */
   async addDropped(dropped: File[]): Promise<void> {
     for (const file of dropped) {
-      if (!/\.docx$/i.test(file.name) || file.name.startsWith("~$")) continue;
-      const stem = file.name.replace(/\.docx$/i, "").toLowerCase();
+      const ext = /\.(docx|cmir)$/i.exec(file.name)?.[1].toLowerCase();
+      if (!ext || file.name.startsWith("~$")) continue;
+      const stem = file.name.slice(0, -ext.length - 1).toLowerCase();
       const hits = fileIndex.files.filter(
-        (f) => f.ext === "docx" && f.name.toLowerCase() === stem && f.size === file.size,
+        (f) => f.ext === ext && f.name.toLowerCase() === stem && f.size === file.size,
       );
       if (hits.length === 1 && "__TAURI_INTERNALS__" in window) {
         await this.addPaths([hits[0].path]);
@@ -564,6 +566,12 @@ class SmartKit {
     const side = this.mySide(round);
     if (!side || !this.all.length) return [];
     const speeches = round.template.speeches;
+    // The round's opening speech (a 1AC) is never answered from the kit: the
+    // 1NC is read off a prepared shell, not built block-by-block against the
+    // 1AC's arguments. By speaking order, not by name - same as lanes.
+    const opening = speeches[0];
+    const isOpening = (sp: Speech) =>
+      sp === opening || (!!opening?.laneGroup && sp.laneGroup === opening.laneGroup);
     const out: Suggestion[] = [];
     // Matches are kept between recomputes, so an edit re-matches only the
     // cells whose text changed - measured ~40ms per pass on a 3,600-cell flow
@@ -592,7 +600,7 @@ class SmartKit {
       sheet.rows.forEach((row, r) => {
         for (let c = Math.max(0, sheet.startCol); c < speeches.length; c++) {
           const sp = speeches[c];
-          if (sp.side === side || sp.side === "neutral") continue;
+          if (sp.side === side || sp.side === "neutral" || isOpening(sp)) continue;
           const cell = row.cells[c];
           if (!filled(cell) || !cell.text.trim()) continue;
           const to = targetCol(speeches, c, side, laneHere);
