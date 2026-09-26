@@ -14,9 +14,9 @@
   //
   // It also runs as the POP-OUT timer (`popout`): the only thing in its own
   // small always-on-top window. See timerWindow.svelte.ts for the handoff.
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import { settings } from "../model/settings.svelte";
-  import { playAlarm, type StopAlarm } from "../model/timerSound";
+  import { playAlarm, primeAlarm, type StopAlarm } from "../model/timerSound";
   import {
     SIZES,
     POSITIONS,
@@ -96,6 +96,9 @@
     if (running) return;
     if (mode === "countdown" && targetMs <= 0) return;
     stopAlarm();
+    // Start is a click: the moment the browser lets audio wake up, so 0:00
+    // plays on the dot instead of a second or two late. See timerSound.ts.
+    primeAlarm(settings.timerSound);
     startedAt = Date.now();
     now = startedAt;
     running = true;
@@ -108,7 +111,12 @@
     running = false;
     stopTick();
   }
-  function toggle() { running ? pause() : start(); }
+  // At 0:00 with the alarm going, start/pause (button, Space, the shortcut)
+  // means "stop that": silence it and reset, rather than ringing again.
+  function toggle() {
+    if (finished) return reset();
+    running ? pause() : start();
+  }
   function reset() {
     stopAlarm();
     running = false;
@@ -124,6 +132,11 @@
     activePreset = i;
     targetMs = p.seconds * 1000;
   }
+  /** Clicking the flashing 0:00 silences the alarm and resets the countdown. */
+  function onDisplayClick() {
+    if (finished) reset();
+  }
+
   function useStopwatch() {
     reset();
     mode = "stopwatch";
@@ -148,6 +161,39 @@
     await getCurrentWindow().startResizeDragging("SouthEast");
   }
 
+  // System-wide shortcuts while popped out, so the timer can be started and
+  // reset from CardMirror without clicking over to it. Deliberately modifier
+  // combos (Ctrl+Alt+... by default): a bare key would be stolen from every
+  // other app for as long as the timer is open.
+  let heldKeys: string[] = [];
+  onMount(() => {
+    if (!popout || !inTauri) return;
+    void (async () => {
+      const gs = await import("@tauri-apps/plugin-global-shortcut");
+      const bind = async (accel: string, fn: () => void) => {
+        if (!accel) return;
+        try {
+          await gs.register(accel, (e) => {
+            if (e.state === "Pressed") fn();
+          });
+          heldKeys.push(accel);
+        } catch (err) {
+          // Taken by another app, or not a valid combination: the buttons and
+          // the in-window keys still work.
+          console.warn("timer shortcut unavailable", accel, err);
+        }
+      };
+      await bind(settings.timerKeyToggle, toggle);
+      await bind(settings.timerKeyReset, reset);
+    })();
+  });
+  onDestroy(() => {
+    if (!heldKeys.length) return;
+    const keys = heldKeys;
+    heldKeys = [];
+    void import("@tauri-apps/plugin-global-shortcut").then((gs) => gs.unregister(keys)).catch(() => {});
+  });
+
   // Space starts/pauses and R resets, in the pop-out where there's nothing else
   // to type into.
   function onPopKey(e: KeyboardEvent) {
@@ -158,7 +204,10 @@
   }
 
   function fmt(ms: number): string {
-    const total = Math.floor(ms / 1000);
+    // ⚠ A countdown rounds UP. Rounding down showed 0:00 for the whole last
+    // second, so the alarm (correctly, at the real end) seemed a second late.
+    // 0:00 now appears at the same moment the alarm starts.
+    const total = mode === "countdown" ? Math.ceil(ms / 1000) : Math.floor(ms / 1000);
     const m = Math.floor(total / 60);
     const s = total % 60;
     const base = `${m}:${s.toString().padStart(2, "0")}`;
@@ -255,7 +304,28 @@
     </div>
   {/if}
 
-  <div class="t-display" class:running class:finished data-tauri-drag-region={popout ? "" : undefined}>{fmt(displayMs)}</div>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div
+    class="t-display"
+    class:running
+    class:finished
+    title={finished ? "Click to silence and reset" : undefined}
+    onclick={onDisplayClick}
+    data-tauri-drag-region={popout && !finished ? "" : undefined}
+  >
+    {#if popout}
+      <!-- Only shown at the smallest size, where the control row is gone: you
+           can always start and pause, at any size. -->
+      <button class="t-mini" title={running ? "Pause" : "Start"} onclick={(e) => { e.stopPropagation(); toggle(); }}>
+        {#if running}
+          <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor"/><rect x="6" y="1" width="2.5" height="8" fill="currentColor"/></svg>
+        {:else}
+          <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M2 1l7 4-7 4z" fill="currentColor"/></svg>
+        {/if}
+      </button>
+    {/if}
+    <span data-tauri-drag-region={popout && !finished ? "" : undefined}>{fmt(displayMs)}</span>
+  </div>
 
   <div class="t-controls">
     <button class="t-btn primary" onclick={toggle}>{running ? "Pause" : "Start"}</button>
@@ -467,9 +537,27 @@
     .timer.pop .t-btn.sw { display: none; }
     .timer.pop .t-display { font-size: clamp(16px, min(24cqw, 34cqh), 140px); }
   }
-  /* Very small: only the time. The control strip floats over it on hover. */
+  .t-mini { display: none; }
+  .t-display.finished { cursor: pointer; }
+  /* Very small: the time with a small start/pause button beside it. The
+     control strip floats over it on hover. */
   @container (max-height: 80px) {
     .timer.pop .t-controls { display: none; }
+    .timer.pop .t-mini {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      margin-right: 6px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .timer.pop .t-mini:hover { border-color: var(--accent); color: var(--accent); }
     .timer.pop .p-head {
       position: absolute;
       inset: 0 0 auto;

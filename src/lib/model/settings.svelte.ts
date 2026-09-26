@@ -186,6 +186,11 @@ export interface Persisted {
    *  the MAIN window from what the pop-out reports when it docks - the pop-out
    *  never saves settings itself (see timerWindow.svelte.ts). */
   timerWin?: TimerWinBounds | null;
+  /** System-wide shortcuts for the POPPED-OUT timer (Tauri accelerator
+   *  strings, e.g. "Control+Alt+Space"), so it can be started from CardMirror.
+   *  Held only while the pop-out is open. "" turns one off. */
+  timerKeyToggle?: string;
+  timerKeyReset?: string;
 }
 
 export interface TimerWinBounds {
@@ -400,10 +405,12 @@ class Settings {
   /** See Persisted.blockAtSuffix. */
   blockAtSuffix = $state<"2NC" | "1NR" | "none">("2NC");
   /** See Persisted.timerSound / timerVolume / timerCustomSounds / timerWin. */
-  timerSound = $state("beep");
+  timerSound = $state("chime");
   timerVolume = $state(0.7);
   timerCustomSounds = $state<CustomSound[]>([]);
   timerWin = $state<TimerWinBounds | null>(null);
+  timerKeyToggle = $state("Control+Alt+Space");
+  timerKeyReset = $state("Control+Alt+R");
 
   readonly isMac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -538,6 +545,8 @@ class Settings {
     if (p.timerWin && [p.timerWin.x, p.timerWin.y, p.timerWin.w, p.timerWin.h].every(Number.isFinite)) {
       this.timerWin = p.timerWin;
     }
+    if (typeof p.timerKeyToggle === "string") this.timerKeyToggle = p.timerKeyToggle;
+    if (typeof p.timerKeyReset === "string") this.timerKeyReset = p.timerKeyReset;
     if (Array.isArray(p.timerPresets) && p.timerPresets.length) {
       // Always land exactly five slots, each sanitized against the default in
       // that position - a truncated or corrupted save can't leave the timer with
@@ -581,6 +590,8 @@ class Settings {
       timerVolume: this.timerVolume,
       timerCustomSounds: $state.snapshot(this.timerCustomSounds) as CustomSound[],
       timerWin: this.timerWin,
+      timerKeyToggle: this.timerKeyToggle,
+      timerKeyReset: this.timerKeyReset,
       colMinWidth: this.colMinWidth,
       affColor: this.affColor,
       negColor: this.negColor,

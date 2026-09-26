@@ -12,7 +12,15 @@
   import { auth } from "../model/auth.svelte";
   import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
-  import { BUILTIN_SOUNDS, playAlarm, importSound, deleteSound, type StopAlarm } from "../model/timerSound";
+  import {
+    BUILTIN_SOUNDS,
+    DEFAULT_SOUND,
+    normalizeSound,
+    playAlarm,
+    importSound,
+    deleteSound,
+    type StopAlarm,
+  } from "../model/timerSound";
 
   let { onclose, initialTab }: { onclose: () => void; initialTab?: string } = $props();
 
@@ -29,9 +37,13 @@
       return;
     }
     alarmPlaying = true;
-    stopPreview = await playAlarm(settings.timerSound, settings.timerVolume);
-    // Every built-in pattern is under 3s; an imported one is cut at 8s.
-    setTimeout(() => (alarmPlaying = false), settings.timerSound.startsWith("custom:") ? 8000 : 3000);
+    const stop = await playAlarm(settings.timerSound, settings.timerVolume);
+    stopPreview = stop;
+    // The alarm loops until stopped; the preview plays about two cycles.
+    setTimeout(() => {
+      stop();
+      if (stopPreview === stop) alarmPlaying = false;
+    }, 5000);
   }
 
   async function onSoundFile(e: Event) {
@@ -50,10 +62,46 @@
     }
   }
 
+  type TimerKey = "timerKeyToggle" | "timerKeyReset";
+  let capturingKey = $state<TimerKey | null>(null);
+
+  /** A keydown → a Tauri accelerator ("Control+Alt+Space"), or null while only
+   *  modifiers are down. Needs Ctrl, Alt or Cmd: a bare key held system-wide
+   *  would be stolen from every other app. */
+  function toAccel(e: KeyboardEvent): string | null {
+    const c = e.code;
+    const key = /^Key[A-Z]$/.test(c) ? c.slice(3)
+      : /^Digit\d$/.test(c) ? c.slice(5)
+      : /^F\d{1,2}$/.test(c) ? c
+      : ({ Space: "Space", Backspace: "Backspace", Enter: "Enter", Tab: "Tab",
+           ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
+           Minus: "-", Equal: "=", Comma: ",", Period: ".", Slash: "/", Backquote: "`" } as Record<string, string>)[c];
+    if (!key) return null;
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) return null;
+    const mods = [e.ctrlKey && "Control", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
+    return [...mods, key].join("+");
+  }
+
+  function captureTimerKey(e: KeyboardEvent, key: TimerKey) {
+    if (capturingKey !== key) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") { capturingKey = null; return; }
+    const accel = toAccel(e);
+    if (!accel) return; // still holding modifiers, or a key with no modifier
+    settings[key] = accel;
+    settings.save();
+    capturingKey = null;
+  }
+
+  function prettyAccel(a: string): string {
+    return a.replace(/Control/g, "Ctrl").replace(/Super/g, settings.isMac ? "⌘" : "Win").replace(/\+/g, " + ");
+  }
+
   function removeCurrentSound() {
     const id = settings.timerSound.slice(7);
     settings.timerCustomSounds = settings.timerCustomSounds.filter((s) => s.id !== id);
-    settings.timerSound = "beep";
+    settings.timerSound = DEFAULT_SOUND;
     settings.save();
     void deleteSound(id);
   }
@@ -1011,7 +1059,7 @@
         Sound
         <span class="inline">
           <select
-            value={settings.timerSound}
+            value={normalizeSound(settings.timerSound)}
             onchange={(e) => { settings.timerSound = e.currentTarget.value; settings.save(); }}
           >
             {#each BUILTIN_SOUNDS as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
@@ -1041,6 +1089,27 @@
         <input bind:this={soundInput} type="file" accept="audio/*" hidden onchange={onSoundFile} />
       </div>
       {#if soundError}<p class="hint" style="color: var(--mark-dropped, #c0392b)">{soundError}</p>{/if}
+      <p class="hint">
+        <b>Shortcuts that work from any app</b> while the timer is popped out - start or pause it
+        from CardMirror without clicking over. They need Ctrl, Alt or ⌘ so they never take a
+        normal key from another app. Takes effect the next time you pop the timer out.
+      </p>
+      {#each [["Start / pause", "timerKeyToggle"], ["Reset", "timerKeyReset"]] as [label, key] (key)}
+        <label class="row">
+          {label}
+          <span class="inline">
+            <button
+              class="add-reader"
+              class:rebinding={capturingKey === key}
+              onclick={() => (capturingKey = capturingKey === key ? null : (key as TimerKey))}
+              onkeydown={(e) => captureTimerKey(e, key as TimerKey)}
+            >{capturingKey === key ? "Press the keys…" : prettyAccel(settings[key as TimerKey]) || "Off"}</button>
+            {#if settings[key as TimerKey]}
+              <button class="add-reader" title="Turn this shortcut off" onclick={() => { settings[key as TimerKey] = ""; settings.save(); }}>Off</button>
+            {/if}
+          </span>
+        </label>
+      {/each}
     </section>
     <section>
       <h3>Prep clocks</h3>
