@@ -445,6 +445,113 @@
     drag = null;
   }
 
+  // ---- auto-scroll while range-selecting past an edge (like Word / Excel) --
+  // Dragging a selection up onto the column headers (or above the grid), or to
+  // the bottom / side edge, scrolls the flow and keeps extending the selection
+  // to the cell at that edge. Window-level while a drag is on: the pointer is
+  // usually OUTSIDE the grid when this matters, where the grid's own
+  // mousemove never fires.
+  const EDGE = 14; // px inside the bottom/side edges that also scroll
+  let lastPt: { x: number; y: number } | null = null;
+  let autoRaf = 0;
+
+  /** The box that actually scrolls: the grid itself, or (spread view) the
+   *  nearest scrollable ancestor. */
+  function scrollBox(): HTMLElement | null {
+    for (let el: HTMLElement | null = scroller ?? null; el; el = el.parentElement) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) return el;
+    }
+    return scroller ?? null;
+  }
+
+  function stopAutoScroll() {
+    if (autoRaf) cancelAnimationFrame(autoRaf);
+    autoRaf = 0;
+    lastPt = null;
+  }
+
+  function autoScrollTick() {
+    autoRaf = 0;
+    const box = scrollBox();
+    if (!drag || drag.mode !== "select" || !lastPt || !box || !scroller) return;
+    const rect = box.getBoundingClientRect();
+    // The sticky header row covers the top of the grid's own scroller: the
+    // cell area starts under it, and the header itself is the "above" zone.
+    const headers = box === scroller ? scroller.querySelector<HTMLElement>(".headers") : null;
+    const top = rect.top + (headers?.offsetHeight ?? 0);
+    const bottom = rect.top + box.clientHeight;
+    const left = rect.left;
+    const right = rect.left + box.clientWidth;
+    const { x, y } = lastPt;
+    // Faster the further past the edge, like Word. px per frame.
+    // On the header row: ~10 rows/s. 30px above the grid: ~40 rows/s.
+    const speed = (past: number) => Math.min(36, 2 + past * 0.3);
+    // Inner edge bands only count once the drag has really started, so a
+    // click on the last visible row doesn't creep the page.
+    const band = drag.moved ? EDGE : 0;
+    let dy = 0;
+    let dx = 0;
+    if (y < top) dy = -speed(top - y);
+    else if (y > bottom - band) dy = speed(y - (bottom - band));
+    if (x < left + band) dx = -speed(left + band - x);
+    else if (x > right - band) dx = speed(x - (right - band));
+    if (!dx && !dy) return;
+    const beforeTop = box.scrollTop;
+    const beforeLeft = box.scrollLeft;
+    box.scrollBy(dx, dy);
+    // Extend the selection to the cell now under the (clamped) pointer.
+    const cx = Math.min(Math.max(x, left + 2), right - 2);
+    const cy = Math.min(Math.max(y, top + 2), bottom - 2);
+    const el = document.elementFromPoint(cx, cy)?.closest<HTMLElement>("[data-r]");
+    if (el && scroller.contains(el)) {
+      const r = Number(el.dataset.r);
+      const c = Number(el.dataset.c);
+      if (r !== drag.startR || c !== drag.startC) drag.moved = true;
+      if (drag.moved) {
+        store.activeSheetId = sheet.id;
+        store.selectAll = false;
+        store.selection = {
+          anchor: { row: drag.startR, col: drag.startC },
+          focus: { row: r, col: c },
+        };
+        (document.activeElement as HTMLElement | null)?.blur?.();
+      }
+    }
+    // Keep going while it can still move; stop at the ends.
+    if (box.scrollTop !== beforeTop || box.scrollLeft !== beforeLeft) {
+      autoRaf = requestAnimationFrame(autoScrollTick);
+    }
+  }
+
+  function onWindowDragMove(e: MouseEvent) {
+    if (!drag || drag.mode !== "select" || !(e.buttons & 1)) {
+      stopAutoScroll();
+      return;
+    }
+    lastPt = { x: e.clientX, y: e.clientY };
+    if (!autoRaf) autoRaf = requestAnimationFrame(autoScrollTick);
+  }
+
+  function onWindowMouseUp(e: MouseEvent) {
+    stopAutoScroll();
+    // Released outside the grid (typical after dragging up past the headers):
+    // the grid's own mouseup never fires, so end the drag here. The selection
+    // stays. Inside the grid, `onmouseup` already handled it.
+    if (drag && !(scroller && scroller.contains(e.target as Node))) drag = null;
+  }
+
+  $effect(() => {
+    if (!drag) return;
+    window.addEventListener("mousemove", onWindowDragMove);
+    window.addEventListener("mouseup", onWindowMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onWindowDragMove);
+      window.removeEventListener("mouseup", onWindowMouseUp);
+      stopAutoScroll();
+    };
+  });
+
   /** Keyboard ops on a multi-cell selection (editor is blurred then). */
   function onSelectionKeys(e: KeyboardEvent) {
     if (store.activeSheetId !== sheet.id || !store.hasMultiSelection) return;

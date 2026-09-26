@@ -679,8 +679,17 @@ class SmartKit {
       cell.repliesTo = from.id;
       done = true;
     });
-    if (done) void this.log({ t: Date.now(), ev: "insert", said: s.said, block: m.block.title, rank, sheet: s.sheetTitle });
-    return done;
+    if (!done) return false;
+    void this.log({ t: Date.now(), ev: "insert", said: s.said, block: m.block.title, rank, sheet: s.sheetTitle });
+    // Step down a row under the answer, like every other block insert (Ctrl+K,
+    // the tray's File tab). Only on the sheet you're on - a suggestion from
+    // another sheet must not pull you off yours. The row is found by ID, not
+    // `s.row`: rows may have moved since the suggestion was drawn.
+    if (store.activeSheetId === s.sheetId) {
+      const r = store.round?.sheets.find((x) => x.id === s.sheetId)?.rows.findIndex((x) => x.id === s.rowId) ?? -1;
+      if (r >= 0) store.cursor = { row: r + 1, col: s.toCol };
+    }
+    return true;
   }
 
   dismiss(s: Suggestion): void {
