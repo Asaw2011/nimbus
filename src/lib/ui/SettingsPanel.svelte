@@ -21,6 +21,7 @@
     deleteSound,
     type StopAlarm,
   } from "../model/timerSound";
+  import { eventAccel } from "./timerWindow.svelte";
 
   let { onclose, initialTab }: { onclose: () => void; initialTab?: string } = $props();
 
@@ -65,29 +66,12 @@
   type TimerKey = "timerKeyToggle" | "timerKeyReset";
   let capturingKey = $state<TimerKey | null>(null);
 
-  /** A keydown → a Tauri accelerator ("Control+Alt+Space"), or null while only
-   *  modifiers are down. Needs Ctrl, Alt or Cmd: a bare key held system-wide
-   *  would be stolen from every other app. */
-  function toAccel(e: KeyboardEvent): string | null {
-    const c = e.code;
-    const key = /^Key[A-Z]$/.test(c) ? c.slice(3)
-      : /^Digit\d$/.test(c) ? c.slice(5)
-      : /^F\d{1,2}$/.test(c) ? c
-      : ({ Space: "Space", Backspace: "Backspace", Enter: "Enter", Tab: "Tab",
-           ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
-           Minus: "-", Equal: "=", Comma: ",", Period: ".", Slash: "/", Backquote: "`" } as Record<string, string>)[c];
-    if (!key) return null;
-    if (!e.ctrlKey && !e.altKey && !e.metaKey) return null;
-    const mods = [e.ctrlKey && "Control", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
-    return [...mods, key].join("+");
-  }
-
   function captureTimerKey(e: KeyboardEvent, key: TimerKey) {
     if (capturingKey !== key) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.key === "Escape") { capturingKey = null; return; }
-    const accel = toAccel(e);
+    const accel = eventAccel(e);
     if (!accel) return; // still holding modifiers, or a key with no modifier
     settings[key] = accel;
     settings.save();

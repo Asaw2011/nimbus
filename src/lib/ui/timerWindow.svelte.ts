@@ -130,6 +130,26 @@ class TimerPop {
 
 export const timerPop = new TimerPop();
 
+/**
+ * A keydown as a Tauri accelerator ("Control+Alt+Space"), or null while only
+ * modifiers are down or no Ctrl/Alt/Cmd is held. The one definition of what a
+ * timer shortcut is: Settings records with it, the in-app timer matches with
+ * it, and the pop-out registers the same strings system-wide.
+ */
+export function eventAccel(e: KeyboardEvent): string | null {
+  const c = e.code;
+  const key = /^Key[A-Z]$/.test(c) ? c.slice(3)
+    : /^Digit\d$/.test(c) ? c.slice(5)
+    : /^F\d{1,2}$/.test(c) ? c
+    : ({ Space: "Space", Backspace: "Backspace", Enter: "Enter", Tab: "Tab",
+         ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
+         Minus: "-", Equal: "=", Comma: ",", Period: ".", Slash: "/", Backquote: "`" } as Record<string, string>)[c];
+  if (!key) return null;
+  if (!e.ctrlKey && !e.altKey && !e.metaKey) return null;
+  const mods = [e.ctrlKey && "Control", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
+  return [...mods, key].join("+");
+}
+
 // ---- inside the pop-out window ----------------------------------------------
 
 export const isTimerWindow =

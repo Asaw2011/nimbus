@@ -104,6 +104,9 @@ are done. Nimbus tells you what changed the first time you open a new version.
   (configurable). Starting one stops the other
 - **Click the time to correct it** when nobody stopped the clock; prep is saved
   with the flow, so it survives a reload
+- A **speech timer** that pops out into its own always-on-top window — it
+  stays over CardMirror, in four sizes, parked in any corner, with shortcuts
+  that start it from any app and an alarm that rings until you stop it
 
 **The spread** (what no other flowing tool has)
 - See multiple flows at once — **stack** them (speech columns aligned across

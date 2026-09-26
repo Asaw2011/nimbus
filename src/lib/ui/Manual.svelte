@@ -270,6 +270,13 @@
             <li>Prep length is in Settings (8 minutes by default).</li>
             <li><b>⏱ Timer</b> in the top bar (<kbd>{combosLabel(km.toggleTimer, mac)}</kbd>) is the separate speech stopwatch, with countdown presets.</li>
           </ul>
+          <h3>Popping the timer out</h3>
+          <ul>
+            <li>The pop-out button on the timer (next to ✕) moves it into its own small window that <b>stays on top of other apps</b> - over a maximized CardMirror, even while you click into it. It keeps counting as it moves; the ↓ button docks it back.</li>
+            <li><b>XS · S · M · L</b> set its size (XS is just the time and a ▶ button), the square button puts it in a corner or at the top/bottom of the screen, and you can drag it by its top strip or the numbers and resize it from the corner. It opens where you left it.</li>
+            <li><b>Shortcuts from any app</b>: <kbd>Ctrl+Alt+Space</kbd> starts/pauses and <kbd>Ctrl+Alt+R</kbd> resets - in Nimbus, and from CardMirror while the timer is popped out. Change them in Settings → Appearance → Timer alarm.</li>
+            <li>At 0:00 the alarm <b>keeps ringing until you stop it</b>: press start/pause, reset, or click the flashing time. Pick the sound and volume, or import your own, in <b>Settings → Appearance → Timer alarm</b>.</li>
+          </ul>
         </section>
 
         <section id="sec-bank">

@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.4",
+    headline: "Pop the timer out so it stays on top of CardMirror, with real alarm sounds and shortcuts that work from anywhere.",
+    items: [
+      "**Pop the timer out.** The new pop-out button on the timer moves it into its own small window that stays on top of everything - over a maximized CardMirror, even while you click into it. It keeps counting as it moves, and docks back in one click.",
+      "**Any size, anywhere.** **XS · S · M · L** buttons resize it (XS is just the time and a ▶ button), another puts it in a corner or at the top or bottom of the screen, and you can drag and resize it like any window. It reopens where you left it.",
+      "**Shortcuts from any app.** **Ctrl+Alt+Space** starts or pauses the timer and **Ctrl+Alt+R** resets it - inside Nimbus, and from CardMirror while it's popped out. Change them in **Settings -> Appearance -> Timer alarm**.",
+      "**A proper alarm.** At 0:00 it keeps ringing until you stop it, and it starts the moment the clock hits 0:00 (the countdown used to show 0:00 a second early). Five new built-in sounds, a volume slider, or import your own.",
+    ],
+  },
+  {
     version: "1.4.3",
     headline: "Cross-ex shows whose it is, block answers end the way you want, and partner flowing is steadier.",
     items: [

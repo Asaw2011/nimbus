@@ -22,6 +22,7 @@
     POSITIONS,
     setTimerSize,
     setTimerPosition,
+    eventAccel,
     type SizeId,
     type TimerState,
   } from "./timerWindow.svelte";
@@ -197,7 +198,17 @@
   // Space starts/pauses and R resets, in the pop-out where there's nothing else
   // to type into.
   function onPopKey(e: KeyboardEvent) {
-    if (!popout || e.ctrlKey || e.metaKey || e.altKey) return;
+    // The same start/pause and reset shortcuts inside Nimbus while the timer
+    // is IN the app. (Popped out, the system-wide registration handles them,
+    // including when Nimbus itself has focus.)
+    if (!popout) {
+      const accel = eventAccel(e);
+      if (!accel) return;
+      if (accel === settings.timerKeyToggle) { e.preventDefault(); e.stopPropagation(); toggle(); }
+      else if (accel === settings.timerKeyReset) { e.preventDefault(); e.stopPropagation(); reset(); }
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") { e.preventDefault(); toggle(); }
     else if (e.key === "r" || e.key === "R") reset();
     else if (e.key === "Escape") placing = false;
