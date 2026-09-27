@@ -67,7 +67,11 @@
 
   function addCx() {
     if (!store.round) return;
-    store.addSheet("CX", "cx");
+    // One CX page per round (its speech bar holds every speech's cross-ex), so
+    // a second click opens it instead of adding another unlabeled "CX".
+    const existing = store.round.sheets.find((s) => s.kind === "cx");
+    if (existing) onopensheet(existing.id);
+    else store.addSheet("CX", "cx");
   }
 
   function startRename(id: string, current: string) {

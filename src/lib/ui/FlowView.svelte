@@ -70,8 +70,18 @@
     if (draggingTab && round && dragOverIdx !== null) {
       const from = round.sheets.findIndex((s) => s.id === draggingTab);
       let to = dragBefore ? dragOverIdx : dragOverIdx + 1;
-      if (from >= 0 && from < to) to--;
-      store.reorderSheet(draggingTab, to);
+      // Dropped just after the CX tab: after the whole group, not between two
+      // of its (hidden) speech pages.
+      if (groupCx && !dragBefore && round.sheets[dragOverIdx]?.kind === "cx") {
+        to = Math.max(...round.sheets.flatMap((s, i) => (s.kind === "cx" ? [i] : []))) + 1;
+      }
+      if (groupCx && round.sheets[from]?.kind === "cx") {
+        // The CX tab carries every speech's CX page with it.
+        moveCxGroup(to);
+      } else {
+        if (from >= 0 && from < to) to--;
+        store.reorderSheet(draggingTab, to);
+      }
     }
     draggingTab = null;
     dragOverIdx = null;
@@ -869,8 +879,125 @@
   }
   let addingSheet = $state(false);
   let newSheetTitle = $state("");
-  /** Which kind of flow the "New flow" dialog will create. */
-  let newSheetKind = $state<"custom" | "cx">("custom");
+  // The "New flow" dialog (Ctrl/⌘+T, the + tab) asks WHAT the page is first -
+  // the same four kinds as the round home screen, so each one starts at its
+  // proper column (off-case at the 1NC, overviews at the block) - then its
+  // title. null = still on step 1.
+  type NewKind = "case" | "offcase" | "overview" | "cx";
+  const NEW_KINDS: { kind: NewKind; label: string }[] = [
+    { kind: "case", label: "Advantage" },
+    { kind: "offcase", label: "Off-case" },
+    { kind: "overview", label: "Overview" },
+    { kind: "cx", label: "CX" },
+  ];
+  let newSheetKind = $state<NewKind | null>(null);
+
+  function openNewSheet() {
+    newSheetKind = null;
+    newSheetTitle = "";
+    addingSheet = true;
+  }
+
+  /** The name the round home screen would give it: Adv 2, Off 3, Overview. */
+  function defaultTitle(kind: NewKind): string {
+    const count = round?.sheets.filter((s) => s.kind === kind).length ?? 0;
+    if (kind === "case") return `Adv ${count + 1}`;
+    if (kind === "offcase") return `Off ${count + 1}`;
+    if (kind === "overview") return count === 0 ? "Overview" : `Overview ${count + 1}`;
+    return "CX";
+  }
+
+  function pickNewKind(kind: NewKind) {
+    if (kind === "cx") {
+      // One CX page per round: its speech bar switches between the 1AC's,
+      // 1NC's... cross-ex. So CX opens the one there is, and a new one needs
+      // no title - picking its speech names it.
+      addingSheet = false;
+      openSheet(cxRep ? cxRep.id : store.addSheet("CX", "cx"));
+      return;
+    }
+    newSheetKind = kind;
+    newSheetTitle = defaultTitle(kind);
+  }
+
+  /** Step 2's title box: focused with the suggested name selected, so Enter
+   *  keeps it and typing replaces it. */
+  function focusSelect(el: HTMLInputElement) {
+    el.focus();
+    // After bind:value has filled it in - selecting the empty box does nothing.
+    queueMicrotask(() => el.select());
+  }
+
+  function focusEl(el: HTMLElement) {
+    el.focus();
+  }
+
+  function onNewSheetKey(e: KeyboardEvent) {
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      addingSheet = false;
+    } else if (!newSheetKind && /^[1-4]$/.test(e.key)) {
+      e.preventDefault();
+      pickNewKind(NEW_KINDS[Number(e.key) - 1].kind);
+    }
+  }
+
+  // ---- all cross-ex under ONE tab ------------------------------------------
+  // Each speech's cross-ex is still its own "<speech> CX" sheet underneath (the
+  // speech is read from the title, which is what partner sync carries - see
+  // CxGrid), but the tab strip shows them as a single CX tab, and CxGrid's
+  // speech bar switches between them. Not in spread view: there every sheet is
+  // its own tile you toggle on and off the desk.
+  const cxSheets = $derived((store.round?.sheets ?? []).filter((s) => s.kind === "cx"));
+  /** The CX page you were last on, so the CX tab brings you back to it. */
+  let lastCxId = $state<string | null>(null);
+  $effect(() => {
+    const s = store.activeSheet;
+    if (s?.kind === "cx") lastCxId = s.id;
+  });
+  const cxRep = $derived(
+    (store.activeSheet?.kind === "cx" ? store.activeSheet : null) ??
+      cxSheets.find((s) => s.id === lastCxId) ??
+      cxSheets[0] ??
+      null,
+  );
+  const groupCx = $derived(!spread && cxSheets.length > 1);
+  /** The tabs as shown: every sheet, except that all CX sheets collapse into
+   *  one tab at the first one's place. `idx` is the real index in round.sheets
+   *  (drag-and-drop works in real indices). */
+  const tabEntries = $derived.by(() => {
+    const out: { s: Sheet; idx: number; group: boolean }[] = [];
+    let placed = false;
+    (round?.sheets ?? []).forEach((s, idx) => {
+      if (groupCx && s.kind === "cx") {
+        if (placed || !cxRep) return;
+        placed = true;
+        out.push({ s: cxRep, idx, group: true });
+      } else {
+        out.push({ s, idx, group: false });
+      }
+    });
+    return out;
+  });
+
+  /** Move every CX sheet, as one block, to `to` (an insertion point in
+   *  round.sheets before the move). One undo step; no-op if nothing moves. */
+  function moveCxGroup(to: number) {
+    const isCx = (s: Sheet) => s.kind === "cx";
+    // A permutation of the SAME sheet objects - nothing is created or dropped.
+    const regroup = (sheets: Sheet[]) => [
+      ...sheets.slice(0, to).filter((s) => !isCx(s)),
+      ...sheets.filter(isCx),
+      ...sheets.slice(to).filter((s) => !isCx(s)),
+    ];
+    if (!round) return;
+    const next = regroup(round.sheets);
+    // Checked before mutate: an unchanged order must not leave an empty undo step.
+    if (next.every((s, i) => s.id === round.sheets[i].id)) return;
+    store.mutate((r) => {
+      r.sheets = regroup(r.sheets);
+    });
+  }
   // Tab right-click menu + inline rename.
   let tabMenu = $state<{ id: string; x: number; y: number } | null>(null);
   let menuEl = $state<HTMLElement>();
@@ -989,10 +1116,12 @@
       store.cursor = { row: sRow, col: sCol };
       return;
     }
-    let idx = sheets.findIndex((s) => s.id === store.activeSheetId);
+    // Step through the TABS, so the CX group is one stop, not one per speech.
+    const tabs = tabEntries.map((t) => t.s);
+    let idx = tabs.findIndex((s) => s.id === store.activeSheetId);
     if (atHome || idx < 0) idx = delta > 0 ? -1 : 0;
-    const n = sheets.length;
-    openSheet(sheets[(((idx + delta) % n) + n) % n].id);
+    const n = tabs.length;
+    openSheet(tabs[(((idx + delta) % n) + n) % n].id);
   }
 
   /** Reorder the current sheet one position left/right (keyboard, no drag). */
@@ -1000,7 +1129,24 @@
     if (!round || !store.activeSheetId) return;
     const idx = round.sheets.findIndex((s) => s.id === store.activeSheetId);
     if (idx < 0) return;
-    store.reorderSheet(store.activeSheetId, idx + delta);
+    if (!groupCx) {
+      store.reorderSheet(store.activeSheetId, idx + delta);
+      return;
+    }
+    // With CX grouped, move one TAB over: past the whole CX group, or the CX
+    // group as one block past its neighbour.
+    const e = tabEntries.findIndex((t) => t.s.id === store.activeSheetId);
+    const next = tabEntries[e + delta];
+    if (e < 0 || !next) return;
+    const onCx = store.activeSheet?.kind === "cx";
+    if (onCx) {
+      moveCxGroup(delta < 0 ? next.idx : next.idx + 1);
+    } else if (next.group) {
+      const cxIdx = round.sheets.flatMap((s, i) => (s.kind === "cx" ? [i] : []));
+      store.reorderSheet(store.activeSheetId, delta < 0 ? Math.min(...cxIdx) : Math.max(...cxIdx));
+    } else {
+      store.reorderSheet(store.activeSheetId, next.idx);
+    }
   }
 
   // Shared by the pinch action and the Ctrl +/-/0 keyboard fallback.
@@ -1060,7 +1206,7 @@
       store.redo();
     } else if (matchesAny(e, km.newSheet)) {
       e.preventDefault();
-      addingSheet = true;
+      openNewSheet();
     } else if (matchesAny(e, km.prevSheet)) {
       e.preventDefault();
       moveToSheet(-1);
@@ -1106,7 +1252,8 @@
       toggleDocPane();
     } else if (mod && /^[1-9]$/.test(e.key)) {
       const idx = Number(e.key) - 1;
-      const target = round?.sheets[idx];
+      // By tab number as shown (the CX group counts once).
+      const target = tabEntries[idx]?.s;
       if (target) {
         e.preventDefault();
         // In spread mode the number keys toggle sheets on/off the desk.
@@ -1117,14 +1264,12 @@
   }
 
   function createSheet() {
-    const cx = newSheetKind === "cx";
-    // A cross-ex flow can go in untitled - it defaults to "Cross-ex"; an
-    // ordinary flow still needs a name so its tab reads as something.
-    const title = newSheetTitle.trim() || (cx ? "Cross-ex" : "");
-    if (!title) return;
-    const id = store.addSheet(title, cx ? "cx" : "custom");
+    if (!newSheetKind) return;
+    // Left blank, it takes the suggested name rather than refusing.
+    const title = newSheetTitle.trim() || defaultTitle(newSheetKind);
+    const id = store.addSheet(title, newSheetKind);
     newSheetTitle = "";
-    newSheetKind = "custom";
+    newSheetKind = null;
     addingSheet = false;
     openSheet(id);
   }
@@ -1137,7 +1282,7 @@
     <button class="tab home-tab" class:active={atHome} onclick={() => (atHome = true)}>
       ⌂ Home
     </button>
-    {#each round?.sheets ?? [] as s, i (s.id)}
+    {#each tabEntries as { s, idx: i, group }, n (s.id)}
       <!-- div, not button: WebKit won't start HTML5 drags from buttons -->
       <div
         class="tab"
@@ -1181,12 +1326,13 @@
             onblur={commitRenameTab}
           />
         {:else}
-          <span class="tab-num">{i + 1}</span>
+          <span class="tab-num">{n + 1}</span>
           {s.title || "(untitled)"}
+          {#if group}<span class="tab-cx-count" title="{cxSheets.length} cross-ex pages - switch speech in the bar at the top of the page">{cxSheets.length}</span>{/if}
         {/if}
       </div>
     {/each}
-    <button class="tab new" onclick={() => (addingSheet = true)} title="New sheet ({combosLabel(km.newSheet, mac)})">+</button>
+    <button class="tab new" onclick={openNewSheet} title="New sheet ({combosLabel(km.newSheet, mac)})">+</button>
   </div>
 {/snippet}
 
@@ -1453,36 +1599,38 @@
         <div
           class="modal"
           onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
+          onkeydown={onNewSheetKey}
           role="dialog"
           tabindex="-1"
         >
           <h3>New flow</h3>
-          <div class="kind-pick">
-            <button
-              class="seg"
-              class:on={newSheetKind === "custom"}
-              onclick={() => (newSheetKind = "custom")}
-            >Flow sheet</button>
-            <button
-              class="seg"
-              class:on={newSheetKind === "cx"}
-              onclick={() => (newSheetKind = "cx")}
-            >Cross-ex (Q&amp;A)</button>
-          </div>
-          <input
-            placeholder={newSheetKind === "cx"
-              ? "Title (e.g. 1AC CX) - optional"
-              : "Title (e.g. Cap K, Econ DA, T-Subsets)"}
-            bind:value={newSheetTitle}
-            onkeydown={(e) => e.key === "Enter" && createSheet()}
-          />
-          <p class="kind-note">
-            {newSheetKind === "cx"
-              ? "A simple two-column flow: the question asked, and the answer."
-              : "A normal flow sheet across the round's speech columns."}
-          </p>
-          <button class="primary" onclick={createSheet}>Create</button>
+          {#if !newSheetKind}
+            <div class="kind-pick">
+              {#each NEW_KINDS as k, i (k.kind)}
+                {#if i === 0}
+                  <button class="seg" use:focusEl onclick={() => pickNewKind(k.kind)}>{k.label}</button>
+                {:else}
+                  <button class="seg" onclick={() => pickNewKind(k.kind)}>{k.label}</button>
+                {/if}
+              {/each}
+            </div>
+            <p class="kind-note">What is this page? (or press 1–4)</p>
+          {:else}
+            <input
+              use:focusSelect
+              placeholder={newSheetKind === "offcase"
+                ? "Title (e.g. Cap K, Econ DA, T-Subsets)"
+                : newSheetKind === "case"
+                  ? "Title (e.g. Warming, Econ)"
+                  : "Title"}
+              bind:value={newSheetTitle}
+              onkeydown={(e) => e.key === "Enter" && createSheet()}
+            />
+            <div class="new-actions">
+              <button class="back" onclick={() => (newSheetKind = null)}>← Back</button>
+              <button class="primary" onclick={createSheet}>Create {NEW_KINDS.find((k) => k.kind === newSheetKind)?.label}</button>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -2101,6 +2249,29 @@
   .kind-note {
     margin: -4px 0 0;
     font-size: 11px;
+    color: var(--text-dim);
+  }
+  .new-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .new-actions .primary {
+    flex: 1;
+  }
+  .new-actions .back {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .tab-cx-count {
+    margin-left: 5px;
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--border);
     color: var(--text-dim);
   }
   .modal input {

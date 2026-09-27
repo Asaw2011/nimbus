@@ -1,3 +1,16 @@
+<script lang="ts" module>
+  import type { RoundMeta as LastRoundMeta } from "../model/types";
+  import type { FlowFile as LastFlowFile } from "../model/tournaments.svelte";
+  // The dashboard is unmounted while a flow is open. What it last showed is kept
+  // here so returning home paints at once, instead of every tournament flashing
+  // open and "Empty" for the second the folder scan takes. Display only - every
+  // open still goes through the real file, and the rescan on mount replaces
+  // these. Memory only, never saved (collapse state is session-only by design).
+  let lastFlows: Record<string, LastFlowFile[]> | null = null;
+  let lastRounds: LastRoundMeta[] | null = null;
+  let lastCollapsed: string[] | null = null;
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Round, RoundMeta, Side, SpeechTemplate } from "../model/types";
@@ -43,14 +56,25 @@
     return r === TOURNEYS_SUB || r.startsWith(TOURNEYS_SUB + "/");
   }
 
-  let rounds: RoundMeta[] = $state([]); // every flow in app data
-  let flowsByTourney = $state<Record<string, FlowFile[]>>({});
+  // Seeded from the last visit (see the module script): coming back from a flow
+  // used to start from nothing, so every tournament read "Empty" for the second
+  // the folder scan took. The scan still runs and replaces these.
+  let rounds: RoundMeta[] = $state(lastRounds ?? []); // every flow in app data
+  let flowsByTourney = $state<Record<string, FlowFile[]>>(lastFlows ?? {});
+  /** A folder scan has finished at least once - until then "Empty" can't be told
+   *  from "not scanned yet", so the hint stays hidden. */
+  let flowsScanned = $state(lastFlows !== null);
+  $effect(() => {
+    lastRounds = $state.snapshot(rounds) as RoundMeta[];
+  });
   /** Tournaments folded down to just their name. Session-only (nothing is
    *  persisted) and seeded with every existing tournament on mount, so opening
    *  the app always shows a short, scannable list. A tournament you create or
    *  link during the session is left expanded - you just made it to put flows
    *  in it. */
-  let collapsed = $state<string[]>([]);
+  // Starts where the last mount left it (all folded), not all-open: the fold
+  // used to land a beat after first paint, so every tournament flashed open.
+  let collapsed = $state<string[]>(lastCollapsed ?? []);
   let showSettings = $state(false);
   /** Which Settings tab to open on - set before opening to deep-link (e.g. the
    *  "Manage formats" link jumps straight to Flow & Formats). */
@@ -156,7 +180,9 @@
     await tournaments.init();
     // Collapse pre-existing tournaments; the home library (added next) is left
     // out of this list, so it opens expanded.
-    collapsed = tournaments.list.map((t) => t.id);
+    const folded = tournaments.list.map((t) => t.id);
+    collapsed = folded;
+    lastCollapsed = folded;
     await ensureDefaultLibrary();
     await reloadFlows();
     // One-time: pull every loose "Recent Flow" into the home folder so there's
@@ -294,6 +320,8 @@
       map[t.id] = files;
     }
     flowsByTourney = map;
+    lastFlows = map;
+    flowsScanned = true;
   }
 
   // ---- one flow, one card --------------------------------------------------
@@ -843,7 +871,7 @@
             {#each rowsFor(t) as { file, dupes } (file.path)}
               {@render flowRow(file, dupes)}
             {/each}
-            {#if rowsFor(t).length === 0}
+            {#if flowsScanned && rowsFor(t).length === 0}
               <p class="empty-hint row-empty">Empty. Drag a flow here, or press New flow.</p>
             {/if}
           </div>
