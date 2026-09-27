@@ -24,6 +24,17 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.6",
+    headline: "New pages ask what they are, every cross-ex lives under one CX tab, and home opens without the flicker.",
+    items: [
+      "**New pages ask what they are.** Ctrl+T (⌘T on a Mac) or the **+** tab now asks Advantage, Off-case, Overview or CX first (or press 1-4), then the name. The name comes filled in (Adv 2, Off 3...), so Enter is enough.",
+      "**One CX tab for the whole round.** Picking 1AC, 1NC, 2AC... in the cross-ex speech bar no longer adds a tab each time. They all live under one CX tab, and the bar switches between them.",
+      "**Home opens cleanly.** Going back from a flow no longer flashes every tournament open and \"Empty\" for a second.",
+      "**Drag a selection past the edge to scroll.** Dragging a selection of cells up onto the column headers (or down to the bottom) scrolls the flow and keeps selecting, like selecting text in Word.",
+      "**Smart blocks: Insert moves down a row,** the same as inserting from Ctrl+K.",
+    ],
+  },
+  {
     version: "1.4.5",
     headline: "CardMirror .cmir files work in Ctrl+K and Smart blocks, pastes stay in one cell, and the condensed toolbar is slimmer.",
     items: [
