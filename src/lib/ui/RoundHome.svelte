@@ -41,28 +41,24 @@
   function addOffcase(count: number) {
     if (!store.round) return;
     const existing = store.round.sheets.filter((s) => s.kind === "offcase").length;
-    let lastId = "";
     for (let i = 1; i <= count; i++) {
-      lastId = store.addSheet(`Off ${existing + i}`, "offcase");
+      store.addSheet(`Off ${existing + i}`, "offcase");
     }
-    if (count === 1 && lastId) startRename(lastId, `Off ${existing + 1}`);
   }
 
   function addAdvantages(count: number) {
     if (!store.round) return;
     const existing = store.round.sheets.filter((s) => s.kind === "case").length;
-    let lastId = "";
     for (let i = 1; i <= count; i++) {
-      lastId = store.addSheet(`Adv ${existing + i}`, "case");
+      store.addSheet(`Adv ${existing + i}`, "case");
     }
-    if (count === 1 && lastId) startRename(lastId, `Adv ${existing + 1}`);
   }
 
   function addOverview() {
     if (!store.round) return;
     const existing = store.round.sheets.filter((s) => s.kind === "overview").length;
     const title = existing === 0 ? "Overview" : `Overview ${existing + 1}`;
-    startRename(store.addSheet(title, "overview"), title);
+    store.addSheet(title, "overview");
   }
 
   function addCx() {
@@ -234,7 +230,6 @@
       <input class="neg-team" value={round.negTeam} oninput={(e) => setField("negTeam", e.currentTarget.value)} placeholder="Neg school & code" />
     </div>
     {#if exportStatus}<p class="export-status">{exportStatus}</p>{/if}
-    {#if round.filePath}<p class="export-status">Saved to {round.filePath}</p>{/if}
 
     <section>
       <div class="sheets-head">
@@ -246,8 +241,8 @@
               <option value={n}>{n}</option>
             {/each}
           </select>
-          <button class="chip" onclick={() => addAdvantages(Math.max(1, addCount))}>Advantage</button>
-          <button class="chip" onclick={() => addOffcase(Math.max(1, addCount))}>Off-case</button>
+          <button class="chip aff" onclick={() => addAdvantages(Math.max(1, addCount))}>Advantage</button>
+          <button class="chip neg" onclick={() => addOffcase(Math.max(1, addCount))}>Off-case</button>
           <button class="chip" onclick={addOverview}>Overview</button>
           <button class="chip" onclick={addCx}>CX</button>
         </div>
@@ -297,16 +292,6 @@
                 <span class="num">{i + 1}</span>
                 {s.title || "(untitled)"}
               </button>
-              <label class="swatch" title="Sheet color">
-                <input
-                  type="color"
-                  value={s.color ?? "#888888"}
-                  oninput={(e) => store.setSheetColor(s.id, e.currentTarget.value)}
-                />
-              </label>
-              {#if s.color}
-                <button class="icon" title="Reset to default color" onclick={() => store.setSheetColor(s.id, null)}>↺</button>
-              {/if}
               <button class="icon" title="Rename" onclick={() => startRename(s.id, s.title)}>✎</button>
               <button
                 class="icon danger"
@@ -677,6 +662,21 @@
   .chip:hover {
     border-color: var(--accent);
   }
+  /* Advantage / Off-case chips wear their side's color (the same --aff/--neg
+     the grid uses), so the choice reads before you click. Overview and CX stay
+     neutral grey. */
+  .chip.aff {
+    color: var(--aff);
+    border-color: color-mix(in srgb, var(--aff) 45%, var(--border));
+    background: color-mix(in srgb, var(--aff) 10%, var(--panel));
+  }
+  .chip.neg {
+    color: var(--neg);
+    border-color: color-mix(in srgb, var(--neg) 45%, var(--border));
+    background: color-mix(in srgb, var(--neg) 10%, var(--panel));
+  }
+  .chip.aff:hover { border-color: var(--aff); }
+  .chip.neg:hover { border-color: var(--neg); }
   .sheet-list {
     display: flex;
     flex-direction: column;
@@ -705,22 +705,6 @@
     padding: 0 4px;
     font-size: 13px;
     user-select: none;
-  }
-  .swatch {
-    display: flex;
-    align-items: center;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0 4px;
-    cursor: pointer;
-  }
-  .swatch input {
-    width: 22px;
-    height: 22px;
-    border: none;
-    background: none;
-    padding: 0;
-    cursor: pointer;
   }
   .export-status {
     font-size: 12px;

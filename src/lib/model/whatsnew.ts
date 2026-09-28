@@ -24,6 +24,18 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.8",
+    headline: "A tidier home screen, colored Advantage and Off-case buttons, and new pages that just appear.",
+    items: [
+      "**Settings and Manual moved to the top right.** They're the same gear and book buttons as inside a flow. **Open a flow** and **Convert** now sit right under **Start flowing**.",
+      "**A cleaner home screen.** The cloud is gone from the top, and tournaments show just their name without the folder path under it.",
+      "**Recent flows are there when you come back.** Going back from a flow no longer shows the home screen without Recent flows for a moment before they pop in.",
+      "**Advantage is blue and Off-case is red** in a flow's Add buttons, matching the colors of the pages they make. Overview and CX stay grey.",
+      "**New pages just appear.** Adding an Advantage, Off-case or Overview no longer opens a rename box. Rename it any time with ✎, or by typing in its LABEL cell.",
+      "**Page colors follow the page type.** The color picker on each page is gone, and the \"Saved to...\" file path under the round's details is too.",
+    ],
+  },
+  {
     version: "1.4.7",
     headline: "Select a block of cells with the keyboard - hold Shift and use the arrow keys.",
     items: [

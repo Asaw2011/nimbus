@@ -1,6 +1,6 @@
 <script lang="ts" module>
   import type { RoundMeta as LastRoundMeta } from "../model/types";
-  import type { FlowFile as LastFlowFile } from "../model/tournaments.svelte";
+  import type { FlowFile as LastFlowFile, Tournament as LastTournament } from "../model/tournaments.svelte";
   // The dashboard is unmounted while a flow is open. What it last showed is kept
   // here so returning home paints at once, instead of every tournament flashing
   // open and "Empty" for the second the folder scan takes. Display only - every
@@ -9,6 +9,14 @@
   let lastFlows: Record<string, LastFlowFile[]> | null = null;
   let lastRounds: LastRoundMeta[] | null = null;
   let lastCollapsed: string[] | null = null;
+  // The home library too: "Recent flows" only renders once it is known, and
+  // finding it means the whole folder setup below, so without this the section
+  // popped in a beat after everything else.
+  let lastHome: LastTournament | null = null;
+  let lastHomeDir = "";
+  /** The one-time setup in onMount (home folder, migrations, examples) has run
+   *  this session; later mounts only rescan. */
+  let setupDone = false;
 </script>
 
 <script lang="ts">
@@ -39,9 +47,13 @@
   const OLD_LIBRARY_NAME = "Nimbus Flows";
   // Sub-folder of the home library whose child folders are the tournaments.
   const TOURNEYS_SUB = "tournaments";
-  let homeTourney = $state<Tournament | null>(null);
+  let homeTourney = $state<Tournament | null>(lastHome);
   /** Absolute path of the home library's `tournaments/` folder. */
-  let homeTournamentsDir = $state("");
+  let homeTournamentsDir = $state(lastHomeDir);
+  $effect(() => {
+    lastHome = homeTourney;
+    lastHomeDir = homeTournamentsDir;
+  });
 
   /** Tournaments shown under the TOURNAMENTS heading - everything except the
    *  home library itself, which gets its own section at the top. */
@@ -75,6 +87,10 @@
   // Starts where the last mount left it (all folded), not all-open: the fold
   // used to land a beat after first paint, so every tournament flashed open.
   let collapsed = $state<string[]>(lastCollapsed ?? []);
+  // Keep the folds the user makes, so a return from a flow shows them as left.
+  $effect(() => {
+    if (lastCollapsed !== null) lastCollapsed = [...collapsed];
+  });
   let showSettings = $state(false);
   /** Which Settings tab to open on - set before opening to deep-link (e.g. the
    *  "Manage formats" link jumps straight to Flow & Formats). */
@@ -176,19 +192,30 @@
   }
 
   onMount(async () => {
+    if (setupDone) {
+      // Coming back from a flow: the last lists are already on screen and the
+      // setup below has run. Just rescan - the flow may have been renamed or
+      // moved - and leave the folds as the user left them.
+      rounds = await listRounds();
+      await reloadFlows();
+      return;
+    }
     rounds = await listRounds();
     await tournaments.init();
     // Collapse pre-existing tournaments; the home library (added next) is left
     // out of this list, so it opens expanded.
-    const folded = tournaments.list.map((t) => t.id);
-    collapsed = folded;
-    lastCollapsed = folded;
+    if (lastCollapsed === null) {
+      const folded = tournaments.list.map((t) => t.id);
+      collapsed = folded;
+      lastCollapsed = folded;
+    }
     await ensureDefaultLibrary();
     await reloadFlows();
     // One-time: pull every loose "Recent Flow" into the home folder so there's
     // no split between app-data rounds and on-disk flows.
     await migrateUnfiledIntoHome();
     await reloadFlows();
+    setupDone = true;
   });
 
   /**
@@ -646,17 +673,14 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="dashboard">
+  <!-- Settings + Manual, pinned top-right like the flow view's icon buttons. -->
+  <div class="corner">
+    <button class="icon-btn" onclick={() => openSettings()} title="Settings (S)"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
+    <button class="icon-btn" onclick={() => (showManual = true)} title="Manual - how everything works (?)"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
+  </div>
   <div class="content">
     <!-- hero -->
     <header class="hero">
-      <div class="logo-stage">
-        <img class="logo" src="/logo.png" alt="Nimbus" />
-        <div class="rain" aria-hidden="true">
-          {#each Array(7) as _, i (i)}
-            <span></span>
-          {/each}
-        </div>
-      </div>
       <h1 class="wordmark">Nimbus</h1>
       <p class="version">Version {version}</p>
     </header>
@@ -699,13 +723,11 @@
         </label>
         {#if splitLabel}<div class="ac-note">{splitLabel}</div>{/if}
         <button class="start" onclick={createRound}>Start flowing</button>
-      </div>
-
-      <div class="quick">
-        <button class="quick-btn" onclick={openFlowFile}>Open a flow</button>
-        <button class="quick-btn" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
-        <button class="quick-btn" onclick={() => (showSettings = true)}>Settings</button>
-        <button class="quick-btn" onclick={() => (showManual = true)}>Help</button>
+        <!-- Secondary ways in, under the primary action. -->
+        <div class="quick">
+          <button class="quick-btn" onclick={openFlowFile}>Open a flow</button>
+          <button class="quick-btn" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
+        </div>
       </div>
 
     {#if status}<p class="status">{status}</p>{/if}
@@ -863,8 +885,6 @@
             </div>
             <button class="folder-new" title="New flow in this tournament" onclick={() => newFlowInTournament(t)}><Icon name="plus" size="13" /> New flow</button>
           </div>
-          <!-- Where this tournament's folder lives on disk. -->
-          <div class="folder-path" title={t.path}>{t.path}</div>
         {/if}
         {#if !collapsed.includes(t.id)}
           <div class="folder-body">
@@ -962,6 +982,21 @@
 <style>
   .dashboard { height: 100vh; position: relative; overflow: hidden; background: var(--bg); }
 
+  /* Top-right Settings / Manual. Same pill as the flow view's .icon-btn, and
+     outside .content so it stays put while the list scrolls. */
+  .corner {
+    position: absolute; top: 12px; right: 14px; z-index: 5;
+    display: flex; gap: 6px;
+  }
+  .icon-btn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 999px; height: 24px; padding: 0 9px 0 8px; gap: 5px;
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1; white-space: nowrap; cursor: pointer; font-family: inherit;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .btn-lbl { font-size: 11px; letter-spacing: 0.01em; }
+
   .content {
     /* ⚠ `border-box` is load-bearing, not tidiness. With the default
        content-box, `height: 100%` measures the CONTENT box, so the 40px of
@@ -979,43 +1014,11 @@
   }
   .content > * { width: 100%; max-width: 600px; }
 
-  /* ---- hero: compact cloud with a constant rain loop underneath ---- */
+  /* ---- hero: just the wordmark and version ---- */
   .hero {
     display: flex; flex-direction: column; align-items: center;
-    padding: 34px 0 20px;
+    padding: 44px 0 20px;
   }
-  .logo-stage { position: relative; width: 156px; height: 152px; display: grid; place-items: start center; }
-  .logo { width: 140px; height: 140px; object-fit: contain; }
-  /* Rain: seven drops falling on a loop clearly BELOW the cloud. The cloud art
-     has transparent padding, so its visible bottom sits ~106px down a 140px
-     box; the rain starts just under that so the drops don't sit over the cloud.
-     Each drop is staggered by its index so they don't fall in lockstep. */
-  .rain {
-    position: absolute; left: 50%; top: 108px; transform: translateX(-50%);
-    width: 80px; height: 40px; overflow: hidden; pointer-events: none;
-  }
-  .rain span {
-    position: absolute; top: -10px;
-    width: 2.5px; height: 12px; border-radius: 2px;
-    background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
-    opacity: 0;
-    animation: nimbus-rain 1.5s linear infinite;
-  }
-  /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
-     the drops don't march across in a diagonal wave - it reads as real rain. */
-  .rain span:nth-child(1) { left: 6px;  animation-delay: -0.15s; animation-duration: 1.5s; }
-  .rain span:nth-child(2) { left: 18px; animation-delay: -0.95s; animation-duration: 1.3s; }
-  .rain span:nth-child(3) { left: 30px; animation-delay: -0.45s; animation-duration: 1.7s; }
-  .rain span:nth-child(4) { left: 40px; animation-delay: -1.25s; animation-duration: 1.4s; }
-  .rain span:nth-child(5) { left: 51px; animation-delay: -0.65s; animation-duration: 1.6s; }
-  .rain span:nth-child(6) { left: 63px; animation-delay: -0.25s; animation-duration: 1.35s; }
-  .rain span:nth-child(7) { left: 73px; animation-delay: -1.05s; animation-duration: 1.55s; }
-  @keyframes nimbus-rain {
-    0%   { transform: translateY(-4px); opacity: 0; }
-    18%  { opacity: 1; }
-    100% { transform: translateY(40px); opacity: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) { .rain span { animation: none; opacity: 0; } }
   .wordmark {
     margin: 8px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
     color: var(--text); line-height: 1;
@@ -1063,13 +1066,12 @@
   }
   .start:hover { filter: brightness(1.05); }
 
-  /* Secondary actions: quiet pills under the card, same surface language. */
-  .quick { display: flex; gap: 10px; margin-top: 14px; }
+  /* Secondary actions: quiet buttons under Start flowing, inside the card. */
+  .quick { display: flex; gap: 10px; }
   .quick-btn {
     flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text);
-    border-radius: 12px; padding: 11px 12px; font-size: 13px; font-weight: 600;
+    border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600;
     font-family: inherit; cursor: pointer;
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
     transition: border-color 0.12s, background 0.12s;
   }
   .quick-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
@@ -1165,14 +1167,6 @@
     transition: background 0.12s;
   }
   .folder-new:hover { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
-  /* The tournament's real folder path, under its name. Indented to line up with
-     the name (past the chevron), dim, and truncated with the full path on hover. */
-  .folder-path {
-    margin: -4px 0 2px; padding: 0 12px 8px 34px;
-    font-size: 11px; color: var(--text-dim);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
   .folder-body { border-top: 1px solid var(--border); }
 
   /* Flows sit on their own surface card with hairline dividers, so the list
