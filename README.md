@@ -240,6 +240,12 @@ always there as a fallback.
 
 ---
 
+## Privacy
+
+Your files and prep never leave your computer — Nimbus has no code that uploads
+them. See [PRIVACY.md](PRIVACY.md) for the full, plain-language explanation, and
+audit the repo yourself to confirm it.
+
 ## Credits & license
 
 Nimbus is built together with **[@Asaw2011](https://github.com/Asaw2011)** —

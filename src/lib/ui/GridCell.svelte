@@ -667,14 +667,22 @@
       e.preventDefault();
       store.toggleEvidence(row, col, "card");
     }
-    // Shift+arrows extend an existing range selection (Excel muscle memory);
-    // without a range they keep selecting text inside the cell as normal.
+    // Shift+arrows select cells, Excel-style. With a range already up, any
+    // shift+arrow keeps extending it. With no range yet, they START one from
+    // the current cell: vertical arrows always leave the cell, so shift+up/down
+    // begin a range straight away; horizontal arrows first walk the caret
+    // through the cell's own text, so shift+left/right only begin a range once
+    // the caret is at the matching edge (otherwise they select text as normal).
     else if (
       e.shiftKey &&
       !e.metaKey &&
       !e.ctrlKey &&
       e.key.startsWith("Arrow") &&
-      store.selection
+      (store.selection ||
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown" ||
+        (e.key === "ArrowLeft" && caretAt("start")) ||
+        (e.key === "ArrowRight" && caretAt("end")))
     ) {
       e.preventDefault();
       const delta: Record<string, [number, number]> = {

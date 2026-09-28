@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.7",
+    headline: "Select a block of cells with the keyboard - hold Shift and use the arrow keys.",
+    items: [
+      "**Shift+arrows select cells.** Hold **Shift** and press an arrow key to highlight a block of cells straight from the one you're in - just like a spreadsheet. **Shift+Up/Down** starts extending right away; **Shift+Left/Right** kicks in once the caret reaches the edge of the cell's text, so you can still shift-select letters inside a cell first.",
+      "**Everything you can do to a selection still works.** Once a block is highlighted, delete it, copy it, drag it, or mark it dropped / starred / analytic / card - now without ever leaving the keyboard.",
+    ],
+  },
+  {
     version: "1.4.6",
     headline: "New pages ask what they are, every cross-ex lives under one CX tab, and home opens without the flicker.",
     items: [
