@@ -128,7 +128,9 @@
     // Check for updates in the background after a short delay so it
     // doesn't slow down the initial render.
     setTimeout(() => {
-      checkForUpdate().then((u) => { if (u) pendingUpdate = u; });
+      // A failed background check stays quiet (offline at a tournament is
+      // normal); Settings -> Check for updates reports it.
+      checkForUpdate().then((u) => { if (u) pendingUpdate = u; }).catch(() => {});
     }, 4000);
     return () => {
       window.removeEventListener("error", onErr);

@@ -487,22 +487,42 @@
 
   // ---- create / open flows -------------------------------------------------
 
+  /**
+   * The file for a new flow is written on its FIRST change, not when it is
+   * created: opening a new flow and going straight back used to leave an empty
+   * "New Round" file (and home-screen row) every time. Until then the round
+   * lives only in memory - see store.newRound's `onFirstEdit`.
+   */
+  function saveOnFirstEdit(t: Tournament): (round: Round) => void {
+    return (round) => {
+      void (async () => {
+        try {
+          const path = await tournaments.saveRoundInto(t, round);
+          // Direct assignment, not store.mutate: this is bookkeeping, not an
+          // edit, and must not add an undo step. The edit that triggered this
+          // is already pending a save, which now carries the path.
+          round.filePath = path;
+          if (store.round?.id === round.id) await store.saveNow();
+        } catch (e) {
+          console.warn("couldn't save new flow into its folder", e);
+        }
+      })();
+    };
+  }
+
   async function createRound() {
-    // Save straight into the default library folder so every flow is organized
+    // Goes straight into the default library folder so every flow is organized
     // on disk and auto-saved (no "Save As" step) - same path as "+ New flow" in
-    // a tournament. Falls back to an app-data-only round if there's no library
-    // (e.g. the browser build).
+    // a tournament - once something is done in it. Falls back to an
+    // app-data-only round if there's no library (e.g. the browser build).
     if (homeTourney && "__TAURI_INTERNALS__" in window) {
       const name = await tournaments.uniqueFlowName(homeTourney, "New Round");
-      store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, name, mySide);
-      if (store.round) {
-        try {
-          const path = await tournaments.saveRoundInto(homeTourney, store.round);
-          store.mutate((r) => (r.filePath = path));
-        } catch (e) {
-          console.warn("couldn't save new flow into the library", e);
-        }
-      }
+      store.newRound(
+        structuredClone(pickedTemplate) as SpeechTemplate,
+        name,
+        mySide,
+        saveOnFirstEdit(homeTourney),
+      );
     } else {
       store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, "New Round", mySide);
     }
@@ -572,11 +592,7 @@
     // round still called "New Flow" would rename itself back on top of the
     // first one's file.
     const name = await tournaments.uniqueFlowName(t, "New Flow");
-    store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, name, mySide);
-    if (store.round) {
-      const path = await tournaments.saveRoundInto(t, store.round);
-      store.mutate((r) => (r.filePath = path));
-    }
+    store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, name, mySide, saveOnFirstEdit(t));
     onopen();
   }
 
@@ -681,6 +697,14 @@
   <div class="content">
     <!-- hero -->
     <header class="hero">
+      <div class="logo-stage">
+        <img class="logo" src="/logo.png" alt="Nimbus" />
+        <div class="rain" aria-hidden="true">
+          {#each Array(7) as _, i (i)}
+            <span></span>
+          {/each}
+        </div>
+      </div>
       <h1 class="wordmark">Nimbus</h1>
       <p class="version">Version {version}</p>
     </header>
@@ -1014,11 +1038,43 @@
   }
   .content > * { width: 100%; max-width: 600px; }
 
-  /* ---- hero: just the wordmark and version ---- */
+  /* ---- hero: compact cloud with a constant rain loop underneath ---- */
   .hero {
     display: flex; flex-direction: column; align-items: center;
-    padding: 44px 0 20px;
+    padding: 34px 0 20px;
   }
+  .logo-stage { position: relative; width: 156px; height: 152px; display: grid; place-items: start center; }
+  .logo { width: 140px; height: 140px; object-fit: contain; }
+  /* Rain: seven drops falling on a loop clearly BELOW the cloud. The cloud art
+     has transparent padding, so its visible bottom sits ~106px down a 140px
+     box; the rain starts just under that so the drops don't sit over the cloud.
+     Each drop is staggered by its index so they don't fall in lockstep. */
+  .rain {
+    position: absolute; left: 50%; top: 108px; transform: translateX(-50%);
+    width: 80px; height: 40px; overflow: hidden; pointer-events: none;
+  }
+  .rain span {
+    position: absolute; top: -10px;
+    width: 2.5px; height: 12px; border-radius: 2px;
+    background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
+    opacity: 0;
+    animation: nimbus-rain 1.5s linear infinite;
+  }
+  /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
+     the drops don't march across in a diagonal wave - it reads as real rain. */
+  .rain span:nth-child(1) { left: 6px;  animation-delay: -0.15s; animation-duration: 1.5s; }
+  .rain span:nth-child(2) { left: 18px; animation-delay: -0.95s; animation-duration: 1.3s; }
+  .rain span:nth-child(3) { left: 30px; animation-delay: -0.45s; animation-duration: 1.7s; }
+  .rain span:nth-child(4) { left: 40px; animation-delay: -1.25s; animation-duration: 1.4s; }
+  .rain span:nth-child(5) { left: 51px; animation-delay: -0.65s; animation-duration: 1.6s; }
+  .rain span:nth-child(6) { left: 63px; animation-delay: -0.25s; animation-duration: 1.35s; }
+  .rain span:nth-child(7) { left: 73px; animation-delay: -1.05s; animation-duration: 1.55s; }
+  @keyframes nimbus-rain {
+    0%   { transform: translateY(-4px); opacity: 0; }
+    18%  { opacity: 1; }
+    100% { transform: translateY(40px); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .rain span { animation: none; opacity: 0; } }
   .wordmark {
     margin: 8px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
     color: var(--text); line-height: 1;

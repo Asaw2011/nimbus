@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.9",
+    headline: "Empty new flows no longer pile up, the cloud is back, and update checks tell you when they can't connect.",
+    items: [
+      "**Empty new flows don't pile up.** A new flow is only saved once you actually do something in it - add a page, type, or rename it. Open one and go straight back, and nothing is left behind in Recent flows or your folders.",
+      "**The cloud is back** at the top of the home screen.",
+      "**Update checks say when they fail.** **Settings -> Check for updates** used to say \"up to date\" even when it couldn't reach the internet. It now says it couldn't check.",
+    ],
+  },
+  {
     version: "1.4.8",
     headline: "A tidier home screen, colored Advantage and Off-case buttons, and new pages that just appear.",
     items: [

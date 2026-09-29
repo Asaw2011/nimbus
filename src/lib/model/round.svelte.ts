@@ -282,7 +282,26 @@ class RoundStore {
 
   // ---- lifecycle ----------------------------------------------------------
 
-  newRound(template: SpeechTemplate, name = "Untitled Round", mySide?: Side): void {
+  /**
+   * Set by {@link newRound} when the caller wants the round's file created
+   * lazily: a brand-new round is not written anywhere (no file, no app-data
+   * copy) until something is actually done in it, so opening "New flow" and
+   * backing straight out doesn't leave an empty "New Round" behind. Fired once,
+   * on the first change, then cleared. Null for every loaded round.
+   */
+  private onFirstEdit: ((round: Round) => void) | null = null;
+
+  /** True for a round made by {@link newRound} that nothing has been done in. */
+  get untouched(): boolean {
+    return this.onFirstEdit !== null;
+  }
+
+  newRound(
+    template: SpeechTemplate,
+    name = "Untitled Round",
+    mySide?: Side,
+    onFirstEdit?: (round: Round) => void,
+  ): void {
     // Rounds start with no sheets: the round home page is the landing view,
     // and pages are created from its buttons (advantages, off-case, etc.).
     const round: Round = {
@@ -303,9 +322,11 @@ class RoundStore {
     this.activeSheetId = null;
     this.cursor = null;
     this.resetHistory();
+    this.onFirstEdit = onFirstEdit ?? null;
   }
 
   loadRound(round: Round): void {
+    this.onFirstEdit = null;
     this.round = round;
     this.activeSheetId = round.sheets[0]?.id ?? null;
     this.cursor = { row: 0, col: 0 };
@@ -695,6 +716,11 @@ class RoundStore {
     // Making the stamp mean "something asked to be saved" puts it at one choke
     // point instead of N call sites that have to remember.
     if (this.round) this.round.updatedAt = Date.now();
+    if (this.onFirstEdit && this.round) {
+      const create = this.onFirstEdit;
+      this.onFirstEdit = null;
+      create(this.round);
+    }
     this.dirty = true;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
@@ -709,6 +735,8 @@ class RoundStore {
       this.saveTimer = null;
     }
     if (!this.round) return;
+    // Nothing has been done in this new round - don't write it anywhere.
+    if (this.onFirstEdit) return;
     const { id } = this.round;
     // Serialize BEFORE clearing `dirty` and before awaiting, so an edit that
     // lands mid-write re-dirties and gets its own flush.

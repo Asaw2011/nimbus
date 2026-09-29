@@ -1,4 +1,4 @@
-// Auto-update support. Only active inside Tauri; silently no-ops in the browser.
+// Auto-update support. Only active inside Tauri; resolves null in the browser.
 // Call checkForUpdate() on startup (after a short delay) or from the Settings panel.
 
 export interface UpdateInfo {
@@ -10,6 +10,11 @@ export interface UpdateInfo {
   relaunch: () => Promise<void>;
 }
 
+/**
+ * Resolves to the available update, or null when Nimbus is up to date.
+ * REJECTS when the check itself failed (offline, GitHub unreachable, a bad
+ * manifest), so a caller can tell "up to date" apart from "couldn't check".
+ */
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!("__TAURI_INTERNALS__" in window)) return null;
   try {
@@ -40,6 +45,6 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     // throws here and is otherwise indistinguishable from "you're up to date" -
     // which is exactly how a broken updater stays invisible for months.
     console.error("checkForUpdate failed", err);
-    return null;
+    throw err;
   }
 }

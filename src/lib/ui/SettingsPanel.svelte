@@ -184,9 +184,14 @@
   async function doCheckUpdate() {
     checkingUpdate = true;
     updateStatus = "Checking…";
-    const u = await checkForUpdate();
-    checkingUpdate = false;
-    updateStatus = u ? `Version ${u.version} is available - restart the app to see the install prompt.` : "Nimbus is up to date.";
+    try {
+      const u = await checkForUpdate();
+      updateStatus = u ? `Version ${u.version} is available - restart the app to see the install prompt.` : "Nimbus is up to date.";
+    } catch {
+      updateStatus = "Couldn't check for updates. Check your internet connection and try again.";
+    } finally {
+      checkingUpdate = false;
+    }
   }
 
   // Search library
