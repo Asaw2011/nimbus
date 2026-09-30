@@ -55,17 +55,25 @@ export const NO_SECTIONS = "-";
 /** Joins a pocket and a hat in an `advSections` path. */
 export const SECTION_SEP = " › ";
 
-/** One "2AC starter": the prepared 2AC block for a whole off-case position. */
+/** One block in a page's 2AC list. */
+export interface StarterBlock {
+  id: string;
+  title: string;
+  node: DocNode;
+  cardCount: number;
+}
+
+/**
+ * An off-case page's 2AC blocks: EVERY block under that position's hat in
+ * your 2AC file, in file order - minus ones already on the page and ones
+ * already offered under one of the 1NC's arguments (each block once per page).
+ */
 export interface Starter {
   key: string;
   sheetId: string;
   sheetTitle: string;
-  /** The row it goes in - by id when the row exists, so a moved row is followed. */
-  rowId: string | null;
-  row: number;
   toCol: number;
-  node: DocNode;
-  cardCount: number;
+  blocks: StarterBlock[];
   fileName: string;
   /** The 2AC file's key, for the exact CardMirror copy on insert. */
   file: string;
@@ -140,8 +148,6 @@ const POSITION_RE = /(^|[^a-z0-9])(das?|disads?|cps?|counterplans?|pics?|ks?|kri
 
 /** A 2AC file's own section for the case: "Case", "Case---2AC", "CASE Answers". */
 const CASE_SECTION_RE = /(^|[^a-z])case([^a-z]|$)/i;
-/** The heading of a position's prepared 2AC: "2AC", "Midterms---2AC", "Frontline". */
-const STARTER_RE = /(^|[^a-z0-9])(2acs?|front\s*lines?)(?![a-z])/i;
 
 const LOG_BLOB = "smart-log";
 const LOG_MAX = 2000;
@@ -191,33 +197,6 @@ function speechOfCol(speeches: Speech[], c: number): string {
   if (/second affirmative constructive/.test(label)) return "2AC";
   if (/first affirmative rebuttal/.test(label)) return "1AR";
   return abbr;
-}
-
-/**
- * The prepared 2AC for a position, inside its section: the DEEPEST heading
- * named for it ("Midterms---2AC" under "2AC", or "Frontline"), else the first
- * block that holds cards (not a 1AC/1NC shell).
- */
-function pickStarter(roots: DocNode[]): DocNode | null {
-  const named = (ns: DocNode[]): DocNode | null => {
-    for (const n of ns) {
-      if (isCardNode(n)) continue;
-      const inner = named(n.children);
-      if (inner) return inner;
-      if (STARTER_RE.test(n.text) && cardsUnder(n).length) return n;
-    }
-    return null;
-  };
-  const first = (ns: DocNode[]): DocNode | null => {
-    for (const n of ns) {
-      if (isCardNode(n)) continue;
-      if (n.children.some(isCardNode) && !/(^|[^a-z0-9])(1nc|1ac)([^a-z0-9]|$)/i.test(n.text)) return n;
-      const inner = first(n.children);
-      if (inner) return inner;
-    }
-    return null;
-  };
-  return named(roots) ?? first(roots);
 }
 
 /**
@@ -1021,7 +1000,7 @@ class SmartKit {
    * is what retires it, so two partners cannot both insert the same answer
    * unless they click within the same sync tick.
    */
-  suggestions(round: Round, laneHere: number, reserved?: Set<string>): Suggestion[] {
+  suggestions(round: Round, laneHere: number): Suggestion[] {
     const side = this.mySide(round);
     if (!side || !this.all.length) return [];
     const speeches = round.template.speeches;
@@ -1083,14 +1062,11 @@ class SmartKit {
         }
         return b;
       };
-      // Blocks already put on this page, and the ones its 2AC starter offers:
-      // neither is suggested again here. Re-read every pass (cheap), so an
-      // insert - yours or a partner's - retires every copy at once.
+      // Blocks already put on this page are not suggested again here. Re-read
+      // every pass (cheap), so an insert - yours or a partner's - retires every
+      // copy at once. (The page's 2AC list leaves out what's offered here.)
       const used = usedTitles(sheet);
-      const taken = (m: BlockMatch) => {
-        const t = normTitle(m.block.title);
-        return used.has(t) || !!reserved?.has(`${sheet.id}\u0000${t}`);
-      };
+      const taken = (m: BlockMatch) => used.has(normTitle(m.block.title));
       const onPage: Suggestion[] = [];
       sheet.rows.forEach((row, r) => {
         for (let c = Math.max(0, sheet.startCol); c < speeches.length; c++) {
@@ -1206,15 +1182,11 @@ class SmartKit {
     return speechOfCol(round.template.speeches, col);
   }
 
-  /** "Sheet \0 title" for each starter's block, for `suggestions(reserved)`. */
-  reservedFor(starters: Starter[]): Set<string> {
+  /** "Sheet \0 title" for every block the suggestions offer - a page's 2AC
+   *  list leaves these out (each block once per page). */
+  claimedBy(suggestions: Suggestion[]): Set<string> {
     const out = new Set<string>();
-    const walk = (sheetId: string, n: DocNode) => {
-      if (isCardNode(n)) return;
-      out.add(`${sheetId}\u0000${normTitle(n.text)}`);
-      n.children.forEach((c) => walk(sheetId, c));
-    };
-    for (const st of starters) walk(st.sheetId, st.node);
+    for (const s of suggestions) for (const m of s.matches) out.add(`${s.sheetId}\u0000${normTitle(m.block.title)}`);
     return out;
   }
 
@@ -1259,99 +1231,101 @@ class SmartKit {
     return true;
   }
 
-  // ---- 2AC starters ---------------------------------------------------------
+  // ---- a page's 2AC blocks ("2AC off-case") ----------------------------------
   //
-  // When you're aff, each named off-case page ("Midterms DA") already finds its
-  // section of your 2AC file by name. A starter offers that section's prepared
-  // 2AC block for the whole position, before the 1NC's arguments are flowed.
-  // Offered while your 2AC column on that page is still empty - writing in it
-  // (by inserting, typing, or a partner syncing over) is what retires it.
+  // When you're aff, each named off-case page ("Midterms DA") finds its hat in
+  // your 2AC file by name, and lists EVERY block under it, in file order, for
+  // a click each. A block already on the page is gone from the list; one that
+  // matches a flowed 1NC argument is offered under that argument instead
+  // (`claimed`), so each block shows once. The list lasts until it's used up
+  // or you × it.
 
-  starters(round: Round, laneHere: number, enabled: boolean): Starter[] {
+  starters(round: Round, laneHere: number, enabled: boolean, claimed?: Set<string>): Starter[] {
     if (!enabled || this.mySide(round) !== "aff") return [];
     const speeches = round.template.speeches;
     const negFirst = speeches.findIndex((s) => s.side === "neg");
     if (negFirst < 0) return [];
     const to = targetCol(speeches, negFirst, "aff", laneHere);
     if (to < 0) return [];
-    const colsOf = (c: number) => {
-      const g = speeches[c].laneGroup;
-      return g ? speeches.flatMap((s, i) => (s.laneGroup === g ? [i] : [])) : [c];
-    };
-    const mine = colsOf(to);
-    const theirs = colsOf(negFirst);
     const out: Starter[] = [];
     for (const sheet of round.sheets) {
       if (sheet.kind === "case" || sheet.kind === "cx" || sheet.kind === "overview") continue;
       if (to < sheet.startCol) continue;
       const key = `starter:${sheet.id}`;
       if (this.dismissed.includes(key)) continue;
-      // Your 2AC on this page has begun (either lane): nothing to offer.
-      if (sheet.rows.some((r) => mine.some((c) => filled(r.cells[c])))) continue;
       // ONLY from a 2AC file, and found on its own - never through the page's
       // linked file, which can be any file named like the page (a reported
       // bug: the neg's "Midterms Uniqueness" file supplied a "starter").
-      let file: string | null = null;
-      let node: DocNode | null = null;
       for (const f of this.all) {
         if (!this.isTwoAC(f.key) || this.wrongSide(f.key)) continue;
         const p = this.parsed[f.key];
         if (!p) continue;
         const cand = [{ key: f.key, name: f.name, firstHeading: p.firstHeading }];
-        const sec = guessFileForSheet(sheet.title, cand) ? null : guessSection(sheet.title, p.roots);
-        if (!sec && !guessFileForSheet(sheet.title, cand)) continue;
-        node = pickStarter(sec ? [sec] : p.roots);
-        if (node) {
-          file = f.key;
-          break;
+        const whole = !!guessFileForSheet(sheet.title, cand);
+        const sec = whole ? null : guessSection(sheet.title, p.roots);
+        if (!whole && !sec) continue;
+        const used = usedTitles(sheet);
+        const seen = new Set<string>();
+        const blocks: StarterBlock[] = [];
+        for (const b of p.blocks) {
+          if (sec && b.node !== sec && !b.anc.includes(sec)) continue;
+          const t = normTitle(b.title);
+          if (seen.has(t) || used.has(t) || claimed?.has(`${sheet.id}\u0000${t}`)) continue;
+          seen.add(t);
+          blocks.push({ id: b.id, title: b.title, node: b.node, cardCount: b.cardCount });
         }
+        if (!blocks.length) break; // this position's 2AC is all in
+        out.push({
+          key,
+          sheetId: sheet.id,
+          sheetTitle: sheet.title,
+          toCol: to,
+          blocks,
+          fileName: f.name.replace(/\.(docx|cmir)$/i, ""),
+          file: f.key,
+        });
+        break;
       }
-      if (!file || !node) continue;
-      // Beside the 1NC's first argument on the page (row 0 is the label row).
-      let row = sheet.rows.findIndex((r, i) => i > 0 && theirs.some((c) => filled(r.cells[c])));
-      if (row < 1) row = 1;
-      out.push({
-        key,
-        sheetId: sheet.id,
-        sheetTitle: sheet.title,
-        rowId: sheet.rows[row]?.id ?? null,
-        row,
-        toCol: to,
-        node,
-        cardCount: cardsUnder(node).length,
-        fileName: this.all.find((f) => f.key === file)?.name.replace(/\.(docx|cmir)$/i, "") ?? "",
-        file,
-      });
     }
     return out;
   }
 
-  /** Put a starter in. Refuses a cell that filled since (checked BEFORE mutate,
-   *  so a refusal leaves no empty undo step), and steps the cursor down. */
-  async insertStarter(st: Starter): Promise<boolean> {
-    const find = () => {
-      const sheet = store.round?.sheets.find((s) => s.id === st.sheetId);
-      if (!sheet) return null;
-      const byId = st.rowId ? sheet.rows.findIndex((r) => r.id === st.rowId) : -1;
-      const row = byId >= 0 ? byId : st.row;
-      return { sheet, row };
-    };
-    const at = find();
-    if (!at || filled(at.sheet.rows[at.row]?.cells[st.toCol])) return false;
-    const exact = await this.exactFor(st.file, st.node).catch(() => null);
-    // Re-checked after the wait (a partner may have started this 2AC).
-    const now = find();
-    if (!now || filled(now.sheet.rows[now.row]?.cells[st.toCol])) return false;
-    const row = now.row;
+  /**
+   * Put one block from a page's 2AC list in: under the last thing in your 2AC
+   * column on that page (so a run of clicks stacks down), or beside the 1NC's
+   * first argument when the column is empty. Refused if the block landed on
+   * the page meanwhile. One undo step; the cursor steps down under it.
+   */
+  async insertStarterBlock(st: Starter, b: StarterBlock): Promise<boolean> {
+    const exact = await this.exactFor(st.file, b.node).catch(() => null);
+    const round = store.round;
+    const sheet = round?.sheets.find((s) => s.id === st.sheetId);
+    if (!round || !sheet) return false;
+    if (usedTitles(sheet).has(normTitle(b.title))) return false;
+    const speeches = round.template.speeches;
+    const negFirst = speeches.findIndex((s) => s.side === "neg");
+    const theirs = speeches.flatMap((s, i) =>
+      i === negFirst || (!!s.laneGroup && s.laneGroup === speeches[negFirst]?.laneGroup) ? [i] : [],
+    );
+    let last = -1;
+    sheet.rows.forEach((r, i) => {
+      if (filled(r.cells[st.toCol])) last = i;
+    });
+    let row = last >= 0 ? last + 1 : sheet.rows.findIndex((r, i) => i > 0 && theirs.some((c) => filled(r.cells[c])));
+    if (row < 1) row = 1;
+    let done = false;
     store.mutate((r) => {
       const s = r.sheets.find((x) => x.id === st.sheetId);
       if (!s) return;
       store.ensureRows(row, s);
       const cell = s.rows[row]?.cells[st.toCol];
-      if (cell && !filled(cell)) fillCell(cell, st.node, exact);
+      if (!cell || filled(cell)) return;
+      fillCell(cell, b.node, exact);
+      done = true;
     });
+    if (!done) return false;
     if (store.activeSheetId === st.sheetId) store.cursor = { row: row + 1, col: st.toCol };
-    void this.log({ t: Date.now(), ev: "insert", said: "(2AC starter)", block: st.node.text, rank: 0, sheet: st.sheetTitle });
+    void this.log({ t: Date.now(), ev: "insert", said: "(2AC list)", block: b.title, rank: 0, sheet: st.sheetTitle });
     return true;
   }
 

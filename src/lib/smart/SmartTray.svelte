@@ -10,7 +10,7 @@
   import { laneAbbr } from "$lib/model/types";
   import type { DocNode } from "$lib/docx/parse";
   import { settings } from "$lib/model/settings.svelte";
-  import { smartKit, ALL_SECTIONS, NO_SECTIONS, SECTION_SEP, type KitFile, type Starter, type Suggestion } from "./kit.svelte";
+  import { smartKit, ALL_SECTIONS, NO_SECTIONS, SECTION_SEP, type KitFile, type Starter, type StarterBlock, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
 
   let { onjump }: { onjump: (sheetId: string, row: number, col: number) => void } = $props();
@@ -83,9 +83,8 @@
     const now = Date.now();
     // Aff: only what the speech you're answering needs (the Answering switch).
     const ans = smartKit.mySide(round) === "aff" ? smartKit.answering(round) : null;
-    starters = smartKit.starters(round, store.laneHere, settings.smartStarters && ans !== "1AR");
     const next = smartKit
-      .suggestions(round, store.laneHere, smartKit.reservedFor(starters))
+      .suggestions(round, store.laneHere)
       .filter((s) => {
         if (!ans) return true;
         const sp = smartKit.speechOfCol(round, s.toCol);
@@ -97,6 +96,9 @@
         }
         return true;
       });
+    // Each off-case page's full 2AC list, minus what's offered under an
+    // argument above (each block once per page).
+    starters = smartKit.starters(round, store.laneHere, settings.smartStarters && ans !== "1AR", smartKit.claimedBy(next));
     for (const s of next) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
     list = next.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
   }
@@ -173,11 +175,12 @@
     settings.save();
   }
 
-  async function useStarter(st: Starter) {
-    if (!(await smartKit.insertStarter(st))) return;
-    flashed = st.key;
+  async function useStarterBlock(st: Starter, b: StarterBlock) {
+    const id = `${st.key}:${b.id}`;
+    if (!(await smartKit.insertStarterBlock(st, b))) return;
+    flashed = id;
     setTimeout(() => {
-      if (flashed === st.key) flashed = "";
+      if (flashed === id) flashed = "";
     }, 900);
   }
 
@@ -403,31 +406,34 @@
             <p class="empty">Pick which side you're on in <b>Round kit</b>.</p>
           {:else}
             {#if side === "aff" && answering !== "1AR"}
-              <label class="starter-switch" title="Ticked: off-case pages get suggestions too - their answers, and a starter (your whole 2AC block for the position, found by the page's name). Unticked: only your advantage pages get suggestions. Doesn't apply on the 1AR.">
+              <label class="starter-switch" title="Ticked: each off-case page lists every block under its position in your 2AC file (found by the page's name), and its 1NC arguments get answers too. Unticked: only your advantage pages. Doesn't apply on the 1AR.">
                 <input type="checkbox" checked={settings.smartStarters} onchange={(e) => toggleStarters((e.currentTarget as HTMLInputElement).checked)} />
-                <span><b>2AC off-case</b> - suggestions and 2AC starters for off-case pages{#if !settings.smartStarters}<span class="dim">{" (off: advantages only)"}</span>{/if}</span>
+                <span><b>2AC off-case</b> - every 2AC block for each off-case page{#if !settings.smartStarters}<span class="dim">{" (off: advantages only)"}</span>{/if}</span>
               </label>
               {#if settings.smartStarters}
                 {#each starters as st (st.key)}
                   <div class="sug starter">
                     <div class="sug-head">
-                      <button class="where" onclick={() => onjump(st.sheetId, st.row, st.toCol)} title="Go to this page">
+                      <button class="where" onclick={() => onjump(st.sheetId, 1, st.toCol)} title="Go to this page">
                         <span class="sheet">{st.sheetTitle || "Untitled"}</span>
-                        <span class="speech">2AC starter</span>
+                        <span class="speech">2AC blocks</span>
                         <span class="said">from {st.fileName}</span>
                       </button>
-                      <button class="dismiss" onclick={() => smartKit.dismissStarter(st)} title="Not for this page">×</button>
+                      <button class="dismiss" onclick={() => smartKit.dismissStarter(st)} title="Hide this page's list">×</button>
                     </div>
-                    <div class="match">
-                      <span class="btitle" title={st.node.text}>{blockLabel(st.node.text)}</span>
-                      <span class="count">{flashed === st.key ? "Inserted" : `${st.cardCount} ${st.cardCount === 1 ? "card" : "cards"}`}</span>
-                      <button class="insert" onclick={() => void useStarter(st)}>
-                        Insert → {laneAbbr(speeches[st.toCol], store.laneHere)}
-                      </button>
-                    </div>
+                    {#each st.blocks as b (b.id)}
+                      {@const fid = `${st.key}:${b.id}`}
+                      <div class="match">
+                        <span class="btitle" title={b.title}>{b.title}</span>
+                        <span class="count">{flashed === fid ? "Inserted" : `${b.cardCount} ${b.cardCount === 1 ? "card" : "cards"}`}</span>
+                        <button class="insert" onclick={() => void useStarterBlock(st, b)}>
+                          Insert → {laneAbbr(speeches[st.toCol], store.laneHere)}
+                        </button>
+                      </div>
+                    {/each}
                   </div>
                 {:else}
-                  <p class="hint">No starters right now. One shows for each off-case page named for its position ("Midterms DA") until you start that page's 2AC.</p>
+                  <p class="hint">Nothing here right now. Each off-case page named for its position ("Midterms DA", "States CP") lists every block under that position in your 2AC file.</p>
                 {/each}
               {/if}
             {/if}
