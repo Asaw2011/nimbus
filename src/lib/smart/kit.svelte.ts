@@ -84,6 +84,18 @@ export interface LogEntry {
   sheet: string;
 }
 
+// ---- which side a file is for, by its name ---------------------------------
+// Word-bounded ("neg_", "AFF - ", "2ACs_"), case-insensitive, and never inside
+// a longer word: "Affordable", "Negotiation", "Negative Income Tax" is caught
+// by `negative` only as a whole word.
+const CASE_NEG_RE = /case[\s_-]*negs?(?![a-z])/i;
+const NEG_RE = /(^|[^a-z0-9])neg(s|ative)?(?![a-z])/i;
+const TWO_AC_RE = /(^|[^a-z0-9])2acs?(?![a-z])/i;
+const AFF_RE = /(^|[^a-z0-9])aff(irmative)?(?![a-z])/i;
+/** A file name that also names a kind of position ("NEG - Midterms DA") is a
+ *  file for THAT position, not a whole-case file. */
+const POSITION_RE = /(^|[^a-z0-9])(das?|disads?|cps?|counterplans?|pics?|ks?|kritiks?|t|topicality|theory)(?![a-z])/i;
+
 const LOG_BLOB = "smart-log";
 const LOG_MAX = 2000;
 
@@ -446,12 +458,54 @@ class SmartKit {
    * DA, and a folder rule would pin that DA to every case sheet.
    */
   isCaseNeg(key: string): boolean {
-    return this.named(key, /case[\s_-]*negs?(?![a-z])/i);
+    // "NEG - Single Payer" is a case neg too - but "NEG - Midterms DA" or
+    // "NEG - Midterms" (with a "Midterms" page in the round) is that
+    // position's file, and must not land on every advantage page.
+    if (this.named(key, CASE_NEG_RE)) return true;
+    return this.named(key, NEG_RE) && !this.namesPosition(key) && !this.namesOffcaseSheet(key);
   }
 
-  /** A 2AC file ("2ACs_Single Payer"): the aff's answers, case AND off-case. */
+  /** A 2AC file ("2ACs_Single Payer", "AFF - Single Payer"): the aff's
+   *  answers, case AND off-case. */
   isTwoAC(key: string): boolean {
-    return !this.isCaseNeg(key) && this.named(key, /(^|[^a-z0-9])2acs?(?![a-z])/i);
+    if (this.fileSide(key) === "neg") return false;
+    return this.named(key, TWO_AC_RE) || (this.named(key, AFF_RE) && !this.namesPosition(key));
+  }
+
+  /**
+   * Which side a file is FOR, by its name: 2AC / AFF files are the aff's,
+   * case neg / NEG files the neg's. undefined = either (a DA file, a T file).
+   */
+  fileSide(key: string): Side | undefined {
+    if (this.named(key, CASE_NEG_RE) || this.named(key, NEG_RE)) return "neg";
+    if (this.named(key, TWO_AC_RE) || this.named(key, AFF_RE)) return "aff";
+    return undefined;
+  }
+
+  /**
+   * A file for the OTHER side than the one you're on - a case neg when you're
+   * aff, a 2AC file when you're neg. Never matched to a page automatically (or
+   * as a general file); picking it for a sheet by hand still works.
+   */
+  wrongSide(key: string): boolean {
+    const me = this.currentSide();
+    const s = this.fileSide(key);
+    return !!me && !!s && s !== me;
+  }
+
+  /** The file NAME also says what kind of position it is (DA, CP, K, T...). */
+  private namesPosition(key: string): boolean {
+    const f = this.all.find((x) => x.key === key);
+    return !!f && POSITION_RE.test(f.name);
+  }
+
+  /** The file is named for one of this round's non-advantage pages - the same
+   *  name test as auto-linking ("NEG - Midterms" ↔ a "Midterms" page). */
+  private namesOffcaseSheet(key: string): boolean {
+    const f = this.all.find((x) => x.key === key);
+    if (!f || !store.round) return false;
+    const cand = [{ key, name: f.name, firstHeading: this.parsed[key]?.firstHeading ?? "" }];
+    return store.round.sheets.some((s) => s.kind !== "case" && s.kind !== "cx" && !!guessFileForSheet(s.title, cand));
   }
 
   private named(key: string, re: RegExp): boolean {
@@ -465,17 +519,28 @@ class SmartKit {
   }
 
   /** Case-neg files that apply to this sheet: every aff (case) sheet gets all
-   *  of them, unless the sheet was explicitly set to "No file". */
+   *  of them, unless the sheet was explicitly set to "No file" - and never
+   *  when WE are aff (then the 2AC file answers the case; see twoACsFor). */
+  // ⚠ "every sheet" (`general`) does NOT take a file out of these. It used to,
+  // and a 2AC file ticked "every sheet" then vanished from the advantage pages
+  // and from the per-sheet dropdown ("Auto: none found") - a real report. The
+  // tick only ADDS the file to every other sheet too.
   caseNegsFor(sheet: Sheet): string[] {
-    if (sheet.kind !== "case" || this.links[sheet.id] === "") return [];
-    return this.all.filter((f) => !f.general && this.isCaseNeg(f.key)).map((f) => f.key);
+    if (sheet.kind !== "case" || this.links[sheet.id] === "" || this.currentSide() === "aff") return [];
+    return this.all.filter((f) => this.isCaseNeg(f.key)).map((f) => f.key);
   }
 
   /** 2AC files on an aff sheet, when WE are aff - their CASE section answers it,
-   *  whatever the advantage sheets are called. */
+   *  whatever the advantage sheets are called. Every 2AC file counts, including
+   *  a catch-all like "2ACs_Single Payer_Ks" (all the K answers, kept apart). */
   twoACsFor(sheet: Sheet): string[] {
     if (sheet.kind !== "case" || this.links[sheet.id] === "" || this.currentSide() !== "aff") return [];
-    return this.all.filter((f) => !f.general && this.isTwoAC(f.key)).map((f) => f.key);
+    return this.all.filter((f) => this.isTwoAC(f.key)).map((f) => f.key);
+  }
+
+  /** A file's top-level "Case" section, if it has one. */
+  private caseSection(key: string): DocNode | null {
+    return this.parsed[key]?.roots.find((n) => n.text.trim().toLowerCase() === "case") ?? null;
   }
 
   /** Every file that applies to an aff sheet automatically. */
@@ -490,7 +555,9 @@ class SmartKit {
    * they have their own rule.
    */
   autoLink(sheet: Sheet): string | null {
-    const pool = this.all.filter((f) => !f.general && !this.isCaseNeg(f.key) && this.parsed[f.key]?.blocks.length);
+    const pool = this.all.filter(
+      (f) => !this.isCaseNeg(f.key) && !this.wrongSide(f.key) && this.parsed[f.key]?.blocks.length,
+    );
     const byName = guessFileForSheet(
       sheet.title,
       pool.map((f) => ({ key: f.key, name: f.name, firstHeading: this.parsed[f.key].firstHeading })),
@@ -519,7 +586,7 @@ class SmartKit {
     const p = this.parsed[key];
     if (!f || !p) return null;
     if (sheet.kind === "case" && this.twoACsFor(sheet).includes(key)) {
-      return p.roots.find((n) => n.text.trim().toLowerCase() === "case") ?? null;
+      return this.caseSection(key);
     }
     if (guessFileForSheet(sheet.title, [{ key, name: f.name, firstHeading: p.firstHeading }])) return null;
     return guessSection(sheet.title, p.roots);
@@ -531,13 +598,17 @@ class SmartKit {
     const keys = new Set<string>();
     const own = this.linkFor(sheet);
     if (own) keys.add(own);
-    for (const k of this.caseFilesFor(sheet)) keys.add(k);
-    const general = new Set(this.all.filter((f) => f.general).map((f) => f.key));
+    const caseFiles = this.caseFilesFor(sheet);
+    for (const k of caseFiles) keys.add(k);
+    const general = new Set(this.all.filter((f) => f.general && !this.wrongSide(f.key)).map((f) => f.key));
     for (const k of general) keys.add(k);
     const out: KitBlock[] = [];
     const seen = new Set<string>();
     for (const k of keys) {
-      const scope = general.has(k) ? null : this.scopeFor(sheet, k);
+      // A file that is ONLY here for "every sheet" is used whole; one that is
+      // also this sheet's own or case file keeps its section (a 2AC's CASE).
+      const onlyGeneral = general.has(k) && k !== own && !caseFiles.includes(k);
+      const scope = onlyGeneral ? null : this.scopeFor(sheet, k);
       for (const b of this.parsed[k]?.blocks ?? []) {
         if (seen.has(b.id)) continue;
         if (scope && b.node !== scope && !b.anc.includes(scope)) continue;
@@ -577,7 +648,14 @@ class SmartKit {
     // cells whose text changed - measured ~40ms per pass on a 3,600-cell flow
     // against 748 blocks without it, and this runs after every edit. Anything
     // that changes WHICH blocks a sheet sees drops the lot.
-    const sig = JSON.stringify([this.all.map((f) => f.key + (f.general ? "*" : "")), this.links, side]);
+    // Sheet titles/kinds are in it too: whether a "NEG - X" file is a case neg
+    // depends on whether some OTHER page is named X (namesOffcaseSheet).
+    const sig = JSON.stringify([
+      this.all.map((f) => f.key + (f.general ? "*" : "")),
+      this.links,
+      side,
+      round.sheets.map((s) => `${s.kind}:${s.title}`),
+    ]);
     if (sig !== this.cacheSig || this.parsed !== this.cacheParsed || this.matchCache.size > 50_000) {
       this.matchCache.clear();
       this.blocksCache.clear();

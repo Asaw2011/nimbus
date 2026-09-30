@@ -448,13 +448,15 @@
               <span class="fname" title={f.key.startsWith("copy:") ? "Not found in your Doc Search library, so Nimbus keeps a copy made when you dropped it. Drop it again to update it." : f.key}>
                 {f.name.replace(/\.(docx|cmir)$/i, "")}
                 {#if f.key.startsWith("copy:")}<span class="copytag">copy</span>{/if}
-                {#if !f.general && smartKit.isCaseNeg(f.key)}<span class="copytag casetag" title="Used on every aff (case) sheet">case neg</span>{/if}
-                {#if !f.general && smartKit.isTwoAC(f.key)}<span class="copytag casetag" title="When you're aff: its CASE section is used on every aff sheet, and each off-case sheet uses its own section">2AC</span>{/if}
+                {#if smartKit.wrongSide(f.key)}
+                  <span class="copytag offside" title="A {smartKit.fileSide(f.key)} file - not used while you're {side}. You can still pick it for a sheet below.">not used when {side}</span>
+                {:else if smartKit.isCaseNeg(f.key)}<span class="copytag casetag" title="When you're neg: used on every advantage page">case neg</span>
+                {:else if smartKit.isTwoAC(f.key)}<span class="copytag casetag" title="When you're aff: its CASE section is used on every advantage page, and each off-case page uses its own section">2AC</span>{/if}
               </span>
               <span class="fmeta" class:err={!!p?.error}>
                 {p ? (p.error ? p.error : `${p.blocks.length} blocks`) : "reading…"}
               </span>
-              <label class="gen" title="Offer this file's blocks on every sheet (T, theory, framework)">
+              <label class="gen" title="ALSO offer this file's blocks on every other sheet (T, theory, framework). It keeps its own pages either way.">
                 <input type="checkbox" checked={!!f.general} onchange={(e) => smartKit.setGeneral(f.key, (e.currentTarget as HTMLInputElement).checked)} />
                 every sheet
               </label>
@@ -498,7 +500,7 @@
                     Auto: {auto ? fileName(auto) + (autoScope ? ` › ${autoScope.text}` : "") : caseFiles.length ? "" : "none found"}{auto && caseFiles.length ? " + " : ""}{caseFiles.length ? caseFiles.map((k) => fileName(k)).join(", ") : ""}
                   </option>
                   <option value="">No file</option>
-                  {#each smartKit.all.filter((f) => !f.general) as f (f.key)}
+                  {#each smartKit.all as f (f.key)}
                     <option value={f.key}>{f.name.replace(/\.(docx|cmir)$/i, "")}</option>
                   {/each}
                 </select>
@@ -798,6 +800,10 @@
   .casetag {
     color: var(--aff);
     border-color: var(--aff);
+  }
+  .offside {
+    opacity: 0.8;
+    font-style: italic;
   }
   .from {
     display: flex;
