@@ -10,7 +10,7 @@
   import { laneAbbr } from "$lib/model/types";
   import type { DocNode } from "$lib/docx/parse";
   import { settings } from "$lib/model/settings.svelte";
-  import { smartKit, ALL_SECTIONS, SECTION_SEP, type KitFile, type Starter, type Suggestion } from "./kit.svelte";
+  import { smartKit, ALL_SECTIONS, NO_SECTIONS, SECTION_SEP, type KitFile, type Starter, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
 
   let { onjump }: { onjump: (sheetId: string, row: number, col: number) => void } = $props();
@@ -160,18 +160,27 @@
   /** The file whose picker is open, and its pockets opened to show hats. */
   let pickingFor = $state<string | null>(null);
   let pickOpen = $state<Set<string>>(new Set());
+  let pickQuery = $state("");
 
   function openPicker(key: string) {
     pickingFor = pickingFor === key ? null : key;
     pickOpen = new Set();
+    pickQuery = "";
   }
 
   function pickedPaths(key: string): string[] {
     return smartKit.all.find((f) => f.key === key)?.advSections ?? [];
   }
 
+  /** The paths shown ticked: your picks, or what Auto is using right now. */
+  function effectivePaths(key: string): string[] {
+    const picked = pickedPaths(key);
+    return picked.length ? picked : smartKit.autoPaths(key);
+  }
+
   function togglePath(key: string, path: string, pocket?: DocNode) {
-    let paths = pickedPaths(key).filter((p) => p !== ALL_SECTIONS);
+    // Starts from what's ticked on screen - Auto's picks included.
+    let paths = effectivePaths(key).filter((p) => p !== ALL_SECTIONS && p !== NO_SECTIONS);
     if (paths.includes(path)) {
       paths = paths.filter((p) => p !== path);
     } else {
@@ -179,7 +188,8 @@
       // Ticking a pocket covers its hats - drop their separate ticks.
       if (pocket) paths = paths.filter((p) => !p.startsWith(`${path}${SECTION_SEP}`));
     }
-    smartKit.setAdvSections(key, paths);
+    // Unticking the last one means "nothing", not "back to Auto".
+    smartKit.setAdvSections(key, paths.length ? paths : [NO_SECTIONS]);
   }
 
   function toggleOpenPocket(path: string) {
@@ -437,7 +447,7 @@
             </div>
             {#if needsPick}
               <p class="nudge">
-                <b>{sheetFile.name.replace(/\.(docx|cmir)$/i, "")}</b> has no <b>Case</b> section, so your advantage pages get nothing from it yet.
+                Your advantage pages get nothing from <b>{sheetFile.name.replace(/\.(docx|cmir)$/i, "")}</b> yet - it has no <b>Case</b> section, or none is picked.
                 <button class="mini" onclick={() => { tab = "kit"; pickingFor = sheetFile?.key ?? null; pickOpen = new Set(); }}>Pick its sections</button>
               </p>
             {:else if !canInsert}
@@ -563,58 +573,86 @@
                 {:else}
                   {#if smartKit.isCaseNeg(f.key)}
                     <span class="copytag casetag" title="When you're neg: used on every advantage page">case neg</span>
+                  {:else if smartKit.isOneAR(f.key)}
+                    <span class="copytag casetag" title="When you're aff: answers the neg block - only suggested into your 1AR. Advantage pages use the sections picked here; each off-case page uses its own section.">1AR</span>
                   {:else}
-                    <span class="copytag casetag" title="When you're aff: used on every advantage page, and each off-case page uses its own section">2AC</span>
+                    <span class="copytag casetag" title="When you're aff: only suggested into your 2AC. Advantage pages use the sections picked here; each off-case page uses its own section.">2AC</span>
                   {/if}
                   <button class="advuse" class:empty={adv.empty} class:open={pickingFor === f.key} onclick={() => openPicker(f.key)} title="Which parts of this file your advantage pages use">
                     Adv pages use:
-                    {#if adv.empty}<b>nothing yet - pick sections</b>{:else}<b>{adv.text}</b>{#if adv.auto}<span class="dim"> (auto)</span>{/if}{/if}
+                    {#if adv.empty}<b>nothing yet - pick sections</b>{:else}<b>{adv.text}</b>{#if adv.auto}<span class="dim">{" (auto)"}</span>{/if}{/if}
                     <span class="dim">▾</span>
                   </button>
                 {/if}
               </div>
-              {#if pickingFor === f.key}
-                {@const paths = pickedPaths(f.key)}
-                {@const whole = paths.includes(ALL_SECTIONS)}
-                <div class="picker">
-                  <div class="pick-head">
-                    <span>Tick what your <b>advantage pages</b> should use:</span>
-                    <span class="spacer"></span>
-                    <button class="mini" class:on={!paths.length} onclick={() => smartKit.setAdvSections(f.key, null)} title="Case-named sections for a 2AC file, the whole file for a case neg">Auto</button>
-                    <button class="mini" class:on={whole} onclick={() => smartKit.setAdvSections(f.key, whole ? null : [ALL_SECTIONS])}>Whole file</button>
-                    <button class="mini" onclick={() => (pickingFor = null)}>Done</button>
-                  </div>
-                  {#each p.roots.filter((n) => !n.isAnalytic && n.level < 4) as pocket, pi (pi)}
-                    {@const pp = pocket.text.trim()}
-                    {@const hats = pocket.children.filter((c) => !c.isAnalytic && c.level < 4)}
-                    <div class="pick-row">
-                      {#if hats.length}
-                        <button class="arrow" onclick={() => toggleOpenPocket(pp)}>{pickOpen.has(pp) ? "▾" : "▸"}</button>
-                      {:else}
-                        <span class="arrow"></span>
-                      {/if}
-                      <label>
-                        <input type="checkbox" checked={whole || paths.includes(pp)} disabled={whole} onchange={() => togglePath(f.key, pp, pocket)} />
-                        {pocket.text}
-                      </label>
-                    </div>
-                    {#if pickOpen.has(pp)}
-                      {#each hats as hat, hi (hi)}
-                        {@const hp = `${pp}${SECTION_SEP}${hat.text.trim()}`}
-                        <div class="pick-row hat">
-                          <span class="arrow"></span>
-                          <label>
-                            <input type="checkbox" checked={whole || paths.includes(pp) || paths.includes(hp)} disabled={whole || paths.includes(pp)} onchange={() => togglePath(f.key, hp)} />
-                            {hat.text}
-                          </label>
-                        </div>
-                      {/each}
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
             {/if}
           {/snippet}
+
+          <!-- The "Adv pages use" picker is a full view of the Kit tab, not a box
+               inside the file list: squeezed in there it was unusable (a scroll
+               box in a scrolling flex column shrinks to nothing). -->
+          {#snippet picker(key: string)}
+            {@const p = smartKit.parsed[key]}
+            {@const isAuto = !pickedPaths(key).length}
+            {@const paths = effectivePaths(key)}
+            {@const whole = paths.includes(ALL_SECTIONS)}
+            {@const adv = smartKit.advSummary(key)}
+            {@const q = pickQuery.trim().toLowerCase()}
+            <div class="pick-top">
+              <button class="mini" onclick={() => (pickingFor = null)}>← Kit</button>
+              <span class="pick-file" title={key}>{fileName(key)}</span>
+            </div>
+            <p class="pick-hint">
+              Tick what your <b>advantage pages</b> use from this file.
+              {#if smartKit.isCaseNeg(key)}Off-case pages aren't affected.{:else}Off-case pages always use their own section, found by the page's name.{/if}
+            </p>
+            <div class="pick-modes">
+              <button class:on={isAuto} onclick={() => smartKit.setAdvSections(key, null)} title={smartKit.isCaseNeg(key) ? "The whole case neg" : "Sections named Case, plus one named for the advantage"}>Auto</button>
+              <button class:on={whole} onclick={() => smartKit.setAdvSections(key, whole ? null : [ALL_SECTIONS])}>Whole file</button>
+              <span class="pick-now">Using: <b class:none={adv.empty}>{adv.empty ? "nothing" : adv.text}</b></span>
+            </div>
+            <input class="search" type="search" placeholder="Find a pocket or hat…" bind:value={pickQuery} />
+            <div class="pick-list">
+              {#each (p?.roots ?? []).filter((n) => !n.isAnalytic && n.level < 4) as pocket, pi (pi)}
+                {@const pp = pocket.text.trim()}
+                {@const hats = pocket.children.filter((c) => !c.isAnalytic && c.level < 4)}
+                {@const pocketHit = !q || pp.toLowerCase().includes(q)}
+                {@const hatHits = q ? hats.filter((h) => h.text.toLowerCase().includes(q)) : hats}
+                {#if pocketHit || hatHits.length}
+                  {@const showHats = q ? (pocketHit ? hats : hatHits) : pickOpen.has(pp) ? hats : []}
+                  <div class="pick-row pocket" class:on={whole || paths.includes(pp)}>
+                    {#if hats.length}
+                      <button class="arrow" onclick={() => toggleOpenPocket(pp)} aria-label="Show hats">{showHats.length ? "▾" : "▸"}</button>
+                    {:else}
+                      <span class="arrow"></span>
+                    {/if}
+                    <label>
+                      <input type="checkbox" checked={whole || paths.includes(pp)} disabled={whole} onchange={() => togglePath(key, pp, pocket)} />
+                      <span class="pick-name">{pocket.text}</span>
+                    </label>
+                    {#if hats.length}<span class="pick-count">{hats.length} hats</span>{/if}
+                  </div>
+                  {#each showHats as hat, hi (hi)}
+                    {@const hp = `${pp}${SECTION_SEP}${hat.text.trim()}`}
+                    <div class="pick-row hat" class:on={whole || paths.includes(pp) || paths.includes(hp)}>
+                      <span class="arrow"></span>
+                      <label>
+                        <input type="checkbox" checked={whole || paths.includes(pp) || paths.includes(hp)} disabled={whole || paths.includes(pp)} onchange={() => togglePath(key, hp)} />
+                        <span class="pick-name">{hat.text}</span>
+                      </label>
+                    </div>
+                  {/each}
+                {/if}
+              {:else}
+                <p class="empty">No pockets or hats in this file.</p>
+              {/each}
+            </div>
+            <button class="add pick-done" onclick={() => (pickingFor = null)}>Done</button>
+          {/snippet}
+
+          {#if pickingFor && smartKit.parsed[pickingFor] && !smartKit.parsed[pickingFor].error}
+            {@render picker(pickingFor)}
+          {:else}
 
           <div class="section">Library · in every round</div>
           {#each smartKit.library as f (f.key)}
@@ -654,6 +692,7 @@
                 </select>
               </div>
             {/each}
+          {/if}
           {/if}
         </div>
       {/if}
@@ -976,41 +1015,116 @@
   .advuse b { color: var(--text); font-weight: 600; }
   .advuse:hover b, .advuse.open b { text-decoration: underline; }
   .advuse.empty b { color: var(--neg); }
-  .picker {
-    margin: 0 0 8px 30px;
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    max-height: 260px;
-    overflow: auto;
-  }
-  .pick-head {
+  .fsub { flex-shrink: 0; }
+  /* ---- the "Adv pages use" picker: a full view of the Kit tab ---- */
+  .pick-top {
     display: flex;
     align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-bottom: 4px;
+    gap: 8px;
+    flex-shrink: 0;
   }
-  .pick-head .spacer { flex: 1; }
-  .mini.on { border-color: var(--accent); color: var(--accent); }
+  .pick-file {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pick-hint {
+    margin: 0;
+    color: var(--text-dim);
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+  .pick-hint b { color: var(--text); }
+  .pick-modes {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .pick-modes button {
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .pick-modes button.on {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .pick-now {
+    margin-left: auto;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pick-now b { color: var(--text); }
+  .pick-now b.none { color: var(--neg); }
+  .pick-list {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 0;
+  }
   .pick-row {
     display: flex;
     align-items: center;
     gap: 2px;
-    font-size: 12px;
+    padding: 4px 8px 4px 2px;
+    font-size: 13px;
+    min-height: 26px;
+    flex-shrink: 0;
   }
-  .pick-row.hat { padding-left: 16px; }
+  .pick-row:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .pick-row .arrow {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    display: inline-grid;
+    place-items: center;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 14px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  button.arrow:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
+  .pick-row.on .pick-name { color: var(--text); font-weight: 600; }
+  .pick-row.hat { padding-left: 24px; font-size: 12px; }
   .pick-row label {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 7px;
     cursor: pointer;
     min-width: 0;
-    white-space: nowrap;
+    flex: 1;
+  }
+  .pick-name {
+    color: var(--text-dim);
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
+  .pick-count {
+    color: var(--text-dim);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .pick-done { flex-shrink: 0; }
   .starter-switch {
     display: flex;
     align-items: flex-start;

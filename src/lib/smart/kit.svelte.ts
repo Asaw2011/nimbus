@@ -48,6 +48,9 @@ export interface KitFile {
 
 /** `advSections` entry meaning "the whole file". */
 export const ALL_SECTIONS = "*";
+/** `advSections` entry meaning "nothing": everything unticked on purpose (an
+ *  empty list would read as Auto and tick the Case section again). */
+export const NO_SECTIONS = "-";
 /** Joins a pocket and a hat in an `advSections` path. */
 export const SECTION_SEP = " › ";
 
@@ -118,6 +121,8 @@ export interface LogEntry {
 const CASE_NEG_RE = /case[\s_-]*negs?(?![a-z])/i;
 const NEG_RE = /(^|[^a-z0-9])neg(s|ative)?(?![a-z])/i;
 const TWO_AC_RE = /(^|[^a-z0-9])2acs?(?![a-z])/i;
+/** A 1AR file ("1ARs_Single Payer"): the aff's answers to the neg block. */
+const ONE_AR_RE = /(^|[^a-z0-9])1ars?(?![a-z])/i;
 const AFF_RE = /(^|[^a-z0-9])aff(irmative)?(?![a-z])/i;
 /** A file name that also names a kind of position ("NEG - Midterms DA") is a
  *  file for THAT position, not a whole-case file. */
@@ -395,7 +400,7 @@ class SmartKit {
     // THIS sheet's advantage, if its title names one, comes first.
     const want = tokens(sheet.title);
     const affOverviews: Array<Overview & { mine: boolean }> = [];
-    for (const k of this.twoACsFor(sheet)) {
+    for (const k of this.twoACsFor(sheet).filter((x) => this.isTwoAC(x))) {
       const kase = this.scopeFor(sheet, k);
       // Picked "Case + Turns": the advantages live under Case, not Turns.
       const secs = kase ? this.sectionRoots(kase) : [];
@@ -547,8 +552,58 @@ class SmartKit {
    */
   fileSide(key: string): Side | undefined {
     if (this.named(key, CASE_NEG_RE) || this.named(key, NEG_RE)) return "neg";
-    if (this.named(key, TWO_AC_RE) || this.named(key, AFF_RE)) return "aff";
+    if (this.named(key, TWO_AC_RE) || this.named(key, AFF_RE) || this.named(key, ONE_AR_RE)) return "aff";
     return undefined;
+  }
+
+  /** A 1AR file: like a 2AC file (its case sections answer the advantage
+   *  pages, each off-case page gets its section by name) but for the 1AR -
+   *  answers to the neg BLOCK, so only ever suggested into the 1AR column. */
+  isOneAR(key: string): boolean {
+    return this.fileSide(key) !== "neg" && this.named(key, ONE_AR_RE) && !this.isTwoAC(key);
+  }
+
+  /** The aff's per-speech files - 2AC and 1AR. */
+  isAffSpeechFile(key: string): boolean {
+    return this.isTwoAC(key) || this.isOneAR(key);
+  }
+
+  /**
+   * The ONE speech a file's blocks may be suggested into, by its name: a 2AC
+   * file's go in the 2AC column, a 1AR file's in the 1AR column. undefined =
+   * any (a DA file, a T file, a case neg). Name only, never the first heading:
+   * a DA file opening on "2NC Overview" is not a 2NC-only file.
+   */
+  fileSpeech(key: string): "2AC" | "1AR" | undefined {
+    const f = this.all.find((x) => x.key === key);
+    if (!f || this.fileSide(key) === "neg") return undefined;
+    const two = TWO_AC_RE.test(f.name);
+    const one = ONE_AR_RE.test(f.name);
+    return two && !one ? "2AC" : one && !two ? "1AR" : undefined;
+  }
+
+  /**
+   * The aff speech files that have a section for this (off-case) page - named
+   * for it, or holding a pocket/hat named for it. Never one WITHOUT a match:
+   * a whole 2AC file on one DA page is exactly the flood to avoid.
+   */
+  speechFilesFor(sheet: Sheet): string[] {
+    if (sheet.kind === "case" || sheet.kind === "cx" || this.currentSide() !== "aff") return [];
+    if (this.links[sheet.id] === "") return [];
+    return this.all
+      .filter((f) => this.isAffSpeechFile(f.key) && !this.wrongSide(f.key) && this.hasSectionFor(sheet, f.key))
+      .map((f) => f.key);
+  }
+
+  /** The file is named for this page, or has a pocket/hat for it. */
+  private hasSectionFor(sheet: Sheet, key: string): boolean {
+    const f = this.all.find((x) => x.key === key);
+    const p = this.parsed[key];
+    if (!f || !p) return false;
+    return (
+      !!guessFileForSheet(sheet.title, [{ key, name: f.name, firstHeading: p.firstHeading }]) ||
+      !!guessSection(sheet.title, p.roots)
+    );
   }
 
   /**
@@ -604,14 +659,16 @@ class SmartKit {
    *  a catch-all like "2ACs_Single Payer_Ks" (all the K answers, kept apart). */
   twoACsFor(sheet: Sheet): string[] {
     if (sheet.kind !== "case" || this.links[sheet.id] === "" || this.currentSide() !== "aff") return [];
-    return this.all.filter((f) => this.isTwoAC(f.key)).map((f) => f.key);
+    // 1AR files too: their case sections answer the block's case arguments
+    // (kept to the 1AR column by fileSpeech).
+    return this.all.filter((f) => this.isAffSpeechFile(f.key)).map((f) => f.key);
   }
 
   // ---- which sections of a file the ADVANTAGE pages use ---------------------
 
   /** A file that feeds advantage pages (2AC / case neg), so it gets the picker. */
   advPickable(key: string): boolean {
-    return this.isTwoAC(key) || this.isCaseNeg(key);
+    return this.isAffSpeechFile(key) || this.isCaseNeg(key);
   }
 
   /** The hand-picked sections that still exist in the file, in file order. */
@@ -651,13 +708,26 @@ class SmartKit {
   advSummary(key: string): { text: string; auto: boolean; empty: boolean } {
     const f = this.all.find((x) => x.key === key);
     if (f?.advSections?.includes(ALL_SECTIONS)) return { text: "Whole file", auto: false, empty: false };
+    if (f?.advSections?.includes(NO_SECTIONS)) return { text: "", auto: false, empty: true };
     const picked = this.pickedSections(key);
     if (picked.length) return { text: picked.map((n) => n.text.trim()).join(" + "), auto: false, empty: false };
-    if (!this.isTwoAC(key)) return { text: "Whole file", auto: true, empty: false };
+    if (!this.isAffSpeechFile(key)) return { text: "Whole file", auto: true, empty: false };
     const cases = (this.parsed[key]?.roots ?? []).filter((r) => CASE_SECTION_RE.test(r.text));
     return cases.length
       ? { text: cases.map((n) => n.text.trim()).join(" + "), auto: true, empty: false }
       : { text: "", auto: true, empty: true };
+  }
+
+  /**
+   * What "Auto" currently means for a file, as picker paths: a 2AC/1AR file's
+   * case-named pockets, a case neg's every pocket. The picker shows these as
+   * ticked, and a first tick starts FROM them - so ticking "Turns" in Auto
+   * gives Case + Turns, not Turns alone.
+   */
+  autoPaths(key: string): string[] {
+    const roots = (this.parsed[key]?.roots ?? []).filter((n) => !n.isAnalytic && n.level < 4);
+    const use = this.isAffSpeechFile(key) ? roots.filter((r) => CASE_SECTION_RE.test(r.text)) : roots;
+    return use.map((r) => r.text.trim());
   }
 
   /** `null`/[] = back to automatic. */
@@ -723,6 +793,14 @@ class SmartKit {
    * they have their own rule.
    */
   autoLink(sheet: Sheet): string | null {
+    // Aff, off-case: your 2AC (then 1AR) file's section for this position is
+    // the page's file - ahead of any same-named file that says no side ("Midterms
+    // Uniqueness" is the NEG's, but its name can't say so).
+    if (sheet.kind !== "case") {
+      const mine = this.speechFilesFor(sheet);
+      const pick = mine.find((k) => this.isTwoAC(k)) ?? mine[0];
+      if (pick) return pick;
+    }
     const pool = this.all.filter(
       (f) => !this.isCaseNeg(f.key) && !this.wrongSide(f.key) && this.parsed[f.key]?.blocks.length,
     );
@@ -754,14 +832,15 @@ class SmartKit {
     const p = this.parsed[key];
     if (!f || !p) return null;
     if (sheet.kind === "case" && (this.twoACsFor(sheet).includes(key) || this.caseNegsFor(sheet).includes(key))) {
-      // Sections picked by hand win, for either kind of file.
+      // Sections picked by hand win, for either kind of file - "nothing" too.
+      if (f.advSections?.includes(NO_SECTIONS)) return this.combine(key, []);
       const picked = this.pickedSections(key);
       if (picked.length) return this.combine(key, picked);
       // A 2AC file is NEVER used whole on an advantage page: most of it is
       // off-case answers, and a file with no Case section would flood every
       // advantage with them. Its case-named sections (and one named for this
       // advantage) or nothing - and the Kit tab asks you to pick.
-      if (this.isTwoAC(key)) return this.combine(key, this.autoAdvSections(sheet, key));
+      if (this.isAffSpeechFile(key)) return this.combine(key, this.autoAdvSections(sheet, key));
       // A case neg IS all case: fall through (its section for this advantage,
       // else the whole file) - as it always was.
     }
@@ -777,6 +856,9 @@ class SmartKit {
     if (own) keys.add(own);
     const caseFiles = this.caseFilesFor(sheet);
     for (const k of caseFiles) keys.add(k);
+    // Off-case pages when aff: every 2AC / 1AR file's section for the page.
+    const speechFiles = this.speechFilesFor(sheet);
+    for (const k of speechFiles) keys.add(k);
     const general = new Set(this.all.filter((f) => f.general && !this.wrongSide(f.key)).map((f) => f.key));
     for (const k of general) keys.add(k);
     const out: KitBlock[] = [];
@@ -784,7 +866,7 @@ class SmartKit {
     for (const k of keys) {
       // A file that is ONLY here for "every sheet" is used whole; one that is
       // also this sheet's own or case file keeps its section (a 2AC's CASE).
-      const onlyGeneral = general.has(k) && k !== own && !caseFiles.includes(k);
+      const onlyGeneral = general.has(k) && k !== own && !caseFiles.includes(k) && !speechFiles.includes(k);
       const scope = onlyGeneral ? null : this.scopeFor(sheet, k);
       for (const b of this.parsed[k]?.blocks ?? []) {
         if (seen.has(b.id)) continue;
@@ -842,16 +924,44 @@ class SmartKit {
     const memo = this.matchCache;
     const dismissed = new Set(this.dismissed);
     const byKey = new Map<string, Suggestion>();
+    // A 2AC file's blocks go only in the 2AC column, a 1AR file's only in the
+    // 1AR column - so the 2AC file stops answering the block, and the 1AR file
+    // never answers the 1NC. By the column's base abbr ("2AC · You" → 2AC).
+    // A renamed speech ("2AC" → "2A") is still known by its label.
+    const colSpeech = (c: number) => {
+      const abbr = speeches[c].abbr.split(" · ")[0].trim().toUpperCase();
+      if (abbr === "2AC" || abbr === "1AR") return abbr;
+      const label = speeches[c].label.toLowerCase();
+      if (/second affirmative constructive/.test(label)) return "2AC";
+      if (/first affirmative rebuttal/.test(label)) return "1AR";
+      return abbr;
+    };
+    const speechOfFile = new Map<string, string | undefined>();
+    const fileOk = (file: string, col: string) => {
+      if (!speechOfFile.has(file)) speechOfFile.set(file, this.fileSpeech(file));
+      const s = speechOfFile.get(file);
+      return !s || s === col;
+    };
     for (const sheet of round.sheets) {
       // Which file and section a sheet uses only changes with the kit (the
       // sig above) or the sheet's own title/kind - not with every edit.
       const bKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}`;
-      let blocks = this.blocksCache.get(bKey);
-      if (!blocks) {
-        blocks = this.blocksFor(sheet);
-        this.blocksCache.set(bKey, blocks);
+      let all = this.blocksCache.get(bKey);
+      if (!all) {
+        all = this.blocksFor(sheet);
+        this.blocksCache.set(bKey, all);
       }
-      if (!blocks.length) continue;
+      if (!all.length) continue;
+      const sheetBlocks = all;
+      const forCol = new Map<string, KitBlock[]>();
+      const blocksInto = (col: string) => {
+        let b = forCol.get(col);
+        if (!b) {
+          b = sheetBlocks.filter((x) => fileOk(x.file, col));
+          forCol.set(col, b);
+        }
+        return b;
+      };
       sheet.rows.forEach((row, r) => {
         for (let c = Math.max(0, sheet.startCol); c < speeches.length; c++) {
           const sp = speeches[c];
@@ -869,10 +979,12 @@ class SmartKit {
           if (dismissed.has(key)) continue;
           // Title and kind decide the sheet's file and section, so they're
           // part of the key: renaming a sheet can change what it matches.
-          const memoKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}\u0000${cell.text}`;
+          const col = colSpeech(to);
+          const memoKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}\u0000${col}\u0000${cell.text}`;
           let matches = memo.get(memoKey);
           if (!matches) {
-            matches = matchBlocks(cell.text, blocks);
+            const blocks = blocksInto(col);
+            matches = blocks.length ? matchBlocks(cell.text, blocks) : [];
             memo.set(memoKey, matches);
           }
           if (!matches.length) continue;
@@ -976,13 +1088,25 @@ class SmartKit {
       if (this.dismissed.includes(key)) continue;
       // Your 2AC on this page has begun (either lane): nothing to offer.
       if (sheet.rows.some((r) => mine.some((c) => filled(r.cells[c])))) continue;
-      const file = this.linkFor(sheet);
-      if (!file || this.wrongSide(file)) continue;
-      const p = this.parsed[file];
-      if (!p) continue;
-      const scope = this.scopeFor(sheet, file);
-      const node = pickStarter(scope ? this.sectionRoots(scope) : p.roots);
-      if (!node) continue;
+      // ONLY from a 2AC file, and found on its own - never through the page's
+      // linked file, which can be any file named like the page (a reported
+      // bug: the neg's "Midterms Uniqueness" file supplied a "starter").
+      let file: string | null = null;
+      let node: DocNode | null = null;
+      for (const f of this.all) {
+        if (!this.isTwoAC(f.key) || this.wrongSide(f.key)) continue;
+        const p = this.parsed[f.key];
+        if (!p) continue;
+        const cand = [{ key: f.key, name: f.name, firstHeading: p.firstHeading }];
+        const sec = guessFileForSheet(sheet.title, cand) ? null : guessSection(sheet.title, p.roots);
+        if (!sec && !guessFileForSheet(sheet.title, cand)) continue;
+        node = pickStarter(sec ? [sec] : p.roots);
+        if (node) {
+          file = f.key;
+          break;
+        }
+      }
+      if (!file || !node) continue;
       // Beside the 1NC's first argument on the page (row 0 is the label row).
       let row = sheet.rows.findIndex((r, i) => i > 0 && theirs.some((c) => filled(r.cells[c])));
       if (row < 1) row = 1;
