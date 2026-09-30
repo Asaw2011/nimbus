@@ -9,7 +9,8 @@
   import { store } from "$lib/model/round.svelte";
   import { laneAbbr } from "$lib/model/types";
   import type { DocNode } from "$lib/docx/parse";
-  import { smartKit, type KitFile, type Suggestion } from "./kit.svelte";
+  import { settings } from "$lib/model/settings.svelte";
+  import { smartKit, ALL_SECTIONS, SECTION_SEP, type KitFile, type Starter, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
 
   let { onjump }: { onjump: (sheetId: string, row: number, col: number) => void } = $props();
@@ -37,6 +38,7 @@
   /** Brief "Inserted" confirmation on the row just used. */
   let flashed = $state("");
   let list = $state.raw<Suggestion[]>([]);
+  let starters = $state.raw<Starter[]>([]);
   let fileInput = $state<HTMLInputElement>();
   /** When each suggestion first appeared, so the newest sit at the top. */
   const firstSeen = new Map<string, number>();
@@ -57,6 +59,7 @@
     void smartKit.links;
     void smartKit.side;
     void smartKit.dismissed;
+    void settings.smartStarters;
     const t = setTimeout(() => untrack(recompute), 250);
     return () => clearTimeout(t);
   });
@@ -65,9 +68,11 @@
     const round = store.round;
     if (!round) {
       list = [];
+      starters = [];
       return;
     }
     const now = Date.now();
+    starters = smartKit.starters(round, store.laneHere, settings.smartStarters);
     const next = smartKit.suggestions(round, store.laneHere);
     for (const s of next) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
     list = next.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
@@ -132,8 +137,57 @@
   /** File tab: show the whole file instead of just this sheet's section. */
   let wholeFile = $state(false);
   const fileRoots = $derived(
-    sheetFile ? (sheetFile.scope && !wholeFile ? [sheetFile.scope] : sheetFile.roots) : [],
+    sheetFile ? (sheetFile.scope && !wholeFile ? smartKit.sectionRoots(sheetFile.scope) : sheetFile.roots) : [],
   );
+  /** This page gets nothing from its file until you pick sections (a 2AC file
+   *  with no Case section, on an advantage page). */
+  const needsPick = $derived(!!sheetFile && smartKit.isEmptyScope(sheetFile.scope));
+
+  function toggleStarters(on: boolean) {
+    settings.smartStarters = on;
+    settings.save();
+  }
+
+  function useStarter(st: Starter) {
+    if (!smartKit.insertStarter(st)) return;
+    flashed = st.key;
+    setTimeout(() => {
+      if (flashed === st.key) flashed = "";
+    }, 900);
+  }
+
+  // ---- "Adv pages use" picker (Kit tab) -------------------------------------
+  /** The file whose picker is open, and its pockets opened to show hats. */
+  let pickingFor = $state<string | null>(null);
+  let pickOpen = $state<Set<string>>(new Set());
+
+  function openPicker(key: string) {
+    pickingFor = pickingFor === key ? null : key;
+    pickOpen = new Set();
+  }
+
+  function pickedPaths(key: string): string[] {
+    return smartKit.all.find((f) => f.key === key)?.advSections ?? [];
+  }
+
+  function togglePath(key: string, path: string, pocket?: DocNode) {
+    let paths = pickedPaths(key).filter((p) => p !== ALL_SECTIONS);
+    if (paths.includes(path)) {
+      paths = paths.filter((p) => p !== path);
+    } else {
+      paths = [...paths, path];
+      // Ticking a pocket covers its hats - drop their separate ticks.
+      if (pocket) paths = paths.filter((p) => !p.startsWith(`${path}${SECTION_SEP}`));
+    }
+    smartKit.setAdvSections(key, paths);
+  }
+
+  function toggleOpenPocket(path: string) {
+    const next = new Set(pickOpen);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    pickOpen = next;
+  }
 
   interface TreeRow {
     node: DocNode;
@@ -296,9 +350,41 @@
             <p class="empty">Add your files for this round in <b>Round kit</b>, and blocks that answer what the other team says will show up here.</p>
           {:else if !side}
             <p class="empty">Pick which side you're on in <b>Round kit</b>.</p>
-          {:else if !list.length}
-            <p class="empty">No suggestions right now. They appear when the other team's argument matches a block in your kit and your answer cell is still empty.</p>
           {:else}
+            {#if side === "aff"}
+              <label class="starter-switch" title="For each off-case page, offer the 2AC block your file has for that position - found by the page's name ('Midterms DA'). Goes away once your 2AC column on that page has anything in it.">
+                <input type="checkbox" checked={settings.smartStarters} onchange={(e) => toggleStarters((e.currentTarget as HTMLInputElement).checked)} />
+                <span><b>2AC starters</b> - offer my whole 2AC block for each off-case page, by its name</span>
+              </label>
+              {#if settings.smartStarters}
+                {#each starters as st (st.key)}
+                  <div class="sug starter">
+                    <div class="sug-head">
+                      <button class="where" onclick={() => onjump(st.sheetId, st.row, st.toCol)} title="Go to this page">
+                        <span class="sheet">{st.sheetTitle || "Untitled"}</span>
+                        <span class="speech">2AC starter</span>
+                        <span class="said">from {st.fileName}</span>
+                      </button>
+                      <button class="dismiss" onclick={() => smartKit.dismissStarter(st)} title="Not for this page">×</button>
+                    </div>
+                    <div class="match">
+                      <span class="btitle" title={st.node.text}>{blockLabel(st.node.text)}</span>
+                      <span class="count">{flashed === st.key ? "Inserted" : `${st.cardCount} ${st.cardCount === 1 ? "card" : "cards"}`}</span>
+                      <button class="insert" onclick={() => useStarter(st)}>
+                        Insert → {laneAbbr(speeches[st.toCol], store.laneHere)}
+                      </button>
+                    </div>
+                  </div>
+                {:else}
+                  <p class="hint">No starters yet. Name an off-case page for its position ("Midterms DA") and the 2AC block for it shows up here.</p>
+                {/each}
+              {/if}
+            {/if}
+            {#if !list.length}
+              <p class="empty">No suggestions right now. They appear when the other team's argument matches a block in your kit and your answer cell is still empty.</p>
+            {/if}
+          {/if}
+          {#if smartKit.all.length && side && list.length}
             <!-- Newest first, and only the newest SHOWN: late in a round the open
                  list can run to hundreds, and rendering them all on every edit
                  is the cost, not the matching. -->
@@ -349,7 +435,12 @@
                 </button>
               {/if}
             </div>
-            {#if !canInsert}
+            {#if needsPick}
+              <p class="nudge">
+                <b>{sheetFile.name.replace(/\.(docx|cmir)$/i, "")}</b> has no <b>Case</b> section, so your advantage pages get nothing from it yet.
+                <button class="mini" onclick={() => { tab = "kit"; pickingFor = sheetFile?.key ?? null; pickOpen = new Set(); }}>Pick its sections</button>
+              </p>
+            {:else if !canInsert}
               <p class="hint">Click a cell first, then click a block to put it there - or drag it onto any cell.</p>
             {/if}
 
@@ -448,10 +539,6 @@
               <span class="fname" title={f.key.startsWith("copy:") ? "Not found in your Doc Search library, so Nimbus keeps a copy made when you dropped it. Drop it again to update it." : f.key}>
                 {f.name.replace(/\.(docx|cmir)$/i, "")}
                 {#if f.key.startsWith("copy:")}<span class="copytag">copy</span>{/if}
-                {#if smartKit.wrongSide(f.key)}
-                  <span class="copytag offside" title="A {smartKit.fileSide(f.key)} file - not used while you're {side}. You can still pick it for a sheet below.">not used when {side}</span>
-                {:else if smartKit.isCaseNeg(f.key)}<span class="copytag casetag" title="When you're neg: used on every advantage page">case neg</span>
-                {:else if smartKit.isTwoAC(f.key)}<span class="copytag casetag" title="When you're aff: its CASE section is used on every advantage page, and each off-case page uses its own section">2AC</span>{/if}
               </span>
               <span class="fmeta" class:err={!!p?.error}>
                 {p ? (p.error ? p.error : `${p.blocks.length} blocks`) : "reading…"}
@@ -466,6 +553,67 @@
                 title={pinned ? "Remove from the library (every round)" : "Remove from this round"}
               >×</button>
             </div>
+            <!-- Its own line, under the name: tags inside the (ellipsized) name
+                 were cut down to their first letter. -->
+            {#if p && !p.error && (smartKit.wrongSide(f.key) || smartKit.advPickable(f.key))}
+              {@const adv = smartKit.advSummary(f.key)}
+              <div class="fsub">
+                {#if smartKit.wrongSide(f.key)}
+                  <span class="copytag offside" title="A {smartKit.fileSide(f.key)} file - not used while you're {side}. You can still pick it for a sheet below.">not used when {side}</span>
+                {:else}
+                  {#if smartKit.isCaseNeg(f.key)}
+                    <span class="copytag casetag" title="When you're neg: used on every advantage page">case neg</span>
+                  {:else}
+                    <span class="copytag casetag" title="When you're aff: used on every advantage page, and each off-case page uses its own section">2AC</span>
+                  {/if}
+                  <button class="advuse" class:empty={adv.empty} class:open={pickingFor === f.key} onclick={() => openPicker(f.key)} title="Which parts of this file your advantage pages use">
+                    Adv pages use:
+                    {#if adv.empty}<b>nothing yet - pick sections</b>{:else}<b>{adv.text}</b>{#if adv.auto}<span class="dim"> (auto)</span>{/if}{/if}
+                    <span class="dim">▾</span>
+                  </button>
+                {/if}
+              </div>
+              {#if pickingFor === f.key}
+                {@const paths = pickedPaths(f.key)}
+                {@const whole = paths.includes(ALL_SECTIONS)}
+                <div class="picker">
+                  <div class="pick-head">
+                    <span>Tick what your <b>advantage pages</b> should use:</span>
+                    <span class="spacer"></span>
+                    <button class="mini" class:on={!paths.length} onclick={() => smartKit.setAdvSections(f.key, null)} title="Case-named sections for a 2AC file, the whole file for a case neg">Auto</button>
+                    <button class="mini" class:on={whole} onclick={() => smartKit.setAdvSections(f.key, whole ? null : [ALL_SECTIONS])}>Whole file</button>
+                    <button class="mini" onclick={() => (pickingFor = null)}>Done</button>
+                  </div>
+                  {#each p.roots.filter((n) => !n.isAnalytic && n.level < 4) as pocket, pi (pi)}
+                    {@const pp = pocket.text.trim()}
+                    {@const hats = pocket.children.filter((c) => !c.isAnalytic && c.level < 4)}
+                    <div class="pick-row">
+                      {#if hats.length}
+                        <button class="arrow" onclick={() => toggleOpenPocket(pp)}>{pickOpen.has(pp) ? "▾" : "▸"}</button>
+                      {:else}
+                        <span class="arrow"></span>
+                      {/if}
+                      <label>
+                        <input type="checkbox" checked={whole || paths.includes(pp)} disabled={whole} onchange={() => togglePath(f.key, pp, pocket)} />
+                        {pocket.text}
+                      </label>
+                    </div>
+                    {#if pickOpen.has(pp)}
+                      {#each hats as hat, hi (hi)}
+                        {@const hp = `${pp}${SECTION_SEP}${hat.text.trim()}`}
+                        <div class="pick-row hat">
+                          <span class="arrow"></span>
+                          <label>
+                            <input type="checkbox" checked={whole || paths.includes(pp) || paths.includes(hp)} disabled={whole || paths.includes(pp)} onchange={() => togglePath(f.key, hp)} />
+                            {hat.text}
+                          </label>
+                        </div>
+                      {/each}
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+            {/if}
           {/snippet}
 
           <div class="section">Library · in every round</div>
@@ -805,6 +953,81 @@
     opacity: 0.8;
     font-style: italic;
   }
+  /* A file's second line: its tag, and what the advantage pages use. */
+  .fsub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0 4px 30px;
+    min-width: 0;
+  }
+  .advuse {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .advuse b { color: var(--text); font-weight: 600; }
+  .advuse:hover b, .advuse.open b { text-decoration: underline; }
+  .advuse.empty b { color: var(--neg); }
+  .picker {
+    margin: 0 0 8px 30px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 260px;
+    overflow: auto;
+  }
+  .pick-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .pick-head .spacer { flex: 1; }
+  .mini.on { border-color: var(--accent); color: var(--accent); }
+  .pick-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+  }
+  .pick-row.hat { padding-left: 16px; }
+  .pick-row label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .starter-switch {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 2px 0 8px;
+    cursor: pointer;
+  }
+  .starter-switch b { color: var(--text); }
+  .sug.starter { border-left: 3px solid var(--aff); }
+  .nudge {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 4px 0 8px;
+  }
+  .nudge b { color: var(--text); }
   .from {
     display: flex;
     gap: 5px;

@@ -36,6 +36,33 @@ export interface KitFile {
   name: string;
   /** Offered on every sheet (T, theory, framework) instead of one linked sheet. */
   general?: boolean;
+  /**
+   * For a 2AC / case-neg file: the sections the ADVANTAGE pages use, picked by
+   * hand in the Kit tab - "Case", "Turns", or one hat as "Case › Warming";
+   * `ALL_SECTIONS` for the whole file. Unset = automatic (a 2AC file's
+   * case-named sections; a case neg's whole file). Stored by heading TEXT, so a
+   * re-read or edited file keeps its picks as long as the headings stay.
+   */
+  advSections?: string[];
+}
+
+/** `advSections` entry meaning "the whole file". */
+export const ALL_SECTIONS = "*";
+/** Joins a pocket and a hat in an `advSections` path. */
+export const SECTION_SEP = " › ";
+
+/** One "2AC starter": the prepared 2AC block for a whole off-case position. */
+export interface Starter {
+  key: string;
+  sheetId: string;
+  sheetTitle: string;
+  /** The row it goes in - by id when the row exists, so a moved row is followed. */
+  rowId: string | null;
+  row: number;
+  toCol: number;
+  node: DocNode;
+  cardCount: number;
+  fileName: string;
 }
 
 interface Parsed {
@@ -96,10 +123,49 @@ const AFF_RE = /(^|[^a-z0-9])aff(irmative)?(?![a-z])/i;
  *  file for THAT position, not a whole-case file. */
 const POSITION_RE = /(^|[^a-z0-9])(das?|disads?|cps?|counterplans?|pics?|ks?|kritiks?|t|topicality|theory)(?![a-z])/i;
 
+/** A 2AC file's own section for the case: "Case", "Case---2AC", "CASE Answers". */
+const CASE_SECTION_RE = /(^|[^a-z])case([^a-z]|$)/i;
+/** The heading of a position's prepared 2AC: "2AC", "Midterms---2AC", "Frontline". */
+const STARTER_RE = /(^|[^a-z0-9])(2acs?|front\s*lines?)(?![a-z])/i;
+
 const LOG_BLOB = "smart-log";
 const LOG_MAX = 2000;
 
 const filled = (c: Cell | undefined) => !!c && (!!c.text.trim() || !!c.items?.length);
+
+/** `n` is somewhere under `root`. */
+function contains(root: DocNode, n: DocNode): boolean {
+  return root.children.some((c) => c === n || contains(c, n));
+}
+
+const isCardNode = (n: DocNode) => !!n.isAnalytic || n.level >= 4;
+
+/**
+ * The prepared 2AC for a position, inside its section: the DEEPEST heading
+ * named for it ("Midterms---2AC" under "2AC", or "Frontline"), else the first
+ * block that holds cards (not a 1AC/1NC shell).
+ */
+function pickStarter(roots: DocNode[]): DocNode | null {
+  const named = (ns: DocNode[]): DocNode | null => {
+    for (const n of ns) {
+      if (isCardNode(n)) continue;
+      const inner = named(n.children);
+      if (inner) return inner;
+      if (STARTER_RE.test(n.text) && cardsUnder(n).length) return n;
+    }
+    return null;
+  };
+  const first = (ns: DocNode[]): DocNode | null => {
+    for (const n of ns) {
+      if (isCardNode(n)) continue;
+      if (n.children.some(isCardNode) && !/(^|[^a-z0-9])(1nc|1ac)([^a-z0-9]|$)/i.test(n.text)) return n;
+      const inner = first(n.children);
+      if (inner) return inner;
+    }
+    return null;
+  };
+  return named(roots) ?? first(roots);
+}
 
 /**
  * The column a reply to `from` goes in: the next speech on OUR side. Landing on
@@ -331,7 +397,10 @@ class SmartKit {
     const affOverviews: Array<Overview & { mine: boolean }> = [];
     for (const k of this.twoACsFor(sheet)) {
       const kase = this.scopeFor(sheet, k);
-      for (const adv of kase?.children ?? []) {
+      // Picked "Case + Turns": the advantages live under Case, not Turns.
+      const secs = kase ? this.sectionRoots(kase) : [];
+      const caseSecs = secs.filter((s) => CASE_SECTION_RE.test(s.text));
+      for (const adv of (caseSecs.length ? caseSecs : secs).flatMap((s) => s.children)) {
         // Solvency sits under CASE too, but it has no impact to overview.
         if (isCard(adv) || /^solvency$/i.test(adv.text.trim())) continue;
         const first = adv.children.find((c) => !isCard(c));
@@ -349,7 +418,7 @@ class SmartKit {
     out.push(...affOverviews.map(({ mine: _mine, ...o }) => o));
 
     const file = this.fileFor(sheet);
-    const roots = file ? (file.scope ? [file.scope] : file.roots) : undefined;
+    const roots = file ? (file.scope ? this.sectionRoots(file.scope) : file.roots) : undefined;
     if (!roots) return out;
     const walk = (ns: DocNode[], parent: DocNode | null) => {
       for (const n of ns) {
@@ -538,9 +607,108 @@ class SmartKit {
     return this.all.filter((f) => this.isTwoAC(f.key)).map((f) => f.key);
   }
 
-  /** A file's top-level "Case" section, if it has one. */
-  private caseSection(key: string): DocNode | null {
-    return this.parsed[key]?.roots.find((n) => n.text.trim().toLowerCase() === "case") ?? null;
+  // ---- which sections of a file the ADVANTAGE pages use ---------------------
+
+  /** A file that feeds advantage pages (2AC / case neg), so it gets the picker. */
+  advPickable(key: string): boolean {
+    return this.isTwoAC(key) || this.isCaseNeg(key);
+  }
+
+  /** The hand-picked sections that still exist in the file, in file order. */
+  pickedSections(key: string): DocNode[] {
+    const f = this.all.find((x) => x.key === key);
+    const p = this.parsed[key];
+    if (!f?.advSections?.length || !p) return [];
+    if (f.advSections.includes(ALL_SECTIONS)) return p.roots;
+    const want = new Set(f.advSections.map((s) => s.trim().toLowerCase()));
+    const out: DocNode[] = [];
+    for (const root of p.roots) {
+      const rp = root.text.trim();
+      if (want.has(rp.toLowerCase())) {
+        out.push(root);
+        continue; // a picked pocket already holds its hats
+      }
+      for (const hat of root.children) {
+        if (want.has(`${rp}${SECTION_SEP}${hat.text.trim()}`.toLowerCase())) out.push(hat);
+      }
+    }
+    return out;
+  }
+
+  /** A 2AC file's automatic sections for an advantage page: its case-named
+   *  pockets, plus a section named for this advantage ("Warming"). */
+  private autoAdvSections(sheet: Sheet, key: string): DocNode[] {
+    const p = this.parsed[key];
+    if (!p) return [];
+    const out = p.roots.filter((r) => CASE_SECTION_RE.test(r.text));
+    const own = guessSection(sheet.title, p.roots);
+    if (own && !out.some((r) => r === own || contains(r, own))) out.push(own);
+    return out;
+  }
+
+  /** What the Kit tab says a file's advantage pages use. `empty` = a 2AC file
+   *  with nothing to use until you pick. */
+  advSummary(key: string): { text: string; auto: boolean; empty: boolean } {
+    const f = this.all.find((x) => x.key === key);
+    if (f?.advSections?.includes(ALL_SECTIONS)) return { text: "Whole file", auto: false, empty: false };
+    const picked = this.pickedSections(key);
+    if (picked.length) return { text: picked.map((n) => n.text.trim()).join(" + "), auto: false, empty: false };
+    if (!this.isTwoAC(key)) return { text: "Whole file", auto: true, empty: false };
+    const cases = (this.parsed[key]?.roots ?? []).filter((r) => CASE_SECTION_RE.test(r.text));
+    return cases.length
+      ? { text: cases.map((n) => n.text.trim()).join(" + "), auto: true, empty: false }
+      : { text: "", auto: true, empty: true };
+  }
+
+  /** `null`/[] = back to automatic. */
+  setAdvSections(key: string, paths: string[] | null): void {
+    const set = (f: KitFile): KitFile => {
+      if (f.key !== key) return f;
+      const { advSections: _old, ...rest } = f;
+      return paths?.length ? { ...rest, advSections: paths } : rest;
+    };
+    if (this.inLibrary(key)) {
+      this.library = this.library.map(set);
+      this.persistLibrary();
+    } else {
+      this.files = this.files.map(set);
+      this.persist();
+    }
+  }
+
+  /**
+   * Several sections used as ONE: a stand-in heading holding them, so the File
+   * tab, Overviews and block scoping all keep working on "a section". Cached
+   * per file + selection (the tray keys off its identity); a re-read file
+   * builds a new one. Zero sections is a real, empty answer: nothing.
+   */
+  private combined = new WeakSet<DocNode>();
+  private combineCache = new Map<string, { parsed: Parsed; node: DocNode }>();
+  private combine(key: string, nodes: DocNode[]): DocNode {
+    if (nodes.length === 1) return nodes[0];
+    const p = this.parsed[key];
+    const text = nodes.map((n) => n.text.trim()).join(" + ") || "no sections picked";
+    const ck = `${key}\u0000${text}`;
+    const hit = this.combineCache.get(ck);
+    if (hit && hit.parsed === p) return hit.node;
+    const node: DocNode = { level: 0, text, runs: [], children: nodes, body: [], bodyRuns: [] };
+    this.combined.add(node);
+    this.combineCache.set(ck, { parsed: p, node });
+    return node;
+  }
+
+  /** The real sections behind a scope - itself, or what a combined one holds. */
+  sectionRoots(scope: DocNode): DocNode[] {
+    return this.combined.has(scope) ? scope.children : [scope];
+  }
+
+  /** A combined scope with nothing in it: the file gives this page nothing. */
+  isEmptyScope(scope: DocNode | null): boolean {
+    return !!scope && this.combined.has(scope) && scope.children.length === 0;
+  }
+
+  private inScope(b: KitBlock, scope: DocNode): boolean {
+    return this.sectionRoots(scope).some((s) => b.node === s || b.anc.includes(s));
   }
 
   /** Every file that applies to an aff sheet automatically. */
@@ -585,8 +753,17 @@ class SmartKit {
     const f = this.all.find((x) => x.key === key);
     const p = this.parsed[key];
     if (!f || !p) return null;
-    if (sheet.kind === "case" && this.twoACsFor(sheet).includes(key)) {
-      return this.caseSection(key);
+    if (sheet.kind === "case" && (this.twoACsFor(sheet).includes(key) || this.caseNegsFor(sheet).includes(key))) {
+      // Sections picked by hand win, for either kind of file.
+      const picked = this.pickedSections(key);
+      if (picked.length) return this.combine(key, picked);
+      // A 2AC file is NEVER used whole on an advantage page: most of it is
+      // off-case answers, and a file with no Case section would flood every
+      // advantage with them. Its case-named sections (and one named for this
+      // advantage) or nothing - and the Kit tab asks you to pick.
+      if (this.isTwoAC(key)) return this.combine(key, this.autoAdvSections(sheet, key));
+      // A case neg IS all case: fall through (its section for this advantage,
+      // else the whole file) - as it always was.
     }
     if (guessFileForSheet(sheet.title, [{ key, name: f.name, firstHeading: p.firstHeading }])) return null;
     return guessSection(sheet.title, p.roots);
@@ -611,7 +788,7 @@ class SmartKit {
       const scope = onlyGeneral ? null : this.scopeFor(sheet, k);
       for (const b of this.parsed[k]?.blocks ?? []) {
         if (seen.has(b.id)) continue;
-        if (scope && b.node !== scope && !b.anc.includes(scope)) continue;
+        if (scope && !this.inScope(b, scope)) continue;
         seen.add(b.id);
         out.push(b);
       }
@@ -651,7 +828,7 @@ class SmartKit {
     // Sheet titles/kinds are in it too: whether a "NEG - X" file is a case neg
     // depends on whether some OTHER page is named X (namesOffcaseSheet).
     const sig = JSON.stringify([
-      this.all.map((f) => f.key + (f.general ? "*" : "")),
+      this.all.map((f) => f.key + (f.general ? "*" : "") + (f.advSections ? JSON.stringify(f.advSections) : "")),
       this.links,
       side,
       round.sheets.map((s) => `${s.kind}:${s.title}`),
@@ -768,6 +945,85 @@ class SmartKit {
       if (r >= 0) store.cursor = { row: r + 1, col: s.toCol };
     }
     return true;
+  }
+
+  // ---- 2AC starters ---------------------------------------------------------
+  //
+  // When you're aff, each named off-case page ("Midterms DA") already finds its
+  // section of your 2AC file by name. A starter offers that section's prepared
+  // 2AC block for the whole position, before the 1NC's arguments are flowed.
+  // Offered while your 2AC column on that page is still empty - writing in it
+  // (by inserting, typing, or a partner syncing over) is what retires it.
+
+  starters(round: Round, laneHere: number, enabled: boolean): Starter[] {
+    if (!enabled || this.mySide(round) !== "aff") return [];
+    const speeches = round.template.speeches;
+    const negFirst = speeches.findIndex((s) => s.side === "neg");
+    if (negFirst < 0) return [];
+    const to = targetCol(speeches, negFirst, "aff", laneHere);
+    if (to < 0) return [];
+    const colsOf = (c: number) => {
+      const g = speeches[c].laneGroup;
+      return g ? speeches.flatMap((s, i) => (s.laneGroup === g ? [i] : [])) : [c];
+    };
+    const mine = colsOf(to);
+    const theirs = colsOf(negFirst);
+    const out: Starter[] = [];
+    for (const sheet of round.sheets) {
+      if (sheet.kind === "case" || sheet.kind === "cx" || sheet.kind === "overview") continue;
+      if (to < sheet.startCol) continue;
+      const key = `starter:${sheet.id}`;
+      if (this.dismissed.includes(key)) continue;
+      // Your 2AC on this page has begun (either lane): nothing to offer.
+      if (sheet.rows.some((r) => mine.some((c) => filled(r.cells[c])))) continue;
+      const file = this.linkFor(sheet);
+      if (!file || this.wrongSide(file)) continue;
+      const p = this.parsed[file];
+      if (!p) continue;
+      const scope = this.scopeFor(sheet, file);
+      const node = pickStarter(scope ? this.sectionRoots(scope) : p.roots);
+      if (!node) continue;
+      // Beside the 1NC's first argument on the page (row 0 is the label row).
+      let row = sheet.rows.findIndex((r, i) => i > 0 && theirs.some((c) => filled(r.cells[c])));
+      if (row < 1) row = 1;
+      out.push({
+        key,
+        sheetId: sheet.id,
+        sheetTitle: sheet.title,
+        rowId: sheet.rows[row]?.id ?? null,
+        row,
+        toCol: to,
+        node,
+        cardCount: cardsUnder(node).length,
+        fileName: this.all.find((f) => f.key === file)?.name.replace(/\.(docx|cmir)$/i, "") ?? "",
+      });
+    }
+    return out;
+  }
+
+  /** Put a starter in. Refuses a cell that filled since (checked BEFORE mutate,
+   *  so a refusal leaves no empty undo step), and steps the cursor down. */
+  insertStarter(st: Starter): boolean {
+    const round = store.round;
+    const sheet = round?.sheets.find((s) => s.id === st.sheetId);
+    if (!round || !sheet) return false;
+    const byId = st.rowId ? sheet.rows.findIndex((r) => r.id === st.rowId) : -1;
+    const row = byId >= 0 ? byId : st.row;
+    if (filled(sheet.rows[row]?.cells[st.toCol])) return false;
+    store.mutate((r) => {
+      const s = r.sheets.find((x) => x.id === st.sheetId);
+      if (!s) return;
+      store.ensureRows(row, s);
+      const cell = s.rows[row]?.cells[st.toCol];
+      if (cell && !filled(cell)) fillCell(cell, st.node);
+    });
+    if (store.activeSheetId === st.sheetId) store.cursor = { row: row + 1, col: st.toCol };
+    void this.log({ t: Date.now(), ev: "insert", said: "(2AC starter)", block: st.node.text, rank: 0, sheet: st.sheetTitle });
+    return true;
+  }
+
+  dismissStarter(st: Starter): void {
+    this.dismissed = [...this.dismissed, st.key];
   }
 
   dismiss(s: Suggestion): void {

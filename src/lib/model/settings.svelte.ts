@@ -121,6 +121,8 @@ export interface Persisted {
   /** Pasting multi-line text from OUTSIDE Nimbus spreads it over cells (one
    *  line per row, tabs across columns) instead of into the one cell. */
   pasteSplitsCells?: boolean;
+  /** Smart blocks: offer your 2AC block for each off-case page, by its name. */
+  smartStarters?: boolean;
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
@@ -327,6 +329,9 @@ class Settings {
   /** Off by default: a long block pasted from elsewhere lands in ONE cell.
    *  Copying a range of Nimbus cells always pastes back as a range. */
   pasteSplitsCells = $state(false);
+  /** Off by default: "2AC starters" in the Smart blocks tray (its switch is
+   *  there, not in Settings, next to what it turns on). */
+  smartStarters = $state(false);
   ribbonMode = $state<RibbonMode>("full");
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
@@ -478,6 +483,7 @@ class Settings {
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
     if (p.pasteSplitsCells !== undefined) this.pasteSplitsCells = p.pasteSplitsCells;
+    if (p.smartStarters !== undefined) this.smartStarters = p.smartStarters;
     // The ribbon used to have three densities (full / icons / slim) cycled with
     // one button. It is two now - full width, and a condensed half-width one for
     // splitscreen - so both retired names load as "compact" rather than falling
@@ -613,6 +619,7 @@ class Settings {
       compactTopBar: this.compactTopBar,
       compactDoc: this.compactDoc,
       pasteSplitsCells: this.pasteSplitsCells,
+      smartStarters: this.smartStarters,
       ribbonMode: this.ribbonMode,
       prepMinutes: this.prepMinutes,
       lastSeenVersion: this.lastSeenVersion,
