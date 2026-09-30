@@ -96,11 +96,13 @@
         }
         return true;
       });
-    // Each off-case page's full 2AC list, minus what's offered under an
-    // argument above (each block once per page).
+    // Each off-case page's full 2AC list. A block that answers a flowed
+    // argument stays in the list (marked, and placed in that row); the
+    // per-argument cards drop it, so each block shows exactly once.
     starters = smartKit.starters(round, store.laneHere, settings.smartStarters && ans !== "1AR", smartKit.claimedBy(next));
-    for (const s of next) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
-    list = next.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
+    const shown = smartKit.withoutListed(next, starters);
+    for (const s of shown) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
+    list = shown.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
   }
 
   const speeches = $derived(store.round?.template.speeches ?? []);
@@ -177,7 +179,10 @@
 
   async function useStarterBlock(st: Starter, b: StarterBlock) {
     const id = `${st.key}:${b.id}`;
-    if (!(await smartKit.insertStarterBlock(st, b))) return;
+    // Answers a flowed argument: into that argument's row (linked as its
+    // answer). Otherwise - or if that row filled meanwhile - stacked.
+    const ok = (b.answers && (await smartKit.insert(b.answers.s, b.answers.m, 0))) || (await smartKit.insertStarterBlock(st, b));
+    if (!ok) return;
     flashed = id;
     setTimeout(() => {
       if (flashed === id) flashed = "";
@@ -415,7 +420,7 @@
                   <div class="sug starter">
                     <div class="sug-head">
                       <button class="where" onclick={() => onjump(st.sheetId, 1, st.toCol)} title="Go to this page">
-                        <span class="sheet">{st.sheetTitle || "Untitled"}</span>
+                        <span class="sheet">{st.sheetTitle || "Untitled"}{#if starters.filter((x) => x.sheetTitle === st.sheetTitle).length > 1}<span class="dim">{` (page ${(store.round?.sheets.findIndex((x) => x.id === st.sheetId) ?? 0) + 1})`}</span>{/if}</span>
                         <span class="speech">2AC blocks</span>
                         <span class="said">from {st.fileName}</span>
                       </button>
@@ -424,7 +429,10 @@
                     {#each st.blocks as b (b.id)}
                       {@const fid = `${st.key}:${b.id}`}
                       <div class="match">
-                        <span class="btitle" title={b.title}>{b.title}</span>
+                        <span class="btitle" title={b.answers ? `${b.title}\nAnswers: “${b.answers.s.said}”` : b.title}>
+                          {b.title}
+                          {#if b.answers}<span class="answers">↳ “{b.answers.s.said}”</span>{/if}
+                        </span>
                         <span class="count">{flashed === fid ? "Inserted" : `${b.cardCount} ${b.cardCount === 1 ? "card" : "cards"}`}</span>
                         <button class="insert" onclick={() => void useStarterBlock(st, b)}>
                           Insert → {laneAbbr(speeches[st.toCol], store.laneHere)}
@@ -1191,6 +1199,15 @@
   }
   .starter-switch b { color: var(--text); }
   .sug.starter { border-left: 3px solid var(--aff); }
+  .sug.starter .btitle { white-space: normal; }
+  .answers {
+    display: block;
+    font-size: 11px;
+    color: var(--aff);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .nudge {
     font-size: 12px;
     color: var(--text-dim);

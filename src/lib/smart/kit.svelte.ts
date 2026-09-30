@@ -24,6 +24,7 @@ import {
   cardsUnder,
   guessFileForSheet,
   guessSection,
+  guessSections,
   tokens,
   indexBlocks,
   matchBlocks,
@@ -55,12 +56,21 @@ export const NO_SECTIONS = "-";
 /** Joins a pocket and a hat in an `advSections` path. */
 export const SECTION_SEP = " › ";
 
+/** A block that answers a flowed argument: the suggestion (row, speech) and
+ *  the match within it. */
+export interface Claim {
+  s: Suggestion;
+  m: BlockMatch;
+}
+
 /** One block in a page's 2AC list. */
 export interface StarterBlock {
   id: string;
   title: string;
   node: DocNode;
   cardCount: number;
+  /** It answers this flowed 1NC argument - Insert puts it in that row. */
+  answers?: Claim;
 }
 
 /**
@@ -953,7 +963,9 @@ class SmartKit {
       // else the whole file) - as it always was.
     }
     if (guessFileForSheet(sheet.title, [{ key, name: f.name, firstHeading: p.firstHeading }])) return null;
-    return guessSection(sheet.title, p.roots);
+    // Every section that ties for this page (an updated hat beside the old one).
+    const secs = guessSections(sheet.title, p.roots);
+    return secs.length ? this.combine(key, secs) : null;
   }
 
   /** Every block a sheet may suggest: its own file's (cut to its section), any
@@ -1067,6 +1079,7 @@ class SmartKit {
       // copy at once. (The page's 2AC list leaves out what's offered here.)
       const used = usedTitles(sheet);
       const taken = (m: BlockMatch) => used.has(normTitle(m.block.title));
+      const pageWords = tokens(sheet.title);
       const onPage: Suggestion[] = [];
       sheet.rows.forEach((row, r) => {
         for (let c = Math.max(0, sheet.startCol); c < speeches.length; c++) {
@@ -1093,7 +1106,8 @@ class SmartKit {
             // A few spare past the 3 shown: some drop out below (inserted, or
             // better placed on another argument). One copy per title.
             const seenT = new Set<string>();
-            raw = (blocks.length ? matchBlocks(cell.text, blocks, 8) : []).filter((m) => {
+            // The page's own name is ignored: it's in every block title here.
+            raw = (blocks.length ? matchBlocks(cell.text, blocks, 8, pageWords) : []).filter((m) => {
               const t = normTitle(m.block.title);
               if (seenT.has(t)) return false;
               seenT.add(t);
@@ -1134,16 +1148,23 @@ class SmartKit {
         }
       });
       // Once per page: each block is offered under the ONE argument it
-      // answers best, not under every argument it happens to match.
+      // answers best. Greedy, best score first, and an argument only claims
+      // what it will SHOW (3): claiming a 4th it then hid used to take that
+      // block away from the argument it was the answer to.
       const pairs = onPage.flatMap((s) => s.matches.map((m) => ({ s, m })));
       pairs.sort((a, b) => b.m.score - a.m.score);
-      const owner = new Map<string, Suggestion>();
+      const owned = new Set<string>();
+      const kept = new Map<Suggestion, BlockMatch[]>();
       for (const { s, m } of pairs) {
         const t = normTitle(m.block.title);
-        if (!owner.has(t)) owner.set(t, s);
+        const mine = kept.get(s) ?? [];
+        if (owned.has(t) || mine.length >= 3) continue;
+        owned.add(t);
+        mine.push(m);
+        kept.set(s, mine);
       }
       for (const s of onPage) {
-        s.matches = s.matches.filter((m) => owner.get(normTitle(m.block.title)) === s).slice(0, 3);
+        s.matches = kept.get(s) ?? [];
         if (s.matches.length) out.push(s);
       }
     }
@@ -1182,11 +1203,32 @@ class SmartKit {
     return speechOfCol(round.template.speeches, col);
   }
 
-  /** "Sheet \0 title" for every block the suggestions offer - a page's 2AC
-   *  list leaves these out (each block once per page). */
-  claimedBy(suggestions: Suggestion[]): Set<string> {
-    const out = new Set<string>();
-    for (const s of suggestions) for (const m of s.matches) out.add(`${s.sheetId}\u0000${normTitle(m.block.title)}`);
+  /** The suggestions minus any block a page's 2AC list already shows (the
+   *  list marks and places those itself). A suggestion left empty goes. */
+  withoutListed(suggestions: Suggestion[], starters: Starter[]): Suggestion[] {
+    const listed = new Set<string>();
+    for (const st of starters) for (const b of st.blocks) listed.add(`${st.sheetId}\u0000${normTitle(b.title)}`);
+    if (!listed.size) return suggestions;
+    const out: Suggestion[] = [];
+    for (const s of suggestions) {
+      const matches = s.matches.filter((m) => !listed.has(`${s.sheetId}\u0000${normTitle(m.block.title)}`));
+      if (matches.length) out.push(matches.length === s.matches.length ? s : { ...s, matches });
+    }
+    return out;
+  }
+
+  /** "Sheet \0 title" → the argument a block answers (from the suggestions),
+   *  so a page's 2AC list can mark it and put it in that argument's row. */
+  claimedBy(suggestions: Suggestion[]): Map<string, Claim> {
+    const out = new Map<string, Claim>();
+    // Only each argument's BEST block is marked as its answer - its 2nd and
+    // 3rd guesses are just related, and marking them was noise.
+    for (const s of suggestions) {
+      const m = s.matches[0];
+      if (!m) continue;
+      const k = `${s.sheetId}\u0000${normTitle(m.block.title)}`;
+      if (!out.has(k)) out.set(k, { s, m });
+    }
     return out;
   }
 
@@ -1233,14 +1275,16 @@ class SmartKit {
 
   // ---- a page's 2AC blocks ("2AC off-case") ----------------------------------
   //
-  // When you're aff, each named off-case page ("Midterms DA") finds its hat in
-  // your 2AC file by name, and lists EVERY block under it, in file order, for
-  // a click each. A block already on the page is gone from the list; one that
-  // matches a flowed 1NC argument is offered under that argument instead
-  // (`claimed`), so each block shows once. The list lasts until it's used up
-  // or you × it.
+  // When you're aff, each named off-case page ("Midterms DA") finds its hat(s)
+  // in your 2AC file by name, and lists EVERY block under them, in file order,
+  // for a click each - the one complete, predictable place for that position.
+  // A block already on the page is gone from the list. One that answers a
+  // flowed 1NC argument STAYS in its place, marked with that argument, and
+  // goes into that argument's row (the tray shows no separate per-argument
+  // cards for a page that has a list - each block once, never missing). The
+  // list lasts until it's used up or you × it.
 
-  starters(round: Round, laneHere: number, enabled: boolean, claimed?: Set<string>): Starter[] {
+  starters(round: Round, laneHere: number, enabled: boolean, answering?: Map<string, Claim>): Starter[] {
     if (!enabled || this.mySide(round) !== "aff") return [];
     const speeches = round.template.speeches;
     const negFirst = speeches.findIndex((s) => s.side === "neg");
@@ -1262,17 +1306,21 @@ class SmartKit {
         if (!p) continue;
         const cand = [{ key: f.key, name: f.name, firstHeading: p.firstHeading }];
         const whole = !!guessFileForSheet(sheet.title, cand);
-        const sec = whole ? null : guessSection(sheet.title, p.roots);
-        if (!whole && !sec) continue;
+        // Every hat that ties for the page - an updated hat and the old one.
+        const secs = whole ? [] : guessSections(sheet.title, p.roots);
+        if (!whole && !secs.length) continue;
         const used = usedTitles(sheet);
         const seen = new Set<string>();
         const blocks: StarterBlock[] = [];
         for (const b of p.blocks) {
-          if (sec && b.node !== sec && !b.anc.includes(sec)) continue;
+          if (secs.length && !secs.some((s) => b.node === s || b.anc.includes(s))) continue;
+          // One copy per title - the first in the file (the updated hat, when
+          // it comes first) - and none that are already on the page.
           const t = normTitle(b.title);
-          if (seen.has(t) || used.has(t) || claimed?.has(`${sheet.id}\u0000${t}`)) continue;
+          if (seen.has(t) || used.has(t)) continue;
           seen.add(t);
-          blocks.push({ id: b.id, title: b.title, node: b.node, cardCount: b.cardCount });
+          const answers = answering?.get(`${sheet.id}\u0000${t}`);
+          blocks.push({ id: b.id, title: b.title, node: b.node, cardCount: b.cardCount, ...(answers ? { answers } : {}) });
         }
         if (!blocks.length) break; // this position's 2AC is all in
         out.push({
@@ -1313,6 +1361,10 @@ class SmartKit {
     });
     let row = last >= 0 ? last + 1 : sheet.rows.findIndex((r, i) => i > 0 && theirs.some((c) => filled(r.cells[c])));
     if (row < 1) row = 1;
+    // Never into a row whose argument has its own marked answer waiting in
+    // this list - that answer goes there.
+    const waiting = new Set(st.blocks.filter((x) => x !== b && x.answers).map((x) => x.answers!.s.rowId));
+    while (row < sheet.rows.length && (filled(sheet.rows[row].cells[st.toCol]) || waiting.has(sheet.rows[row].id))) row++;
     let done = false;
     store.mutate((r) => {
       const s = r.sheets.find((x) => x.id === st.sheetId);

@@ -199,17 +199,24 @@ function scoreAgainst(q: string[], b: string[]): number {
  * much of the query was. Answer-shaped blocks get a small lift; OLD/Ext ones a
  * small drop.
  */
-export function matchBlocks(said: string, blocks: KitBlock[], limit = 3): BlockMatch[] {
-  const q = tokens(said);
+export function matchBlocks(said: string, blocks: KitBlock[], limit = 3, ignore: string[] = []): BlockMatch[] {
+  // `ignore`: words that are on EVERYTHING here - the page's own name. On a
+  // "Midterms DA" page every block is titled "Midterms DA---…", so "midterms"
+  // tells blocks apart not at all; counting it made the 1NC's "Midterms DA"
+  // label cell "match" every block, and crowded out real answers.
+  const skip = (ts: string[]) => (ignore.length ? ts.filter((t) => !ignore.includes(t)) : ts);
+  const q = skip(tokens(said));
   if (!q.length) return [];
   const out: BlockMatch[] = [];
   for (const block of blocks) {
-    let score = Math.max(scoreAgainst(q, block.tokens), scoreAgainst(q, block.core));
+    const bt = skip(block.tokens);
+    const bc = skip(block.core);
+    let score = Math.max(scoreAgainst(q, bt), scoreAgainst(q, bc));
     if (!score) continue;
     // Named EXACTLY what they said ("States CP" → "States CP---2AC"): that is
     // the frontline, and it must beat "States CP---AT: UCF", whose answer
     // lift would otherwise put it on top.
-    if (block.tokens.length === q.length && q.every((t) => block.tokens.includes(t))) score += 0.2;
+    if (bt.length === q.length && q.every((t) => bt.includes(t))) score += 0.2;
     if (block.answer) score += 0.1;
     if (block.weak) score *= 0.75;
     if (score >= 0.45) out.push({ block, score });
@@ -253,6 +260,36 @@ export function guessSection(sheetTitle: string, roots: DocNode[]): DocNode | nu
   };
   walk(roots);
   return bestScore >= 0.5 ? best : null;
+}
+
+/**
+ * EVERY section that ties for best, where `guessSection` would silently keep
+ * one - in document order. A file with an updated hat next to the old one
+ * (`DA---Midterms[New]` and `DA---Midterms`) gives a "Midterms DA" page both.
+ * Same rules otherwise: pockets and hats only, more than a kind marker shared,
+ * ties at different depths go to the deeper heading(s).
+ */
+export function guessSections(sheetTitle: string, roots: DocNode[]): DocNode[] {
+  const s = tokens(sheetTitle);
+  if (!s.length) return [];
+  const found: Array<{ n: DocNode; score: number }> = [];
+  const walk = (ns: DocNode[]) => {
+    for (const n of ns) {
+      if (isCard(n) || n.level > 2) continue;
+      const ht = tokens(n.text);
+      const shared = s.filter((t) => ht.includes(t));
+      if (shared.some((t) => !KIND.has(t))) {
+        found.push({ n, score: shared.length / Math.min(s.length, ht.length) });
+      }
+      walk(n.children);
+    }
+  };
+  walk(roots);
+  const best = Math.max(0, ...found.map((f) => f.score));
+  if (best < 0.5) return [];
+  const top = found.filter((f) => f.score === best);
+  const deepest = Math.max(...top.map((f) => f.n.level));
+  return top.filter((f) => f.n.level === deepest).map((f) => f.n);
 }
 
 /**
