@@ -361,16 +361,35 @@
               a sheet uses only its own section. Change any link under <b>Which file each sheet uses</b>.
             </li>
             <li>
-              <b>Case files go on every aff sheet.</b> A file named <i>Case Neg</i> is used on
-              every aff (advantage) sheet. When you're aff, so is the <b>CASE</b> section of a
-              <i>2AC</i> file. Set a sheet to <b>No file</b> to turn it off there.
+              <b>Files follow your side.</b> Files named <i>2AC</i>, <i>1AR</i> or <i>AFF</i> are
+              the aff's; <i>Case Neg</i> and <i>NEG</i> files are the neg's. The other side's
+              files are marked <i>not used</i> and never suggested.
+            </li>
+            <li>
+              <b>Advantage pages.</b> When you're neg, your case negs answer every advantage page.
+              When you're aff, your 2AC and 1AR files do - only the sections you pick: under each
+              file in <b>Kit</b>, click <b>Adv pages use</b> and tick pockets or hats (e.g. Case + Turns).
+              Set a sheet to <b>No file</b> to turn it off there.
+            </li>
+            <li>
+              <b>Answering 2AC / 1AR</b> (aff): 2AC files only answer into your 2AC, 1AR files
+              only into your 1AR. It moves to the 1AR by itself once the neg block is flowed;
+              click either to pin it.
+            </li>
+            <li>
+              <b>2AC off-case</b> (aff, on the 2AC): ticked, each off-case page named for its
+              position ("Midterms DA") lists every block under that position in your 2AC file,
+              in order - click down the list and they stack in your 2AC. A block that answers a
+              flowed argument is marked with it and goes in that row. Unticked, only advantage
+              pages get suggestions.
             </li>
             <li>
               <b>Suggestions</b> appear when an argument the other team made - in either
-              partner's lane - matches a block, and your answer cell is still empty.
-              <b>Insert</b> puts the whole block in your next speech on that row, linked as the
-              answer to that argument. <b>×</b> dismisses one. Answering the cell yourself (or
-              your partner answering it) clears it.
+              partner's lane - matches a block, and your answer cell is still empty. Each block
+              is offered once per page, under the argument it answers best, and disappears from
+              the page once it's there. <b>Insert</b> puts the whole block in your next speech on
+              that row, linked as the answer to that argument. <b>×</b> dismisses one. Answering
+              the cell yourself (or your partner answering it) clears it.
             </li>
             <li>
               <b>Overviews</b> lists the overview blocks for the sheet you're on: the first block
@@ -385,7 +404,8 @@
             <li>
               In Overviews and File, <b>click</b> a block to put it in the selected cell, or
               <b>drag</b> it onto any cell. Doc Search (<kbd>{combosLabel(km.openDocSearch, mac)}</kbd>)
-              still works exactly as before.
+              still works exactly as before. Clicked inserts keep the card exactly - charts and
+              tables included - when you send it to the speech doc.
             </li>
             <li>
               Suggestions match your <b>block headings</b>, so they work best when headings name

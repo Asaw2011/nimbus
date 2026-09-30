@@ -24,6 +24,18 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.0",
+    headline: "Smart blocks grows up: files follow your side, your 2AC and 1AR each answer their own speech, and every off-case page can list its whole 2AC.",
+    items: [
+      "**Files follow your side.** 2AC, 1AR and AFF files are the aff's; Case Neg and NEG files are the neg's. When you're aff your case neg is marked **not used**, and when you're neg your 2AC files are. Ticking **every sheet** no longer hides a file from its own pages.",
+      "**Pick what your advantage pages use.** Under each 2AC or case-neg file in **Kit**, click **Adv pages use** and tick the pockets or hats your advantages should draw on (Case + Turns, say). A 2AC file is never dumped whole onto your advantages.",
+      "**Answering 2AC / 1AR.** Your 2AC file only answers into your 2AC, your 1AR file only into your 1AR. The switch at the top of the tray moves to the 1AR by itself once the neg block is flowed - or click it.",
+      "**2AC off-case.** Tick it and every off-case page named for its position (\"Midterms DA\", \"States CP\") lists every block under that position in your 2AC file, in order. Click down the list and they stack in your 2AC; a block that answers a flowed argument is marked and goes in that row. Untick it and only your advantages get suggestions.",
+      "**No more duplicates.** Each block is offered once per page, under the argument it answers best, and disappears from the page the moment it's there - yours or your partner's.",
+      "**Charts and tables survive.** A card inserted with Smart blocks now sends to your speech doc exactly as written, tables included.",
+    ],
+  },
+  {
     version: "1.4.9",
     headline: "Empty new flows no longer pile up, the cloud is back, and update checks tell you when they can't connect.",
     items: [
