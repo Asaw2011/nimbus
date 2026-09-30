@@ -15,6 +15,7 @@
 
 import { nodeChip, type DocNode } from "$lib/docx/parse";
 import { parseSpeechDoc } from "$lib/docx/cmir";
+import { cmDocFromBytes, extractCMNodes, type CMDoc } from "$lib/docx/cmExact";
 import { loadBlob, saveBlob } from "$lib/model/blobs";
 import { store } from "$lib/model/round.svelte";
 import { fileIndex } from "$lib/search/file-index.svelte";
@@ -66,6 +67,8 @@ export interface Starter {
   node: DocNode;
   cardCount: number;
   fileName: string;
+  /** The 2AC file's key, for the exact CardMirror copy on insert. */
+  file: string;
 }
 
 interface Parsed {
@@ -82,6 +85,8 @@ export interface Overview {
   section: string;
   node: DocNode;
   cardCount: number;
+  /** The kit file it's from - for the exact CardMirror copy on insert. */
+  file?: string;
 }
 
 interface SavedKit {
@@ -149,6 +154,13 @@ function contains(root: DocNode, n: DocNode): boolean {
 }
 
 const isCardNode = (n: DocNode) => !!n.isAnalytic || n.level >= 4;
+
+/** The exact CardMirror nodes for an insert: the heading's own (a block with
+ *  no cards), and each card's by its tag. */
+interface Exact {
+  cell?: unknown;
+  items: Map<string, unknown>;
+}
 
 /** How blocks are told apart for "once per page": by title, whatever file or
  *  hat a copy sits in ("AT: No Link" under two hats is one block). */
@@ -374,6 +386,65 @@ class SmartKit {
     }
   }
 
+  // ---- exact CardMirror nodes, for inserts ----------------------------------
+  // Read once per file per session (CardMirror's own fromDocx), on first use
+  // or when the tray opens (prewarmExact), so an insert doesn't wait on it.
+  private cmDocs = new Map<string, Promise<CMDoc | null>>();
+
+  private cmDocFor(key: string): Promise<CMDoc | null> {
+    let p = this.cmDocs.get(key);
+    if (!p) {
+      p = this.loadCMDoc(key);
+      this.cmDocs.set(key, p);
+    }
+    return p;
+  }
+
+  private async loadCMDoc(key: string): Promise<CMDoc | null> {
+    const f = this.all.find((x) => x.key === key);
+    if (!f || key.startsWith("mem:")) return null;
+    try {
+      let buf: ArrayBuffer;
+      if (key.startsWith("copy:")) {
+        const b64 = await loadBlob<string>(copyBlobName(key));
+        if (!b64) return null;
+        buf = fromBase64(b64);
+      } else {
+        const { invoke } = await import("@tauri-apps/api/core");
+        buf = new Uint8Array(await invoke<number[]>("read_binary_file", { path: key })).buffer;
+      }
+      return await cmDocFromBytes(buf, /\.cmir$/i.test(f.name));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Start reading every kit file's CardMirror doc in the background, one at a
+   *  time, so the first insert from each is instant. */
+  prewarmExact(): void {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const keys = this.all.map((f) => f.key).filter((k) => !this.cmDocs.has(k) && !k.startsWith("mem:"));
+    void keys.reduce<Promise<unknown>>((chain, k) => chain.then(() => this.cmDocFor(k)), Promise.resolve());
+  }
+
+  /** The exact nodes for inserting `node` from `fileKey` - null if the file
+   *  can't be read that way (then the cell uses the DocNode adapter). */
+  private async exactFor(fileKey: string | undefined, node: DocNode): Promise<Exact | null> {
+    if (!fileKey) return null;
+    const cm = await this.cmDocFor(fileKey);
+    if (!cm) return null;
+    const cards = cardsUnder(node);
+    const items = new Map<string, unknown>();
+    if (cards.length) {
+      for (const c of cards) {
+        const ns = extractCMNodes(cm, c.text, 4);
+        if (ns.length) items.set(c.text.trim(), ns[0]);
+      }
+      return { items };
+    }
+    return { cell: extractCMNodes(cm, node.text, node.level)[0], items };
+  }
+
   /** Add files by path (the Tauri file picker). */
   async addPaths(paths: string[]): Promise<void> {
     for (const path of paths) {
@@ -460,6 +531,7 @@ class SmartKit {
           section: adv.text.trim(),
           node: first,
           cardCount: cardsUnder(first).length,
+          file: k,
           mine: want.some((t) => advTokens.includes(t)),
         });
       }
@@ -480,6 +552,7 @@ class SmartKit {
               section: parent?.text.trim() || first.text,
               node: first,
               cardCount: cardsUnder(first).length,
+              file: file?.key,
             });
           }
           continue;
@@ -513,18 +586,22 @@ class SmartKit {
    * a click in a file (replaces the cell, then steps down a row so the next
    * one stacks under it). One undo step.
    */
-  insertAtCursor(node: DocNode): boolean {
+  async insertAtCursor(node: DocNode, fileKey?: string): Promise<boolean> {
     const cur = store.cursor;
     const sheetId = store.activeSheetId;
     if (!store.round || !cur || !sheetId) return false;
     const { row, col } = cur;
+    // The exact CardMirror copy first (cached - normally instant), so the ONE
+    // mutate below has everything: one undo step, one sync.
+    const exact = await this.exactFor(fileKey, node).catch(() => null);
+    if (!store.round) return false;
     store.mutate((r) => {
       const sheet = r.sheets.find((s) => s.id === sheetId);
       if (!sheet) return;
       store.ensureRows(row, sheet);
       const cell = sheet.rows[row]?.cells[col];
       if (!cell) return;
-      fillCell(cell, node);
+      fillCell(cell, node, exact);
     });
     store.cursor = { row: row + 1, col };
     return true;
@@ -1149,7 +1226,7 @@ class SmartKit {
    * Refuses a cell that filled up since the suggestion was drawn: a partner
    * may have answered it a moment ago, and their answer wins.
    */
-  insert(s: Suggestion, m: BlockMatch, rank: number): boolean {
+  async insert(s: Suggestion, m: BlockMatch, rank: number): Promise<boolean> {
     const locate = (round: Round) => {
       const sheet = round.sheets.find((x) => x.id === s.sheetId);
       return sheet?.rows.find((x) => x.id === s.rowId)?.cells[s.toCol];
@@ -1158,11 +1235,14 @@ class SmartKit {
     // Checked BEFORE mutate: mutate pushes an undo step first, and a refused
     // insert must not leave an empty one behind.
     if (!store.round || !from || filled(locate(store.round)) || !locate(store.round)) return false;
+    const exact = await this.exactFor(m.block.file, m.block.node).catch(() => null);
+    // ...and again after the wait: a partner may have answered it meanwhile.
+    if (!store.round || filled(locate(store.round)) || !locate(store.round)) return false;
     let done = false;
     store.mutate((round) => {
       const cell = locate(round);
       if (!cell || filled(cell)) return;
-      fillCell(cell, m.block.node);
+      fillCell(cell, m.block.node, exact);
       cell.repliesTo = from.id;
       done = true;
     });
@@ -1240,6 +1320,7 @@ class SmartKit {
         node,
         cardCount: cardsUnder(node).length,
         fileName: this.all.find((f) => f.key === file)?.name.replace(/\.(docx|cmir)$/i, "") ?? "",
+        file,
       });
     }
     return out;
@@ -1247,19 +1328,27 @@ class SmartKit {
 
   /** Put a starter in. Refuses a cell that filled since (checked BEFORE mutate,
    *  so a refusal leaves no empty undo step), and steps the cursor down. */
-  insertStarter(st: Starter): boolean {
-    const round = store.round;
-    const sheet = round?.sheets.find((s) => s.id === st.sheetId);
-    if (!round || !sheet) return false;
-    const byId = st.rowId ? sheet.rows.findIndex((r) => r.id === st.rowId) : -1;
-    const row = byId >= 0 ? byId : st.row;
-    if (filled(sheet.rows[row]?.cells[st.toCol])) return false;
+  async insertStarter(st: Starter): Promise<boolean> {
+    const find = () => {
+      const sheet = store.round?.sheets.find((s) => s.id === st.sheetId);
+      if (!sheet) return null;
+      const byId = st.rowId ? sheet.rows.findIndex((r) => r.id === st.rowId) : -1;
+      const row = byId >= 0 ? byId : st.row;
+      return { sheet, row };
+    };
+    const at = find();
+    if (!at || filled(at.sheet.rows[at.row]?.cells[st.toCol])) return false;
+    const exact = await this.exactFor(st.file, st.node).catch(() => null);
+    // Re-checked after the wait (a partner may have started this 2AC).
+    const now = find();
+    if (!now || filled(now.sheet.rows[now.row]?.cells[st.toCol])) return false;
+    const row = now.row;
     store.mutate((r) => {
       const s = r.sheets.find((x) => x.id === st.sheetId);
       if (!s) return;
       store.ensureRows(row, s);
       const cell = s.rows[row]?.cells[st.toCol];
-      if (cell && !filled(cell)) fillCell(cell, st.node);
+      if (cell && !filled(cell)) fillCell(cell, st.node, exact);
     });
     if (store.activeSheetId === st.sheetId) store.cursor = { row: row + 1, col: st.toCol };
     void this.log({ t: Date.now(), ev: "insert", said: "(2AC starter)", block: st.node.text, rank: 0, sheet: st.sheetTitle });
@@ -1294,21 +1383,28 @@ class SmartKit {
  * ⚠ Works on a COPY: the kit's tree is shared by every suggestion and tab and
  * must never be aliased into the round, where edits and sync would reach it.
  */
-function fillCell(cell: Cell, source: DocNode): void {
+function fillCell(cell: Cell, source: DocNode, exact?: Exact | null): void {
   const node = structuredClone(source) as DocNode;
   const cards = cardsUnder(node);
   cell.text = node.text;
   cell.chip = nodeChip(node);
   cell.card = node;
-  delete cell.cmNode;
+  // The exact CardMirror node, when we have it, is what Send to Doc / tilde
+  // uses - so tables and images survive. Without it, the DocNode adapter.
+  if (exact?.cell && !cards.length) cell.cmNode = structuredClone(exact.cell);
+  else delete cell.cmNode;
   if (cards.length) {
-    cell.items = cards.map((c) => ({
-      id: crypto.randomUUID(),
-      text: c.text,
-      kind: "card" as const,
-      chip: nodeChip(c),
-      card: c,
-    }));
+    cell.items = cards.map((c) => {
+      const cm = exact?.items.get(c.text.trim());
+      return {
+        id: crypto.randomUUID(),
+        text: c.text,
+        kind: "card" as const,
+        chip: nodeChip(c),
+        card: c,
+        ...(cm ? { cmNode: structuredClone(cm) } : {}),
+      };
+    });
     cell.expanded = false;
   } else {
     delete cell.items;

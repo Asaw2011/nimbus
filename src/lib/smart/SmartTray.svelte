@@ -47,6 +47,14 @@
     void smartKit.attach(store.round?.id);
   });
 
+  // Opening the tray starts reading the kit files CardMirror's way (for exact
+  // inserts - tables, images) in the background, so a click doesn't wait.
+  $effect(() => {
+    if (!open) return;
+    void smartKit.all.length;
+    untrack(() => smartKit.prewarmExact());
+  });
+
   // Recompute from the round itself, a beat after it settles. Reading these
   // here is what subscribes: `updatedAt` moves on every edit, local or remote.
   $effect(() => {
@@ -81,7 +89,13 @@
       .filter((s) => {
         if (!ans) return true;
         const sp = smartKit.speechOfCol(round, s.toCol);
-        return (sp !== "2AC" && sp !== "1AR") || sp === ans;
+        if (sp !== ans && (sp === "2AC" || sp === "1AR")) return false;
+        // On the 2AC, off-case pages only with the "2AC off-case" box ticked -
+        // untick it once your 2AC blocks are in, and only case is left.
+        if (ans === "2AC" && !settings.smartStarters) {
+          return round.sheets.find((x) => x.id === s.sheetId)?.kind === "case";
+        }
+        return true;
       });
     for (const s of next) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
     list = next.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
@@ -159,8 +173,8 @@
     settings.save();
   }
 
-  function useStarter(st: Starter) {
-    if (!smartKit.insertStarter(st)) return;
+  async function useStarter(st: Starter) {
+    if (!(await smartKit.insertStarter(st))) return;
     flashed = st.key;
     setTimeout(() => {
       if (flashed === st.key) flashed = "";
@@ -322,8 +336,8 @@
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
   }
 
-  function grab(node: DocNode, id: string) {
-    if (!smartKit.insertAtCursor(node)) return;
+  async function grab(node: DocNode, id: string, fileKey?: string) {
+    if (!(await smartKit.insertAtCursor(node, fileKey))) return;
     flashed = id;
     setTimeout(() => {
       if (flashed === id) flashed = "";
@@ -389,9 +403,9 @@
             <p class="empty">Pick which side you're on in <b>Round kit</b>.</p>
           {:else}
             {#if side === "aff" && answering !== "1AR"}
-              <label class="starter-switch" title="For each off-case page, offer the 2AC block your file has for that position - found by the page's name ('Midterms DA'). Goes away once your 2AC column on that page has anything in it.">
+              <label class="starter-switch" title="Ticked: off-case pages get suggestions too - their answers, and a starter (your whole 2AC block for the position, found by the page's name). Unticked: only your advantage pages get suggestions. Doesn't apply on the 1AR.">
                 <input type="checkbox" checked={settings.smartStarters} onchange={(e) => toggleStarters((e.currentTarget as HTMLInputElement).checked)} />
-                <span><b>2AC starters</b> - offer my whole 2AC block for each off-case page, by its name</span>
+                <span><b>2AC off-case</b> - suggestions and 2AC starters for off-case pages{#if !settings.smartStarters}<span class="dim">{" (off: advantages only)"}</span>{/if}</span>
               </label>
               {#if settings.smartStarters}
                 {#each starters as st (st.key)}
@@ -407,7 +421,7 @@
                     <div class="match">
                       <span class="btitle" title={st.node.text}>{blockLabel(st.node.text)}</span>
                       <span class="count">{flashed === st.key ? "Inserted" : `${st.cardCount} ${st.cardCount === 1 ? "card" : "cards"}`}</span>
-                      <button class="insert" onclick={() => useStarter(st)}>
+                      <button class="insert" onclick={() => void useStarter(st)}>
                         Insert → {laneAbbr(speeches[st.toCol], store.laneHere)}
                       </button>
                     </div>
@@ -439,7 +453,7 @@
                   <div class="match">
                     <span class="btitle" title={[...m.block.trail, m.block.title].join(" › ")}>{blockLabel(m.block.title)}</span>
                     <span class="count">{m.block.cardCount} {m.block.cardCount === 1 ? "card" : "cards"}</span>
-                    <button class="insert" onclick={() => smartKit.insert(s, m, i)}>
+                    <button class="insert" onclick={() => void smartKit.insert(s, m, i)}>
                       Insert → {laneAbbr(speeches[s.toCol], store.laneHere)}
                     </button>
                   </div>
@@ -491,7 +505,7 @@
                   tabindex="0"
                   draggable="true"
                   ondragstart={(e) => dragBlock(e, o.node)}
-                  onclick={() => grab(o.node, `ov${i}`)}
+                  onclick={() => void grab(o.node, `ov${i}`, o.file)}
                   title="Click to put in the selected cell · drag onto any cell"
                 >
                   <span class="ovsec">{o.section}</span>
@@ -525,7 +539,7 @@
                   tabindex="0"
                   draggable="true"
                   ondragstart={(e) => dragBlock(e, r.node)}
-                  onclick={() => grab(r.node, r.key)}
+                  onclick={() => void grab(r.node, r.key, sheetFile?.key)}
                 >
                   {#if r.hasKids}
                     <button
