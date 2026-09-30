@@ -60,6 +60,7 @@
     void smartKit.side;
     void smartKit.dismissed;
     void settings.smartStarters;
+    void smartKit.speechMode;
     const t = setTimeout(() => untrack(recompute), 250);
     return () => clearTimeout(t);
   });
@@ -72,8 +73,16 @@
       return;
     }
     const now = Date.now();
-    starters = smartKit.starters(round, store.laneHere, settings.smartStarters);
-    const next = smartKit.suggestions(round, store.laneHere);
+    // Aff: only what the speech you're answering needs (the Answering switch).
+    const ans = smartKit.mySide(round) === "aff" ? smartKit.answering(round) : null;
+    starters = smartKit.starters(round, store.laneHere, settings.smartStarters && ans !== "1AR");
+    const next = smartKit
+      .suggestions(round, store.laneHere, smartKit.reservedFor(starters))
+      .filter((s) => {
+        if (!ans) return true;
+        const sp = smartKit.speechOfCol(round, s.toCol);
+        return (sp !== "2AC" && sp !== "1AR") || sp === ans;
+      });
     for (const s of next) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
     list = next.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
   }
@@ -81,6 +90,8 @@
   const speeches = $derived(store.round?.template.speeches ?? []);
   const side = $derived(store.round ? smartKit.mySide(store.round) : undefined);
   const roundHasSide = $derived(store.round?.mySide === "aff" || store.round?.mySide === "neg");
+  /** Aff only: the speech the tray is helping with (2AC, then 1AR). */
+  const answering = $derived(store.round && side === "aff" ? smartKit.answering(store.round) : null);
 
   async function addFiles() {
     if ("__TAURI_INTERNALS__" in window) {
@@ -353,6 +364,22 @@
         <span class="beta">BETA</span>
         <button class="x" onclick={() => (open = false)} aria-label="Close">×</button>
       </div>
+      {#if answering && tab !== "kit"}
+        <!-- Aff: which speech everything here is for. 2AC files answer the
+             1NC, 1AR files the block; flipping it moves every page at once. -->
+        <div class="answering">
+          <span class="label">Answering</span>
+          <div class="seg">
+            <button class:on={answering === "2AC"} onclick={() => smartKit.setSpeechMode("2AC")} title="Suggestions, files and overviews for your 2AC">2AC</button>
+            <button class:on={answering === "1AR"} onclick={() => smartKit.setSpeechMode("1AR")} title="Suggestions, files and overviews for your 1AR">1AR</button>
+          </div>
+          {#if smartKit.speechMode === "auto"}
+            <span class="dim" title="Switches to the 1AR by itself once the neg block is flowed on any page">auto</span>
+          {:else}
+            <button class="mini" onclick={() => smartKit.setSpeechMode("auto")} title="Go back to switching by itself (2AC, then the 1AR once the neg block is flowed)">auto</button>
+          {/if}
+        </div>
+      {/if}
 
       {#if tab === "suggest"}
         <div class="body">
@@ -361,7 +388,7 @@
           {:else if !side}
             <p class="empty">Pick which side you're on in <b>Round kit</b>.</p>
           {:else}
-            {#if side === "aff"}
+            {#if side === "aff" && answering !== "1AR"}
               <label class="starter-switch" title="For each off-case page, offer the 2AC block your file has for that position - found by the page's name ('Midterms DA'). Goes away once your 2AC column on that page has anything in it.">
                 <input type="checkbox" checked={settings.smartStarters} onchange={(e) => toggleStarters((e.currentTarget as HTMLInputElement).checked)} />
                 <span><b>2AC starters</b> - offer my whole 2AC block for each off-case page, by its name</span>
@@ -386,7 +413,7 @@
                     </div>
                   </div>
                 {:else}
-                  <p class="hint">No starters yet. Name an off-case page for its position ("Midterms DA") and the 2AC block for it shows up here.</p>
+                  <p class="hint">No starters right now. One shows for each off-case page named for its position ("Midterms DA") until you start that page's 2AC.</p>
                 {/each}
               {/if}
             {/if}
@@ -1125,6 +1152,14 @@
     white-space: nowrap;
   }
   .pick-done { flex-shrink: 0; }
+  .answering {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 0;
+    font-size: 12px;
+  }
+  .answering .label { color: var(--text-dim); }
   .starter-switch {
     display: flex;
     align-items: flex-start;

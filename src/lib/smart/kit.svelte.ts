@@ -90,7 +90,12 @@ interface SavedKit {
   links: Record<string, string>;
   /** Only consulted when the round itself has no `mySide`. */
   side?: Side;
+  /** Which aff speech Smart blocks is helping with - see `answering`. */
+  speechMode?: SpeechMode;
 }
+
+/** "auto" = the 2AC until the neg block has been flowed, then the 1AR. */
+export type SpeechMode = "auto" | "2AC" | "1AR";
 
 export interface Suggestion {
   /** sheet : row id : target speech id - stable across edits and reorders. */
@@ -144,6 +149,37 @@ function contains(root: DocNode, n: DocNode): boolean {
 }
 
 const isCardNode = (n: DocNode) => !!n.isAnalytic || n.level >= 4;
+
+/** How blocks are told apart for "once per page": by title, whatever file or
+ *  hat a copy sits in ("AT: No Link" under two hats is one block). */
+const normTitle = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * Every block already inserted on a page - a cell's block and the headings
+ * inside it (a starter that brought a whole hat brought its blocks). From the
+ * round itself, so a partner's insert counts the moment it syncs.
+ */
+function usedTitles(sheet: Sheet): Set<string> {
+  const out = new Set<string>();
+  const walk = (n: DocNode) => {
+    if (!n || typeof n.text !== "string" || isCardNode(n)) return;
+    out.add(normTitle(n.text));
+    (n.children ?? []).forEach(walk);
+  };
+  for (const row of sheet.rows) for (const cell of row.cells) if (cell.card) walk(cell.card as DocNode);
+  return out;
+}
+
+/** The aff speech a column is, by its abbr ("2AC · You" → 2AC), or by its
+ *  label when the speech was renamed. */
+function speechOfCol(speeches: Speech[], c: number): string {
+  const abbr = speeches[c].abbr.split(" · ")[0].trim().toUpperCase();
+  if (abbr === "2AC" || abbr === "1AR") return abbr;
+  const label = speeches[c].label.toLowerCase();
+  if (/second affirmative constructive/.test(label)) return "2AC";
+  if (/first affirmative rebuttal/.test(label)) return "1AR";
+  return abbr;
+}
 
 /**
  * The prepared 2AC for a position, inside its section: the DEEPEST heading
@@ -203,6 +239,8 @@ class SmartKit {
   private libraryLoaded = false;
   links = $state<Record<string, string>>({});
   side = $state<Side | undefined>(undefined);
+  /** Per round: which aff speech the tray is for (the "Answering" switch). */
+  speechMode = $state<SpeechMode>("auto");
   /** Parsed trees are large and never edited - raw, so they aren't proxied. */
   parsed = $state.raw<Record<string, Parsed>>({});
   loading = $state(0);
@@ -263,12 +301,14 @@ class SmartKit {
     this.files = [];
     this.links = {};
     this.side = undefined;
+    this.speechMode = "auto";
     this.dismissed = [];
     const saved = await loadBlob<SavedKit>(`smartkit-${roundId}`);
     if (this.roundId !== roundId) return; // switched again while loading
     this.files = saved?.files ?? [];
     this.links = saved?.links ?? {};
     this.side = saved?.side;
+    this.speechMode = saved?.speechMode ?? "auto";
     for (const f of this.files) {
       if (!this.parsed[f.key]) void this.parseFromDisk(f);
     }
@@ -280,6 +320,7 @@ class SmartKit {
       files: $state.snapshot(this.files),
       links: $state.snapshot(this.links),
       side: this.side,
+      speechMode: this.speechMode,
     };
     void saveBlob(`smartkit-${this.roundId}`, kit);
   }
@@ -400,7 +441,11 @@ class SmartKit {
     // THIS sheet's advantage, if its title names one, comes first.
     const want = tokens(sheet.title);
     const affOverviews: Array<Overview & { mine: boolean }> = [];
-    for (const k of this.twoACsFor(sheet).filter((x) => this.isTwoAC(x))) {
+    // From the files for the speech you're answering (an "AFF - X" file, with
+    // no speech in its name, counts as the 2AC's).
+    const ans = store.round ? this.answering(store.round) : "2AC";
+    const forSpeech = (x: string) => (this.fileSpeech(x) ?? (this.isTwoAC(x) ? "2AC" : undefined)) === ans;
+    for (const k of this.twoACsFor(sheet).filter(forSpeech)) {
       const kase = this.scopeFor(sheet, k);
       // Picked "Case + Turns": the advantages live under Case, not Turns.
       const secs = kase ? this.sectionRoots(kase) : [];
@@ -450,7 +495,14 @@ class SmartKit {
    *  the section of it that belongs to the sheet (null = the whole file). */
   fileFor(sheet: Sheet): { key: string; name: string; roots: DocNode[]; scope: DocNode | null } | null {
     // An aff sheet with no file of its own shows its case neg / 2AC file.
-    const key = this.linkFor(sheet) ?? this.caseFilesFor(sheet)[0] ?? null;
+    let key = this.linkFor(sheet) ?? this.caseFilesFor(sheet)[0] ?? null;
+    // Aff, nothing picked by hand: the file for the speech you're answering
+    // (the Answering switch) - your 1AR file's section once you're on the 1AR.
+    if (!(sheet.id in this.links) && store.round && this.currentSide() === "aff") {
+      const ans = this.answering(store.round);
+      const hit = [...this.speechFilesFor(sheet), ...this.twoACsFor(sheet)].find((k) => this.fileSpeech(k) === ans);
+      if (hit) key = hit;
+    }
     const f = this.all.find((x) => x.key === key);
     const p = key ? this.parsed[key] : undefined;
     return f && p ? { key: f.key, name: f.name, roots: p.roots, scope: this.scopeFor(sheet, f.key) } : null;
@@ -892,7 +944,7 @@ class SmartKit {
    * is what retires it, so two partners cannot both insert the same answer
    * unless they click within the same sync tick.
    */
-  suggestions(round: Round, laneHere: number): Suggestion[] {
+  suggestions(round: Round, laneHere: number, reserved?: Set<string>): Suggestion[] {
     const side = this.mySide(round);
     if (!side || !this.all.length) return [];
     const speeches = round.template.speeches;
@@ -926,16 +978,8 @@ class SmartKit {
     const byKey = new Map<string, Suggestion>();
     // A 2AC file's blocks go only in the 2AC column, a 1AR file's only in the
     // 1AR column - so the 2AC file stops answering the block, and the 1AR file
-    // never answers the 1NC. By the column's base abbr ("2AC · You" → 2AC).
-    // A renamed speech ("2AC" → "2A") is still known by its label.
-    const colSpeech = (c: number) => {
-      const abbr = speeches[c].abbr.split(" · ")[0].trim().toUpperCase();
-      if (abbr === "2AC" || abbr === "1AR") return abbr;
-      const label = speeches[c].label.toLowerCase();
-      if (/second affirmative constructive/.test(label)) return "2AC";
-      if (/first affirmative rebuttal/.test(label)) return "1AR";
-      return abbr;
-    };
+    // never answers the 1NC.
+    const colSpeech = (c: number) => speechOfCol(speeches, c);
     const speechOfFile = new Map<string, string | undefined>();
     const fileOk = (file: string, col: string) => {
       if (!speechOfFile.has(file)) speechOfFile.set(file, this.fileSpeech(file));
@@ -962,6 +1006,15 @@ class SmartKit {
         }
         return b;
       };
+      // Blocks already put on this page, and the ones its 2AC starter offers:
+      // neither is suggested again here. Re-read every pass (cheap), so an
+      // insert - yours or a partner's - retires every copy at once.
+      const used = usedTitles(sheet);
+      const taken = (m: BlockMatch) => {
+        const t = normTitle(m.block.title);
+        return used.has(t) || !!reserved?.has(`${sheet.id}\u0000${t}`);
+      };
+      const onPage: Suggestion[] = [];
       sheet.rows.forEach((row, r) => {
         for (let c = Math.max(0, sheet.startCol); c < speeches.length; c++) {
           const sp = speeches[c];
@@ -981,12 +1034,22 @@ class SmartKit {
           // part of the key: renaming a sheet can change what it matches.
           const col = colSpeech(to);
           const memoKey = `${sheet.id}\u0000${sheet.title}\u0000${sheet.kind}\u0000${col}\u0000${cell.text}`;
-          let matches = memo.get(memoKey);
-          if (!matches) {
+          let raw = memo.get(memoKey);
+          if (!raw) {
             const blocks = blocksInto(col);
-            matches = blocks.length ? matchBlocks(cell.text, blocks) : [];
-            memo.set(memoKey, matches);
+            // A few spare past the 3 shown: some drop out below (inserted, or
+            // better placed on another argument). One copy per title.
+            const seenT = new Set<string>();
+            raw = (blocks.length ? matchBlocks(cell.text, blocks, 8) : []).filter((m) => {
+              const t = normTitle(m.block.title);
+              if (seenT.has(t)) return false;
+              seenT.add(t);
+              return true;
+            });
+            memo.set(memoKey, raw);
           }
+          // A new array - the memo's is shared across passes.
+          const matches = raw.filter((m) => !taken(m));
           if (!matches.length) continue;
           // ⚠ ONE suggestion per reply cell. Both partners' lanes of the same
           // opponent speech answer into the same cell, so two arguments on one
@@ -996,10 +1059,10 @@ class SmartKit {
           const same = byKey.get(key);
           if (same) {
             same.said = `${same.said} / ${cell.text}`;
-            const seen = new Set(same.matches.map((m) => m.block.id));
-            same.matches = [...same.matches, ...matches.filter((m) => !seen.has(m.block.id))]
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 3);
+            const seen = new Set(same.matches.map((m) => normTitle(m.block.title)));
+            same.matches = [...same.matches, ...matches.filter((m) => !seen.has(normTitle(m.block.title)))].sort(
+              (a, b) => b.score - a.score,
+            );
             continue;
           }
           const s: Suggestion = {
@@ -1014,10 +1077,67 @@ class SmartKit {
             matches,
           };
           byKey.set(key, s);
-          out.push(s);
+          onPage.push(s);
         }
       });
+      // Once per page: each block is offered under the ONE argument it
+      // answers best, not under every argument it happens to match.
+      const pairs = onPage.flatMap((s) => s.matches.map((m) => ({ s, m })));
+      pairs.sort((a, b) => b.m.score - a.m.score);
+      const owner = new Map<string, Suggestion>();
+      for (const { s, m } of pairs) {
+        const t = normTitle(m.block.title);
+        if (!owner.has(t)) owner.set(t, s);
+      }
+      for (const s of onPage) {
+        s.matches = s.matches.filter((m) => owner.get(normTitle(m.block.title)) === s).slice(0, 3);
+        if (s.matches.length) out.push(s);
+      }
     }
+    return out;
+  }
+
+  // ---- which aff speech the tray is for -------------------------------------
+
+  setSpeechMode(mode: SpeechMode): void {
+    this.speechMode = mode;
+    this.persist();
+  }
+
+  /**
+   * The aff speech Smart blocks is helping with: picked by hand, or (auto) the
+   * 2AC until the neg block has anything flowed on any page, then the 1AR.
+   * Suggestions, the File/Overviews tabs and the starters all follow it.
+   */
+  answering(round: Round): "2AC" | "1AR" {
+    if (this.speechMode !== "auto") return this.speechMode;
+    const speeches = round.template.speeches;
+    const negFirst = speeches.findIndex((s) => s.side === "neg");
+    const to2AC = negFirst < 0 ? -1 : targetCol(speeches, negFirst, "aff", 0);
+    if (to2AC < 0) return "2AC";
+    // The neg speeches after the 2AC and before the next aff speech: the block.
+    const block: number[] = [];
+    for (let i = to2AC + 1; i < speeches.length && speeches[i].side !== "aff"; i++) {
+      if (speeches[i].side === "neg") block.push(i);
+    }
+    const flowed = round.sheets.some((s) => s.rows.some((r) => block.some((c) => filled(r.cells[c]))));
+    return flowed ? "1AR" : "2AC";
+  }
+
+  /** The aff speech a column is (2AC / 1AR), for the tray's filter. */
+  speechOfCol(round: Round, col: number): string {
+    return speechOfCol(round.template.speeches, col);
+  }
+
+  /** "Sheet \0 title" for each starter's block, for `suggestions(reserved)`. */
+  reservedFor(starters: Starter[]): Set<string> {
+    const out = new Set<string>();
+    const walk = (sheetId: string, n: DocNode) => {
+      if (isCardNode(n)) return;
+      out.add(`${sheetId}\u0000${normTitle(n.text)}`);
+      n.children.forEach((c) => walk(sheetId, c));
+    };
+    for (const st of starters) walk(st.sheetId, st.node);
     return out;
   }
 
