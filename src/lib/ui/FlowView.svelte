@@ -109,7 +109,15 @@
   });
   /** The argument-bank manager (edit what ⌘J draws from). */
   let showBank = $state(false);
-  let showPartner = $state(false);
+  /**
+   * Opens straight onto the partner panel when you open a partner flow (Aff or
+   * Neg picked on the home screen) that isn't connected yet - starting or
+   * joining a session is the first thing to do in one. Close it and carry on;
+   * it isn't forced again until the flow is next opened.
+   */
+  let showPartner = $state(
+    (store.round?.mySide === "aff" || store.round?.mySide === "neg") && !session.active,
+  );
   /**
    * The partner button has THREE states, not two.
    *
@@ -122,7 +130,27 @@
    * child of a block, never of a plain element.
    */
   const partnerOk = $derived(session.status === "connected" && session.peerOnline);
-  const partnerTrouble = $derived(session.active && !partnerOk);
+  /** A flow made for partner lanes (Aff/Neg side picked on the home screen),
+   *  as opposed to one flowed solo. */
+  const isPartnerFlow = $derived(
+    store.round?.mySide === "aff" || store.round?.mySide === "neg",
+  );
+  /**
+   * The button's colour. Green: live and healthy. Amber, blinking: live but
+   * lagging (reconnecting, edits queued, partner quiet). Red: a partner flow
+   * that is not connected - no session yet, still waiting/joining, or the
+   * partner is gone. Neutral only for a solo flow with no session.
+   */
+  const partnerState = $derived<"ok" | "lag" | "down" | "none">(
+    session.lagging
+      ? "lag"
+      : partnerOk
+        ? "ok"
+        : session.active || isPartnerFlow
+          ? "down"
+          : "none",
+  );
+  const partnerTrouble = $derived(partnerState === "lag" || partnerState === "down");
   /** Just the local part of the partner's email - a top-bar tab has no room
    *  for "reian@nimbusdebate.com's". */
   const peerFirstName = $derived.by(() => {
@@ -1425,22 +1453,35 @@
       <button
         class="icon-btn"
         class:active={showPartner}
-        class:live={partnerOk}
-        class:trouble={partnerTrouble}
+        class:live={partnerState === "ok"}
+        class:lagging={partnerState === "lag"}
+        class:trouble={partnerState === "down"}
         onclick={() => (showPartner = !showPartner)}
         title={session.active
-          ? partnerOk
+          ? partnerState === "ok"
             ? `Partner session ${session.code} - connected, edits are reaching ${session.peerEmail}`
-            : `Partner session ${session.code} - NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
-          : "Flow with a partner - share this flow live"}
-      ><Icon name={partnerOk ? "users" : partnerTrouble ? "alert" : "user"} /><span class="btn-lbl"
-        >{partnerOk
+            : partnerState === "lag"
+              ? `Partner session ${session.code} - connected but lagging. Edits are getting through slowly; open this panel for detail.`
+              : `Partner session ${session.code} - NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
+          : isPartnerFlow
+            ? "Not connected to your partner - click to start or join a session"
+            : "Flow with a partner - share this flow live"}
+      ><Icon name={partnerState === "ok" ? "users" : partnerTrouble ? "alert" : "user"} /><span class="btn-lbl"
+        >{partnerState === "ok"
           ? "Partner · live"
-          : partnerTrouble
-            ? session.status === "joining"
-              ? "Partner · joining"
-              : "Partner · reconnecting"
-            : "Partner flow"}</span
+          : partnerState === "lag"
+            ? "Partner · lagging"
+            : !session.active
+              ? isPartnerFlow
+                ? "Partner · not connected"
+                : "Partner flow"
+              : session.status === "hosting"
+                ? "Partner · waiting"
+                : session.status === "joining"
+                  ? "Partner · joining"
+                  : session.status === "connected"
+                    ? "Partner · offline"
+                    : "Partner · reconnecting"}</span
       ></button>
       <button class="icon-btn" onclick={() => (showManual = true)} title="Manual - how everything works"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
@@ -1893,14 +1934,29 @@
     color: #2e8b57;
     background: color-mix(in srgb, #2e8b57 16%, transparent);
   }
-  /* A live session that is NOT currently delivering. Deliberately loud: the
-     failure this replaces was silent, and amber next to the green "live" state
-     is the whole point - you must be able to tell them apart at a glance,
-     mid-speech, without reading the label. */
+  /* A partner flow that is NOT connected. Deliberately loud: the failure this
+     replaces was silent, and red next to the green "live" state is the whole
+     point - you must be able to tell them apart at a glance, mid-speech,
+     without reading the label. */
   .icon-btn.trouble {
-    border-color: #b8860b;
-    color: #b8860b;
-    background: color-mix(in srgb, #b8860b 18%, transparent);
+    border-color: #d1453b;
+    color: #d1453b;
+    background: color-mix(in srgb, #d1453b 16%, transparent);
+  }
+  /* Connected but lagging: amber, blinking, so a slow link is noticed without
+     being mistaken for a dead one. Holds steady for reduced-motion users. */
+  .icon-btn.lagging {
+    border-color: #c9920e;
+    color: #c9920e;
+    background: color-mix(in srgb, #c9920e 18%, transparent);
+    animation: partner-lag-blink 1.1s ease-in-out infinite;
+  }
+  @keyframes partner-lag-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .icon-btn.lagging { animation: none; }
   }
   .join-toast {
     position: fixed;

@@ -86,6 +86,13 @@ const FRAME_CHARS = 48_000;
 /** A peer that hasn't been heard from in this long is treated as gone. Presence
  *  leave events proved slow to arrive, so this is the authority, not presence. */
 const PEER_TIMEOUT_MS = 20_000;
+/**
+ * Silence from the partner, in ms, after which a live link reads as lagging.
+ * Two missed pings plus slack: one late ping is normal jitter, two is not.
+ */
+const LAG_MS = 11_000;
+/** How often `lagging` is re-evaluated while live. */
+const HEALTH_MS = 1_000;
 const PING_MS = 5_000;
 /** How often a guest re-asks to be let in while it waits. */
 const JOIN_RETRY_MS = 3_000;
@@ -497,6 +504,13 @@ class SessionStore {
   desynced = $state(false);
   /** Where your partner is right now. Null when they're gone or idle. */
   peerCursor = $state<PeerCursor | null>(null);
+  /**
+   * Live, but struggling: the socket is reconnecting, edits are sitting in the
+   * outbox, or the partner has gone quiet for longer than a ping or two. The
+   * partner button blinks amber on this - between "all good" and "not
+   * connected", which is where a slow tournament network actually lives.
+   */
+  lagging = $state(false);
 
   private ch: Channel | null = null;
   private clientId = crypto.randomUUID();
@@ -522,6 +536,7 @@ class SessionStore {
   private missed = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private ping: ReturnType<typeof setInterval> | null = null;
+  private health: ReturnType<typeof setInterval> | null = null;
   private lastHeard = 0;
   /** True while we are writing a remote change, so the diff loop doesn't
    *  immediately echo it back as if it were ours. */
@@ -743,7 +758,8 @@ class SessionStore {
   private reset(): void {
     if (this.timer) clearInterval(this.timer);
     if (this.ping) clearInterval(this.ping);
-    this.timer = this.ping = null;
+    if (this.health) clearInterval(this.health);
+    this.timer = this.ping = this.health = null;
     this.stopJoinRetry();
     this.admitted.clear();
     if (typeof document !== "undefined") {
@@ -777,6 +793,7 @@ class SessionStore {
     this.peerOnline = false;
     this.pending = null;
     this.queued = 0;
+    this.lagging = false;
     this.desynced = false;
     this.peerCursor = null;
     this.sentCursor = "";
@@ -891,6 +908,19 @@ class SessionStore {
         this.peerCursor = null;
       }
     }, PING_MS);
+    if (this.health) clearInterval(this.health);
+    this.health = setInterval(() => this.checkHealth(), HEALTH_MS);
+  }
+
+  /** Re-derive `lagging`. Cheap - a few comparisons - so it runs every second
+   *  rather than on the 5s ping, which would make a hiccup slow to show. */
+  private checkHealth(): void {
+    this.queued = this.ch?.pending ?? 0;
+    const silent = Date.now() - this.lastHeard;
+    this.lagging =
+      this.status === "reconnecting" ||
+      (this.status === "connected" &&
+        (this.queued > 0 || (this.peerOnline && silent > LAG_MS)));
   }
 
   // ---- publishing ---------------------------------------------------------

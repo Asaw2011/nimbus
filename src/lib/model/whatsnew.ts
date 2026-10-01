@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.1",
+    headline: "Partner flows open on the join screen, and the partner button shows the connection at a glance.",
+    items: [
+      "**Partner flows start on the partner screen.** Pick **With a partner · Aff** or **Neg** and start flowing, and the first thing you see is where to start or join a session. Close it any time to carry on.",
+      "**The partner button is color-coded.** **Green** when you're connected and everything is reaching your partner. **Blinking yellow** when the connection is lagging - reconnecting, or your partner has gone quiet for a few seconds. **Red** when a partner flow isn't connected at all.",
+    ],
+  },
+  {
     version: "1.5.0",
     headline: "Smart blocks grows up: files follow your side, your 2AC and 1AR each answer their own speech, and every off-case page can list its whole 2AC.",
     items: [
