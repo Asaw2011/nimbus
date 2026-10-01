@@ -110,13 +110,16 @@
   /** The argument-bank manager (edit what ⌘J draws from). */
   let showBank = $state(false);
   /**
-   * Opens straight onto the partner panel when you open a partner flow (Aff or
-   * Neg picked on the home screen) that isn't connected yet - starting or
-   * joining a session is the first thing to do in one. Close it and carry on;
-   * it isn't forced again until the flow is next opened.
+   * Opens straight onto the partner panel when you START a new partner flow
+   * (Aff or Neg picked on the home screen): starting or joining a session is the
+   * first thing to do in one. Only for a brand-new flow - `store.untouched` is
+   * true from "Start flowing" until the first edit - so reopening a flow you
+   * already made goes straight to it. Close the panel and carry on as usual.
    */
   let showPartner = $state(
-    (store.round?.mySide === "aff" || store.round?.mySide === "neg") && !session.active,
+    (store.round?.mySide === "aff" || store.round?.mySide === "neg") &&
+      store.untouched &&
+      !session.active,
   );
   /**
    * The partner button has THREE states, not two.
@@ -150,7 +153,6 @@
           ? "down"
           : "none",
   );
-  const partnerTrouble = $derived(partnerState === "lag" || partnerState === "down");
   /** Just the local part of the partner's email - a top-bar tab has no room
    *  for "reian@nimbusdebate.com's". */
   const peerFirstName = $derived.by(() => {
@@ -1466,7 +1468,7 @@
           : isPartnerFlow
             ? "Not connected to your partner - click to start or join a session"
             : "Flow with a partner - share this flow live"}
-      ><Icon name={partnerState === "ok" ? "users" : partnerTrouble ? "alert" : "user"} /><span class="btn-lbl"
+      ><Icon name={partnerState === "ok" ? "users" : partnerState === "lag" ? "alert" : "user"} /><span class="btn-lbl"
         >{partnerState === "ok"
           ? "Partner · live"
           : partnerState === "lag"

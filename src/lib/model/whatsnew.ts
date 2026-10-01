@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.2",
+    headline: "The partner screen only opens for new partner flows, and the red partner button keeps its person icon.",
+    items: [
+      "**Only new partner flows open on the partner screen.** Starting a new flow **With a partner** still takes you straight to start or join a session. Reopening a flow you already made goes right to the flow.",
+      "**The red partner button shows the person icon** instead of a warning sign when you're not connected.",
+    ],
+  },
+  {
     version: "1.5.1",
     headline: "Partner flows open on the join screen, and the partner button shows the connection at a glance.",
     items: [
