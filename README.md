@@ -16,9 +16,9 @@ Two design pillars, in priority order:
 2. **SMART** — doc-aware today (import `.docx` speech docs, and block
    suggestions from your own files), AI-assisted soon (see [Planned](#planned)).
 
-> **Status:** Nimbus is usable today for real rounds. The **AI features are not
-> built yet** — everything under [Planned](#planned) is a roadmap, not a
-> shipped feature.
+> **Status:** Nimbus is usable today for real rounds. The one AI feature that
+> ships is optional **Ask AI** help about *using the app* (see below); the
+> debate-side AI under [Planned](#planned) is a roadmap, not a shipped feature.
 
 ## Download
 
@@ -43,6 +43,15 @@ signed. If you are on 1.2.0 or earlier, grab the installer above once and you
 are done. Nimbus tells you what changed the first time you open a new version.
 
 ## What's in it today
+
+**Learning it**
+- **How do I…?** — the **?** button in a flow (`Ctrl+/`) answers in plain words:
+  type "drop", "send to doc" or "two flows at once" and get the steps, your
+  shortcut, and a button that does it. The full shortcut list lives there too
+- **Ask AI** (press Enter there) answers questions about using Nimbus from its
+  own help, and nothing else — it won't write arguments. Free, needs the
+  internet, and only your question is sent; offline it falls back to the search
+- **Try a sample round** on the home screen opens a filled-in practice flow
 
 **Flowing**
 - Excel-style grid — columns are speeches, rows are arguments; click anywhere

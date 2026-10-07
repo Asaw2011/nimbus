@@ -391,17 +391,19 @@
 
     <div class="tools">
       <!-- DOCX-IMPORT feature (removable - see import comment above) -->
-      <details class="tool">
-        <summary>Import speech doc (.docx)</summary>
+      <!-- Plain sections, always open: these are a few buttons, so a
+           collapse toggle only hid them. -->
+      <section class="tool">
+        <h3 class="tool-head">Import speech doc (.docx)</h3>
         <div class="tool-body">
           <p class="hint-line">Drop in their .docx - each position becomes a sheet, card tags become rows.</p>
           <DocImport />
         </div>
-      </details>
+      </section>
       <!-- /DOCX-IMPORT -->
 
-      <details class="tool">
-        <summary>Export &amp; convert</summary>
+      <section class="tool">
+        <h3 class="tool-head">Export &amp; convert</h3>
         <div class="tool-body">
           <div class="setup-row">
             <button class="chip" onclick={async () => { if (round && await exportExcel(round)) exportStatus = "Saved as Excel (.xlsx)"; }}>⊞ Excel (.xlsx)</button>
@@ -409,7 +411,7 @@
             <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
           </div>
         </div>
-      </details>
+      </section>
     </div>
   </div>
 {/if}
@@ -633,18 +635,11 @@
     border-radius: 8px;
     background: var(--panel);
   }
-  .tool > summary {
-    cursor: pointer;
+  .tool-head {
+    margin: 0;
     padding: 10px 14px;
     font-size: 13px;
     font-weight: 600;
-    list-style: none;
-    user-select: none;
-  }
-  .tool > summary::-webkit-details-marker {
-    display: none;
-  }
-  .tool[open] > summary {
     border-bottom: 1px solid var(--border);
   }
   .tool-body {

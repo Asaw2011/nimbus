@@ -984,7 +984,7 @@
     role="textbox"
     tabindex="0"
     spellcheck="false"
-    data-ph={isLabel ? "LABEL" : ""}
+    data-ph={isLabel ? "Page name" : ""}
     style={cell.marks?.color ? `color: ${cell.marks.color}` : ""}
     {oninput}
     {onkeydown}

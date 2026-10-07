@@ -19,6 +19,8 @@
   import type { Cell, Sheet } from "../model/types";
   import { pinchZoom } from "$lib/util/pinch";
   import Manual from "./Manual.svelte";
+  import HowDoI from "./HowDoI.svelte";
+  import type { HowRun } from "./howdoi";
   import QuickCardsPanel from "./QuickCardsPanel.svelte";
   import Timer from "./Timer.svelte";
   import { timerPop, type TimerState } from "./timerWindow.svelte";
@@ -26,12 +28,17 @@
   import PartnerPanel from "./PartnerPanel.svelte";
   import SmartTray from "$lib/smart/SmartTray.svelte";
   import { session } from "$lib/model/session.svelte";
+  import { sample } from "$lib/model/sample.svelte";
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
   import { cardmirror } from "$lib/doc/cardmirror.svelte";
 
   let { onexit }: { onexit: () => void } = $props();
 
-  let atHome = $state(true);
+  // A sample round opens straight onto its first page - the round home of an
+  // empty demo would show nothing worth trying.
+  const isSample = $derived(!!sample.roundId && sample.roundId === store.round?.id);
+  let sampleNoteClosed = $state(false);
+  let atHome = $state(!(sample.roundId && sample.roundId === store.round?.id && store.activeSheetId));
   let showHelp = $state(false);
   let showManual = $state(false);
   let showQuickCards = $state(false);
@@ -144,10 +151,12 @@
    * that is not connected - no session yet, still waiting/joining, or the
    * partner is gone. Neutral only for a solo flow with no session.
    */
-  const partnerState = $derived<"ok" | "lag" | "down" | "none">(
+  const partnerState = $derived<"ok" | "lag" | "away" | "down" | "none">(
     session.lagging
       ? "lag"
-      : partnerOk
+      : session.peerAway
+        ? "away"
+        : partnerOk
         ? "ok"
         : session.active || isPartnerFlow
           ? "down"
@@ -168,6 +177,31 @@
     if (sendFlashTimer) clearTimeout(sendFlashTimer);
     sendFlashTimer = setTimeout(() => (sendFlash = ""), 2200);
   }
+  /** Manual section to open at, when "How do I…?" sends you to it. */
+  let manualStart = $state<string | undefined>(undefined);
+
+  /**
+   * "Do it" from How do I…?: the same functions the buttons and shortcuts call,
+   * then a tip with the shortcut so next time it's one keypress. Opens things
+   * only - nothing here touches a cell, so cell key routing is never involved.
+   */
+  function runHowTo(run: HowRun, keyLabel: string) {
+    showHelp = false;
+    switch (run) {
+      case "doc": if (!docOpen) toggleDocPane(); break;
+      case "spread": if (spreadMode === "off") setSpread(lastSpread); break;
+      case "timer": if (timerPop.open) void timerPop.focus(); else showTimer = true; break;
+      case "search": showDocSearch = true; break;
+      case "home": atHome = true; break;
+      case "newSheet": openNewSheet(); break;
+      case "settings": showSettings = true; break;
+      case "partner": showPartner = true; break;
+      case "quick": showQuickCards = true; break;
+      case "bank": showBank = true; break;
+    }
+    if (keyLabel && keyLabel !== "-") flashSend(`Tip: next time press ${keyLabel}`);
+  }
+
   let showDocSearch = $state(false);
   let docOpen = $state(false);
   // Docked width is user-resizable and remembered across sessions. Can go
@@ -1406,7 +1440,7 @@
       ><Icon name={settings.compactTopBar ? "maximize" : "minimize"} /></button>
       <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})"><Icon name="doc" /><span class="btn-lbl">Speech doc</span></button>
       <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards - drag onto the flow"><Icon name="layers" /><span class="btn-lbl">Quick cards</span></button>
-      <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop running with the Nimbus plugin; the built-in doc always works offline.">
+      <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop 1.5.0 or newer running (no plugin); the built-in doc always works offline.">
         <span class="send-to-label">Send to</span>
         <button
           class="seg"
@@ -1457,6 +1491,7 @@
         class:active={showPartner}
         class:live={partnerState === "ok"}
         class:lagging={partnerState === "lag"}
+        class:away={partnerState === "away"}
         class:trouble={partnerState === "down"}
         onclick={() => (showPartner = !showPartner)}
         title={session.active
@@ -1464,16 +1499,22 @@
             ? `Partner session ${session.code} - connected, edits are reaching ${session.peerEmail}`
             : partnerState === "lag"
               ? `Partner session ${session.code} - connected but lagging. Edits are getting through slowly; open this panel for detail.`
-              : `Partner session ${session.code} - NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
+              : partnerState === "away"
+                ? `Partner session ${session.code} - your partner's Nimbus is ${session.peerHidden ? "minimized" : "quiet (it may be minimized)"}. You're still connected: everything you flow reaches them, and their edits arrive when they're back.`
+                : `Partner session ${session.code} - NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
           : isPartnerFlow
             ? "Not connected to your partner - click to start or join a session"
             : "Flow with a partner - share this flow live"}
-      ><Icon name={partnerState === "ok" ? "users" : partnerState === "lag" ? "alert" : "user"} /><span class="btn-lbl"
+      ><Icon name={partnerState === "ok" || partnerState === "away" ? "users" : partnerState === "lag" ? "alert" : "user"} /><span class="btn-lbl"
         >{partnerState === "ok"
           ? "Partner · live"
           : partnerState === "lag"
             ? "Partner · lagging"
-            : !session.active
+            : partnerState === "away"
+              ? session.peerHidden
+                ? "Partner · minimized"
+                : "Partner · away"
+              : !session.active
               ? isPartnerFlow
                 ? "Partner · not connected"
                 : "Partner flow"
@@ -1487,7 +1528,7 @@
       ></button>
       <button class="icon-btn" onclick={() => (showManual = true)} title="Manual - how everything works"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
-      <button class="icon-btn" onclick={() => (showHelp = !showHelp)} title="Keybinds ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">Keys</span></button>
+      <button class="icon-btn" class:active={showHelp} onclick={() => (showHelp = !showHelp)} title="How do I…? - search what you want to do, in plain words; the full shortcut list is in here too ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">How do I…</span></button>
     </div>
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
@@ -1504,6 +1545,12 @@
           class="flow-pane"
           use:pinchZoom={flowZoomOpts}
         >
+          {#if isSample && !sampleNoteClosed}
+            <div class="sample-note">
+              <span><b>This is a sample round.</b> Click any cell and type, try the keys, mark things, send cells to the speech doc - you can't break anything. It's only saved if you change something; delete it from the home screen when you're done.</span>
+              <button onclick={() => (sampleNoteClosed = true)} title="Hide this note">✕</button>
+            </div>
+          {/if}
           <!-- The formatting ribbon lives at the top of the FLOW column, not
                spanning the whole window - so with the doc open it locks over the
                flow only and the doc gets its own full-height column beside it. -->
@@ -1691,7 +1738,7 @@
     {/if}
 
     {#if showManual}
-      <Manual onclose={() => (showManual = false)} />
+      <Manual start={manualStart} onclose={() => { showManual = false; manualStart = undefined; }} />
     {/if}
 
     {#if showQuickCards}
@@ -1726,41 +1773,11 @@
     {/if}
 
     {#if showHelp}
-      <div class="help">
-        <h3>Keybinds</h3>
-        <table>
-          <tbody>
-            <tr><td><kbd>↵</kbd> / <kbd>↑↓</kbd></td><td>Move down / up a row</td></tr>
-            <tr><td><kbd>Tab</kbd> / <kbd>⇧Tab</kbd></td><td>Next / previous speech</td></tr>
-            <tr><td><kbd>⇧↵</kbd></td><td>New line inside a cell</td></tr>
-            <tr><td><kbd>{combosLabel(km.insertRowBelow, mac)}</kbd></td><td>Insert row below</td></tr>
-            <tr><td><kbd>{combosLabel(km.insertRowAbove, mac)}</kbd></td><td>Insert row above</td></tr>
-            <tr><td><kbd>{combosLabel(km.insertRow3Below, mac)}</kbd></td><td>Insert 3 rows below</td></tr>
-            <tr><td><kbd>{combosLabel(km.insertRow3Above, mac)}</kbd></td><td>Insert 3 rows above</td></tr>
-            <tr><td><kbd>{combosLabel(km.deleteRow, mac)}</kbd></td><td>Delete row</td></tr>
-            <tr><td><kbd>{combosLabel(km.clearCell, mac)}</kbd></td><td>Delete cell (row stays)</td></tr>
-            <tr><td><kbd>{combosLabel(km.jumpFilledUp, mac)}</kbd></td><td>Jump to filled cell above</td></tr>
-            <tr><td><kbd>{combosLabel(km.jumpFilledDown, mac)}</kbd></td><td>Jump to filled cell below</td></tr>
-            <tr><td><kbd>{combosLabel(km.extendArg, mac)}</kbd></td><td>Extend argument → next speech</td></tr>
-            <tr><td><kbd>{combosLabel(km.replyToArg, mac)}</kbd></td><td>Answer argument → your reply, linked for “AT:”</td></tr>
-            <tr><td><kbd>{combosLabel(km.markDropped, mac)}</kbd></td><td>Mark dropped</td></tr>
-            <tr><td><kbd>{combosLabel(km.markStarred, mac)}</kbd></td><td>Star (must answer)</td></tr>
-            <tr><td><kbd>{combosLabel(km.markAnalytic, mac)}</kbd></td><td>Mark analytic (ink color)</td></tr>
-            <tr><td><kbd>{combosLabel(km.markCard, mac)}</kbd></td><td>Mark card (ink color)</td></tr>
-            <tr><td><kbd>{mac ? "⌘" : "Ctrl"}1–9</kbd></td><td>Jump to sheet</td></tr>
-            <tr><td><kbd>{combosLabel(km.prevSheet, mac)}</kbd> / <kbd>{combosLabel(km.nextSheet, mac)}</kbd></td><td>Previous / next sheet</td></tr>
-            <tr><td><kbd>{combosLabel(km.moveSheetLeft, mac)}</kbd> / <kbd>{combosLabel(km.moveSheetRight, mac)}</kbd></td><td>Move sheet left / right</td></tr>
-            <tr><td><kbd>{mac ? "⌘" : "Ctrl"}C</kbd> / <kbd>{mac ? "⌘" : "Ctrl"}V</kbd></td><td>Copy / paste cells (Excel-style)</td></tr>
-            <tr><td><kbd>{combosLabel(km.openDocSearch, mac)}</kbd></td><td>Doc Search (search prep files)</td></tr>
-            <tr><td><kbd>{combosLabel(km.toggleSpread, mac)}</kbd></td><td>Spread view (tabs toggle sheets)</td></tr>
-            <tr><td><kbd>{combosLabel(km.toggleTimer, mac)}</kbd></td><td>Timer (stopwatch + countdown)</td></tr>
-            <tr><td><kbd>{combosLabel(km.goHome, mac)}</kbd></td><td>Round home</td></tr>
-            <tr><td><kbd>{combosLabel(km.newSheet, mac)}</kbd></td><td>New sheet</td></tr>
-            <tr><td><kbd>{combosLabel(km.openSettings, mac)}</kbd></td><td>Settings</td></tr>
-            <tr><td><kbd>trigger + space</kbd></td><td>Expand abbreviation (t/ → Turn:)</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <HowDoI
+        onclose={() => (showHelp = false)}
+        onrun={runHowTo}
+        onmanual={(sec) => { showHelp = false; manualStart = sec; showManual = true; }}
+      />
     {/if}
   </div>
 {/if}
@@ -1945,6 +1962,12 @@
     color: #d1453b;
     background: color-mix(in srgb, #d1453b 16%, transparent);
   }
+  /* Partner minimized / quiet but still connected: calm grey with a soft green
+     edge - nothing is wrong, so nothing should look like a warning. */
+  .icon-btn.away {
+    border-color: color-mix(in srgb, #2e8b57 45%, var(--border));
+    color: var(--text-dim);
+  }
   /* Connected but lagging: amber, blinking, so a slow link is noticed without
      being mistaken for a dead one. Holds steady for reduced-motion users. */
   .icon-btn.lagging {
@@ -1993,6 +2016,26 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  .sample-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+    border-bottom: 1px solid var(--border);
+  }
+  .sample-note span { flex: 1; }
+  .sample-note button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
   }
   .zoom-wrap {
     flex: 1;
@@ -2348,34 +2391,6 @@
     padding: 6px;
     cursor: pointer;
     font-weight: 600;
-  }
-  .help {
-    position: fixed;
-    right: 12px;
-    bottom: 12px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 18px;
-    z-index: 10;
-    font-size: 12px;
-    max-height: calc(100vh - 24px);
-    overflow-y: auto;
-  }
-  .help h3 {
-    margin: 0 0 8px;
-    font-size: 13px;
-  }
-  .help td {
-    padding: 2px 8px 2px 0;
-    color: var(--text-dim);
-  }
-  kbd {
-    background: var(--kbd-bg);
-    border: 1px solid var(--kbd-border);
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-size: 11px;
   }
 
   /* ⚠ LAST IN THE FILE, deliberately. These re-state `.icon-btn` at the same

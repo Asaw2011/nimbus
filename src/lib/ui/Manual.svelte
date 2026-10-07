@@ -4,7 +4,11 @@
   import { settings } from "../model/settings.svelte";
   import { combosLabel } from "../model/keymap";
 
-  let { onclose }: { onclose: () => void } = $props();
+  import { onMount } from "svelte";
+
+  /** `start`: a section id to open at ("smart", "partner"…) - "How do I…?"
+   *  links straight to the part of the manual it summarizes. */
+  let { onclose, start }: { onclose: () => void; start?: string } = $props();
   const mac = settings.isMac;
   const km = $derived(settings.keymap);
   const mod = mac ? "⌘" : "Ctrl";
@@ -43,6 +47,12 @@
     active = id;
     bodyEl?.querySelector(`#sec-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  onMount(() => {
+    if (start && SECTIONS.some((s) => s.id === start)) {
+      active = start;
+      bodyEl?.querySelector(`#sec-${start}`)?.scrollIntoView({ block: "start" });
+    }
+  });
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
@@ -95,7 +105,7 @@
           <ul>
             <li><b>Enter</b> / <b>↓</b> - next row. <b>Tab</b> - next speech. Arrows move the cursor.</li>
             <li><kbd>{mod}</kbd>+arrows / the ribbon insert & delete rows.</li>
-            <li><b>Row 0 of a sheet</b> is the LABEL cell - typing it renames the sheet everywhere.</li>
+            <li><b>Row 0 of a sheet</b> is the page-name cell (it says "Page name" while empty) - typing in it renames the sheet everywhere.</li>
             <li>Paste from anywhere - it's standardized to <b>plain text</b> and takes the column's color. Multi-cell (tabs/newlines) spreads across cells like Excel.</li>
             <li><b>Undo / redo</b>: <kbd>{mod}Z</kbd> / <kbd>{mod}⇧Z</kbd> - 300 steps deep.</li>
           </ul>
@@ -108,7 +118,7 @@
             <li><b>New sheet</b>: <kbd>{combosLabel(km.newSheet, mac)}</kbd>, or the <b>+</b> tab.</li>
             <li><b>Switch</b>: <kbd>{combosLabel(km.prevSheet, mac)}</kbd> / <kbd>{combosLabel(km.nextSheet, mac)}</kbd>, or <kbd>{mod}1</kbd>–<kbd>{mod}9</kbd> to jump.</li>
             <li><b>Reorder</b>: drag a tab, or <kbd>{combosLabel(km.moveSheetLeft, mac)}</kbd> / <kbd>{combosLabel(km.moveSheetRight, mac)}</kbd>.</li>
-            <li><b>Rename / delete</b>: right-click a tab, or edit its LABEL cell.</li>
+            <li><b>Rename / delete</b>: right-click a tab, or edit its page-name cell (the top row).</li>
             <li>Off-case pages start at the 1NC column; overviews at the block - no wasted columns, like a Verbatim template.</li>
           </ul>
           <h3>Cross-ex</h3>
@@ -251,6 +261,13 @@
               says <b>reconnecting</b> - keep flowing, and everything you write
               is sent as soon as it comes back. It only says <b>live</b> when
               your partner is actually there.
+            </li>
+            <li>
+              <b>Grey "minimized" or "away"</b> means your partner's Nimbus is
+              minimized or quiet - giving a speech in CardMirror, say. You're
+              still connected and nothing is lost: everything you flow reaches
+              them, and their edits arrive when they're back. It turns red only
+              if their Nimbus actually disconnects.
             </li>
             <li>
               <b>Rejoining.</b> Reopen a flow you were sharing and the partner
@@ -421,7 +438,7 @@
             The speech doc <b>is</b> CardMirror: it uses CardMirror's real schema,
             importer, and exporter, so cards render and round-trip identically
             (highlight = spoken, underline = the cut, emphasis = boxed power word,
-            small = unread). Open it with <kbd>{mod}D</kbd> or the Speech doc button.
+            small = unread). Open it with <kbd>{combosLabel(km.toggleDoc, mac)}</kbd> or the Speech doc button.
           </p>
           <p class="foot">
             CardMirror is by Anthony Trufanov - Required Notice: Copyright &copy; 2026

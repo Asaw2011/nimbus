@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated September 2026*
+*Last updated October 2026*
 
 Nimbus Flow is a small, independent beta project. This page explains, in plain
 terms, what happens with your information. A matching version lives on the
@@ -44,11 +44,15 @@ is no feature that uploads them, because the ability to do so was never built.
   to you, on your computer.
 
 The only information that ever leaves your device is (1) your login, described
-above, and (2) when you *choose* to flow live with your partner, the cells of
+above, (2) when you *choose* to flow live with your partner, the cells of
 that one shared flow are passed between the two of you through a realtime relay
 so your partner can see them as you type. That relay carries only the flow you
 are actively sharing — never your stored files, prep, or other flows — it passes
-the data through rather than storing it, and only your partner receives it.
+the data through rather than storing it, and only your partner receives it, and
+(3) when you press **Ask AI** in *How do I…?*, the question you typed is sent,
+together with Nimbus's own built-in help text, to an AI model run by Cloudflare
+so it can answer. Nothing else goes with it — no flow, file or prep — and we
+don't store the questions. If you never press Ask AI, nothing is sent.
 
 ## Open source — don't take our word for it
 

@@ -1,0 +1,39 @@
+# Nimbus "How do I…?" AI help.
+#
+# A SEPARATE Worker from the relay on purpose: deploying it never touches the
+# relay, so it can't drop anyone's partner session.
+#
+# Deploy: `npx.cmd wrangler deploy` from this folder, signed in to the account
+# that owns the Nimbus domain. Nothing here is secret - the Supabase URL and
+# publishable key are already compiled into every Nimbus build.
+
+name = "nimbus-ask"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+routes = [{ pattern = "ask.nimbusdebate.com", custom_domain = true }]
+
+[ai]
+binding = "AI"
+
+[vars]
+# THE SWITCH. Anything but "on" answers every question with "use the search"
+# (the app falls back on its own). Change it in the dashboard - no app update.
+ASK_MODE = "on"
+# Neurons per UTC day this Worker may spend. Cloudflare gives 10,000 free per
+# day per ACCOUNT and bills anything past it on the paid plan, so this stays
+# well under: the rest is margin. Never raise it past 10000 - Adam's rule is
+# that this feature must cost nothing, ever.
+DAILY_NEURON_CAP = "8000"
+# Questions per person per day.
+PER_USER_DAILY = "20"
+SUPABASE_URL = "https://oovgzakdweswenhohgwh.supabase.co"
+SUPABASE_KEY = "sb_publishable_4xgCsUBklrsJUOspF4a6VA_maYxtlHg"
+
+[[durable_objects.bindings]]
+name = "BUDGET"
+class_name = "Budget"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Budget"]

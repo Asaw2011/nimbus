@@ -375,12 +375,12 @@
       ondrop={onDrop}
     >
       <div class="tray-head">
-        <button class:on={tab === "suggest"} onclick={() => (tab = "suggest")}>
+        <button class:on={tab === "suggest"} onclick={() => (tab = "suggest")} title="Blocks from your files that answer the arguments on this page - click one to put it in your next speech">
           Suggestions{list.length ? ` (${list.length})` : ""}
         </button>
-        <button class:on={tab === "overviews"} onclick={() => (tab = "overviews")}>Overviews</button>
-        <button class:on={tab === "file"} onclick={() => (tab = "file")}>File</button>
-        <button class:on={tab === "kit"} onclick={() => (tab = "kit")}>
+        <button class:on={tab === "overviews"} onclick={() => (tab = "overviews")} title="Overview blocks for this page - the first block under each 'Main' heading in its file">Overviews</button>
+        <button class:on={tab === "file"} onclick={() => (tab = "file")} title="Browse this page's file and click or drag any block onto the flow">File</button>
+        <button class:on={tab === "kit"} onclick={() => (tab = "kit")} title="Your kit: the files Nimbus uses for this round. Add files here and pick which page uses which file">
           Kit{smartKit.all.length ? ` (${smartKit.all.length})` : ""}
         </button>
         <span class="beta">BETA</span>
@@ -633,7 +633,7 @@
                   {:else}
                     <span class="copytag casetag" title="When you're aff: only suggested into your 2AC. Advantage pages use the sections picked here; each off-case page uses its own section.">2AC</span>
                   {/if}
-                  <button class="advuse" class:empty={adv.empty} class:open={pickingFor === f.key} onclick={() => openPicker(f.key)} title="Which parts of this file your advantage pages use">
+                  <button class="advuse" class:empty={adv.empty} class:open={pickingFor === f.key} onclick={() => openPicker(f.key)} title="Which sections of this file Nimbus answers from on your advantage pages - your Case and Turns pockets, say. 'Auto' picks case-named sections and any section named for the advantage.">
                     Adv pages use:
                     {#if adv.empty}<b>nothing yet - pick sections</b>{:else}<b>{adv.text}</b>{#if adv.auto}<span class="dim">{" (auto)"}</span>{/if}{/if}
                     <span class="dim">▾</span>

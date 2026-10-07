@@ -316,8 +316,11 @@ const KEY_LABELS_MAC: Record<string, string> = {
   arrowleft: "←",
   arrowright: "→",
   " ": "Space",
+  // Most people have never heard of "backtick"; say where the key is.
+  "`": "` (left of 1)",
 };
 const KEY_LABELS_WIN: Record<string, string> = {
+  "`": "` (left of 1)",
   enter: "Enter",
   backspace: "Backspace",
   delete: "Delete",

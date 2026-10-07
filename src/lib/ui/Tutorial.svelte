@@ -54,14 +54,24 @@
         macros for one-key argument blocks.
       </div>
       <div class="item">
-        <span class="k">Read the manual</span>
-        The <b>Manual</b> button in the top bar explains every feature:
-        flow, speech doc, shortcuts, and settings.
+        <span class="k">Stuck? Ask</span>
+        <b>? How do I…</b> in a flow's top bar answers in plain words - "drop",
+        "send to doc", "partner" - and opens the thing for you.
+      </div>
+      <div class="item">
+        <span class="k">Coming from Excel?</span>
+        <b>Open a flow</b> on the home screen opens your .xlsx flows
+        (Verbatim's too), and you can save back to Excel any time.
       </div>
     </div>
 
     <div class="actions">
       <button class="primary" onclick={onclose}>Start flowing</button>
+      <button
+        class="ghost"
+        title="Opens a filled-in practice flow. Nothing is saved unless you change something."
+        onclick={() => { onclose(); window.dispatchEvent(new Event("nimbus:sample")); }}
+      >Try a sample round</button>
       <button class="ghost" onclick={dismissForever}>Don't show this again</button>
     </div>
     <p class="foot">

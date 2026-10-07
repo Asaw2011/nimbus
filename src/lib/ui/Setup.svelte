@@ -64,6 +64,7 @@
           Excel (.xlsx) - opens in spreadsheets
         </button>
       </div>
+      <p class="hint">Already flow in Excel? Pick Excel here, and use <b>Open a flow</b> on the home screen to open the flows you have (Verbatim's too).</p>
     </section>
 
     <button class="start" onclick={finish}>Get started</button>
@@ -179,6 +180,12 @@
     background: color-mix(in srgb, var(--accent) 14%, var(--bg));
     color: var(--text);
     font-weight: 600;
+  }
+  .hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-dim);
   }
   .start {
     margin-top: 6px;

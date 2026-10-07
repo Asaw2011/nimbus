@@ -666,8 +666,8 @@
               class="lane-hide"
               class:restoring={restores}
               title={restores
-                ? "Bring the other lane back"
-                : `Collapse ${otherLane ? "your partner's" : "your"} lane - view only, it changes nothing you send to the doc`}
+                ? "Bring the other column back"
+                : `Collapse ${otherLane ? "your partner's" : "your"} column - view only, it changes nothing you send to the doc`}
               onclick={(e) => { e.stopPropagation(); store.toggleLane(speech.id); }}
             >{restores ? "⇥" : "⇤"}</button>
           {/if}

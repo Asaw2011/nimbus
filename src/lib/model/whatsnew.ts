@@ -24,6 +24,21 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.3",
+    headline: "Ask Nimbus how to do anything, try a sample round, and partner flowing stops crying wolf when someone minimizes.",
+    items: [
+      "**How do I…?** The **?** button at the top right of a flow (or **Ctrl+/**) now answers in plain words. Type what you want to do - \"drop\", \"send to doc\", \"two flows at once\" - and get the steps, your shortcut, and a button that does it for you. The full shortcut list is still in there.",
+      "**Ask AI.** Press **Enter** in How do I…? and an AI answers your question from Nimbus's own help - only about using the app, never your arguments. It's free, needs the internet, and only your question is sent - never your flows or files. Without internet it falls back to the normal search.",
+      "**Try a sample round.** New to Nimbus? **Try a sample round** on the home screen opens a filled-in practice flow to click around in. It's only saved if you change something.",
+      "**A minimized partner isn't a dropped partner.** When your partner minimizes Nimbus or switches to CardMirror for a speech, their partner button now turns **grey - \"minimized\"** instead of blinking yellow and then red. You're still connected and nothing is lost. It turns red only if their Nimbus actually disconnects.",
+      "**1NC pages get their names.** When every block is labelled \"1NC---OFF\" and the position's name is written underneath - as a plain line or a tag with no card (\"Midterms DA\", \"STATES CP.\") - that becomes the page's name instead of leaving it untitled.",
+      "**K affs import as one page.** A 1AC that's one big block of cards now becomes a single advantage page, instead of one page per card.",
+      "**The plan isn't a page.** Importing a 1AC lists its Plan section unticked, so it doesn't become an advantage page unless you tick it.",
+      "**Import and Export are always open** on the round page - no more expanding them first.",
+      "**Plainer words.** The empty top cell of a page says **Page name**, the send key shows as **` (left of 1)**, partner lanes are called **columns**, and the Smart blocks tabs explain themselves on hover.",
+    ],
+  },
+  {
     version: "1.5.2",
     headline: "The partner screen only opens for new partner flows, and the red partner button keeps its person icon.",
     items: [

@@ -5,7 +5,7 @@
   // Import an opponent's speech doc: each selected top-level section becomes
   // a sheet, its heading tree becomes rows in the chosen speech column.
 
-  import { parseDocx, flowLines, flowRows, guessTargetSheet, positionSections, sectionTitles, collectArguments, type ParsedDoc, type DocNode } from "./parse";
+  import { parseDocx, flowLines, flowRows, guessTargetSheet, positionSections, sectionTitles, cleanSectionTitle, collectArguments, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow, type Cell } from "../model/types";
 
@@ -52,6 +52,14 @@
     // whole). This fixes a 1NC collapsing its whole off-case block into one sheet.
     const positions = positionSections(roots);
     if (positions.length >= 2) return positions;
+    // One position holding only card tags is the whole speech - a K aff that
+    // is a single block. It's one sheet; splitting by level would make every
+    // card its own page.
+    if (positions.length === 1 && positions[0].level < 4 &&
+        positions[0].children.length > 0 &&
+        positions[0].children.every((c) => c.isAnalytic || c.level >= 4)) {
+      return positions;
+    }
     for (const level of [1, 2, 3, 4] as const) {
       const at = nodesAtLevel(roots, level);
       if (at.length >= 3) return at;
@@ -62,6 +70,15 @@
       unwrapped = unwrapped[0].children;
     }
     return unwrapped.length >= 2 ? unwrapped : roots;
+  }
+
+  /**
+   * A 1AC's plan text ("Plan", "Plan Text", "The Plan"). Listed so it can still
+   * be imported, but unticked by default: nobody flows the plan as an advantage.
+   */
+  function isPlan(title: string): boolean {
+    const t = title.toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
+    return /^(the )?plan( text)?$/.test(t);
   }
 
   /** Re-apply the current split level to the raw tree. */
@@ -167,8 +184,8 @@
         parsed = base; // raw result only; the split lives in `sections`
         const nodes = applySplit(rawNodes, "auto");
         sections = nodes;
-        checked = nodes.map(() => true);
         const t = sectionTitles(nodes);
+        checked = nodes.map((n, i) => !isPlan(t[i] ?? "") && !isPlan(cleanSectionTitle(n.text)));
         titles = t;
         // Guess where each section belongs: an answer doc ("AT: Cap K")
         // matches the existing Cap K sheet; unmatched sections make new ones.
@@ -223,7 +240,7 @@
     const sheets = store.round?.sheets ?? [];
     const t = sectionTitles(nodes);
     sections = nodes;
-    checked = nodes.map(() => true);
+    checked = nodes.map((n, i) => !isPlan(t[i] ?? "") && !isPlan(cleanSectionTitle(n.text)));
     titles = t;
     targets = nodes.map((n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new");
   }
@@ -287,9 +304,15 @@
             // same line comes back as the first flow row - the label cell would
             // then print it twice. Drop the exact duplicate. A row whose text
             // differs (e.g. it carries a cite author, "Zhao '7-14  Hikes…") is
-            // kept: it adds information the label doesn't have.
+            // kept: it adds information the label doesn't have. A trailing
+            // period and capitals don't count as a difference: "MIDTERMS DA."
+            // as a card-less tag becomes the title "MIDTERMS DA".
+            const sameLine = (a: string, b: string) =>
+              a.trim().replace(/\.+$/, "").trim().toLowerCase() === b.trim().toLowerCase();
             const body =
-              title.trim() && rows[0]?.text.trim() === title.trim() ? rows.slice(1) : rows;
+              title.trim() && rows[0] && !rows[0].author && sameLine(rows[0].text, title)
+                ? rows.slice(1)
+                : rows;
             const sheet = makeSheet(
               title,
               nCols,

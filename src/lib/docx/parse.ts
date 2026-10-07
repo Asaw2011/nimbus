@@ -390,8 +390,18 @@ export function cleanSectionTitle(raw: string): string {
  */
 export function positionSections(roots: DocNode[]): DocNode[] {
   // Unwrap a single top wrapper (e.g. the doc title) down to where breadth begins.
+  //
+  // ⚠ Stop at a heading whose children are all card tags: that heading IS the
+  // position. A K aff is often one block ("1AC---Yellow Matter") holding every
+  // card; unwrapping past it turned each tag into its own untitled sheet.
+  const holdsPositions = (n: DocNode) => n.children.some((c) => !c.isAnalytic && c.level < 4);
   let level = roots;
-  while (level.length === 1 && level[0].children.length > 0 && (level[0].body?.length ?? 0) === 0) {
+  while (
+    level.length === 1 &&
+    level[0].children.length > 0 &&
+    (level[0].body?.length ?? 0) === 0 &&
+    holdsPositions(level[0])
+  ) {
     level = level[0].children;
   }
   const out: DocNode[] = [];
@@ -445,6 +455,36 @@ function isNameLike(t: string): boolean {
   return true;
 }
 
+/** A word that names what KIND of position this is ("Midterms DA", "T-NHI"). */
+const POSITION_MARKER = /^(da|das|disad|disads|disadvantage|cp|cps|pic|pics|counterplan|k|ks|kritik|t|theory|fw|framework)$/i;
+
+/**
+ * Is this a 1NC's position label - "States CP", "T-NHI.", "MIDTERMS DA." -
+ * written as a plain line or a card-less tag rather than a heading?
+ *
+ * Stricter than isNameLike, because the candidate is a line the author did not
+ * style as a heading: a trailing period is forgiven (people end tags with one),
+ * but it must be at most 3 words, or 4 when one of them is a position marker
+ * (DA, CP, K, T…). "They're single-payer." and plan texts stay rows.
+ */
+function positionLabel(raw: string): string {
+  const t = raw.trim().replace(/\.+$/, "").trim();
+  if (!isNameLike(t)) return "";
+  const words = t.split(/[\s\-–—]+/).filter(Boolean);
+  const marked = words.some((w) => POSITION_MARKER.test(w));
+  return words.length <= 3 || (marked && words.length <= 4) ? t : "";
+}
+
+/** The first card/analytic tag node beneath a section, in document order. */
+function firstTagNode(node: DocNode): DocNode | undefined {
+  for (const child of node.children) {
+    if ((child.isAnalytic || child.level >= 4) && child.text.trim()) return child;
+    const deeper = firstTagNode(child);
+    if (deeper) return deeper;
+  }
+  return undefined;
+}
+
 /**
  * Display title per section. A cleaned title is kept as-is UNLESS it's useless
  * as a sheet name - either generic ("OFF", "1NC") or shared by 2+ sections (the
@@ -471,6 +511,16 @@ export function sectionTitles(sections: DocNode[]): string[] {
     const useless =
       generic.has(key) || (counts.get(key) ?? 0) >= 2 || !isNameLike(clean);
     if (!useless) return clean;
+    // Many 1NCs label every block "1NC---OFF" and write the position's name
+    // just under it - as a plain line ("States CP") or as a tag with no card
+    // ("MIDTERMS DA."). Take it when it plainly is a name.
+    const plain = s.body[0] ? positionLabel(s.body[0]) : "";
+    if (plain) return plain;
+    const tag = firstTagNode(s);
+    if (tag && !tag.isAnalytic && !tag.body.length && !citeTextOf(tag)) {
+      const label = positionLabel(tag.text);
+      if (label) return label;
+    }
     // Not a usable name - fall back to the first tagline, but only if it reads
     // like a label. A full sentence is left untitled instead.
     const first = firstTagText(s);

@@ -92,7 +92,7 @@
               <input type="radio" value="shared" bind:group={hostMode} />
               <span>
                 <strong>One flow, together</strong>
-                <em>You both flow the same page. Split lanes if this flow has them.</em>
+                <em>You both flow the same page - in a column each, if this flow has split columns.</em>
               </span>
             </label>
             <label class="pp-mode" class:sel={hostMode === "separate"}>
@@ -150,10 +150,16 @@
       <div class="pp-live">
         <span class="pp-dot" class:on={session.peerOnline}></span>
         <div>
-          <div><strong>{session.peerEmail}</strong> - {session.peerOnline ? "connected" : "reconnecting…"}</div>
+          <div><strong>{session.peerEmail}</strong> - {session.peerOnline
+              ? session.peerAway
+                ? session.peerHidden
+                  ? "connected · their Nimbus is minimized"
+                  : "connected · quiet (may be minimized)"
+                : "connected"
+              : "reconnecting…"}</div>
           <div class="pp-sub">
             Room {session.code} · {session.mode === "separate" ? "a flow each" : "one shared flow"}
-            {#if laneName}· your lane is <strong>{laneName}</strong>{/if}
+            {#if laneName}· your column is <strong>{laneName}</strong>{/if}
             {#if session.queued > 0}· {session.queued} edits waiting to send{/if}
           </div>
         </div>

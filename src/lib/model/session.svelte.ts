@@ -511,7 +511,27 @@ class SessionStore {
    * connected", which is where a slow tournament network actually lives.
    */
   lagging = $state(false);
+  /**
+   * The partner's Nimbus says its window is hidden (minimized, or behind
+   * CardMirror on a Mac Space). A hidden window's timers are throttled to about
+   * once a minute, so its pings slow down too - silence from it means nothing.
+   * Sent in their ping; a build without it never sets this.
+   */
+  peerHidden = $state(false);
+  /** The transport's presence list still holds the partner's connection. */
+  peerPresent = $state(false);
+  /**
+   * Our side is healthy and the partner is still connected, just quiet:
+   * minimized, giving a speech in another app. The button goes grey, never
+   * amber or red - people mid-round were reading "offline" as lost work.
+   *
+   * ⚠ Display only. Nothing that sends, applies or decides "delivered" reads it.
+   */
+  peerAway = $state(false);
 
+  /** Presence has listed the partner at least once, so its absence means
+   *  something. Supabase presence can be absent entirely; then it's ignored. */
+  private presenceSeen = false;
   private ch: Channel | null = null;
   private clientId = crypto.randomUUID();
   /** One shadow per open document - a separate-flows session diffs both. */
@@ -794,6 +814,10 @@ class SessionStore {
     this.pending = null;
     this.queued = 0;
     this.lagging = false;
+    this.peerHidden = false;
+    this.peerPresent = false;
+    this.peerAway = false;
+    this.presenceSeen = false;
     this.desynced = false;
     this.peerCursor = null;
     this.sentCursor = "";
@@ -857,6 +881,8 @@ class SessionStore {
         onMessage: (event, payload) => this.onMessage(event, payload),
         onPresence: (peers: PresencePeer[]) => {
           const others = peers.filter((p) => p.key !== this.clientId);
+          this.peerPresent = others.length > 0;
+          if (others.length) this.presenceSeen = true;
           if (others.length && !this.peerEmail) {
             this.peerEmail = String(others[0].meta.email ?? "your partner");
           }
@@ -886,7 +912,18 @@ class SessionStore {
     // and the server may have dropped us without the socket noticing.
     this.ch?.ensureFresh();
     this.publish();
+    // Tell the partner straight away when we go hidden (or come back), so
+    // their button says "minimized" instead of counting our slowed pings as
+    // trouble. AFTER publish, so a delta flushed here can't land after it.
+    if (this.status === "connected") this.sendPing();
   };
+
+  private sendPing(): void {
+    this.ch?.broadcast("ping", {
+      clientId: this.clientId,
+      hidden: typeof document !== "undefined" && document.hidden,
+    });
+  }
 
   private goLive(): void {
     this.stopJoinRetry();
@@ -899,13 +936,15 @@ class SessionStore {
     this.timer = setInterval(() => this.publish(), DIFF_MS);
     this.ping = setInterval(() => {
       this.ch?.ensureFresh();
-      this.ch?.broadcast("ping", { clientId: this.clientId });
+      this.sendPing();
       this.queued = this.ch?.pending ?? 0;
       if (this.peerOnline && Date.now() - this.lastHeard > PEER_TIMEOUT_MS) {
         // A marker for someone who has gone quiet is worse than none - it
         // says they are somewhere they may have left minutes ago.
-        this.peerOnline = false;
         this.peerCursor = null;
+        // But quiet is not gone: a minimized partner is still connected, and
+        // marking them offline mid-speech is what made people panic.
+        if (!this.peerAway) this.peerOnline = false;
       }
     }, PING_MS);
     if (this.health) clearInterval(this.health);
@@ -917,10 +956,16 @@ class SessionStore {
   private checkHealth(): void {
     this.queued = this.ch?.pending ?? 0;
     const silent = Date.now() - this.lastHeard;
-    this.lagging =
-      this.status === "reconnecting" ||
-      (this.status === "connected" &&
-        (this.queued > 0 || (this.peerOnline && silent > LAG_MS)));
+    const connected = this.status === "connected";
+    // Trouble on OUR side: amber, as before.
+    const ours = this.status === "reconnecting" || (connected && this.queued > 0);
+    // Still there? Presence is the transport's own view of their socket, which
+    // stays open while their timers crawl. Without presence (it never listed
+    // them) fall back to their own word that they are hidden.
+    const there = this.presenceSeen ? this.peerPresent : this.peerHidden;
+    this.peerAway =
+      connected && !ours && there && (this.peerHidden || silent > LAG_MS);
+    this.lagging = ours || (connected && this.peerOnline && silent > LAG_MS && !this.peerAway);
   }
 
   // ---- publishing ---------------------------------------------------------
@@ -1280,6 +1325,7 @@ class SessionStore {
         const doc = String(p.doc ?? "");
         const sheet = String(p.sheet ?? "");
         if (!doc || !sheet) return;
+        this.peerHidden = false; // moving their cursor = their window is up
         this.peerCursor = {
           doc, sheet,
           row: Number(p.row ?? 0),
@@ -1291,9 +1337,13 @@ class SessionStore {
       }
       case "bye":
         this.peerOnline = false;
+        this.peerHidden = false;
+        this.peerAway = false;
         this.peerCursor = null;
         return;
       case "ping":
+        // Older builds send no `hidden`, which reads as "not hidden".
+        this.peerHidden = p.hidden === true;
         return;
     }
   }
