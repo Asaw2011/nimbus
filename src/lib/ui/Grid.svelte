@@ -18,6 +18,21 @@
 
   const speeches = $derived(store.round?.template.speeches ?? []);
   const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+  /** The visible width of the flow, so the tip bar fits the screen rather
+   *  than the full (horizontally scrolling) width of every column. */
+  let viewW = $state(0);
+  $effect(() => {
+    const el = scroller;
+    if (!el || !showAnsTip) return;
+    const ro = new ResizeObserver(() => (viewW = el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+  /** The one-time answer-numbers tip: only on a page that has a numbered column. */
+  const showAnsTip = $derived(
+    !spread && settings.answerNumbers && !settings.answerNumbersTipSeen && !!store.round &&
+      answerNumbers.numberedCols(store.round, sheet).length > 0,
+  );
   /** The "Now answering" chip's tooltip, with the user's own keys. */
   const ansKeysTip = $derived(
     `Your next answer gets this number, then it moves on by itself. ‹ › to skip around (${combosLabel(settings.keymap.answerPrev, isMac)} / ${combosLabel(settings.keymap.answerNext, isMac)}), + to group.`,
@@ -705,6 +720,16 @@
         {/if}
       </div>
     {/each}
+    {#if showAnsTip}
+      <!-- Shown once, the first time a numbered column appears: the two things
+           nobody would guess - the badge is clickable, and "No number" exists.
+           Part of the sticky header row, so it pushes the flow down instead of
+           covering anything, and can't be clipped at a window edge. -->
+      <div class="ans-tip" role="note" style={viewW ? `width: ${viewW}px` : ""}>
+        <span><b>Answer numbers:</b> each answer you add gets the next number. <b>Click a number</b> to change it, or press <b>No number</b> for an overview (it keeps its own heading). <b>‹ ›</b> and <b>+</b> on the column header skip ahead or group.</span>
+        <button onclick={() => { settings.answerNumbersTipSeen = true; settings.save(); }}>Got it</button>
+      </div>
+    {/if}
   </div>
   {#each sheet.rows as row, r (row.id)}
     {@const tracks = rowTracks(row)}
@@ -886,6 +911,38 @@
     color: inherit;
     cursor: pointer;
     opacity: 0.7;
+  }
+  /* A full-width row of the sticky header grid. */
+  .ans-tip {
+    grid-column: 1 / -1;
+    /* Stays in view while the columns scroll sideways under it. */
+    position: sticky;
+    left: 0;
+    justify-self: start;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .ans-tip span {
+    flex: 1;
+  }
+  .ans-tip button {
+    flex: none;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 12px;
+    background: var(--accent);
+    color: var(--bg);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
   }
   .ans-gap {
     color: #c77d00;

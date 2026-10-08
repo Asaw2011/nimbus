@@ -127,6 +127,8 @@ export interface Persisted {
    *  argument they answer (1NC1, 2AC 2-3) and are sent to the doc in that
    *  order under that heading. Off = sends work exactly as before. */
   answerNumbers?: boolean;
+  /** The one-time "how answer numbers work" tip has been dismissed. */
+  answerNumbersTipSeen?: boolean;
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
@@ -380,6 +382,7 @@ class Settings {
   smartStarters = $state(false);
   /** See Persisted.answerNumbers. Off by default. */
   answerNumbers = $state(false);
+  answerNumbersTipSeen = $state(false);
   ribbonMode = $state<RibbonMode>("full");
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
@@ -550,6 +553,7 @@ class Settings {
     if (p.pasteSplitsCells !== undefined) this.pasteSplitsCells = p.pasteSplitsCells;
     if (p.smartStarters !== undefined) this.smartStarters = p.smartStarters;
     if (p.answerNumbers !== undefined) this.answerNumbers = p.answerNumbers;
+    if (p.answerNumbersTipSeen !== undefined) this.answerNumbersTipSeen = p.answerNumbersTipSeen;
     // The ribbon used to have three densities (full / icons / slim) cycled with
     // one button. It is two now - full width, and a condensed half-width one for
     // splitscreen - so both retired names load as "compact" rather than falling
@@ -698,6 +702,7 @@ class Settings {
       pasteSplitsCells: this.pasteSplitsCells,
       smartStarters: this.smartStarters,
       answerNumbers: this.answerNumbers,
+      answerNumbersTipSeen: this.answerNumbersTipSeen,
       ribbonMode: this.ribbonMode,
       prepMinutes: this.prepMinutes,
       prepMinutesLd: this.prepMinutesLd,

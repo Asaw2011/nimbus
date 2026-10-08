@@ -1467,6 +1467,10 @@
   .ans-no:hover {
     opacity: 1;
   }
+  /* A pencil on hover, so the badge reads as something you can click. */
+  .ans-no:hover::after {
+    content: " ✎";
+  }
   .ans-no-edit {
     width: 52px;
     color: var(--text);
