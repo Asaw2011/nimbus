@@ -308,6 +308,7 @@ export const HOWTOS: HowTo[] = [
     ],
     keys: ["answerNext", "answerPrev", "answerGroup", "answerUngroup"],
     run: "settings", runLabel: "Open Settings",
+    manual: "senddoc",
   },
 
   // ---- partner -------------------------------------------------------------

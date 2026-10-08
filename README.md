@@ -81,6 +81,9 @@ are done. Nimbus tells you what changed the first time you open a new version.
   section — apply to every advantage sheet
 - **Overviews** tab: the first block under each *Main* heading (Uniqueness,
   Link, Internal, Impact), plus each advantage's impact overview when you're aff
+- **2AC off-case**: each off-case page lists every block under its position in
+  your 2AC file, and **Your 2AC** sends every page's 2AC to the speech doc in
+  one click, each under its page name
 - **File** tab: the sheet's file browsed like Doc Search, click or drag to insert
 - A **library** of files pinned into every round's kit
 - Reads `.docx` and CardMirror's native `.cmir` alike (so does Doc Search)
@@ -130,6 +133,9 @@ are done. Nimbus tells you what changed the first time you open a new version.
 - **Answer this argument** (`Ctrl+Shift+G`) — jumps to your reply in the next
   opposing speech and records the link, so the speech doc gets "AT: *that*
   argument" instead of guessing
+- **Answer numbers** (optional) — your 2NC/1NR answers carry the 2AC number they
+  answer (`2AC1`, `2AC 2-3`), your 2AC on advantages the 1NC's; sending the
+  column puts them in number order under that heading, however you inserted them
 - **Editable speech formats** — rename any speech for a format in Settings
   (LD `NR` → `2NR`), or double-click a column header to rename it in one round
 - **Custom keybinds** — multiple binds per action, conflict warnings; includes

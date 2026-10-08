@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.4",
+    headline: "Send your whole 2AC to the doc in one click, number your answers if you want, and Smart blocks picks the right section.",
+    items: [
+      "**Your 2AC, all at once.** With **2AC off-case** ticked in the Smart blocks tray, a **Your 2AC** box lists every off-case page and how much of your 2AC is on it. **Send all to doc** puts every page in your speech doc in one go, each under its page name - no more tilde-ing page by page.",
+      "**Answer numbers (optional).** Turn on **Number my answers** in Settings → Flow & Formats and your 2NC/1NR answers get the number of the 2AC argument they answer (**2AC1**, **2AC 2-3**), and your 2AC answers on advantage pages the 1NC's (**1NC1**). Each new answer takes the next number by itself; the column header's ‹ › and + skip around or group. Sending the column puts your answers in number order under the number and a **[xxx]** line with what they said - even if you answered 2AC 2 before 2AC 1. Off by default; with it off nothing changes.",
+      "**Smart blocks picks the right section.** A page like **Economy DA** now takes your 2AC file's **DA---Economy** blocks instead of the case **Economy** blocks with a similar name.",
+    ],
+  },
+  {
     version: "1.5.3",
     headline: "Ask Nimbus how to do anything, try a sample round, and partner flowing stops crying wolf when someone minimizes.",
     items: [

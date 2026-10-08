@@ -398,7 +398,15 @@
               position ("Midterms DA") lists every block under that position in your 2AC file,
               in order - click down the list and they stack in your 2AC. A block that answers a
               flowed argument is marked with it and goes in that row. Unticked, only advantage
-              pages get suggestions.
+              pages get suggestions. The page's position is found by name, preferring the
+              heading that matches more of it - an <i>Economy DA</i> page takes
+              <i>DA---Economy</i>, not your case's <i>Economy</i> hat.
+            </li>
+            <li>
+              <b>Your 2AC</b> (with 2AC off-case ticked): a box at the top lists every off-case
+              page and how much of your 2AC is on it. <b>Send all to doc</b> sends every page's
+              2AC to your speech doc in one go, each under its page name, in tab order;
+              <b>Send</b> does one page.
             </li>
             <li>
               <b>Suggestions</b> appear when an argument the other team made - in either
@@ -503,6 +511,19 @@
             <li>A plain typed cell sends as an <b>analytic</b>; a card sends as a card; a multi-item cell sends its header, cards, and responses in order.</li>
             <li>The ribbon's <b>B / I / A color / font-size</b> act on the doc whenever the doc is the surface you last clicked into.</li>
           </ul>
+          <h3>Answer numbers (optional)</h3>
+          <p>
+            Turn on <b>Number my answers</b> in <b>Settings → Flow &amp; Formats</b> and your answers
+            carry the number of the argument they answer: your <b>2NC/1NR</b> by the 2AC's
+            (<b>2AC1</b>, <b>2AC 2-3</b>), your <b>2AC</b> on advantage pages by the 1NC's (<b>1NC1</b>).
+            Off-case 2ACs and the 1AR aren't numbered.
+          </p>
+          <ul>
+            <li>Each new answer you put in the column takes the next number by itself - the small badge on the cell shows it. Click a badge to change it (<b>3</b>, or <b>2-3</b> for a group).</li>
+            <li>To answer out of order or group, use the column header's <b>‹ ›</b> and <b>+</b> first, or <kbd>{combosLabel(km.answerNext, mac)}</kbd> / <kbd>{combosLabel(km.answerPrev, mac)}</kbd> and <kbd>{combosLabel(km.answerGroup, mac)}</kbd>.</li>
+            <li>Sending the column (<kbd>{combosLabel(km.sendRowToDoc, mac)}</kbd>) puts your answers in <b>number order</b>, each under its number and a <b>[xxx]</b> line with what they said, then what's under your block - however you inserted them. These sends add to the end of the doc.</li>
+            <li>Only your own answers are numbered - never the other team's columns, so it doesn't matter how you and your partner flowed them.</li>
+          </ul>
           <h3>Sending to CardMirror instead</h3>
           <p>
             <b>Send to</b> in the top bar chooses between Nimbus's own speech doc
@@ -530,7 +551,7 @@
           <p>
             The core motions - Enter, Tab, arrows - are fixed muscle memory.
             Everything else is rebindable in <b>Settings → Keyboard</b>, grouped
-            into Rows, Flowing & marks, Sheets, View & zoom, App, and Speech doc.
+            into Rows, Flowing & marks, Send to speech doc, Answer numbers, Sheets, View & zoom, App, and Speech doc.
             Multiple bindings per action are allowed.
           </p>
         </section>
