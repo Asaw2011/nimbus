@@ -74,7 +74,8 @@ are done. Nimbus tells you what changed the first time you open a new version.
 **Smart blocks** (beta)
 - Load the files for a round, and when the other team makes an argument — in
   your lane or your partner's — Nimbus suggests the block that answers it; one
-  click puts the whole block in your next speech, linked as the answer
+  click puts the whole block in your next speech, linked as the answer - or
+  drag it onto any cell
 - **Each sheet uses its own file**, so two counterplans' *AT: Perm* blocks never
   mix; a file with a section per position (a 2AC file) gives each sheet only
   its own section. Case negs — and, when you're aff, your 2AC file's CASE
@@ -85,7 +86,8 @@ are done. Nimbus tells you what changed the first time you open a new version.
   your 2AC file, and **Your 2AC** sends every page's 2AC to the speech doc in
   one click, each under its page name
 - **File** tab: the sheet's file browsed like Doc Search, click or drag to insert
-- A **library** of files pinned into every round's kit
+- A **library** of files pinned into every round's kit, always the latest
+  version of the real file
 - Reads `.docx` and CardMirror's native `.cmir` alike (so does Doc Search)
 - Matches your block headings — it's word matching, not AI, and runs fully
   offline

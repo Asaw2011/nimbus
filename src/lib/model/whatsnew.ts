@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.5",
+    headline: "Drag Smart suggestions anywhere, pinned files stay up to date, and answer numbers handle overviews.",
+    items: [
+      "**Drag from Smart suggestions.** Any suggestion, or any block in a 2AC list, can be dragged onto any cell. **Insert** still lines it up for you. Dragged blocks keep their tables when you send them to the doc.",
+      "**Pinned files stay up to date.** A file in your Smart blocks kit now follows the real file: edit it in Word or CardMirror, click back into Nimbus, and the next suggestions use the new version. Files Nimbus had kept as a saved copy are linked back to the real file in your Doc Search library.",
+      "**Overviews in answer numbers.** Click an answer's number and press **No number** - it keeps its own heading, goes at the top of the speech, and the answers after it move down one. A one-time tip explains the numbers, and a ✎ shows the badge is clickable.",
+    ],
+  },
+  {
     version: "1.5.4",
     headline: "Send your whole 2AC to the doc in one click, number your answers if you want, and Smart blocks picks the right section.",
     items: [

@@ -370,6 +370,9 @@
             <li>
               <b>Library</b> - pin 📌 a file to keep it in <b>every</b> round's kit: T, theory,
               framework, your case neg. Unpin it to keep it in the current round only.
+              Kit files follow the real file: edit it, click back into Nimbus, and the new version
+              is used. A file kept as a saved copy (marked <i>copy</i>) is linked back to the real
+              file once your Doc Search library has it.
             </li>
             <li>
               <b>Each sheet uses its own file.</b> Nimbus links a sheet to the file named for
@@ -420,7 +423,8 @@
               partner's lane - matches a block, and your answer cell is still empty. Each block
               is offered once per page, under the argument it answers best, and disappears from
               the page once it's there. <b>Insert</b> puts the whole block in your next speech on
-              that row, linked as the answer to that argument. <b>×</b> dismisses one. Answering
+              that row, linked as the answer to that argument. Or <b>drag</b> it onto any cell -
+              a suggestion or a 2AC-list block, with its tables kept. <b>×</b> dismisses one. Answering
               the cell yourself (or your partner answering it) clears it.
             </li>
             <li>
