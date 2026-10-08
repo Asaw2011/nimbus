@@ -34,6 +34,10 @@ interface Answering {
 
 const SIDE_KEY = "nimbus.answerSide.";
 
+/** `Cell.answerNo` for an answer you've marked "no number" - an overview, or
+ *  anything that answers no one argument. Sent first, with its own heading. */
+export const NO_NUMBER = "-";
+
 /** Anything in it at all - text, a block, a card. */
 export function cellFilled(cell: Cell | undefined): boolean {
   return !!(cell && (cell.text?.trim() || cell.items?.length || cell.card || cell.cmNode));
@@ -222,16 +226,32 @@ class AnswerNumbers {
     return out;
   }
 
-  /** Re-number one answer by hand (the badge). "" removes the number. */
+  /** Re-number one answer by hand (the badge). "" removes the number;
+   *  NO_NUMBER makes it an un-numbered answer (an overview). */
   setCellNo(sheetId: string, row: number, col: number, text: string): boolean {
     const t = text.trim();
-    const s = t ? parseNo(t) : null;
-    if (t && !s) return false;
+    const none = t === NO_NUMBER;
+    const s = t && !none ? parseNo(t) : null;
+    if (t && !none && !s) return false;
     store.mutate((round) => {
-      const cell = round.sheets.find((x) => x.id === sheetId)?.rows[row]?.cells[col];
-      if (!cell) return;
-      if (s) cell.answerNo = spanNo(s);
+      const sheet = round.sheets.find((x) => x.id === sheetId);
+      const cell = sheet?.rows[row]?.cells[col];
+      if (!sheet || !cell) return;
+      const old = parseNo(cell.answerNo);
+      if (none) cell.answerNo = NO_NUMBER;
+      else if (s) cell.answerNo = spanNo(s);
       else delete cell.answerNo;
+      // Taking the number off an answer that was the only one with it (an
+      // overview that got "2AC1" because it went in first): the answers after
+      // it move down to close the gap, so the real first argument is 2AC1.
+      if (none && old && !sheet.rows.some((r) => r.cells[col]?.answerNo === spanNo(old))) {
+        const by = old.b - old.a + 1;
+        for (const r of sheet.rows) {
+          const c = r.cells[col];
+          const n = parseNo(c?.answerNo);
+          if (c && n && n.a > old.b) c.answerNo = spanNo({ a: n.a - by, b: n.b - by });
+        }
+      }
     });
     return true;
   }
@@ -241,25 +261,36 @@ class AnswerNumbers {
    * the numbered answer above it (an extra card under your block); cells above
    * the first number go first, unnumbered. The same number twice, anywhere in
    * the column, is one answer. Sorted by number, so the order you inserted in
-   * - or where on the page it landed - doesn't matter.
+   * - or where on the page it landed - doesn't matter. An answer marked
+   * "no number" (an overview) goes first too, as itself, heading kept.
    */
   groups(sheet: Sheet, col: number): AnswerGroup[] {
-    const lead: number[] = [];
+    const lead: AnswerGroup[] = [];
     const byNo = new Map<string, AnswerGroup>();
     let cur: AnswerGroup | null = null;
     sheet.rows.forEach((row, r) => {
       const cell = row.cells[col];
       if (!cellFilled(cell)) return;
-      const s = parseNo(cell.answerNo);
-      if (s) {
-        const k = spanNo(s);
-        cur = byNo.get(k) ?? { span: s, rows: [] };
-        byNo.set(k, cur);
+      if (cell.answerNo === NO_NUMBER) {
+        cur = { span: null, rows: [] };
+        lead.push(cur);
+      } else {
+        const s = parseNo(cell.answerNo);
+        if (s) {
+          const k = spanNo(s);
+          cur = byNo.get(k) ?? { span: s, rows: [] };
+          byNo.set(k, cur);
+        }
       }
-      (cur ? cur.rows : lead).push(r);
+      if (cur) cur.rows.push(r);
+      else {
+        // Above everything: its own un-numbered group, like an overview.
+        cur = { span: null, rows: [r] };
+        lead.push(cur);
+      }
     });
     const numbered = [...byNo.values()].sort((x, y) => x.span!.a - y.span!.a || x.span!.b - y.span!.b);
-    return lead.length ? [{ span: null, rows: lead }, ...numbered] : numbered;
+    return [...lead, ...numbered];
   }
 
   // ---- stamping --------------------------------------------------------------

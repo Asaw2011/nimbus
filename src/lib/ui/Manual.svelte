@@ -528,6 +528,7 @@
           </p>
           <ul>
             <li>Each new answer you put in the column takes the next number by itself - the small badge on the cell shows it. Click a badge to change it (<b>3</b>, or <b>2-3</b> for a group).</li>
+            <li><b>An overview, or anything that answers no one argument:</b> click its badge and press <b>No number</b>. It keeps its own heading, goes at the top of the speech, and the answers after it move down a number.</li>
             <li>To answer out of order or group, use the column header's <b>‹ ›</b> and <b>+</b> first, or <kbd>{combosLabel(km.answerNext, mac)}</kbd> / <kbd>{combosLabel(km.answerPrev, mac)}</kbd> and <kbd>{combosLabel(km.answerGroup, mac)}</kbd>.</li>
             <li>Sending the column (<kbd>{combosLabel(km.sendRowToDoc, mac)}</kbd>) puts your answers in <b>number order</b>, each under its number and a <b>[xxx]</b> line with what they said, then what's under your block - however you inserted them. These sends add to the end of the doc.</li>
             <li>Only your own answers are numbered - never the other team's columns, so it doesn't matter how you and your partner flowed them.</li>

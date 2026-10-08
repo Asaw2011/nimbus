@@ -304,6 +304,7 @@ export const HOWTOS: HowTo[] = [
       "Settings → Experimental → tick Answer numbers.",
       "Answer in order - each answer gets the next number (shown on the cell; click it to change).",
       "Out of order or grouped? Use ‹ › or + on the column's header before you answer.",
+      "An overview? Click its number and press No number - it keeps its own heading and goes first.",
       "Ctrl+` (left of 1) sends the column in number order.",
     ],
     keys: ["answerNext", "answerPrev", "answerGroup", "answerUngroup"],

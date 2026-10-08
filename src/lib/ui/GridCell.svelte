@@ -8,7 +8,7 @@
   import { runMacro } from "../model/macros";
   import { guard } from "../model/crash";
   import { session } from "../model/session.svelte";
-  import { answerNumbers, parseNo, spanHeading } from "../model/lineup.svelte";
+  import { answerNumbers, NO_NUMBER, parseNo, spanHeading } from "../model/lineup.svelte";
 
   let {
     cell,
@@ -55,6 +55,7 @@
     if (!cell.answerNo || !settings.answerNumbers) return "";
     const sheet = store.round?.sheets.find((s) => s.id === sheetId);
     const prefix = answerNumbers.prefix(store.round, col, sheet);
+    if (prefix && cell.answerNo === NO_NUMBER) return "no number";
     const span = parseNo(cell.answerNo);
     return prefix && span ? spanHeading(prefix, span) : "";
   });
@@ -62,7 +63,7 @@
   let noDraft = $state("");
   let noBad = $state(false);
   function startNoEdit() {
-    noDraft = cell.answerNo ?? "";
+    noDraft = cell.answerNo === NO_NUMBER ? "" : (cell.answerNo ?? "");
     noBad = false;
     editingNo = true;
   }
@@ -992,6 +993,15 @@
   {/if}
   {#if ansLabel}
     {#if editingNo}
+      <!-- "No number": an overview (or anything that answers no one argument)
+           keeps its own heading and goes first. mousedown is prevented so the
+           box doesn't blur-commit what's typed before the click lands. -->
+      <button
+        class="ans-none"
+        title="Don't number this one - for an overview. It keeps its own heading and goes at the top of the speech."
+        onmousedown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onclick={(e) => { e.stopPropagation(); editingNo = false; answerNumbers.setCellNo(sheetId, row, col, NO_NUMBER); }}
+      >No number</button>
       <!-- svelte-ignore a11y_autofocus -->
       <input
         class="ans-no-edit"
@@ -999,7 +1009,7 @@
         bind:value={noDraft}
         autofocus
         placeholder="3 or 2-3"
-        title="Type 3, or 2-3 for a group. Empty removes the number."
+        title="Type 3, or 2-3 for a group. Or press No number for an overview."
         onmousedown={(e) => e.stopPropagation()}
         onclick={(e) => e.stopPropagation()}
         onkeydown={(e) => {
@@ -1012,7 +1022,8 @@
     {:else}
       <button
         class="ans-no"
-        title="This answers {ansLabel} - click to change the number"
+        class:none={cell.answerNo === NO_NUMBER}
+        title={cell.answerNo === NO_NUMBER ? "Not numbered (an overview) - click to give it a number" : `This answers ${ansLabel} - click to change the number, or make it an overview with No number`}
         onmousedown={(e) => { e.preventDefault(); e.stopPropagation(); }}
         onclick={(e) => { e.stopPropagation(); startNoEdit(); }}
       >{ansLabel}</button>
@@ -1427,7 +1438,8 @@
   /* Answer numbers. Bottom-right, in a reserved strip like the reply tag, so
      it never sits on top of the text. Clear of the partner dot's corner. */
   .cell:has(.ans-no),
-  .cell:has(.ans-no-edit) {
+  .cell:has(.ans-no-edit),
+  .cell:has(.ans-none) {
     padding-bottom: 14px;
   }
   .ans-no,
@@ -1464,6 +1476,31 @@
   }
   .ans-no-edit.bad {
     border-color: #d33;
+  }
+  .ans-no.none {
+    opacity: 0.6;
+    font-weight: 600;
+    border-style: dashed;
+  }
+  .ans-none {
+    position: absolute;
+    bottom: 1px;
+    right: 68px;
+    z-index: 3;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.3;
+    padding: 0 5px;
+    border-radius: 3px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--bg);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ans-none:hover {
+    filter: brightness(1.1);
   }
   .cell-chip {
     position: absolute;
