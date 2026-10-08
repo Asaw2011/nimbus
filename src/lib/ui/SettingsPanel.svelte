@@ -707,26 +707,6 @@
         </select>
       </label>
     </section>
-
-    <section>
-      <h3>Answer numbers</h3>
-      <p class="hint">
-        Number your answers by the argument they answer: your <b>2AC</b> on case pages by the
-        1NC's (<b>1NC1</b>, <b>1NC2</b>…), your <b>2NC/1NR</b> by the 2AC's (<b>2AC1</b>,
-        <b>2AC 2-3</b>…). Each new answer takes the next number by itself; the column header's
-        ‹ › and + are only for skipping around or grouping. Sending the column (<kbd>Ctrl+`</kbd>)
-        puts the answers in number order, each under its number and a <b>[xxx]</b> line with
-        what they said. Off: everything sends exactly as before.
-      </p>
-      <label class="row">
-        <span>Number my answers</span>
-        <input
-          type="checkbox"
-          checked={settings.answerNumbers}
-          onchange={(e) => { settings.answerNumbers = e.currentTarget.checked; settings.save(); }}
-        />
-      </label>
-    </section>
     {/if}
 
     {#if tab === "keyboard"}
@@ -1252,13 +1232,21 @@
     {#if tab === "experimental"}
     <section>
       <h3>Experimental</h3>
-      <p class="hint">Newer, still-changing features. Turn them on if you want them; leave them off to keep the flow clean. Nothing here changes what you send to your speech doc.</p>
+      <p class="hint">Newer, still-changing features. Turn them on if you want them; leave them off to keep the flow clean. Each is off by default, and with it off nothing about your flow or your sends changes.</p>
       <label class="row">
         <span>Smart blocks (beta)<br /><small class="sub">A tray in the bottom-right corner of the flow. Drop in your round files and it suggests the block that answers the other team's argument; one click puts the whole block in your next speech on that row. Off by default.</small></span>
         <input
           type="checkbox"
           checked={settings.smartBlocksEnabled}
           onchange={(e) => { settings.smartBlocksEnabled = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
+      <label class="row">
+        <span>Answer numbers<br /><small class="sub">Number your answers by the argument they answer - 2NC/1NR by the 2AC (2AC1, 2AC 2-3), 2AC on advantages by the 1NC; in LD the NR and 1AR, in PF the rebuttals - then send them to the doc in that order. Off by default.</small></span>
+        <input
+          type="checkbox"
+          checked={settings.answerNumbers}
+          onchange={(e) => { settings.answerNumbers = e.currentTarget.checked; settings.save(); }}
         />
       </label>
     </section>

@@ -14,6 +14,7 @@
 // suggestions: their cells arrive, the round changes, the tray updates.
 
 import { nodeChip, type DocNode } from "$lib/docx/parse";
+import { baseAbbr, sideTurn, turnOfCol, turnsOf, type Turn } from "$lib/model/turns";
 import { parseSpeechDoc } from "$lib/docx/cmir";
 import { cmDocFromBytes, extractCMNodes, type CMDoc } from "$lib/docx/cmExact";
 import { loadBlob, saveBlob } from "$lib/model/blobs";
@@ -201,13 +202,46 @@ function usedTitles(sheet: Sheet): Set<string> {
 /** The aff speech a column is, by its abbr ("2AC · You" → 2AC), or by its
  *  label when the speech was renamed. */
 function speechOfCol(speeches: Speech[], c: number): string {
-  const abbr = speeches[c].abbr.split(" · ")[0].trim().toUpperCase();
-  if (abbr === "2AC" || abbr === "1AR") return abbr;
-  const label = speeches[c].label.toLowerCase();
-  if (/second affirmative constructive/.test(label)) return "2AC";
-  if (/first affirmative rebuttal/.test(label)) return "1AR";
-  return abbr;
+  // By POSITION, so every format has a "2AC" and a "1AR": the aff's first and
+  // second answering speeches (Policy 2AC/1AR, LD 1AR/2AR, PF Reb/Sum). Also
+  // survives renamed columns, which the old abbr/label match needed a
+  // fallback for.
+  const t = turnOfCol(speeches, c);
+  if (t?.side === "aff" && t.index === 1) return "2AC";
+  if (t?.side === "aff" && t.index === 2) return "1AR";
+  return baseAbbr(speeches[c]).toUpperCase();
 }
+
+/** The aff's first answering speech's column ("the 2AC" in any format) - your
+ *  own lane on a split speech - or -1. */
+function firstAnswerCol(speeches: Speech[], laneHere: number): number {
+  const t = sideTurn(speeches, "aff", 1);
+  return t ? targetCol(speeches, t.cols[0] - 1, "aff", laneHere) : -1;
+}
+
+/**
+ * How a file NAME says which speech it's for, in this format: the speech's
+ * name minus any side word - "2AC" in policy, "1AR" for LD's first answer,
+ * "Reb"/"Rebuttal" in PF. Word-bounded like the regexes above; a name with a
+ * digit is used alone (policy's "2AC" must not also match "constructive").
+ */
+function speechNameRe(speeches: Speech[], t: Turn | null, fallback: RegExp): RegExp {
+  if (!t) return fallback;
+  const sp = speeches[t.cols[0]];
+  const rest = baseAbbr(sp).replace(/^(pro|con|aff|neg)\s+/i, "").trim();
+  if (!rest) return fallback;
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const alts = [esc(rest)];
+  if (!/\d/.test(rest)) {
+    const word = sp.label.trim().split(/\s+/).pop();
+    if (word && word.toLowerCase() !== rest.toLowerCase()) alts.push(esc(word));
+  }
+  return new RegExp(`(^|[^a-z0-9])(?:${alts.join("|")})s?(?![a-z])`, "i");
+}
+
+/** PF names its sides Pro / Con; a file named "Pro - …" is the aff's there. */
+const PRO_RE = /(^|[^a-z0-9])pro(?![a-z])/i;
+const CON_RE = /(^|[^a-z0-9])con(?![a-z])/i;
 
 /**
  * The column a reply to `from` goes in: the next speech on OUR side. Landing on
@@ -661,7 +695,27 @@ class SmartKit {
    *  answers, case AND off-case. */
   isTwoAC(key: string): boolean {
     if (this.fileSide(key) === "neg") return false;
-    return this.named(key, TWO_AC_RE) || (this.named(key, AFF_RE) && !this.namesPosition(key));
+    const re = this.speechRes();
+    // PF: both teams give a rebuttal, so only a Pro (or AFF) file is yours.
+    if (re.pf && this.fileSide(key) !== "aff") return false;
+    // "2AC" means this format's first answer: an LD round's "1ARs" file, a
+    // PF round's "Pro Rebuttal" file.
+    return this.named(key, re.first) || (this.named(key, re.aff) && !this.namesPosition(key));
+  }
+
+  /** File-name tests for this round's format (see `speechNameRe`). Policy:
+   *  exactly TWO_AC_RE / ONE_AR_RE / AFF_RE / NEG_RE, as before. */
+  private speechRes(): { first: RegExp; second: RegExp; aff: RegExp; neg: RegExp; pf: boolean } {
+    const sp = store.round?.template.speeches;
+    if (!sp) return { first: TWO_AC_RE, second: ONE_AR_RE, aff: AFF_RE, neg: NEG_RE, pf: false };
+    const pf = sp.some((s) => /^(pro|con)\s/i.test(s.abbr));
+    return {
+      first: speechNameRe(sp, sideTurn(sp, "aff", 1), TWO_AC_RE),
+      second: speechNameRe(sp, sideTurn(sp, "aff", 2), ONE_AR_RE),
+      aff: pf ? new RegExp(`${AFF_RE.source}|${PRO_RE.source}`, "i") : AFF_RE,
+      neg: pf ? new RegExp(`${NEG_RE.source}|${CON_RE.source}`, "i") : NEG_RE,
+      pf,
+    };
   }
 
   /**
@@ -669,8 +723,17 @@ class SmartKit {
    * case neg / NEG files the neg's. undefined = either (a DA file, a T file).
    */
   fileSide(key: string): Side | undefined {
-    if (this.named(key, CASE_NEG_RE) || this.named(key, NEG_RE)) return "neg";
-    if (this.named(key, TWO_AC_RE) || this.named(key, AFF_RE) || this.named(key, ONE_AR_RE)) return "aff";
+    const re = this.speechRes();
+    if (this.named(key, CASE_NEG_RE) || this.named(key, re.neg)) return "neg";
+    if (
+      this.named(key, TWO_AC_RE) || this.named(key, ONE_AR_RE) || this.named(key, re.aff) ||
+      this.named(key, re.first) || this.named(key, re.second)
+    ) {
+      // PF: "Reb"/"Sum" alone name a speech both teams give - only Pro/Con
+      // (or AFF/NEG) says whose file it is.
+      if (re.pf && !this.named(key, re.aff)) return undefined;
+      return "aff";
+    }
     return undefined;
   }
 
@@ -678,7 +741,10 @@ class SmartKit {
    *  pages, each off-case page gets its section by name) but for the 1AR -
    *  answers to the neg BLOCK, so only ever suggested into the 1AR column. */
   isOneAR(key: string): boolean {
-    return this.fileSide(key) !== "neg" && this.named(key, ONE_AR_RE) && !this.isTwoAC(key);
+    const re = this.speechRes();
+    const side = this.fileSide(key);
+    if (side === "neg" || (re.pf && side !== "aff")) return false;
+    return this.named(key, re.second) && !this.isTwoAC(key);
   }
 
   /** The aff's per-speech files - 2AC and 1AR. */
@@ -695,8 +761,10 @@ class SmartKit {
   fileSpeech(key: string): "2AC" | "1AR" | undefined {
     const f = this.all.find((x) => x.key === key);
     if (!f || this.fileSide(key) === "neg") return undefined;
-    const two = TWO_AC_RE.test(f.name);
-    const one = ONE_AR_RE.test(f.name);
+    const re = this.speechRes();
+    if (re.pf && this.fileSide(key) !== "aff") return undefined;
+    const two = re.first.test(f.name);
+    const one = re.second.test(f.name);
     return two && !one ? "2AC" : one && !two ? "1AR" : undefined;
   }
 
@@ -1200,17 +1268,23 @@ class SmartKit {
    */
   answering(round: Round): "2AC" | "1AR" {
     if (this.speechMode !== "auto") return this.speechMode;
-    const speeches = round.template.speeches;
-    const negFirst = speeches.findIndex((s) => s.side === "neg");
-    const to2AC = negFirst < 0 ? -1 : targetCol(speeches, negFirst, "aff", 0);
-    if (to2AC < 0) return "2AC";
-    // The neg speeches after the 2AC and before the next aff speech: the block.
-    const block: number[] = [];
-    for (let i = to2AC + 1; i < speeches.length && speeches[i].side !== "aff"; i++) {
-      if (speeches[i].side === "neg") block.push(i);
-    }
-    const flowed = round.sheets.some((s) => s.rows.some((r) => block.some((c) => filled(r.cells[c]))));
+    const turns = turnsOf(round.template.speeches);
+    // The aff's first answer ("the 2AC" - LD's 1AR, PF's rebuttal), then the
+    // neg turn right after it: the block (LD's NR, PF's rebuttal).
+    const first = turns.findIndex((t) => t.side === "aff" && t.index === 1);
+    const block = first < 0 ? undefined : turns.slice(first + 1).find((t) => t.side === "neg");
+    if (!block) return "2AC";
+    const flowed = round.sheets.some((s) => s.rows.some((r) => block.cols.some((c) => filled(r.cells[c]))));
     return flowed ? "1AR" : "2AC";
+  }
+
+  /** What this format calls the "2AC" / "1AR" role, for the tray's labels:
+   *  2AC / 1AR in policy, 1AR / 2AR in LD, "Pro Reb" / "Pro Sum" in PF. */
+  speechName(round: Round | null | undefined, role: "2AC" | "1AR"): string {
+    if (!round) return role;
+    const sp = round.template.speeches;
+    const t = sideTurn(sp, "aff", role === "2AC" ? 1 : 2);
+    return (t && baseAbbr(sp[t.cols[0]])) || role;
   }
 
   /** The aff speech a column is (2AC / 1AR), for the tray's filter. */
@@ -1301,10 +1375,7 @@ class SmartKit {
 
   starters(round: Round, laneHere: number, enabled: boolean, answering?: Map<string, Claim>): Starter[] {
     if (!enabled || this.mySide(round) !== "aff") return [];
-    const speeches = round.template.speeches;
-    const negFirst = speeches.findIndex((s) => s.side === "neg");
-    if (negFirst < 0) return [];
-    const to = targetCol(speeches, negFirst, "aff", laneHere);
+    const to = firstAnswerCol(round.template.speeches, laneHere);
     if (to < 0) return [];
     const out: Starter[] = [];
     for (const sheet of round.sheets) {
@@ -1364,10 +1435,7 @@ class SmartKit {
    */
   twoACPages(round: Round, laneHere: number): { sheetId: string; title: string; toCol: number; count: number }[] {
     if (this.mySide(round) !== "aff") return [];
-    const speeches = round.template.speeches;
-    const negFirst = speeches.findIndex((s) => s.side === "neg");
-    if (negFirst < 0) return [];
-    const to = targetCol(speeches, negFirst, "aff", laneHere);
+    const to = firstAnswerCol(round.template.speeches, laneHere);
     if (to < 0) return [];
     return round.sheets
       .filter((s) => s.kind !== "case" && s.kind !== "cx" && s.kind !== "overview" && to >= s.startCol)
@@ -1391,11 +1459,10 @@ class SmartKit {
     const sheet = round?.sheets.find((s) => s.id === st.sheetId);
     if (!round || !sheet) return false;
     if (usedTitles(sheet).has(normTitle(b.title))) return false;
-    const speeches = round.template.speeches;
-    const negFirst = speeches.findIndex((s) => s.side === "neg");
-    const theirs = speeches.flatMap((s, i) =>
-      i === negFirst || (!!s.laneGroup && s.laneGroup === speeches[negFirst]?.laneGroup) ? [i] : [],
-    );
+    // The speech your 2AC answers (the 1NC, both lanes - LD's NC, PF's case).
+    const turns = turnsOf(round.template.speeches);
+    const at = turns.findIndex((t) => t.cols.includes(st.toCol));
+    const theirs = at > 0 ? turns[at - 1].cols : [];
     let last = -1;
     sheet.rows.forEach((r, i) => {
       if (filled(r.cells[st.toCol])) last = i;

@@ -117,6 +117,9 @@
   const roundHasSide = $derived(store.round?.mySide === "aff" || store.round?.mySide === "neg");
   /** Aff only: the speech the tray is helping with (2AC, then 1AR). */
   const answering = $derived(store.round && side === "aff" ? smartKit.answering(store.round) : null);
+  /** What this format calls them: 2AC / 1AR, LD's 1AR / 2AR, PF's Reb / Sum. */
+  const n2AC = $derived(smartKit.speechName(store.round, "2AC"));
+  const n1AR = $derived(smartKit.speechName(store.round, "1AR"));
   /** "Your 2AC": each off-case page and how much of your 2AC is on it. */
   const twoAC = $derived(
     store.round && side === "aff" && answering !== "1AR" && settings.smartStarters
@@ -406,13 +409,13 @@
         <div class="answering">
           <span class="label">Answering</span>
           <div class="seg">
-            <button class:on={answering === "2AC"} onclick={() => smartKit.setSpeechMode("2AC")} title="Suggestions, files and overviews for your 2AC">2AC</button>
-            <button class:on={answering === "1AR"} onclick={() => smartKit.setSpeechMode("1AR")} title="Suggestions, files and overviews for your 1AR">1AR</button>
+            <button class:on={answering === "2AC"} onclick={() => smartKit.setSpeechMode("2AC")} title="Suggestions, files and overviews for your {n2AC}">{n2AC}</button>
+            <button class:on={answering === "1AR"} onclick={() => smartKit.setSpeechMode("1AR")} title="Suggestions, files and overviews for your {n1AR}">{n1AR}</button>
           </div>
           {#if smartKit.speechMode === "auto"}
-            <span class="dim" title="Switches to the 1AR by itself once the neg block is flowed on any page">auto</span>
+            <span class="dim" title="Switches to the {n1AR} by itself once the neg's next speech is flowed on any page">auto</span>
           {:else}
-            <button class="mini" onclick={() => smartKit.setSpeechMode("auto")} title="Go back to switching by itself (2AC, then the 1AR once the neg block is flowed)">auto</button>
+            <button class="mini" onclick={() => smartKit.setSpeechMode("auto")} title="Go back to switching by itself ({n2AC}, then the {n1AR} once the neg's next speech is flowed)">auto</button>
           {/if}
         </div>
       {/if}
@@ -425,9 +428,9 @@
             <p class="empty">Pick which side you're on in <b>Round kit</b>.</p>
           {:else}
             {#if side === "aff" && answering !== "1AR"}
-              <label class="starter-switch" title="Ticked: each off-case page lists every block under its position in your 2AC file (found by the page's name), and its 1NC arguments get answers too. Unticked: only your advantage pages. Doesn't apply on the 1AR.">
+              <label class="starter-switch" title="Ticked: each off-case page lists every block under its position in your {n2AC} file (found by the page's name), and the neg's arguments there get answers too. Unticked: only your advantage pages. Doesn't apply on the {n1AR}.">
                 <input type="checkbox" checked={settings.smartStarters} onchange={(e) => toggleStarters((e.currentTarget as HTMLInputElement).checked)} />
-                <span><b>2AC off-case</b> - every 2AC block for each off-case page{#if !settings.smartStarters}<span class="dim">{" (off: advantages only)"}</span>{/if}</span>
+                <span><b>{n2AC} off-case</b> - every {n2AC} block for each off-case page{#if !settings.smartStarters}<span class="dim">{" (off: advantages only)"}</span>{/if}</span>
               </label>
               {#if settings.smartStarters && twoAC.length && onsendpages}
                 <!-- Everything you've put in your 2AC, page by page, and one
@@ -435,12 +438,12 @@
                      always what's actually there. -->
                 <div class="sug your2ac">
                   <div class="y-head">
-                    <span class="y-title"><b>Your 2AC</b> <span class="dim">{twoACReady.length} of {twoAC.length} pages ready</span></span>
+                    <span class="y-title"><b>Your {n2AC}</b> <span class="dim">{twoACReady.length} of {twoAC.length} pages ready</span></span>
                     <button
                       class="insert send-all"
                       disabled={!twoACReady.length}
                       onclick={() => onsendpages?.(twoACReady.map((p) => p.sheetId), twoACReady[0].toCol)}
-                      title="Send every page's 2AC to the speech doc, each under its page name, in tab order"
+                      title="Send every page's {n2AC} to the speech doc, each under its page name, in tab order"
                     >Send all to doc</button>
                   </div>
                   {#each twoAC as p (p.sheetId)}
@@ -453,7 +456,7 @@
                         class="insert"
                         disabled={!p.count}
                         onclick={() => onsendpages?.([p.sheetId], p.toCol)}
-                        title="Send this page's 2AC to the speech doc"
+                        title="Send this page's {n2AC} to the speech doc"
                       >Send</button>
                     </div>
                   {/each}
@@ -465,7 +468,7 @@
                     <div class="sug-head">
                       <button class="where" onclick={() => onjump(st.sheetId, 1, st.toCol)} title="Go to this page">
                         <span class="sheet">{st.sheetTitle || "Untitled"}{#if starters.filter((x) => x.sheetTitle === st.sheetTitle).length > 1}<span class="dim">{` (page ${(store.round?.sheets.findIndex((x) => x.id === st.sheetId) ?? 0) + 1})`}</span>{/if}</span>
-                        <span class="speech">2AC blocks</span>
+                        <span class="speech">{n2AC} blocks</span>
                         <span class="said">from {st.fileName}</span>
                       </button>
                       <button class="dismiss" onclick={() => smartKit.dismissStarter(st)} title="Hide this page's list">×</button>
@@ -485,7 +488,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="hint">Nothing here right now. Each off-case page named for its position ("Midterms DA", "States CP") lists every block under that position in your 2AC file.</p>
+                  <p class="hint">Nothing here right now. Each off-case page named for its position ("Midterms DA", "States CP") lists every block under that position in your {n2AC} file.</p>
                 {/each}
               {/if}
             {/if}
@@ -673,9 +676,9 @@
                   {#if smartKit.isCaseNeg(f.key)}
                     <span class="copytag casetag" title="When you're neg: used on every advantage page">case neg</span>
                   {:else if smartKit.isOneAR(f.key)}
-                    <span class="copytag casetag" title="When you're aff: answers the neg block - only suggested into your 1AR. Advantage pages use the sections picked here; each off-case page uses its own section.">1AR</span>
+                    <span class="copytag casetag" title="When you're aff: answers the neg's second speech - only suggested into your {n1AR}. Advantage pages use the sections picked here; each off-case page uses its own section.">{n1AR}</span>
                   {:else}
-                    <span class="copytag casetag" title="When you're aff: only suggested into your 2AC. Advantage pages use the sections picked here; each off-case page uses its own section.">2AC</span>
+                    <span class="copytag casetag" title="When you're aff: only suggested into your {n2AC}. Advantage pages use the sections picked here; each off-case page uses its own section.">{n2AC}</span>
                   {/if}
                   <button class="advuse" class:empty={adv.empty} class:open={pickingFor === f.key} onclick={() => openPicker(f.key)} title="Which sections of this file Nimbus answers from on your advantage pages - your Case and Turns pockets, say. 'Auto' picks case-named sections and any section named for the advantage.">
                     Adv pages use:

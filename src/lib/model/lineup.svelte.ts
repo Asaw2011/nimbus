@@ -1,4 +1,4 @@
-// Answer numbers (Settings → Speech doc → "Number my answers").
+// Answer numbers (Settings → Experimental → "Answer numbers", off by default).
 //
 // The 2AC answers the 1NC's arguments in order (1NC1, 1NC2...), the 2NC/1NR
 // the 2AC's (2AC1, 2AC 2-3...). Partners flow the opponent in two lanes, in
@@ -15,7 +15,8 @@
 
 import { store } from "./round.svelte";
 import { settings } from "./settings.svelte";
-import type { Cell, Round, Sheet, Speech } from "./types";
+import type { Cell, Round, Sheet } from "./types";
+import { answeredTurn, turnName, turnOfCol } from "./turns";
 import { smartKit } from "$lib/smart/kit.svelte";
 
 type Side = "aff" | "neg";
@@ -23,17 +24,15 @@ export interface Span {
   a: number;
   b: number;
 }
-/** What your column is answering: the opponent speech's name, and your side. */
+/** What your column is answering: the opponent speech's name, your side, and
+ *  whether that speech is the opponent's constructive. */
 interface Answering {
-  prefix: "1NC" | "2AC";
+  prefix: string;
   side: Side;
+  vsConstructive: boolean;
 }
 
 const SIDE_KEY = "nimbus.answerSide.";
-
-function baseAbbr(sp: Speech): string {
-  return (sp.abbr ?? "").split(" · ")[0].trim().toUpperCase();
-}
 
 /** Anything in it at all - text, a block, a card. */
 export function cellFilled(cell: Cell | undefined): boolean {
@@ -53,9 +52,11 @@ export function spanNo(s: Span): string {
   return s.a === s.b ? String(s.a) : `${s.a}-${s.b}`;
 }
 
-/** The doc heading: "2AC3", or "2AC 2-3" for a group (Adam's format). */
+/** The doc heading: "2AC3", or "2AC 2-3" for a group (Adam's format). A
+ *  name with a space in it keeps one before the number ("Con Case 2"). */
 export function spanHeading(prefix: string, s: Span): string {
-  return s.a === s.b ? `${prefix}${s.a}` : `${prefix} ${s.a}-${s.b}`;
+  const sep = /\s/.test(prefix) ? " " : "";
+  return s.a === s.b ? `${prefix}${sep}${s.a}` : `${prefix} ${s.a}-${s.b}`;
 }
 
 /** One numbered answer as it goes to the doc: its number (null = the cells
@@ -96,27 +97,30 @@ class AnswerNumbers {
   }
 
   /**
-   * Is `col` a speech that answers the 1NC or the 2AC? Walks left past your
-   * own side's columns (a separate 2NC before the 1NR) to the opponent's
-   * nearest speech. Lanes are the OPPONENT'S columns, never an answering one.
-   * The 1AR answers the block, the 2NR the 1AR - neither qualifies.
+   * Is `col` a side's FIRST ANSWERING speech (its second turn - see turns.ts)?
+   * Policy: the 2AC (answering the 1NC) and the neg block (answering the 2AC);
+   * LD: the 1AR (NC) and the NR (1AR); PF: each rebuttal. Later speeches
+   * (1AR, 2NR, 2AR, summaries) never are. Lanes are the OPPONENT'S columns,
+   * never an answering one. Found by position, so it works in every format
+   * and survives renamed columns.
    */
   private answering(round: Round, col: number): Answering | null {
     const speeches = round.template.speeches;
     const sp = speeches[col];
     if (!sp || sp.laneGroup || (sp.side !== "aff" && sp.side !== "neg")) return null;
-    for (let p = col - 1; p >= 0; p--) {
-      const q = speeches[p];
-      if (q.side === sp.side || (q.side !== "aff" && q.side !== "neg")) continue;
-      const ab = baseAbbr(q);
-      if (ab === "1NC" || ab === "2AC") return { prefix: ab, side: sp.side };
-      return null;
-    }
-    return null;
+    if (turnOfCol(speeches, col)?.index !== 1) return null;
+    const them = answeredTurn(speeches, col);
+    if (!them) return null;
+    const prefix = turnName(speeches, them);
+    // PF's constructive is literally "Pro Case" / "Con Case": all of it is
+    // case, however its pages were made, so the case-pages-only rule (meant
+    // for a policy/LD off-case answered with prepared blocks) doesn't apply.
+    const vsConstructive = them.index === 0 && !/\bcase\b/i.test(prefix);
+    return { prefix, side: sp.side, vsConstructive };
   }
 
-  /** The prefix ("1NC" / "2AC") when `col` is numbered on this sheet, else null. */
-  prefix(round: Round | null | undefined, col: number, sheet?: Sheet): "1NC" | "2AC" | null {
+  /** The prefix ("1NC", "2AC", "NC"...) when `col` is numbered on this sheet, else null. */
+  prefix(round: Round | null | undefined, col: number, sheet?: Sheet): string | null {
     if (!settings.answerNumbers || !round) return null;
     if (sheet && (sheet.kind === "cx" || sheet.kind === "overview" || col < sheet.startCol)) return null;
     const ans = this.answering(round, col);
@@ -124,11 +128,12 @@ class AnswerNumbers {
     return this.side(round) === ans.side ? ans.prefix : null;
   }
 
-  /** The 2AC is numbered on CASE pages only - on an off-case page it's just
-   *  your 2AC blocks, nothing to line up (Adam). The block answers the 2AC
-   *  everywhere. */
+  /** Answering the opponent's CONSTRUCTIVE (the 2AC vs the 1NC, the LD 1AR vs
+   *  the NC) is numbered on CASE pages only - on an off-case page it's just
+   *  your prepared blocks, nothing to line up (Adam). The block answers the
+   *  2AC everywhere. */
   private onPage(ans: Answering, sheet?: Sheet): boolean {
-    return ans.prefix !== "1NC" || !sheet || sheet.kind === "case";
+    return !ans.vsConstructive || !sheet || sheet.kind === "case";
   }
 
   /** The setting is on and this column could be numbered, but we don't know

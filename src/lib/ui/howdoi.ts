@@ -299,9 +299,9 @@ export const HOWTOS: HowTo[] = [
     id: "answernumbers",
     title: "Number my answers (1NC1, 2AC 2-3)",
     words: "number answers line up 1nc1 2ac1 2nc order group grouped 2-3 numbering label which argument",
-    body: "Turn on Answer numbers and your 2AC answers on case pages get the number of the 1NC argument they answer (1NC1, 1NC2…), your 2NC/1NR answers the 2AC's (2AC1, 2AC 2-3…). Each new answer takes the next number by itself. Sending the column puts the answers in number order, each under its number and a [xxx] line with what they said - even if you answered 2AC 2 before 2AC 1. Not for the 1AR or off-case 2ACs.",
+    body: "Turn on Answer numbers (Settings → Experimental) and your 2AC answers on case pages get the number of the 1NC argument they answer (1NC1, 1NC2…), your 2NC/1NR answers the 2AC's (2AC1, 2AC 2-3…). In LD it's the 1AR (by the NC) and the NR (by the 1AR); in PF the rebuttals. Each new answer takes the next number by itself. Sending the column puts the answers in number order, each under its number and a [xxx] line with what they said - even if you answered 2AC 2 before 2AC 1. Not for later speeches (1AR, 2NR, 2AR) or off-case 2ACs.",
     steps: [
-      "Settings → Flow & Formats → Answer numbers → tick Number my answers.",
+      "Settings → Experimental → tick Answer numbers.",
       "Answer in order - each answer gets the next number (shown on the cell; click it to change).",
       "Out of order or grouped? Use ‹ › or + on the column's header before you answer.",
       "Ctrl+` (left of 1) sends the column in number order.",

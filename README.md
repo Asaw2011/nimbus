@@ -133,7 +133,7 @@ are done. Nimbus tells you what changed the first time you open a new version.
 - **Answer this argument** (`Ctrl+Shift+G`) — jumps to your reply in the next
   opposing speech and records the link, so the speech doc gets "AT: *that*
   argument" instead of guessing
-- **Answer numbers** (optional) — your 2NC/1NR answers carry the 2AC number they
+- **Answer numbers** (experimental; policy, LD and PF) — your 2NC/1NR answers carry the 2AC number they
   answer (`2AC1`, `2AC 2-3`), your 2AC on advantages the 1NC's; sending the
   column puts them in number order under that heading, however you inserted them
 - **Editable speech formats** — rename any speech for a format in Settings

@@ -409,6 +409,12 @@
               <b>Send</b> does one page.
             </li>
             <li>
+              <b>LD and PF:</b> "2AC" and "1AR" here mean your first and second answering speeches,
+              so in LD they're the <b>1AR</b> and <b>2AR</b> (a <i>1ARs</i> file feeds the 1AR), in PF your
+              <b>Rebuttal</b> and <b>Summary</b> (name PF files <i>Pro …</i> / <i>Con …</i>). The tray shows
+              the real names.
+            </li>
+            <li>
               <b>Suggestions</b> appear when an argument the other team made - in either
               partner's lane - matches a block, and your answer cell is still empty. Each block
               is offered once per page, under the argument it answers best, and disappears from
@@ -511,12 +517,13 @@
             <li>A plain typed cell sends as an <b>analytic</b>; a card sends as a card; a multi-item cell sends its header, cards, and responses in order.</li>
             <li>The ribbon's <b>B / I / A color / font-size</b> act on the doc whenever the doc is the surface you last clicked into.</li>
           </ul>
-          <h3>Answer numbers (optional)</h3>
+          <h3>Answer numbers (experimental)</h3>
           <p>
-            Turn on <b>Number my answers</b> in <b>Settings → Flow &amp; Formats</b> and your answers
+            Turn on <b>Answer numbers</b> in <b>Settings → Experimental</b> and your answers
             carry the number of the argument they answer: your <b>2NC/1NR</b> by the 2AC's
             (<b>2AC1</b>, <b>2AC 2-3</b>), your <b>2AC</b> on advantage pages by the 1NC's (<b>1NC1</b>).
-            Off-case 2ACs and the 1AR aren't numbered.
+            Off-case 2ACs and later speeches (1AR, 2NR, 2AR) aren't numbered. In <b>LD</b> it's the
+            <b>1AR</b> (by the NC, advantage pages) and the <b>NR</b> (by the 1AR); in <b>PF</b>, the rebuttals.
           </p>
           <ul>
             <li>Each new answer you put in the column takes the next number by itself - the small badge on the cell shows it. Click a badge to change it (<b>3</b>, or <b>2-3</b> for a group).</li>

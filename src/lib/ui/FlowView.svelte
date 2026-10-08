@@ -849,7 +849,7 @@
     const col = store.cursor && cols.includes(store.cursor.col) ? store.cursor.col : cols[0];
     if (col === undefined) {
       const sideless = round.template.speeches.some((_, c) => answerNumbers.needsSide(round, c, sheet));
-      flashSend(sideless ? "Answer numbers: click # mine on the column you speak in first" : "Answer numbers work on your 2AC (case pages) and your 2NC/1NR");
+      flashSend(sideless ? "Answer numbers: click # mine on the column you speak in first" : "Answer numbers work on your first answering speech - the 2AC (case pages), the 2NC/1NR, LD's 1AR and NR, PF's rebuttals");
       return true;
     }
     const s = answerNumbers.step(round, sheet, col, how);
@@ -872,7 +872,7 @@
       pages++;
     }
     if (!pages) {
-      flashSend("Nothing in your 2AC on those pages yet");
+      flashSend("Nothing in that column on those pages yet");
       return;
     }
     void sendOpsToDoc(ops, col, "append").then(() => {
