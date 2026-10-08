@@ -47,6 +47,9 @@ export interface KitFile {
    * re-read or edited file keeps its picks as long as the headings stay.
    */
   advSections?: string[];
+  /** Keys this file used to have - a saved `copy:` relinked to the real file
+   *  (`refreshFromDisk`). Other rounds' page links to the old key follow it. */
+  was?: string[];
 }
 
 /** `advSections` entry meaning "the whole file". */
@@ -349,7 +352,10 @@ class SmartKit {
     const saved = await loadBlob<SavedKit>(`smartkit-${roundId}`);
     if (this.roundId !== roundId) return; // switched again while loading
     this.files = saved?.files ?? [];
-    this.links = saved?.links ?? {};
+    // A page linked to a pinned file by its old saved-copy key follows the
+    // file to its real path (see refreshFromDisk).
+    const moved = new Map(this.library.flatMap((f) => (f.was ?? []).map((w) => [w, f.key] as const)));
+    this.links = Object.fromEntries(Object.entries(saved?.links ?? {}).map(([s, k]) => [s, moved.get(k) ?? k]));
     this.side = saved?.side;
     this.speechMode = saved?.speechMode ?? "auto";
     this.twoACOrder = saved?.twoACOrder ?? [];
@@ -410,12 +416,82 @@ class SmartKit {
         return;
       }
       const { invoke } = await import("@tauri-apps/api/core");
+      const at = Date.now();
       const bytes = await invoke<number[]>("read_binary_file", { path: f.key });
       this.ingest(f.key, new Uint8Array(bytes).buffer);
+      this.readAt.set(f.key, at);
     } catch (e) {
       this.fail(f.key, e);
     } finally {
       this.loading--;
+    }
+  }
+
+  // ---- keeping kit files current ---------------------------------------------
+  //
+  // Adam: a pinned file didn't pick up edits to it. Two causes, both fixed here:
+  // a dropped file Nimbus couldn't place was kept as a frozen saved COPY, and a
+  // file read from disk was read once per session.
+
+  /** When each on-disk file was last read (ms) - to notice it changed since. */
+  private readAt = new Map<string, number>();
+
+  /**
+   * Make every kit file follow the real file on disk:
+   *
+   * 1. A saved `copy:` is relinked to the real file when the Doc Search
+   *    library holds one by that name. Several (a team's workshop copies of
+   *    the same file) → the most recently edited, then the shortest path. Its
+   *    picks ("Adv pages use", every-sheet) and page links carry over. No
+   *    match → it stays a copy, as before.
+   * 2. A file read from disk is re-read when the library's scan shows it was
+   *    modified after we read it.
+   *
+   * Only uses the library index (no extra disk walk); runs when the tray
+   * opens and after every library rescan (window focus).
+   */
+  refreshFromDisk(): void {
+    if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return;
+    const idx = fileIndex.files;
+    if (!idx.length) return;
+    const lookup = (name: string) => {
+      const m = /^(.*)\.(docx|cmir)$/i.exec(name);
+      if (!m) return undefined;
+      const stem = m[1].toLowerCase();
+      const ext = m[2].toLowerCase();
+      return idx
+        .filter((x) => x.ext === ext && x.name.toLowerCase() === stem)
+        .sort((a, b) => b.mtime - a.mtime || a.path.length - b.path.length)[0];
+    };
+    const relink = new Map<string, string>();
+    for (const f of this.all) {
+      if (!f.key.startsWith("copy:")) continue;
+      const hit = lookup(f.name);
+      if (hit && !this.all.some((x) => x.key === hit.path)) relink.set(f.key, hit.path);
+    }
+    if (relink.size) {
+      const swap = (f: KitFile): KitFile =>
+        relink.has(f.key) ? { ...f, key: relink.get(f.key)!, was: [...(f.was ?? []), f.key] } : f;
+      this.library = this.library.map(swap);
+      this.files = this.files.map(swap);
+      this.links = Object.fromEntries(Object.entries(this.links).map(([s, k]) => [s, relink.get(k) ?? k]));
+      this.persistLibrary();
+      this.persist();
+      for (const [old, key] of relink) {
+        this.cmDocs.delete(old);
+        const f = this.all.find((x) => x.key === key);
+        if (f) void this.parseFromDisk(f);
+      }
+    }
+    for (const f of this.all) {
+      if (f.key.startsWith("copy:") || f.key.startsWith("mem:")) continue;
+      const hit = idx.find((x) => x.path === f.key);
+      const at = this.readAt.get(f.key);
+      if (hit && at && hit.mtime > at) {
+        this.readAt.set(f.key, Date.now()); // don't queue it twice
+        this.cmDocs.delete(f.key);
+        void this.parseFromDisk(f);
+      }
     }
   }
 

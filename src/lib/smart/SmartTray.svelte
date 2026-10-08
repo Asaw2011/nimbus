@@ -12,6 +12,7 @@
   import { settings } from "$lib/model/settings.svelte";
   import { smartKit, ALL_SECTIONS, NO_SECTIONS, SECTION_SEP, type KitFile, type Starter, type StarterBlock, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
+  import { fileIndex } from "$lib/search/file-index.svelte";
 
   let {
     onjump,
@@ -60,6 +61,18 @@
     if (!open) return;
     void smartKit.all.length;
     untrack(() => smartKit.prewarmExact());
+  });
+
+  // Kit files follow the real file: a saved copy is relinked to it, and a file
+  // edited since it was read is re-read. When the kit loads, and after every
+  // library rescan (Nimbus rescans whenever its window regains focus). Not
+  // only while open - suggestions come from these files with the tray shut.
+  // Cheap when nothing changed: it compares the library index, reads nothing.
+  $effect(() => {
+    void fileIndex.lastScanned;
+    void smartKit.library.length;
+    void smartKit.roundId;
+    untrack(() => smartKit.refreshFromDisk());
   });
 
   // Recompute from the round itself, a beat after it settles. Reading these
