@@ -54,7 +54,10 @@
   let running = $state(false);
   let accumMs = $state(start0?.accumMs ?? 0); // time banked from previous runs (while paused)
   let startedAt = 0; // Date.now() when the current run started
-  let targetMs = $state(start0?.targetMs ?? (settings.timerPresets[0]?.seconds ?? 300) * 1000);
+  /** This event's presets - policy's, LD's or PF's, by the round last open in
+   *  the main window (`settings.timerFormat`, which only the main window sets). */
+  const presets = $derived(settings.presetsFor());
+  let targetMs = $state(start0?.targetMs ?? (untrack(() => settings.presetsFor())[0]?.seconds ?? 300) * 1000);
   let activePreset = $state<number | null>(start0 ? start0.activePreset : 0);
   let now = $state(Date.now());
   let tick: ReturnType<typeof setInterval> | null = null;
@@ -126,7 +129,7 @@
     now = Date.now();
   }
   function pickPreset(i: number) {
-    const p = settings.timerPresets[i];
+    const p = presets[i];
     if (!p) return;
     reset();
     mode = "countdown";
@@ -302,7 +305,7 @@
         {mode === "stopwatch"
           ? "Stopwatch"
           : activePreset !== null
-            ? settings.timerPresets[activePreset]?.label
+            ? presets[activePreset]?.label
             : "Countdown"}
       </span>
       <span class="t-sp"></span>
@@ -345,7 +348,7 @@
   </div>
 
   <div class="t-presets">
-    {#each settings.timerPresets as p, i (i)}
+    {#each presets as p, i (i)}
       <button
         class="t-preset"
         class:on={mode === "countdown" && activePreset === i}

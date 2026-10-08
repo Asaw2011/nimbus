@@ -9,6 +9,8 @@
 // column. Smart features (extension arrows, cross-flow links, AI) layer on
 // top of this base without changing the mental model.
 
+import { sideTurn } from "./turns";
+
 export type Side = "aff" | "neg" | "neutral";
 
 export interface Speech {
@@ -513,6 +515,10 @@ export function defaultStartCol(
   if (kind === "overview") {
     const block = template.speeches.findIndex((s) => /block/i.test(s.abbr));
     if (block >= 0) return block;
+    // No "block" column (LD, PF): the neg's second speech, where its overviews
+    // go - LD's NR, PF's rebuttal - not the constructive.
+    const second = sideTurn(template.speeches, "neg", 1);
+    if (second) return second.cols[0];
     const neg = template.speeches.findIndex((s) => s.side === "neg");
     return Math.max(0, neg);
   }

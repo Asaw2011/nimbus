@@ -127,7 +127,7 @@
             <kbd>Enter</kbd> to move from question to answer to the next question.
           </p>
           <ul>
-            <li>The bar at the top says whose cross-ex it is: <b>Cross-ex of 1AC · 1NC · 2AC · 2NC</b> (LD: AC · NC). The headers then say who asks and who answers.</li>
+            <li>The bar at the top says whose cross-ex it is: <b>Cross-ex of 1AC · 1NC · 2AC · 2NC</b> (LD: AC · NC). The headers then say who asks and who answers. In <b>PF</b> it's the three crossfires - <b>Case CF · Reb CF · Grand CF</b> - where both teams ask.</li>
             <li>A new cross-ex page takes the speech you pick. On a page that already has one, clicking another speech jumps to that speech's cross-ex page, making it the first time - so each cross-ex keeps its own questions.</li>
             <li>Each one is its own tab (<b>1AC CX</b>, <b>2AC CX</b>…), and it shares with your partner like any other sheet.</li>
           </ul>
@@ -284,8 +284,8 @@
           <ul>
             <li>Both teams' prep sits in the <b>ribbon</b>, on the right. Press ▶ to run one - starting one stops the other, and it stops itself at 0:00.</li>
             <li>Click the time to correct it by hand when nobody stopped the clock; right-click to reset it.</li>
-            <li>Prep length is in Settings (8 minutes by default).</li>
-            <li><b>⏱ Timer</b> in the top bar (<kbd>{combosLabel(km.toggleTimer, mac)}</kbd>) is the separate speech stopwatch, with countdown presets.</li>
+            <li>Prep length is in Settings → Appearance → Prep clocks, per event: 8 minutes for policy, 4 for LD, 3 for PF by default.</li>
+            <li><b>⏱ Timer</b> in the top bar (<kbd>{combosLabel(km.toggleTimer, mac)}</kbd>) is the separate speech stopwatch, with countdown presets - the open round's event's speech times (LD: AC, NC, 1AR, NR; PF: case, crossfire, rebuttal, summary, final focus). Edit each event's five in Settings → Appearance → Timer presets.</li>
           </ul>
           <h3>Popping the timer out</h3>
           <ul>
@@ -405,8 +405,9 @@
             <li>
               <b>Your 2AC</b> (with 2AC off-case ticked): a box at the top lists every off-case
               page and how much of your 2AC is on it. <b>Send all to doc</b> sends every page's
-              2AC to your speech doc in one go, each under its page name, in tab order;
-              <b>Send</b> does one page.
+              2AC to your speech doc in one go, each under its page name, in the box's order -
+              <b>T first</b>, then your tabs; drag a page by its <b>⋮⋮</b> to move it. <b>Send</b>
+              does one page.
             </li>
             <li>
               <b>LD and PF:</b> "2AC" and "1AR" here mean your first and second answering speeches,

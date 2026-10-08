@@ -116,6 +116,8 @@ interface SavedKit {
   side?: Side;
   /** Which aff speech Smart blocks is helping with - see `answering`. */
   speechMode?: SpeechMode;
+  /** "Your 2AC": the page order you set (sheet ids). Absent = T first, then tabs. */
+  twoACOrder?: string[];
 }
 
 /** "auto" = the 2AC until the neg block has been flowed, then the 1AR. */
@@ -156,6 +158,9 @@ const AFF_RE = /(^|[^a-z0-9])aff(irmative)?(?![a-z])/i;
 /** A file name that also names a kind of position ("NEG - Midterms DA") is a
  *  file for THAT position, not a whole-case file. */
 const POSITION_RE = /(^|[^a-z0-9])(das?|disads?|cps?|counterplans?|pics?|ks?|kritiks?|t|topicality|theory)(?![a-z])/i;
+
+/** A topicality page: "T---NHI", "T - Subsets", "Topicality". */
+const T_PAGE_RE = /^\s*(t|topicality)(?![a-z0-9])/i;
 
 /** A 2AC file's own section for the case: "Case", "Case---2AC", "CASE Answers". */
 const CASE_SECTION_RE = /(^|[^a-z])case([^a-z]|$)/i;
@@ -276,6 +281,8 @@ class SmartKit {
   side = $state<Side | undefined>(undefined);
   /** Per round: which aff speech the tray is for (the "Answering" switch). */
   speechMode = $state<SpeechMode>("auto");
+  /** Per round: the "Your 2AC" page order you set (sheet ids). */
+  twoACOrder = $state<string[]>([]);
   /** Parsed trees are large and never edited - raw, so they aren't proxied. */
   parsed = $state.raw<Record<string, Parsed>>({});
   loading = $state(0);
@@ -337,6 +344,7 @@ class SmartKit {
     this.links = {};
     this.side = undefined;
     this.speechMode = "auto";
+    this.twoACOrder = [];
     this.dismissed = [];
     const saved = await loadBlob<SavedKit>(`smartkit-${roundId}`);
     if (this.roundId !== roundId) return; // switched again while loading
@@ -344,6 +352,7 @@ class SmartKit {
     this.links = saved?.links ?? {};
     this.side = saved?.side;
     this.speechMode = saved?.speechMode ?? "auto";
+    this.twoACOrder = saved?.twoACOrder ?? [];
     for (const f of this.files) {
       if (!this.parsed[f.key]) void this.parseFromDisk(f);
     }
@@ -356,6 +365,7 @@ class SmartKit {
       links: $state.snapshot(this.links),
       side: this.side,
       speechMode: this.speechMode,
+      ...(this.twoACOrder.length ? { twoACOrder: this.twoACOrder } : {}),
     };
     void saveBlob(`smartkit-${this.roundId}`, kit);
   }
@@ -1437,7 +1447,7 @@ class SmartKit {
     if (this.mySide(round) !== "aff") return [];
     const to = firstAnswerCol(round.template.speeches, laneHere);
     if (to < 0) return [];
-    return round.sheets
+    const pages = round.sheets
       .filter((s) => s.kind !== "case" && s.kind !== "cx" && s.kind !== "overview" && to >= s.startCol)
       .map((s) => ({
         sheetId: s.id,
@@ -1445,6 +1455,26 @@ class SmartKit {
         toCol: to,
         count: s.rows.reduce((n, r) => n + (filled(r.cells[to]) ? 1 : 0), 0),
       }));
+    // T first by default (Adam), then tab order. Once you reorder, yours
+    // sticks; a page added later goes on top if it's T, else at the bottom.
+    const isT = (t: string) => T_PAGE_RE.test(t);
+    const byDefault = [...pages.filter((p) => isT(p.title)), ...pages.filter((p) => !isT(p.title))];
+    if (!this.twoACOrder.length) return byDefault;
+    const at = new Map(this.twoACOrder.map((id, i) => [id, i]));
+    const known = byDefault.filter((p) => at.has(p.sheetId)).sort((a, b) => at.get(a.sheetId)! - at.get(b.sheetId)!);
+    const fresh = byDefault.filter((p) => !at.has(p.sheetId));
+    return [...fresh.filter((p) => isT(p.title)), ...known, ...fresh.filter((p) => !isT(p.title))];
+  }
+
+  /** Drag a page to position `to` in "Your 2AC". Saved per round. */
+  moveTwoACPage(round: Round, laneHere: number, sheetId: string, to: number): void {
+    const ids = this.twoACPages(round, laneHere).map((p) => p.sheetId);
+    const from = ids.indexOf(sheetId);
+    if (from < 0) return;
+    ids.splice(from, 1);
+    ids.splice(Math.max(0, Math.min(ids.length, to)), 0, sheetId);
+    this.twoACOrder = ids;
+    this.persist();
   }
 
   /**

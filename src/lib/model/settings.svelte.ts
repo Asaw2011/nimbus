@@ -130,8 +130,18 @@ export interface Persisted {
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
-  /** Minutes of prep each team starts a round with. */
+  /** Minutes of prep each team starts a round with (policy, and any format
+   *  that isn't LD or PF). */
   prepMinutes: number;
+  /** Prep for LD and PF rounds - shorter events, their own defaults (4 / 3). */
+  prepMinutesLd?: number;
+  prepMinutesPf?: number;
+  /** LD / PF countdown presets (policy's are `timerPresets`). */
+  timerPresetsLd?: TimerPreset[];
+  timerPresetsPf?: TimerPreset[];
+  /** The format of the round last open in the main window - which preset list
+   *  the timer (docked or popped out) shows. */
+  timerFormat?: "policy" | "ld" | "pf";
   /** Last app version whose patch notes were shown. "" = never shown. */
   lastSeenVersion: string;
   /** Default file format when you Save (⌘S / on close). */
@@ -223,6 +233,38 @@ export const DEFAULT_TIMER_PRESETS: TimerPreset[] = [
   { label: "Prep", seconds: 8 * 60 },
   { label: "1 min", seconds: 60 },
 ];
+
+/** LD's speeches: AC 6, NC 7, 1AR 4, NR 6; CX and the 2AR are both 3. */
+export const DEFAULT_TIMER_PRESETS_LD: TimerPreset[] = [
+  { label: "AC", seconds: 6 * 60 },
+  { label: "NC", seconds: 7 * 60 },
+  { label: "1AR", seconds: 4 * 60 },
+  { label: "NR", seconds: 6 * 60 },
+  { label: "CX / 2AR", seconds: 3 * 60 },
+];
+
+/** PF's speeches: case and rebuttal 4, crossfire and summary 3, final focus 2. */
+export const DEFAULT_TIMER_PRESETS_PF: TimerPreset[] = [
+  { label: "Case", seconds: 4 * 60 },
+  { label: "Crossfire", seconds: 3 * 60 },
+  { label: "Rebuttal", seconds: 4 * 60 },
+  { label: "Summary", seconds: 3 * 60 },
+  { label: "Final Focus", seconds: 2 * 60 },
+];
+
+/** The five presets, each sanitized against the default in its slot - a
+ *  truncated or corrupted save can't leave a missing preset or a zero-second
+ *  countdown that can never be started. */
+function sanitizePresets(saved: unknown, defaults: TimerPreset[]): TimerPreset[] {
+  const arr = Array.isArray(saved) ? (saved as Partial<TimerPreset>[]) : [];
+  return defaults.map((d, i) => {
+    const s = arr[i];
+    return {
+      label: typeof s?.label === "string" && s.label.trim() ? s.label : d.label,
+      seconds: Number.isFinite(s?.seconds) ? Math.max(1, Math.round(s!.seconds!)) : d.seconds,
+    };
+  });
+}
 
 /** A reader whose speaking pace drives the doc's estimated read time. */
 export interface Reader {
@@ -342,6 +384,9 @@ class Settings {
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
   prepMinutes = $state(8);
+  /** LD / PF prep (see Persisted). */
+  prepMinutesLd = $state(4);
+  prepMinutesPf = $state(3);
   /** Drives the "what's new" panel: when this doesn't match the running build,
    *  the notes for everything in between are shown once, then this is updated.
    *  Disk-backed, so it survives the installer replacing the app. */
@@ -414,6 +459,20 @@ class Settings {
   readers = $state<Reader[]>(DEFAULT_READERS.map((r) => ({ ...r })));
   /** Five adjustable countdown presets for the floating timer (label + seconds). */
   timerPresets = $state<TimerPreset[]>(structuredClone(DEFAULT_TIMER_PRESETS));
+  timerPresetsLd = $state<TimerPreset[]>(structuredClone(DEFAULT_TIMER_PRESETS_LD));
+  timerPresetsPf = $state<TimerPreset[]>(structuredClone(DEFAULT_TIMER_PRESETS_PF));
+  /** Which list the timer shows - set by the main window from the open round. */
+  timerFormat = $state<"policy" | "ld" | "pf">("policy");
+
+  /** The five presets for a format (policy = `timerPresets`, as always). */
+  presetsFor(format: "policy" | "ld" | "pf" = this.timerFormat): TimerPreset[] {
+    return format === "ld" ? this.timerPresetsLd : format === "pf" ? this.timerPresetsPf : this.timerPresets;
+  }
+
+  /** Prep minutes for a format. */
+  prepFor(format: "policy" | "ld" | "pf"): number {
+    return format === "ld" ? this.prepMinutesLd : format === "pf" ? this.prepMinutesPf : this.prepMinutes;
+  }
   /** Send target for flow cells; see Persisted.docTarget. Built-in by default. */
   docTarget = $state<"cardmirror" | "builtin">("builtin");
   /** Experimental: the Smart blocks (beta) tray. Off by default - it is opt-in
@@ -499,6 +558,11 @@ class Settings {
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
     else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "compact";
     if (typeof p.prepMinutes === "number") this.prepMinutes = clampPrepMinutes(p.prepMinutes);
+    if (typeof p.prepMinutesLd === "number") this.prepMinutesLd = clampPrepMinutes(p.prepMinutesLd);
+    if (typeof p.prepMinutesPf === "number") this.prepMinutesPf = clampPrepMinutes(p.prepMinutesPf);
+    if (Array.isArray(p.timerPresetsLd)) this.timerPresetsLd = sanitizePresets(p.timerPresetsLd, DEFAULT_TIMER_PRESETS_LD);
+    if (Array.isArray(p.timerPresetsPf)) this.timerPresetsPf = sanitizePresets(p.timerPresetsPf, DEFAULT_TIMER_PRESETS_PF);
+    if (p.timerFormat === "policy" || p.timerFormat === "ld" || p.timerFormat === "pf") this.timerFormat = p.timerFormat;
     if (typeof p.lastSeenVersion === "string") this.lastSeenVersion = p.lastSeenVersion;
     if (p.defaultSaveFormat) this.defaultSaveFormat = p.defaultSaveFormat;
     if (typeof p.defaultTemplate === "number") this.defaultTemplate = p.defaultTemplate;
@@ -581,16 +645,19 @@ class Settings {
     }
   }
 
-  setTimerPreset(i: number, patch: Partial<TimerPreset>): void {
-    if (!this.timerPresets[i]) return;
+  setTimerPreset(i: number, patch: Partial<TimerPreset>, format: "policy" | "ld" | "pf" = "policy"): void {
+    const list = this.presetsFor(format);
+    if (!list[i]) return;
     // Build a new array rather than mutating in place - a captured $state array
     // ref doesn't re-notify on element assignment.
-    const next = [...this.timerPresets];
+    const next = [...list];
     next[i] = {
       label: patch.label !== undefined ? patch.label : next[i].label,
       seconds: patch.seconds !== undefined ? Math.max(1, Math.round(patch.seconds)) : next[i].seconds,
     };
-    this.timerPresets = next;
+    if (format === "ld") this.timerPresetsLd = next;
+    else if (format === "pf") this.timerPresetsPf = next;
+    else this.timerPresets = next;
     this.save();
   }
 
@@ -603,6 +670,9 @@ class Settings {
       myLaneSide: this.myLaneSide,
       readers: $state.snapshot(this.readers) as Reader[],
       timerPresets: $state.snapshot(this.timerPresets) as TimerPreset[],
+      timerPresetsLd: $state.snapshot(this.timerPresetsLd) as TimerPreset[],
+      timerPresetsPf: $state.snapshot(this.timerPresetsPf) as TimerPreset[],
+      timerFormat: this.timerFormat,
       docTarget: this.docTarget,
       smartBlocksEnabled: this.smartBlocksEnabled,
       blockAtSuffix: this.blockAtSuffix,
@@ -630,6 +700,8 @@ class Settings {
       answerNumbers: this.answerNumbers,
       ribbonMode: this.ribbonMode,
       prepMinutes: this.prepMinutes,
+      prepMinutesLd: this.prepMinutesLd,
+      prepMinutesPf: this.prepMinutesPf,
       lastSeenVersion: this.lastSeenVersion,
       defaultSaveFormat: this.defaultSaveFormat,
       defaultTemplate: this.defaultTemplate,

@@ -6,10 +6,13 @@
   // DOCX-IMPORT feature - to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
+  import { formatOf, pageNames } from "../model/turns";
 
   let { onopensheet }: { onopensheet: (sheetId: string) => void } = $props();
 
   const round = $derived(store.round);
+  /** What this event calls its pages: Advantage/Off-case, LD's Contention, PF's Pro/Con. */
+  const names = $derived(pageNames(formatOf(round?.template)));
   let renamingId = $state<string | null>(null);
   let renameText = $state("");
   /** How many pages a single "Add" click creates. */
@@ -42,7 +45,7 @@
     if (!store.round) return;
     const existing = store.round.sheets.filter((s) => s.kind === "offcase").length;
     for (let i = 1; i <= count; i++) {
-      store.addSheet(`Off ${existing + i}`, "offcase");
+      store.addSheet(names.offTitle(existing + i), "offcase");
     }
   }
 
@@ -50,7 +53,7 @@
     if (!store.round) return;
     const existing = store.round.sheets.filter((s) => s.kind === "case").length;
     for (let i = 1; i <= count; i++) {
-      store.addSheet(`Adv ${existing + i}`, "case");
+      store.addSheet(names.caseTitle(existing + i), "case");
     }
   }
 
@@ -241,10 +244,10 @@
               <option value={n}>{n}</option>
             {/each}
           </select>
-          <button class="chip aff" onclick={() => addAdvantages(Math.max(1, addCount))}>Advantage</button>
-          <button class="chip neg" onclick={() => addOffcase(Math.max(1, addCount))}>Off-case</button>
+          <button class="chip aff" onclick={() => addAdvantages(Math.max(1, addCount))}>{names.caseLabel}</button>
+          <button class="chip neg" onclick={() => addOffcase(Math.max(1, addCount))}>{names.offLabel}</button>
           <button class="chip" onclick={addOverview}>Overview</button>
-          <button class="chip" onclick={addCx}>CX</button>
+          <button class="chip" onclick={addCx}>{formatOf(round?.template) === "pf" ? "Crossfire" : "CX"}</button>
         </div>
       </div>
       {#if round.sheets.length === 0}

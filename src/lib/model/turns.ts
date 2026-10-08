@@ -12,7 +12,26 @@
 // so a split partner-lane pair is one turn, and so are separate 2NC and 1NR
 // columns. Neutral columns are skipped.
 
-import type { Side, Speech } from "./types";
+import type { Side, Speech, SpeechTemplate } from "./types";
+
+export type Format = "policy" | "ld" | "pf";
+
+/**
+ * Which event a template is, for the few things that genuinely differ (prep
+ * length, timer presets, page names, PF's crossfires). By the built-in name
+ * first, then by its speeches, so a renamed copy still counts. Anything
+ * unrecognised is treated as policy - the app's original behaviour.
+ */
+export function formatOf(template: SpeechTemplate | null | undefined): Format {
+  if (!template) return "policy";
+  const name = template.name.toLowerCase();
+  if (/public forum|\bpf\b/.test(name)) return "pf";
+  if (/lincoln|\bld\b/.test(name)) return "ld";
+  const abbrs = template.speeches.map((s) => baseAbbr(s).toUpperCase());
+  if (abbrs.some((a) => /^(PRO|CON)\b/.test(a))) return "pf";
+  if (abbrs.includes("AC") && abbrs.includes("NC") && !abbrs.includes("1AC")) return "ld";
+  return "policy";
+}
 
 export interface Turn {
   side: Side;
@@ -20,6 +39,24 @@ export interface Turn {
   index: number;
   /** The columns in it, in order. */
   cols: number[];
+}
+
+/**
+ * What each event calls the two kinds of page, and the name a new one gets.
+ * Display only - the stored kinds stay "case" (the aff's) and "offcase" (the
+ * neg's), so nothing that reads them changes.
+ */
+export function pageNames(format: Format): {
+  caseLabel: string;
+  offLabel: string;
+  caseTitle: (n: number) => string;
+  offTitle: (n: number) => string;
+} {
+  if (format === "ld")
+    return { caseLabel: "Contention", offLabel: "Off-case", caseTitle: (n) => `Contention ${n}`, offTitle: (n) => `Off ${n}` };
+  if (format === "pf")
+    return { caseLabel: "Pro contention", offLabel: "Con contention", caseTitle: (n) => `Pro C${n}`, offTitle: (n) => `Con C${n}` };
+  return { caseLabel: "Advantage", offLabel: "Off-case", caseTitle: (n) => `Adv ${n}`, offTitle: (n) => `Off ${n}` };
 }
 
 /** Every turn of the round, in speaking order. */

@@ -127,6 +127,10 @@
       : [],
   );
   const twoACReady = $derived(twoAC.filter((p) => p.count > 0));
+  /** Dragging a page in "Your 2AC": which one, and where it would land. */
+  let yDrag = $state<string | null>(null);
+  let yOver = $state<number | null>(null);
+  let yBefore = $state(true);
 
   async function addFiles() {
     if ("__TAURI_INTERNALS__" in window) {
@@ -443,11 +447,47 @@
                       class="insert send-all"
                       disabled={!twoACReady.length}
                       onclick={() => onsendpages?.(twoACReady.map((p) => p.sheetId), twoACReady[0].toCol)}
-                      title="Send every page's {n2AC} to the speech doc, each under its page name, in tab order"
+                      title="Send every page's {n2AC} to the speech doc, each under its page name, in this order (drag ⋮⋮ to change it)"
                     >Send all to doc</button>
                   </div>
-                  {#each twoAC as p (p.sheetId)}
-                    <div class="match">
+                  {#each twoAC as p, i (p.sheetId)}
+                    <!-- A div, not a button: WebKit won't start a drag from a button. -->
+                    <div
+                      class="match y-row"
+                      class:y-dragging={yDrag === p.sheetId}
+                      class:y-before={yOver === i && yBefore && yDrag !== p.sheetId}
+                      class:y-after={yOver === i && !yBefore && yDrag !== p.sheetId}
+                      draggable="true"
+                      role="listitem"
+                      ondragstart={(e) => {
+                        yDrag = p.sheetId;
+                        e.dataTransfer?.setData("text/nimbus-2ac-page", p.sheetId);
+                        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                      }}
+                      ondragover={(e) => {
+                        if (!yDrag) return;
+                        e.preventDefault();
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        yOver = i;
+                        yBefore = e.clientY < r.top + r.height / 2;
+                      }}
+                      ondrop={(e) => {
+                        if (!yDrag) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const from = twoAC.findIndex((x) => x.sheetId === yDrag);
+                        let to = yBefore ? i : i + 1;
+                        if (from >= 0 && from < to) to--; // it leaves its old slot first
+                        if (store.round) smartKit.moveTwoACPage(store.round, store.laneHere, yDrag, to);
+                        yDrag = null;
+                        yOver = null;
+                      }}
+                      ondragend={() => {
+                        yDrag = null;
+                        yOver = null;
+                      }}
+                    >
+                      <span class="y-grip" title="Drag to reorder - Send all goes in this order" aria-hidden="true">⋮⋮</span>
                       <button class="where y-page" onclick={() => onjump(p.sheetId, 1, p.toCol)} title="Go to this page">
                         <span class="sheet">{p.title || "Untitled"}</span>
                       </button>
@@ -1261,6 +1301,25 @@
     font-size: 12px;
   }
   .y-page { flex: 1; }
+  .y-row {
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
+  }
+  .y-row.y-before { border-top-color: var(--accent); }
+  .y-row.y-after { border-bottom-color: var(--accent); }
+  .y-row.y-dragging { opacity: 0.4; }
+  .y-grip {
+    color: var(--text-dim);
+    cursor: grab;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -4px;
+    padding: 0 8px 0 2px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .y-row:hover .y-grip { color: var(--text); }
   .insert:disabled,
   .insert:disabled:hover {
     opacity: 0.4;

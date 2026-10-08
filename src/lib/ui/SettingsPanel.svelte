@@ -25,6 +25,14 @@
 
   let { onclose, initialTab }: { onclose: () => void; initialTab?: string } = $props();
 
+  /** Which event's timer presets are being edited - starts on the open round's. */
+  let presetFmt = $state<"policy" | "ld" | "pf">(settings.timerFormat);
+  const FMT_NAMES = [
+    { id: "policy", label: "Policy" },
+    { id: "ld", label: "LD" },
+    { id: "pf", label: "PF" },
+  ] as const;
+
   // ---- timer alarm ----------------------------------------------------------
   let soundInput = $state<HTMLInputElement>();
   let soundError = $state("");
@@ -1021,17 +1029,22 @@
     <section>
       <h3>Timer presets</h3>
       <p class="hint">
-        The five countdown buttons on the ⏱ timer. Times are <code>m:ss</code>;
-        defaults are policy lengths, so change them if you flow another event.
+        The five countdown buttons on the ⏱ timer. Times are <code>m:ss</code>. Each event
+        has its own five - the timer shows the ones for the round you have open.
       </p>
+      <div class="inline" style="margin-bottom: 6px">
+        {#each FMT_NAMES as f (f.id)}
+          <button class="add-reader" class:rebinding={presetFmt === f.id} onclick={() => (presetFmt = f.id)}>{f.label}</button>
+        {/each}
+      </div>
       <div class="readers">
-        {#each settings.timerPresets as p, i (i)}
+        {#each settings.presetsFor(presetFmt) as p, i (presetFmt + i)}
           <div class="reader-row">
             <input
               class="reader-name"
               value={p.label}
               placeholder="Preset name"
-              oninput={(e) => settings.setTimerPreset(i, { label: e.currentTarget.value })}
+              oninput={(e) => settings.setTimerPreset(i, { label: e.currentTarget.value }, presetFmt)}
             />
             <input
               class="reader-wpm"
@@ -1041,8 +1054,8 @@
                 // Accept "8", "8:00" and "8:5"; ignore anything unparseable so a
                 // half-typed value can't wipe the preset to 0 and jam the timer.
                 const m = /^\s*(\d+)\s*(?::\s*(\d{1,2}))?\s*$/.exec(e.currentTarget.value);
-                if (m) settings.setTimerPreset(i, { seconds: Number(m[1]) * 60 + Number(m[2] ?? 0) });
-                else settings.timerPresets = [...settings.timerPresets]; // repaint the old value
+                if (m) settings.setTimerPreset(i, { seconds: Number(m[1]) * 60 + Number(m[2] ?? 0) }, presetFmt);
+                else e.currentTarget.value = `${Math.floor(p.seconds / 60)}:${(p.seconds % 60).toString().padStart(2, "0")}`; // put the old value back
               }}
             />
             <span class="reader-unit">m:ss</span>
@@ -1119,24 +1132,27 @@
         new rounds and whenever you reset a clock - to change the round you're in
         right now, click its time in the ribbon and type a new value.
       </p>
-      <label class="row">
-        Prep time per team
-        <span class="inline">
-          <input
-            type="number"
-            min="0"
-            max="60"
-            style="width: 66px"
-            value={settings.prepMinutes}
-            onchange={(e) => {
-              settings.prepMinutes = clampPrepMinutes(Number(e.currentTarget.value));
-              e.currentTarget.value = String(settings.prepMinutes);
-              settings.save();
-            }}
-          />
-          <span class="hint-inline">minutes</span>
-        </span>
-      </label>
+      {#each [["Policy", "prepMinutes"], ["LD", "prepMinutesLd"], ["PF", "prepMinutesPf"]] as [label, key] (key)}
+        <label class="row">
+          Prep time per team - {label}
+          <span class="inline">
+            <input
+              type="number"
+              min="0"
+              max="60"
+              style="width: 66px"
+              value={settings[key as "prepMinutes" | "prepMinutesLd" | "prepMinutesPf"]}
+              onchange={(e) => {
+                const k = key as "prepMinutes" | "prepMinutesLd" | "prepMinutesPf";
+                settings[k] = clampPrepMinutes(Number(e.currentTarget.value));
+                e.currentTarget.value = String(settings[k]);
+                settings.save();
+              }}
+            />
+            <span class="hint-inline">minutes</span>
+          </span>
+        </label>
+      {/each}
     </section>
     <section>
       <h3>Speech Doc Style &amp; Headings</h3>

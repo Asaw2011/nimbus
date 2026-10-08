@@ -10,6 +10,7 @@
   import type { Sheet, Speech } from "../model/types";
   import { makeRow } from "../model/types";
   import { store } from "../model/round.svelte";
+  import { formatOf } from "../model/turns";
 
   let {
     sheet,
@@ -33,12 +34,20 @@
   interface CxOption {
     name: string;
     side: Speech["side"];
+    /** The page title it gets ("1AC CX"; PF's crossfires are just their name). */
+    title: string;
   }
 
   /** The speeches that get cross-examined: every speech before the first
    *  rebuttal, a partner-lane split counted once. Policy gives 1AC 1NC 2AC 2NC,
    *  LD gives AC NC. A format with no rebuttals offers all its speeches. */
   const options = $derived.by<CxOption[]>(() => {
+    // PF has crossfires, not cross-ex: after the cases, after the rebuttals,
+    // and grand crossfire after the summaries - both teams ask in each, so no
+    // side is the asker.
+    if (formatOf(store.round?.template) === "pf") {
+      return ["Case CF", "Reb CF", "Grand CF"].map((name) => ({ name, side: "neutral" as const, title: name }));
+    }
     const speeches = store.round?.template.speeches ?? [];
     const isRebuttal = (s: Speech) =>
       /rebuttal/i.test(s.label) || /^(1AR|2AR|1NR|2NR|NR|AR)$|\bReb\b/i.test(s.abbr);
@@ -53,7 +62,7 @@
       let name = s.laneGroup ? s.abbr.split(" · ")[0] : s.abbr;
       // The neg block's cross-ex is the 2NC's, nobody calls it "Neg Block CX".
       if (/^2NC\b/i.test(s.label)) name = "2NC";
-      out.push({ name, side: s.side });
+      out.push({ name, side: s.side, title: `${name} CX` });
     }
     return out;
   });
@@ -82,14 +91,14 @@
   function pick(o: CxOption) {
     if (current?.name === o.name) return;
     if (!current) {
-      store.renameSheet(sheet.id, `${o.name} CX`);
+      store.renameSheet(sheet.id, o.title);
       return;
     }
     if (!onopen) return;
     const existing = store.round?.sheets.find(
       (s) => s.kind === "cx" && s.id !== sheet.id && speechOf(s.title)?.name === o.name,
     );
-    onopen(existing ? existing.id : store.addSheet(`${o.name} CX`, "cx"));
+    onopen(existing ? existing.id : store.addSheet(o.title, "cx"));
   }
 
   /** Question lives in cell 0, answer in cell 1. */

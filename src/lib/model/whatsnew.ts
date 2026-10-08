@@ -27,9 +27,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "1.5.4",
     headline: "Send your whole 2AC to the doc in one click, number your answers if you want, and Smart blocks picks the right section.",
     items: [
-      "**Your 2AC, all at once.** With **2AC off-case** ticked in the Smart blocks tray, a **Your 2AC** box lists every off-case page and how much of your 2AC is on it. **Send all to doc** puts every page in your speech doc in one go, each under its page name - no more tilde-ing page by page.",
+      "**Your 2AC, all at once.** With **2AC off-case** ticked in the Smart blocks tray, a **Your 2AC** box lists every off-case page and how much of your 2AC is on it. **Send all to doc** puts every page in your speech doc in one go, each under its page name - no more tilde-ing page by page. **T goes first**, and you can **drag** pages (⋮⋮) into whatever order you'll read them.",
       "**Answer numbers (experimental).** Turn on **Answer numbers** in Settings → Experimental and your 2NC/1NR answers get the number of the 2AC argument they answer (**2AC1**, **2AC 2-3**), and your 2AC answers on advantage pages the 1NC's (**1NC1**). Each new answer takes the next number by itself; the column header's ‹ › and + skip around or group. Sending the column puts your answers in number order under the number and a **[xxx]** line with what they said - even if you answered 2AC 2 before 2AC 1. Off by default; with it off nothing changes.",
       "**LD and PF too.** Your 2AC, the 2AC off-case lists and answer numbers work in every format, on the matching speeches: in LD the **1AR** (answering the NC) and the **NR**, in PF the **rebuttals**. The Smart blocks tray names them that way too.",
+      "**LD and PF feel like their own events.** Prep starts at **4 minutes in LD and 3 in PF** (8 in policy - each is in Settings → Appearance → Prep clocks), the timer shows **that event's speech times**, pages are **Contentions** (PF: **Pro / Con contention**), overview pages start at the NR or rebuttal, and PF's cross-ex page has the three **crossfires**.",
       "**Smart blocks picks the right section.** A page like **Economy DA** now takes your 2AC file's **DA---Economy** blocks instead of the case **Economy** blocks with a similar name.",
     ],
   },

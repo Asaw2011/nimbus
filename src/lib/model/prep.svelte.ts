@@ -22,6 +22,7 @@
 import { store } from "./round.svelte";
 import { settings } from "./settings.svelte";
 import type { PrepClock, RoundPrep } from "./types";
+import { formatOf } from "./turns";
 
 export type PrepSide = "aff" | "neg";
 
@@ -30,7 +31,8 @@ export type PrepSide = "aff" | "neg";
 const TICK_MS = 250;
 
 function freshClock(): PrepClock {
-  return { remainingMs: settings.prepMinutes * 60_000 };
+  // The round's own event: 8 minutes in policy, LD's and PF's shorter prep there.
+  return { remainingMs: settings.prepFor(formatOf(store.round?.template)) * 60_000 };
 }
 
 class Prep {

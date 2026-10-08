@@ -14,7 +14,7 @@
   import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
   import { docBridge } from "$lib/doc/docBridge.svelte";
   import { docsStore, setDocFlush } from "$lib/doc/docs.svelte";
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import type { DocNode } from "$lib/docx/parse";
   import type { Cell, Sheet } from "../model/types";
   import { pinchZoom } from "$lib/util/pinch";
@@ -32,6 +32,7 @@
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
   import { cardmirror } from "$lib/doc/cardmirror.svelte";
   import { answerNumbers, cellFilled, parseNo, spanHeading, type Span } from "$lib/model/lineup.svelte";
+  import { formatOf, pageNames } from "$lib/model/turns";
 
   let { onexit }: { onexit: () => void } = $props();
 
@@ -178,6 +179,17 @@
     if (sendFlashTimer) clearTimeout(sendFlashTimer);
     sendFlashTimer = setTimeout(() => (sendFlash = ""), 2200);
   }
+  // The timer's presets follow the event of the round you have open (LD's
+  // speech times in an LD round). Saved here, in the MAIN window, so a
+  // popped-out timer picks it up when it opens - the pop-out never saves.
+  $effect(() => {
+    if (!store.round) return;
+    const f = formatOf(store.round.template);
+    if (untrack(() => settings.timerFormat) === f) return;
+    settings.timerFormat = f;
+    settings.save();
+  });
+
   /** Manual section to open at, when "How do I…?" sends you to it. */
   let manualStart = $state<string | undefined>(undefined);
 
@@ -858,14 +870,16 @@
   }
 
   /** "Your 2AC" (Smart tray): every listed page's column, each under its page
-   *  name, appended to the doc in tab order. Appended rather than de-duped by
+   *  name, appended to the doc in the box's order (T first unless you moved
+   *  them). Appended rather than de-duped by
    *  label - the same "AT: Perm" or "1NC1" sits on several pages, and a
    *  label-based replace would delete another page's copy. */
   function sendPagesToDoc(sheetIds: string[], col: number) {
     const ops: DocOp[] = [];
     let pages = 0;
-    for (const sheet of round?.sheets ?? []) {
-      if (!sheetIds.includes(sheet.id)) continue;
+    for (const id of sheetIds) {
+      const sheet = round?.sheets.find((s) => s.id === id);
+      if (!sheet) continue;
       const body = numberedColumnOps(sheet, col) ?? sheet.rows.flatMap((r, i) => cellDocOps(r.cells[col], { sheet, row: i, col }));
       if (!body.length) continue;
       ops.push({ node: stubNode(sheet.title.trim() || "Untitled", { level: 2 }) }, ...body);
@@ -1056,12 +1070,14 @@
   // proper column (off-case at the 1NC, overviews at the block) - then its
   // title. null = still on step 1.
   type NewKind = "case" | "offcase" | "overview" | "cx";
-  const NEW_KINDS: { kind: NewKind; label: string }[] = [
-    { kind: "case", label: "Advantage" },
-    { kind: "offcase", label: "Off-case" },
+  /** What this event calls its pages (LD's Contention, PF's Pro/Con contention). */
+  const pageNamesHere = $derived(pageNames(formatOf(store.round?.template)));
+  const NEW_KINDS = $derived<{ kind: NewKind; label: string }[]>([
+    { kind: "case", label: pageNamesHere.caseLabel },
+    { kind: "offcase", label: pageNamesHere.offLabel },
     { kind: "overview", label: "Overview" },
-    { kind: "cx", label: "CX" },
-  ];
+    { kind: "cx", label: formatOf(store.round?.template) === "pf" ? "Crossfire" : "CX" },
+  ]);
   let newSheetKind = $state<NewKind | null>(null);
 
   function openNewSheet() {
@@ -1073,8 +1089,8 @@
   /** The name the round home screen would give it: Adv 2, Off 3, Overview. */
   function defaultTitle(kind: NewKind): string {
     const count = round?.sheets.filter((s) => s.kind === kind).length ?? 0;
-    if (kind === "case") return `Adv ${count + 1}`;
-    if (kind === "offcase") return `Off ${count + 1}`;
+    if (kind === "case") return pageNamesHere.caseTitle(count + 1);
+    if (kind === "offcase") return pageNamesHere.offTitle(count + 1);
     if (kind === "overview") return count === 0 ? "Overview" : `Overview ${count + 1}`;
     return "CX";
   }
