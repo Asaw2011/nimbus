@@ -700,10 +700,24 @@ class SmartKit {
     const sheetId = store.activeSheetId;
     if (!store.round || !cur || !sheetId) return false;
     const { row, col } = cur;
+    if (!(await this.insertAt(sheetId, row, col, node, fileKey))) return false;
+    store.cursor = { row: row + 1, col };
+    return true;
+  }
+
+  /**
+   * Put a block into one cell - what a click does, and what a DRAG from the
+   * tray does when it's dropped on the grid. Builds the same cell either way,
+   * with the exact CardMirror copy, so a dragged block keeps its tables when
+   * you send it to the doc (a drop used to keep only the outline).
+   */
+  async insertAt(sheetId: string, row: number, col: number, node: DocNode, fileKey?: string): Promise<boolean> {
+    if (!store.round) return false;
     // The exact CardMirror copy first (cached - normally instant), so the ONE
     // mutate below has everything: one undo step, one sync.
     const exact = await this.exactFor(fileKey, node).catch(() => null);
     if (!store.round) return false;
+    let done = false;
     store.mutate((r) => {
       const sheet = r.sheets.find((s) => s.id === sheetId);
       if (!sheet) return;
@@ -711,9 +725,9 @@ class SmartKit {
       const cell = sheet.rows[row]?.cells[col];
       if (!cell) return;
       fillCell(cell, node, exact);
+      done = true;
     });
-    store.cursor = { row: row + 1, col };
-    return true;
+    return done;
   }
 
   /**

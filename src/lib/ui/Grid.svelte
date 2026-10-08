@@ -4,6 +4,7 @@
   import { settings } from "../model/settings.svelte";
   import { matchesAny, combosLabel } from "../model/keymap";
   import { answerNumbers, spanHeading } from "../model/lineup.svelte";
+  import { smartKit } from "$lib/smart/kit.svelte";
   import GridCell from "./GridCell.svelte";
   import { guard } from "../model/crash";
   import { nodeChip, type DocNode } from "../docx/parse";
@@ -234,12 +235,21 @@
     }
     const raw = e.dataTransfer?.getData("text/nimbus-block");
     if (!raw) return;
-    let payload: { header: string; fullCard: string; node?: DocNode };
+    let payload: { header: string; fullCard: string; node?: DocNode; smartFile?: string };
     try { payload = JSON.parse(raw); } catch { return; }
     const cell = cellAt(e as unknown as MouseEvent);
     if (!cell) return;
     const { r, c } = cell;
     const node = payload.node;
+    // From the Smart tray: the same cell a click there builds, with the exact
+    // CardMirror copy, so the block keeps its tables when it goes to the doc.
+    if (node && payload.smartFile) {
+      const sheetId = sheet.id;
+      void smartKit.insertAt(sheetId, r, c, node, payload.smartFile).then((ok) => {
+        if (ok && store.activeSheetId === sheetId) store.cursor = { row: r, col: c };
+      });
+      return;
+    }
     const chip = node ? nodeChip(node) : undefined;
     // A dragged block/hat carries its cards in `node.children`. This path used to
     // write only the header and throw them away, so dropping a block gave you a

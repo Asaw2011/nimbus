@@ -363,8 +363,9 @@
     );
   }
 
-  /** Same drag payload as a Ctrl+K row, so the grid's existing drop builds the cell. */
-  function dragBlock(e: DragEvent, node: DocNode) {
+  /** Same drag payload as a Ctrl+K row, plus the kit file it came from - the
+   *  grid's drop then builds the cell exactly like a click here (tables kept). */
+  function dragBlock(e: DragEvent, node: DocNode, fileKey?: string) {
     const lines: string[] = [];
     const walk = (n: DocNode) => {
       lines.push(n.text, ...n.body);
@@ -373,7 +374,7 @@
     walk(node);
     e.dataTransfer?.setData(
       "text/nimbus-block",
-      JSON.stringify({ header: node.text, fullCard: lines.filter(Boolean).join("\n"), node }),
+      JSON.stringify({ header: node.text, fullCard: lines.filter(Boolean).join("\n"), node, ...(fileKey ? { smartFile: fileKey } : {}) }),
     );
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
   }
@@ -528,7 +529,14 @@
                     </div>
                     {#each st.blocks as b (b.id)}
                       {@const fid = `${st.key}:${b.id}`}
-                      <div class="match">
+                      <!-- Insert lines it up for you; or drag it to any cell. -->
+                      <div
+                        class="match drag-src"
+                        role="listitem"
+                        draggable="true"
+                        ondragstart={(e) => dragBlock(e, b.node, st.file)}
+                        title="Insert puts it in line for you - or drag it onto any cell"
+                      >
                         <span class="btitle" title={b.answers ? `${b.title}\nAnswers: “${b.answers.s.said}”` : b.title}>
                           {b.title}
                           {#if b.answers}<span class="answers">↳ “{b.answers.s.said}”</span>{/if}
@@ -564,7 +572,13 @@
                   <button class="dismiss" onclick={() => smartKit.dismiss(s)} title="Not this one">×</button>
                 </div>
                 {#each s.matches as m, i (m.block.id)}
-                  <div class="match">
+                  <div
+                    class="match drag-src"
+                    role="listitem"
+                    draggable="true"
+                    ondragstart={(e) => dragBlock(e, m.block.node, m.block.file)}
+                    title="Insert puts it in line for you - or drag it onto any cell"
+                  >
                     <span class="btitle" title={[...m.block.trail, m.block.title].join(" › ")}>{blockLabel(m.block.title)}</span>
                     <span class="count">{m.block.cardCount} {m.block.cardCount === 1 ? "card" : "cards"}</span>
                     <button class="insert" onclick={() => void smartKit.insert(s, m, i)}>
@@ -618,7 +632,7 @@
                   role="button"
                   tabindex="0"
                   draggable="true"
-                  ondragstart={(e) => dragBlock(e, o.node)}
+                  ondragstart={(e) => dragBlock(e, o.node, o.file)}
                   onclick={() => void grab(o.node, `ov${i}`, o.file)}
                   title="Click to put in the selected cell · drag onto any cell"
                 >
@@ -652,7 +666,7 @@
                   role="button"
                   tabindex="0"
                   draggable="true"
-                  ondragstart={(e) => dragBlock(e, r.node)}
+                  ondragstart={(e) => dragBlock(e, r.node, sheetFile?.key)}
                   onclick={() => void grab(r.node, r.key, sheetFile?.key)}
                 >
                   {#if r.hasKids}
@@ -1314,6 +1328,14 @@
     font-size: 12px;
   }
   .y-page { flex: 1; }
+  /* Draggable suggestion / 2AC-list rows: a grab cursor on the title so it's
+     discoverable; the Insert button keeps its own pointer. */
+  .drag-src .btitle {
+    cursor: grab;
+  }
+  .drag-src:active .btitle {
+    cursor: grabbing;
+  }
   .y-row {
     border-top: 2px solid transparent;
     border-bottom: 2px solid transparent;
