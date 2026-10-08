@@ -135,6 +135,18 @@ export interface Cell {
   /** The card's author, stored as the exact substring that lives inside `text`
    *  (not offsets - self-heals when you edit around it) so it renders bold. */
   author?: string;
+  /**
+   * Answer numbers (setting `answerNumbers`): which of the opponent's arguments
+   * this answer is for - "3", or "2-3" for a grouped answer. Stamped from the
+   * "Now answering" counter when the cell is filled, never inferred from the
+   * opponent's columns (partners flow those in different shapes). The doc send
+   * sorts and heads answers by it ("2AC3", "2AC 2-3").
+   *
+   * Optional and additive: older Nimbus replaces cells whole on sync, so it
+   * survives a round trip through a partner on an older build, and a round
+   * with none sends exactly as before.
+   */
+  answerNo?: string;
 }
 
 export interface Row {

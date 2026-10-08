@@ -810,6 +810,18 @@ class SmartKit {
     return out;
   }
 
+  /** The sections of a file that are CASE, which off-case pages fall back to
+   *  only when nothing else matches:
+   *  what you picked under "Adv pages use", else its case-named pockets.
+   *  "Whole file" / "nothing" picks say nothing about where case is → none. */
+  caseSectionsOf(key: string): DocNode[] {
+    const f = this.all.find((x) => x.key === key);
+    const p = this.parsed[key];
+    if (!p || f?.advSections?.includes(ALL_SECTIONS) || f?.advSections?.includes(NO_SECTIONS)) return [];
+    const picked = this.pickedSections(key);
+    return picked.length ? picked : p.roots.filter((r) => CASE_SECTION_RE.test(r.text));
+  }
+
   /** A 2AC file's automatic sections for an advantage page: its case-named
    *  pockets, plus a section named for this advantage ("Warming"). */
   private autoAdvSections(sheet: Sheet, key: string): DocNode[] {
@@ -964,7 +976,10 @@ class SmartKit {
     }
     if (guessFileForSheet(sheet.title, [{ key, name: f.name, firstHeading: p.firstHeading }])) return null;
     // Every section that ties for this page (an updated hat beside the old one).
-    const secs = guessSections(sheet.title, p.roots);
+    // An off-case page takes a 2AC/1AR file's CASE sections only when nothing
+    // else matches (see `caseSectionsOf`).
+    const skip = sheet.kind !== "case" && this.isAffSpeechFile(key) ? this.caseSectionsOf(key) : [];
+    const secs = guessSections(sheet.title, p.roots, skip);
     return secs.length ? this.combine(key, secs) : null;
   }
 
@@ -1307,7 +1322,10 @@ class SmartKit {
         const cand = [{ key: f.key, name: f.name, firstHeading: p.firstHeading }];
         const whole = !!guessFileForSheet(sheet.title, cand);
         // Every hat that ties for the page - an updated hat and the old one.
-        const secs = whole ? [] : guessSections(sheet.title, p.roots);
+        // The file's CASE sections only as a fallback: an off-case "Economy"
+        // page must not list the case Economy blocks (Adam's real 2AC file
+        // has a CASE › Economy hat AND a DA---Economy hat).
+        const secs = whole ? [] : guessSections(sheet.title, p.roots, this.caseSectionsOf(f.key));
         if (!whole && !secs.length) continue;
         const used = usedTitles(sheet);
         const seen = new Set<string>();
@@ -1336,6 +1354,29 @@ class SmartKit {
       }
     }
     return out;
+  }
+
+  /**
+   * "Your 2AC": every off-case page (the same pages the 2AC lists cover) with
+   * how many cells of your 2AC are on it - what the tray's Send buttons send.
+   * Read from the flow itself, so it is never out of step with it or with
+   * your partner. Not affected by ×-ing a page's block list.
+   */
+  twoACPages(round: Round, laneHere: number): { sheetId: string; title: string; toCol: number; count: number }[] {
+    if (this.mySide(round) !== "aff") return [];
+    const speeches = round.template.speeches;
+    const negFirst = speeches.findIndex((s) => s.side === "neg");
+    if (negFirst < 0) return [];
+    const to = targetCol(speeches, negFirst, "aff", laneHere);
+    if (to < 0) return [];
+    return round.sheets
+      .filter((s) => s.kind !== "case" && s.kind !== "cx" && s.kind !== "overview" && to >= s.startCol)
+      .map((s) => ({
+        sheetId: s.id,
+        title: s.title,
+        toCol: to,
+        count: s.rows.reduce((n, r) => n + (filled(r.cells[to]) ? 1 : 0), 0),
+      }));
   }
 
   /**

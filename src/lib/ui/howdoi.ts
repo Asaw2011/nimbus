@@ -283,6 +283,32 @@ export const HOWTOS: HowTo[] = [
     run: "settings", runLabel: "Open Settings",
     manual: "smart",
   },
+  {
+    id: "your2ac",
+    title: "Send my whole 2AC off-case to the doc at once",
+    words: "2ac off-case offcase send all whole speech doc blocks at once every page your 2ac",
+    body: "With 2AC off-case ticked in the Smart blocks tray, a \"Your 2AC\" box at the top lists each off-case page and how much of your 2AC is on it. Send all to doc puts every page's 2AC in the speech doc in one go, each under its page name, in tab order - no tilde-ing page by page.",
+    steps: [
+      "Open ✦ Smart blocks (bottom-right of the flow) and tick 2AC off-case.",
+      "Insert your 2AC blocks as usual - they go on the flow.",
+      "Click Send all to doc in the Your 2AC box (or Send on one page).",
+    ],
+    manual: "smart",
+  },
+  {
+    id: "answernumbers",
+    title: "Number my answers (1NC1, 2AC 2-3)",
+    words: "number answers line up 1nc1 2ac1 2nc order group grouped 2-3 numbering label which argument",
+    body: "Turn on Answer numbers and your 2AC answers on case pages get the number of the 1NC argument they answer (1NC1, 1NC2…), your 2NC/1NR answers the 2AC's (2AC1, 2AC 2-3…). Each new answer takes the next number by itself. Sending the column puts the answers in number order, each under its number and a [xxx] line with what they said - even if you answered 2AC 2 before 2AC 1. Not for the 1AR or off-case 2ACs.",
+    steps: [
+      "Settings → Flow & Formats → Answer numbers → tick Number my answers.",
+      "Answer in order - each answer gets the next number (shown on the cell; click it to change).",
+      "Out of order or grouped? Use ‹ › or + on the column's header before you answer.",
+      "Ctrl+` (left of 1) sends the column in number order.",
+    ],
+    keys: ["answerNext", "answerPrev", "answerGroup", "answerUngroup"],
+    run: "settings", runLabel: "Open Settings",
+  },
 
   // ---- partner -------------------------------------------------------------
   {

@@ -45,6 +45,10 @@ export type ActionId =
   | "removeFromDoc"
   | "undo"
   | "redo"
+  | "answerNext"
+  | "answerPrev"
+  | "answerGroup"
+  | "answerUngroup"
   // Speech-doc editor actions (only fire while the doc has focus).
   | "docBody"
   | "docPocket"
@@ -99,6 +103,10 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   removeFromDoc: "Clear cell & remove its card from the speech doc",
   undo: "Undo",
   redo: "Redo",
+  answerNext: "Answer numbers: move on to the next argument",
+  answerPrev: "Answer numbers: back to the previous argument",
+  answerGroup: "Answer numbers: also answer the next one (group, 2-3)",
+  answerUngroup: "Answer numbers: un-group the last one",
   docBody: "Body text",
   docPocket: "Pocket heading",
   docHat: "Hat heading",
@@ -187,6 +195,13 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   removeFromDoc: [{ key: "delete", mod: true }],
   undo: [{ key: "z", mod: true }],
   redo: [{ key: "z", mod: true, shift: true }, { key: "y", mod: true }],
+  // Answer numbers. Alt, not a bare ] - that is a character you type in a cell.
+  // Window-level like the ` send, so cell key routing is never involved. With
+  // Shift the key reports "}" / "{" (US layout), so that is what is matched.
+  answerNext: [{ key: "]", alt: true }],
+  answerPrev: [{ key: "[", alt: true }],
+  answerGroup: [{ key: "}", alt: true, shift: true }],
+  answerUngroup: [{ key: "{", alt: true, shift: true }],
   // Speech-doc styles/marks (match the CardMirror personal binds shown on the
   // toolbar). These only fire while the doc editor has focus.
   docBody: [{ key: "0", mod: true }],
@@ -222,6 +237,10 @@ export const ACTION_GROUPS: ActionGroup[] = [
   {
     title: "Send to speech doc",
     actions: ["sendCellsToDoc", "sendRowToDoc", "removeFromDoc"],
+  },
+  {
+    title: "Answer numbers (when turned on)",
+    actions: ["answerNext", "answerPrev", "answerGroup", "answerUngroup"],
   },
   {
     title: "Sheets",
@@ -318,6 +337,8 @@ const KEY_LABELS_MAC: Record<string, string> = {
   " ": "Space",
   // Most people have never heard of "backtick"; say where the key is.
   "`": "` (left of 1)",
+  "}": "]",
+  "{": "[",
 };
 const KEY_LABELS_WIN: Record<string, string> = {
   "`": "` (left of 1)",
@@ -330,6 +351,9 @@ const KEY_LABELS_WIN: Record<string, string> = {
   arrowleft: "←",
   arrowright: "→",
   " ": "Space",
+  // Shift+] reports "}" - show the key you actually press.
+  "}": "]",
+  "{": "[",
 };
 
 export function comboLabel(combo: Combo, isMac: boolean): string {

@@ -13,7 +13,14 @@
   import { smartKit, ALL_SECTIONS, NO_SECTIONS, SECTION_SEP, type KitFile, type Starter, type StarterBlock, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
 
-  let { onjump }: { onjump: (sheetId: string, row: number, col: number) => void } = $props();
+  let {
+    onjump,
+    onsendpages,
+  }: {
+    onjump: (sheetId: string, row: number, col: number) => void;
+    /** "Your 2AC": send these pages' column to the speech doc, in tab order. */
+    onsendpages?: (sheetIds: string[], col: number) => void;
+  } = $props();
 
   let open = $state(false);
   /** Most suggestions rendered at once. */
@@ -110,6 +117,13 @@
   const roundHasSide = $derived(store.round?.mySide === "aff" || store.round?.mySide === "neg");
   /** Aff only: the speech the tray is helping with (2AC, then 1AR). */
   const answering = $derived(store.round && side === "aff" ? smartKit.answering(store.round) : null);
+  /** "Your 2AC": each off-case page and how much of your 2AC is on it. */
+  const twoAC = $derived(
+    store.round && side === "aff" && answering !== "1AR" && settings.smartStarters
+      ? smartKit.twoACPages(store.round, store.laneHere)
+      : [],
+  );
+  const twoACReady = $derived(twoAC.filter((p) => p.count > 0));
 
   async function addFiles() {
     if ("__TAURI_INTERNALS__" in window) {
@@ -415,6 +429,36 @@
                 <input type="checkbox" checked={settings.smartStarters} onchange={(e) => toggleStarters((e.currentTarget as HTMLInputElement).checked)} />
                 <span><b>2AC off-case</b> - every 2AC block for each off-case page{#if !settings.smartStarters}<span class="dim">{" (off: advantages only)"}</span>{/if}</span>
               </label>
+              {#if settings.smartStarters && twoAC.length && onsendpages}
+                <!-- Everything you've put in your 2AC, page by page, and one
+                     button that sends the lot. Read from the flow, so it's
+                     always what's actually there. -->
+                <div class="sug your2ac">
+                  <div class="y-head">
+                    <span class="y-title"><b>Your 2AC</b> <span class="dim">{twoACReady.length} of {twoAC.length} pages ready</span></span>
+                    <button
+                      class="insert send-all"
+                      disabled={!twoACReady.length}
+                      onclick={() => onsendpages?.(twoACReady.map((p) => p.sheetId), twoACReady[0].toCol)}
+                      title="Send every page's 2AC to the speech doc, each under its page name, in tab order"
+                    >Send all to doc</button>
+                  </div>
+                  {#each twoAC as p (p.sheetId)}
+                    <div class="match">
+                      <button class="where y-page" onclick={() => onjump(p.sheetId, 1, p.toCol)} title="Go to this page">
+                        <span class="sheet">{p.title || "Untitled"}</span>
+                      </button>
+                      <span class="count">{p.count ? `${p.count} on flow` : "nothing yet"}</span>
+                      <button
+                        class="insert"
+                        disabled={!p.count}
+                        onclick={() => onsendpages?.([p.sheetId], p.toCol)}
+                        title="Send this page's 2AC to the speech doc"
+                      >Send</button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
               {#if settings.smartStarters}
                 {#each starters as st (st.key)}
                   <div class="sug starter">
@@ -1199,6 +1243,28 @@
   }
   .starter-switch b { color: var(--text); }
   .sug.starter { border-left: 3px solid var(--aff); }
+  .sug.your2ac {
+    border: 1px solid var(--aff);
+    margin-bottom: 8px;
+  }
+  .y-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .y-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .y-page { flex: 1; }
+  .insert:disabled,
+  .insert:disabled:hover {
+    opacity: 0.4;
+    cursor: default;
+    background: none;
+    color: var(--accent);
+  }
   .sug.starter .btitle { white-space: normal; }
   .answers {
     display: block;

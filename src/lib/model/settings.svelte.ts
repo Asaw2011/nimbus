@@ -123,6 +123,10 @@ export interface Persisted {
   pasteSplitsCells?: boolean;
   /** Smart blocks: offer your 2AC block for each off-case page, by its name. */
   smartStarters?: boolean;
+  /** Answer numbers: your 2AC / 2NC / 1NR answers carry the number of the
+   *  argument they answer (1NC1, 2AC 2-3) and are sent to the doc in that
+   *  order under that heading. Off = sends work exactly as before. */
+  answerNumbers?: boolean;
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
@@ -332,6 +336,8 @@ class Settings {
   /** Off by default: "2AC starters" in the Smart blocks tray (its switch is
    *  there, not in Settings, next to what it turns on). */
   smartStarters = $state(false);
+  /** See Persisted.answerNumbers. Off by default. */
+  answerNumbers = $state(false);
   ribbonMode = $state<RibbonMode>("full");
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
@@ -484,6 +490,7 @@ class Settings {
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
     if (p.pasteSplitsCells !== undefined) this.pasteSplitsCells = p.pasteSplitsCells;
     if (p.smartStarters !== undefined) this.smartStarters = p.smartStarters;
+    if (p.answerNumbers !== undefined) this.answerNumbers = p.answerNumbers;
     // The ribbon used to have three densities (full / icons / slim) cycled with
     // one button. It is two now - full width, and a condensed half-width one for
     // splitscreen - so both retired names load as "compact" rather than falling
@@ -620,6 +627,7 @@ class Settings {
       compactDoc: this.compactDoc,
       pasteSplitsCells: this.pasteSplitsCells,
       smartStarters: this.smartStarters,
+      answerNumbers: this.answerNumbers,
       ribbonMode: this.ribbonMode,
       prepMinutes: this.prepMinutes,
       lastSeenVersion: this.lastSeenVersion,

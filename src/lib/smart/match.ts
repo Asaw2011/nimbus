@@ -269,17 +269,29 @@ export function guessSection(sheetTitle: string, roots: DocNode[]): DocNode | nu
  * Same rules otherwise: pockets and hats only, more than a kind marker shared,
  * ties at different depths go to the deeper heading(s).
  */
-export function guessSections(sheetTitle: string, roots: DocNode[]): DocNode[] {
+export function guessSections(sheetTitle: string, roots: DocNode[], avoid: DocNode[] = []): DocNode[] {
+  // `avoid` (a 2AC file's CASE sections, on an off-case page) is a fallback,
+  // not a ban: "Economy" must find DA---Economy over CASE › Economy, but a
+  // "Spark" page whose only answers are under Turns › Turn---Spark still
+  // finds them.
+  if (avoid.length) {
+    const outside = sectionsMatching(sheetTitle, roots, avoid);
+    if (outside.length) return outside;
+  }
+  return sectionsMatching(sheetTitle, roots, []);
+}
+
+function sectionsMatching(sheetTitle: string, roots: DocNode[], skip: DocNode[]): DocNode[] {
   const s = tokens(sheetTitle);
   if (!s.length) return [];
-  const found: Array<{ n: DocNode; score: number }> = [];
+  const found: Array<{ n: DocNode; score: number; shared: number }> = [];
   const walk = (ns: DocNode[]) => {
     for (const n of ns) {
-      if (isCard(n) || n.level > 2) continue;
+      if (isCard(n) || n.level > 2 || skip.includes(n)) continue;
       const ht = tokens(n.text);
       const shared = s.filter((t) => ht.includes(t));
       if (shared.some((t) => !KIND.has(t))) {
-        found.push({ n, score: shared.length / Math.min(s.length, ht.length) });
+        found.push({ n, score: shared.length / Math.min(s.length, ht.length), shared: shared.length });
       }
       walk(n.children);
     }
@@ -287,7 +299,12 @@ export function guessSections(sheetTitle: string, roots: DocNode[]): DocNode[] {
   walk(roots);
   const best = Math.max(0, ...found.map((f) => f.score));
   if (best < 0.5) return [];
-  const top = found.filter((f) => f.score === best);
+  // ⚠ A tie goes to the heading sharing MORE words. "DA---Econ" scored 1.0
+  // against both the case hat "Economy" (1 of 1) and "DA---Economy" (2 of 2),
+  // and the case blocks came first in the file - Adam's 2AC list for the
+  // Economy DA was his case Economy block.
+  const most = Math.max(...found.filter((f) => f.score === best).map((f) => f.shared));
+  const top = found.filter((f) => f.score === best && f.shared === most);
   const deepest = Math.max(...top.map((f) => f.n.level));
   return top.filter((f) => f.n.level === deepest).map((f) => f.n);
 }

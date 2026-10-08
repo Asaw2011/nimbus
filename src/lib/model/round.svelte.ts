@@ -347,10 +347,21 @@ class RoundStore {
       this.pushHistory();
     }
     if (!this.suppressHistory) this.textSessionOpen = coalesce;
+    const hook = this.localEditHook;
+    const before = hook?.before(this.round);
     fn(this.round);
+    if (hook && before !== undefined) hook.after(this.round, before);
     this.round.updatedAt = Date.now();
     this.scheduleSave();
   }
+
+  /**
+   * Runs around every LOCAL edit (`mutate`, `runBatch`) - never around a
+   * partner's (`applyRemote`) or undo/redo - so whatever it adds lands in the
+   * same undo step as the edit itself. Used by answer numbers to stamp a cell
+   * the moment it is filled. `before` returning undefined skips `after`.
+   */
+  localEditHook: { before(round: Round): unknown; after(round: Round, before: unknown): void } | null = null;
 
   /** Call when focus leaves a cell so the next keystroke starts a new undo step. */
   endTextSession(): void {
@@ -543,12 +554,16 @@ class RoundStore {
     this.textSessionOpen = false;
     this.pushHistory();
     this.suppressHistory = true;
+    const hook = this.localEditHook;
+    const before = hook?.before(this.round);
     try {
       fn();
     } finally {
       this.suppressHistory = false;
       this.textSessionOpen = false;
     }
+    // Some batches (paste, drag-move) write cells directly, not via mutate.
+    if (hook && before !== undefined && this.round) hook.after(this.round, before);
     // A batch used to rely on its inner mutations to schedule the save; some
     // callers mutate the round directly inside fn(), so schedule here too.
     this.scheduleSave();
@@ -1138,6 +1153,7 @@ class RoundStore {
       delete cell.card;
       delete cell.cmNode;
       delete cell.author;
+      delete cell.answerNo;
     });
   }
 
@@ -1423,6 +1439,7 @@ class RoundStore {
       delete cell.expanded;
       delete cell.cmNode;
       delete cell.author;
+      delete cell.answerNo;
     });
   }
 
@@ -1506,6 +1523,7 @@ class RoundStore {
             delete cell.card;
             delete cell.cmNode;
             delete cell.author;
+            delete cell.answerNo;
           }
         }
       }
@@ -1537,6 +1555,8 @@ class RoundStore {
           else delete target.cmNode;
           if (cell.author) target.author = cell.author;
           else delete target.author;
+          if (cell.answerNo) target.answerNo = cell.answerNo;
+          else delete target.answerNo;
         }
       }
     });

@@ -707,6 +707,26 @@
         </select>
       </label>
     </section>
+
+    <section>
+      <h3>Answer numbers</h3>
+      <p class="hint">
+        Number your answers by the argument they answer: your <b>2AC</b> on case pages by the
+        1NC's (<b>1NC1</b>, <b>1NC2</b>…), your <b>2NC/1NR</b> by the 2AC's (<b>2AC1</b>,
+        <b>2AC 2-3</b>…). Each new answer takes the next number by itself; the column header's
+        ‹ › and + are only for skipping around or grouping. Sending the column (<kbd>Ctrl+`</kbd>)
+        puts the answers in number order, each under its number and a <b>[xxx]</b> line with
+        what they said. Off: everything sends exactly as before.
+      </p>
+      <label class="row">
+        <span>Number my answers</span>
+        <input
+          type="checkbox"
+          checked={settings.answerNumbers}
+          onchange={(e) => { settings.answerNumbers = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
+    </section>
     {/if}
 
     {#if tab === "keyboard"}

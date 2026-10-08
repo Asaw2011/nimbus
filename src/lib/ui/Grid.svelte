@@ -2,7 +2,8 @@
   import { isOtherLane, laneAbbr, laneLabel, sourceCol, type Row, type Sheet } from "../model/types";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
-  import { matchesAny } from "../model/keymap";
+  import { matchesAny, combosLabel } from "../model/keymap";
+  import { answerNumbers, spanHeading } from "../model/lineup.svelte";
   import GridCell from "./GridCell.svelte";
   import { guard } from "../model/crash";
   import { nodeChip, type DocNode } from "../docx/parse";
@@ -16,6 +17,11 @@
   } = $props();
 
   const speeches = $derived(store.round?.template.speeches ?? []);
+  const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+  /** The "Now answering" chip's tooltip, with the user's own keys. */
+  const ansKeysTip = $derived(
+    `Your next answer gets this number, then it moves on by itself. ‹ › to skip around (${combosLabel(settings.keymap.answerPrev, isMac)} / ${combosLabel(settings.keymap.answerNext, isMac)}), + to group.`,
+  );
   // Off-case pages start at the 1NC, overviews at the block - like the
   // prototype sheets in a Verbatim flow template. No wasted columns.
   // In spread view every sheet renders the full range so speech columns
@@ -671,6 +677,31 @@
               onclick={(e) => { e.stopPropagation(); store.toggleLane(speech.id); }}
             >{restores ? "⇥" : "⇤"}</button>
           {/if}
+          {@const ansPrefix = store.round ? answerNumbers.prefix(store.round, c, sheet) : null}
+          {#if ansPrefix && store.round}
+            {@const cur = answerNumbers.current(store.round, sheet, c)}
+            {@const gaps = answerNumbers.missing(sheet, c)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="ans-ctr" title={ansKeysTip} ondblclick={(e) => e.stopPropagation()}>
+              <button onclick={(e) => { e.stopPropagation(); store.round && answerNumbers.step(store.round, sheet, c, "prev"); }} aria-label="Previous argument">‹</button>
+              <b>{spanHeading(ansPrefix, cur)}</b>
+              <button onclick={(e) => { e.stopPropagation(); store.round && answerNumbers.step(store.round, sheet, c, "next"); }} aria-label="Next argument">›</button>
+              <button onclick={(e) => { e.stopPropagation(); store.round && answerNumbers.step(store.round, sheet, c, cur.b > cur.a ? "ungroup" : "group"); }}
+                title={cur.b > cur.a ? "Un-group the last one" : "Also answer the next one (group, e.g. 2-3)"}>{cur.b > cur.a ? "−" : "+"}</button>
+              {#if gaps.length}
+                <span class="ans-gap" title="No answer is numbered {gaps.join(', ')} yet - skipped on purpose, or missed?">⚠{gaps.length > 2 ? `${gaps.length}` : gaps.join(",")}</span>
+              {/if}
+            </span>
+          {:else if c >= sheet.startCol && answerNumbers.needsSide(store.round, c, sheet)}
+            <!-- The round doesn't say which side you're on: one click on the
+                 speech you give tells it. -->
+            <button
+              class="ans-ctr ask"
+              ondblclick={(e) => e.stopPropagation()}
+              onclick={(e) => { e.stopPropagation(); const sd = speech.side; if (store.round && (sd === "aff" || sd === "neg")) answerNumbers.pickSide(store.round, sd); }}
+              title="Answer numbers: click if you give this speech, and your answers here get numbered"
+            ># mine</button>
+          {/if}
         {/if}
       </div>
     {/each}
@@ -816,6 +847,50 @@
   }
   .header.lane:hover .lane-hide {
     opacity: 0.8;
+  }
+  /* Answer numbers' "Now answering" chip. Inline after the speech name so the
+     header keeps its one-line height; it wraps under the name only on a
+     column too narrow for both. */
+  .ans-ctr {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    margin-left: 6px;
+    padding: 0 3px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.4;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .ans-ctr b {
+    padding: 0 2px;
+  }
+  .ans-ctr button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    padding: 0 3px;
+    border-radius: 3px;
+  }
+  .ans-ctr button:hover {
+    background: color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .ans-ctr.ask {
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+  .ans-gap {
+    color: #c77d00;
+    padding-left: 2px;
+    cursor: help;
   }
   /* While renaming, the input fills the header cell - a lane's dimming must not
      wash out the field you're typing in, so opacity is reset here too. */

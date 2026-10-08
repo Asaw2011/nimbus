@@ -8,6 +8,7 @@
   import { runMacro } from "../model/macros";
   import { guard } from "../model/crash";
   import { session } from "../model/session.svelte";
+  import { answerNumbers, parseNo, spanHeading } from "../model/lineup.svelte";
 
   let {
     cell,
@@ -47,6 +48,29 @@
     isLastCol?: boolean;
     dropTarget?: boolean;
   } = $props();
+
+  // Answer numbers: this answer's "2AC3" / "2AC 2-3" badge, when the setting
+  // is on and this is your numbered column. Click it to change the number.
+  const ansLabel = $derived.by(() => {
+    if (!cell.answerNo || !settings.answerNumbers) return "";
+    const sheet = store.round?.sheets.find((s) => s.id === sheetId);
+    const prefix = answerNumbers.prefix(store.round, col, sheet);
+    const span = parseNo(cell.answerNo);
+    return prefix && span ? spanHeading(prefix, span) : "";
+  });
+  let editingNo = $state(false);
+  let noDraft = $state("");
+  let noBad = $state(false);
+  function startNoEdit() {
+    noDraft = cell.answerNo ?? "";
+    noBad = false;
+    editingNo = true;
+  }
+  function commitNo() {
+    if (!editingNo) return;
+    if (answerNumbers.setCellNo(sheetId, row, col, noDraft)) editingNo = false;
+    else noBad = true;
+  }
 
   /**
    * True when this cell is your partner's and already has something in it.
@@ -966,6 +990,34 @@
   {#if cell.chip}
     <span class="cell-chip chip-{cell.chip}">{cell.chip}</span>
   {/if}
+  {#if ansLabel}
+    {#if editingNo}
+      <!-- svelte-ignore a11y_autofocus -->
+      <input
+        class="ans-no-edit"
+        class:bad={noBad}
+        bind:value={noDraft}
+        autofocus
+        placeholder="3 or 2-3"
+        title="Type 3, or 2-3 for a group. Empty removes the number."
+        onmousedown={(e) => e.stopPropagation()}
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") { e.preventDefault(); commitNo(); }
+          else if (e.key === "Escape") { e.preventDefault(); editingNo = false; }
+        }}
+        onblur={() => { if (editingNo) answerNumbers.setCellNo(sheetId, row, col, noDraft); editingNo = false; }}
+      />
+    {:else}
+      <button
+        class="ans-no"
+        title="This answers {ansLabel} - click to change the number"
+        onmousedown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onclick={(e) => { e.stopPropagation(); startNoEdit(); }}
+      >{ansLabel}</button>
+    {/if}
+  {/if}
   <!-- Everything that isn't a part of a block lives in ONE box, because when a
        block is open the cell lays itself out against the row's tracks and every
        in-flow child takes a track of its own. This is track 1; the parts follow
@@ -1371,6 +1423,47 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+  /* Answer numbers. Bottom-right, in a reserved strip like the reply tag, so
+     it never sits on top of the text. Clear of the partner dot's corner. */
+  .cell:has(.ans-no),
+  .cell:has(.ans-no-edit) {
+    padding-bottom: 14px;
+  }
+  .ans-no,
+  .ans-no-edit {
+    position: absolute;
+    bottom: 1px;
+    right: 12px;
+    z-index: 3;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.3;
+    border-radius: 3px;
+    padding: 0 3px;
+  }
+  .ans-no {
+    color: var(--accent);
+    background: var(--bg);
+    border: 1px solid currentColor;
+    opacity: 0.85;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ans-no:hover {
+    opacity: 1;
+  }
+  .ans-no-edit {
+    width: 52px;
+    color: var(--text);
+    background: var(--input-bg, var(--bg));
+    border: 1px solid var(--accent);
+    outline: none;
+  }
+  .ans-no-edit.bad {
+    border-color: #d33;
   }
   .cell-chip {
     position: absolute;

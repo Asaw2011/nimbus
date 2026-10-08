@@ -31,6 +31,7 @@
   import { sample } from "$lib/model/sample.svelte";
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
   import { cardmirror } from "$lib/doc/cardmirror.svelte";
+  import { answerNumbers, cellFilled, parseNo, spanHeading, type Span } from "$lib/model/lineup.svelte";
 
   let { onexit }: { onexit: () => void } = $props();
 
@@ -755,12 +756,14 @@
   // CardMirror node keeps its images; typed text is your analysis → an ANALYTIC.
   // `ctx` (row/col on the sheet) lets a manually-typed response that answers an
   // earlier speech's argument get an "AT: <that argument>" Block header above it.
-  function cellDocOps(cell: Cell | undefined, ctx?: { sheet: Sheet; row: number; col: number }): DocOp[] {
+  function cellDocOps(cell: Cell | undefined, ctx?: { sheet: Sheet; row: number; col: number }, bare = false): DocOp[] {
     if (!cell) return [];
     const text = cell.text?.trim();
     if (cell.items?.length) {
       const out: DocOp[] = [];
-      if (text) {
+      // `bare`: a numbered answer - its "1NC1" heading replaces the block's own
+      // header, so only what's under the header goes (Adam).
+      if (text && !bare) {
         // Header only - its child cards live in `items`, don't duplicate them.
         out.push({ node: cell.card ? { ...(cell.card as DocNode), children: [] } : stubNode(text, { level: CHIP_LEVEL[cell.chip ?? ""] ?? 3 }) });
       }
@@ -786,6 +789,95 @@
       return out;
     }
     return [];
+  }
+
+  // ── answer numbers ────────────────────────────────────────────────
+  // With the setting on, your 2AC / 2NC / 1NR answers go to the doc under the
+  // number of the argument they answer, in number order:
+  //   2AC 2-3                      ← Block heading
+  //   [xxx] <what you flowed>      ← analytic, Adam's format
+  //   <the answer>
+  // With it off - or on any other column - every send is exactly as before.
+
+  /** Heading + "[xxx]" line for one numbered answer. The "what they said" is
+   *  the argument this row answers - your lane first, else your partner's. */
+  function answerHeadOps(sheet: Sheet, row: number, col: number, prefix: string, span: Span): DocOp[] {
+    const said = argBeingAnswered(sheet, row, col).text.replace(/\s+/g, " ").trim();
+    return [
+      { node: stubNode(spanHeading(prefix, span), { level: 3 }) },
+      { node: stubNode(said ? `[xxx] ${said}` : "[xxx]", { analytic: true }) },
+    ];
+  }
+
+  /** A whole numbered column, in number order - null when it isn't numbered.
+   *  Numbered answers don't also get an "AT:" header: the number IS the header. */
+  function numberedColumnOps(sheet: Sheet, col: number): DocOp[] | null {
+    const prefix = answerNumbers.prefix(store.round, col, sheet);
+    if (!prefix) return null;
+    const ops: DocOp[] = [];
+    for (const g of answerNumbers.groups(sheet, col)) {
+      // The "[xxx]" line comes from the first of the answer's rows that faces
+      // an argument - an answer's first cell can sit on a row with none.
+      const said = g.rows.find((r) => argBeingAnswered(sheet, r, col).text) ?? g.rows[0];
+      if (g.span) ops.push(...answerHeadOps(sheet, said, col, prefix, g.span));
+      for (const r of g.rows) {
+        const cell = sheet.rows[r]?.cells[col];
+        ops.push(...(g.span ? cellDocOps(cell, undefined, true) : cellDocOps(cell, { sheet, row: r, col })));
+      }
+    }
+    return ops;
+  }
+
+  /** One cell's send: on a numbered column the FIRST cell of an answer carries
+   *  its heading; everything else is the ordinary `cellDocOps`. */
+  function cellSendOps(sheet: Sheet, row: number, col: number): DocOp[] {
+    const cell = sheet.rows[row]?.cells[col];
+    const prefix = answerNumbers.prefix(store.round, col, sheet);
+    const span = prefix && cellFilled(cell) ? parseNo(cell?.answerNo) : null;
+    if (!prefix || !span) return cellDocOps(cell, { sheet, row, col });
+    const first = sheet.rows.findIndex((r) => cellFilled(r.cells[col]) && r.cells[col].answerNo === cell?.answerNo);
+    return [...(first === row ? answerHeadOps(sheet, row, col, prefix, span) : []), ...cellDocOps(cell, undefined, true)];
+  }
+
+  /** Alt+] / Alt+[ (and Shift for groups): move "Now answering" on the column
+   *  you're in, or the page's numbered column. False = not ours, let it pass. */
+  function stepAnswer(how: "next" | "prev" | "group" | "ungroup"): boolean {
+    if (!settings.answerNumbers || !round) return false;
+    const sheet = store.activeSheet;
+    if (!sheet) return false;
+    const cols = answerNumbers.numberedCols(round, sheet);
+    const col = store.cursor && cols.includes(store.cursor.col) ? store.cursor.col : cols[0];
+    if (col === undefined) {
+      const sideless = round.template.speeches.some((_, c) => answerNumbers.needsSide(round, c, sheet));
+      flashSend(sideless ? "Answer numbers: click # mine on the column you speak in first" : "Answer numbers work on your 2AC (case pages) and your 2NC/1NR");
+      return true;
+    }
+    const s = answerNumbers.step(round, sheet, col, how);
+    flashSend(`Now answering ${spanHeading(answerNumbers.prefix(round, col, sheet) ?? "", s)}`);
+    return true;
+  }
+
+  /** "Your 2AC" (Smart tray): every listed page's column, each under its page
+   *  name, appended to the doc in tab order. Appended rather than de-duped by
+   *  label - the same "AT: Perm" or "1NC1" sits on several pages, and a
+   *  label-based replace would delete another page's copy. */
+  function sendPagesToDoc(sheetIds: string[], col: number) {
+    const ops: DocOp[] = [];
+    let pages = 0;
+    for (const sheet of round?.sheets ?? []) {
+      if (!sheetIds.includes(sheet.id)) continue;
+      const body = numberedColumnOps(sheet, col) ?? sheet.rows.flatMap((r, i) => cellDocOps(r.cells[col], { sheet, row: i, col }));
+      if (!body.length) continue;
+      ops.push({ node: stubNode(sheet.title.trim() || "Untitled", { level: 2 }) }, ...body);
+      pages++;
+    }
+    if (!pages) {
+      flashSend("Nothing in your 2AC on those pages yet");
+      return;
+    }
+    void sendOpsToDoc(ops, col, "append").then(() => {
+      if (settings.docTarget !== "cardmirror") flashSend(`Sent ${pages} ${pages === 1 ? "page" : "pages"} to the doc`);
+    });
   }
 
   /** Label of a CardMirror node (tag/analytic heading text, else its text). */
@@ -832,8 +924,11 @@
    *  - "cursor": drop them where the cursor is, in order, no reordering - for a
    *    cell / range / text grab that you're placing by hand.
    *  - "flow": de-dup by label (re-send replaces) and reorder the whole doc to
-   *    match the flow - for building the whole speech top-to-bottom. */
-  async function sendOpsToDoc(ops: DocOp[], col: number, mode: "flow" | "cursor") {
+   *    match the flow - for building the whole speech top-to-bottom.
+   *  - "append": add them to the end in order, nothing removed or reordered -
+   *    for answer numbers and multi-page sends, whose ORDER is already right
+   *    and whose labels ("2AC1") repeat across pages. */
+  async function sendOpsToDoc(ops: DocOp[], col: number, mode: "flow" | "cursor" | "append") {
     // ── CardMirror target ───────────────────────────────────────────────
     // Every send in the app funnels through here, so this one branch routes all
     // of them. Deliberately BEFORE ensureDocOpen(): when you're sending to
@@ -875,6 +970,13 @@
       for (const op of ops) {
         if ("cm" in op) docRef?.insertCMAtCursor([op.cm]);
         else docRef?.insertNodeAtCursor(op.node);
+      }
+      return;
+    }
+    if (mode === "append") {
+      for (const op of ops) {
+        if ("cm" in op) docRef?.appendCMNodes([op.cm]);
+        else appendToDoc(op.node);
       }
       return;
     }
@@ -921,13 +1023,13 @@
       const ops: DocOp[] = [];
       for (let r = rect.r0; r <= rect.r1; r++)
         for (let c = rect.c0; c <= rect.c1; c++)
-          ops.push(...cellDocOps(sheet.rows[r]?.cells[c], { sheet, row: r, col: c }));
+          ops.push(...cellSendOps(sheet, r, c));
       void sendOpsToDoc(ops, rect.c0, "cursor");
       return;
     }
     if (!store.cursor) return;
     const { row, col } = store.cursor;
-    void sendOpsToDoc(cellDocOps(sheet.rows[row]?.cells[col], { sheet, row, col }), col, "cursor");
+    void sendOpsToDoc(cellSendOps(sheet, row, col), col, "cursor");
   }
 
   // "Send Entire Row" → FLOW ORDER: every cell in the current column, top to
@@ -938,6 +1040,12 @@
     const col = store.cursor.col;
     const sheet = store.round?.sheets.find((s) => s.id === store.activeSheetId);
     if (!sheet) return;
+    // Answer numbers: in number order, under their headings, appended.
+    const numbered = numberedColumnOps(sheet, col);
+    if (numbered) {
+      void sendOpsToDoc(numbered, col, "append");
+      return;
+    }
     const ops = sheet.rows.flatMap((r, i) => cellDocOps(r.cells[col], { sheet, row: i, col }));
     void sendOpsToDoc(ops, col, "flow");
   }
@@ -1259,6 +1367,15 @@
       if (matchesAny(e, km.removeFromDoc)) {
         e.preventDefault();
         removeCellAndDoc();
+        return;
+      }
+      const how = matchesAny(e, km.answerNext) ? "next"
+        : matchesAny(e, km.answerPrev) ? "prev"
+        : matchesAny(e, km.answerGroup) ? "group"
+        : matchesAny(e, km.answerUngroup) ? "ungroup"
+        : null;
+      if (how && stepAnswer(how)) {
+        e.preventDefault();
         return;
       }
     }
@@ -1594,6 +1711,7 @@
                 openSheet(sheetId);
                 store.cursor = { row, col };
               }}
+              onsendpages={sendPagesToDoc}
             />
           {/if}
         </div>
