@@ -129,6 +129,9 @@ interface Shadow {
   rows: Map<string, string[]>;
   sheetMeta: Map<string, string>;
   sheetOrder: string[];
+  /** Set by `resendEverything`: the next diff re-sends every sheet's structure
+   *  (skeleton, meta, every row) as well as its cells. Never carried forward. */
+  resend?: boolean;
 }
 
 function emptyShadow(): Shadow {
@@ -187,7 +190,23 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
     next.sheetMeta.set(sheet.id, mk);
 
     const hadSheet = prev.sheetMeta.has(sheet.id);
-    if (!hadSheet) {
+    // ⚠ A RESEND HAS TO CARRY THE SHEETS, NOT JUST THE CELLS.
+    //
+    // `resendEverything` (a partner rejoining, or reopening a flow that was
+    // closed on their end) used to re-send cells only. But while they were
+    // away, the sheets we added still went out and were recorded as delivered -
+    // so on the way back every cell of a page they never received was dropped
+    // on arrival (applyDelta finds no sheet to put it on) and nothing would
+    // ever send the page again. Reported from a tournament: the 1NC's off-case
+    // pages never reached the partner, even after they reconnected, and new
+    // pages made while their flow was closed were gone when they reopened it.
+    //
+    // So a resend ships every sheet's skeleton (ignored by a peer that already
+    // has it), its current meta (a rename made while they were away), and an
+    // insert for every row (ignored for row ids they already hold). Same delta
+    // types as ever, so an older build applies them too.
+    const resend = !!prev.resend;
+    if (!hadSheet || resend) {
       // ⚠ A NEW SHEET SHIPS AS A SKELETON, NOT WHOLE.
       //
       // It used to ship complete, on the assumption that a sheet "is small at
@@ -210,7 +229,9 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
       // as already-sent here is precisely the bug above.
     }
     // Only for a sheet they already had - the skeleton just carried all of this.
-    if (hadSheet && prev.sheetMeta.get(sheet.id) !== mk) {
+    // On a resend, always: a peer that already had the sheet ignores the
+    // skeleton, so the meta is the only way a rename reaches it.
+    if ((hadSheet && prev.sheetMeta.get(sheet.id) !== mk) || resend) {
       deltas.push({
         t: "sheetmeta", s: sheet.id, title: sheet.title, kind: sheet.kind,
         startCol: sheet.startCol, color: sheet.color,
@@ -230,7 +251,11 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
     // what decides whether a BLANK cell has to be sent. On a new sheet a blank
     // cell is already blank on the far side and sending it is pure noise; on an
     // existing row, blank means the text was deleted and must travel.
-    if (hadSheet) {
+    if (resend) {
+      // Every row: a peer that already has the sheet ignores the skeleton, so
+      // rows added while they were away can only arrive this way.
+      rowIds.forEach((id, i) => deltas.push({ t: "rowins", s: sheet.id, id, at: i }));
+    } else if (hadSheet) {
       rowIds.forEach((id, i) => {
         if (!beforeSet.has(id)) deltas.push({ t: "rowins", s: sheet.id, id, at: i });
       });
@@ -979,11 +1004,13 @@ class SessionStore {
   }
 
   /**
-   * Make the next diff resend every cell we hold.
+   * Make the next diff resend everything we hold: every sheet's structure
+   * (skeleton, meta, rows - ignored where they already have it) and every
+   * cell, on the next tick, in one batch.
    *
-   * The shadow keeps the sheet structure (so sheets aren't re-announced as new,
-   * which the far side would skip anyway) but forgets all CONTENT - so every
-   * cell reads as changed and goes out on the next tick, in one batch.
+   * ⚠ It used to resend cells only, on the belief that the far side already
+   * had every sheet. It doesn't when a sheet went out while they were away -
+   * those cells then had nowhere to land. See `resend` in diffRound.
    *
    * ⚠ Deliberately not a snapshot. `loadRound` would replace what they typed
    * while they were away; cell deltas land alongside it.
@@ -992,6 +1019,10 @@ class SessionStore {
     for (const doc of this.syncedDocs()) {
       const fresh = diffRound($state.snapshot(doc) as Round, emptyShadow()).next;
       fresh.cells.clear();
+      // Rows stay in the shadow so blank cells (text deleted while they were
+      // away) still go out; `resend` makes the diff re-send the sheets and
+      // rows themselves - see diffRound.
+      fresh.resend = true;
       this.shadows.set(doc.id, fresh);
     }
     // ⚠ Must clear, or the resend never happens. The whole point here is to
@@ -1306,6 +1337,11 @@ class SessionStore {
           if (doc) {
             const next = diffRound($state.snapshot(doc) as Round, emptyShadow()).next;
             const kept = oldShadow ? keepUnsent(next, oldShadow, unsent, deltas) : false;
+            // ⚠ A resend still waiting for the next tick must survive the
+            // re-seed: right after a rejoin their frames arrive too, and losing
+            // the flag here would drop exactly the sheets it exists to resend.
+            const resendPending = !!oldShadow?.resend;
+            if (resendPending) next.resend = true;
             this.shadows.set(docId, next);
             // With nothing of ours pending, the shadow now matches the document
             // exactly, so there is nothing to send - and applying their change
@@ -1315,7 +1351,7 @@ class SessionStore {
             // ⚠ But NOT when `keepUnsent` put something back: the stamp would
             // make the next tick skip the diff, and the edit it just saved from
             // the re-seed would sit unsent until something else changed.
-            if (kept) this.published.delete(docId);
+            if (kept || resendPending) this.published.delete(docId);
             else this.published.set(docId, doc.updatedAt ?? 0);
           }
         }
