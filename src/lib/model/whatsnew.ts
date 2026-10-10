@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.6",
+    headline: "Partner flowing no longer loses pages when someone drops out.",
+    items: [
+      "**Pages make it to your partner after a drop.** If your partner lost connection - or their flow was closed - while you imported a speech doc or made new pages, those pages could never reach them, even after they came back, and anything typed on them didn't sync. Now when they reconnect or reopen the flow, Nimbus sends them every page, page name and row they missed, along with the contents. Best when you both have 1.5.6.",
+    ],
+  },
+  {
     version: "1.5.5",
     headline: "Drag Smart suggestions anywhere, pinned files stay up to date, and answer numbers handle overviews.",
     items: [
