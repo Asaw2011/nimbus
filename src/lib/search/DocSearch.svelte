@@ -661,7 +661,10 @@
             style="padding-left: {8 + r.depth * 16}px"
             draggable="true"
             ondragstart={(e) => {
-              e.dataTransfer?.setData("text/nimbus-block", JSON.stringify({ header: r.node.text, fullCard: buildFullCard(r.node), node: r.node }));
+              // `searchFile`: the drop reads the exact CardMirror copy from it,
+              // like a click here does, so tables survive the drag.
+              const from = divedFile ? { searchFile: divedFile.path, searchMtime: divedFile.mtime } : {};
+              e.dataTransfer?.setData("text/nimbus-block", JSON.stringify({ header: r.node.text, fullCard: buildFullCard(r.node), node: r.node, ...from }));
               if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
             }}
             onclick={() => { selectedIdx = i; void insertNode(r.node); flashInserted(r.node.text); }}

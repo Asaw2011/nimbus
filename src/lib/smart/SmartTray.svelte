@@ -889,6 +889,9 @@
     position: relative;
     height: 0;
     flex: none;
+    /* The tray sizes off the FLOW pane, not the window - with the speech doc
+       split beside it, a window-sized tray covered most of the flow (Adam). */
+    container-type: inline-size;
   }
   .pill,
   .tray {
@@ -914,7 +917,7 @@
   }
   .tray {
     bottom: 42px;
-    width: min(420px, calc(100vw - 32px));
+    width: min(420px, max(300px, 34cqw), calc(100cqw - 24px));
     max-height: 60vh;
     display: flex;
     flex-direction: column;
@@ -924,6 +927,19 @@
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
     overflow: hidden;
+  }
+  /* Split with the doc (or a half-screen window): shorter too. */
+  @container (max-width: 1000px) {
+    .tray {
+      max-height: 42vh;
+    }
+    /* ...and the tabs fit its narrower width. */
+    .tray-head button {
+      padding: 4px 5px;
+    }
+    .beta {
+      display: none;
+    }
   }
   .tray-head {
     display: flex;

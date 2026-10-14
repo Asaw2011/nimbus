@@ -640,6 +640,7 @@
     } else if (matchesAny(e, km.insertRowBelow)) {
       e.preventDefault();
       store.insertRow(row + 1);
+      answerNumbers.carryDown(sheetId, row, col);
       store.cursor = { row: row + 1, col };
     } else if (matchesAny(e, km.jumpFilledUp)) {
       e.preventDefault();

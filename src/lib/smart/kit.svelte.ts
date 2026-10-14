@@ -540,7 +540,39 @@ class SmartKit {
    *  can't be read that way (then the cell uses the DocNode adapter). */
   private async exactFor(fileKey: string | undefined, node: DocNode): Promise<Exact | null> {
     if (!fileKey) return null;
-    const cm = await this.cmDocFor(fileKey);
+    return this.exactIn(await this.cmDocFor(fileKey), node);
+  }
+
+  /** Library files read for a Ctrl+K drag, by path + mtime (an edited file is
+   *  re-read). Session only. */
+  private libDocs = new Map<string, Promise<CMDoc | null>>();
+
+  /**
+   * A block DRAGGED out of Ctrl+K search onto the grid: the same cell a click
+   * there builds, with the exact CardMirror copy read from the file - so it
+   * keeps its tables (the drop used to keep only the outline). The file need
+   * not be in the kit.
+   */
+  async insertFromLibrary(sheetId: string, row: number, col: number, node: DocNode, path: string, mtime?: number): Promise<boolean> {
+    const k = `${path}|${mtime ?? ""}`;
+    let p = this.libDocs.get(k);
+    if (!p) {
+      p = (async () => {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          const buf = new Uint8Array(await invoke<number[]>("read_binary_file", { path })).buffer;
+          return await cmDocFromBytes(buf, /\.cmir$/i.test(path));
+        } catch {
+          return null;
+        }
+      })();
+      this.libDocs.set(k, p);
+    }
+    return this.insertAt(sheetId, row, col, node, undefined, p.then((cm) => this.exactIn(cm, node)));
+  }
+
+  /** The exact nodes for `node` in a CardMirror doc (exactFor / insertFromLibrary). */
+  private exactIn(cm: CMDoc | null, node: DocNode): Exact | null {
     if (!cm) return null;
     const cards = cardsUnder(node);
     const items = new Map<string, unknown>();
@@ -711,11 +743,18 @@ class SmartKit {
    * with the exact CardMirror copy, so a dragged block keeps its tables when
    * you send it to the doc (a drop used to keep only the outline).
    */
-  async insertAt(sheetId: string, row: number, col: number, node: DocNode, fileKey?: string): Promise<boolean> {
+  async insertAt(
+    sheetId: string,
+    row: number,
+    col: number,
+    node: DocNode,
+    fileKey?: string,
+    exactP?: Promise<Exact | null>,
+  ): Promise<boolean> {
     if (!store.round) return false;
     // The exact CardMirror copy first (cached - normally instant), so the ONE
     // mutate below has everything: one undo step, one sync.
-    const exact = await this.exactFor(fileKey, node).catch(() => null);
+    const exact = await (exactP ?? this.exactFor(fileKey, node)).catch(() => null);
     if (!store.round) return false;
     let done = false;
     store.mutate((r) => {

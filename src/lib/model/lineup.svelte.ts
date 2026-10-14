@@ -186,6 +186,58 @@ class AnswerNumbers {
     return n;
   }
 
+  /** Rows made with Ctrl+Enter under a numbered answer: "sheet|row|col" → the
+   *  number they carry. Session only; used up when the cell is filled. */
+  private carried = new Map<string, string>();
+
+  /** Ctrl+Enter under a numbered answer is another card for the SAME argument
+   *  (Adam), so the new row's cell takes that answer's number, not the next. */
+  carryDown(sheetId: string, fromRow: number, col: number): void {
+    const round = store.round;
+    const sheet = round?.sheets.find((s) => s.id === sheetId);
+    const no = sheet?.rows[fromRow]?.cells[col]?.answerNo;
+    const next = sheet?.rows[fromRow + 1];
+    if (!round || !sheet || !next || !this.prefix(round, col, sheet) || !parseNo(no)) return;
+    this.carried.set(`${sheet.id}|${next.id}|${col}`, no!);
+  }
+
+  /** The number for a new answer at `row`: the one after the highest answer
+   *  ABOVE it, when there are numbered answers below it too (you went back
+   *  up the flow) - else `current`. */
+  private numberAt(round: Round, sheet: Sheet, col: number, row: number): Span {
+    if (this.counters[this.key(round, sheet, col)]) return this.current(round, sheet, col);
+    let above = 0;
+    let below = false;
+    sheet.rows.forEach((r, i) => {
+      if (i === row) return;
+      const s = parseNo(r.cells[col]?.answerNo);
+      if (!s) return;
+      if (i < row) above = Math.max(above, s.b);
+      else below = true;
+    });
+    if (!below) return this.current(round, sheet, col);
+    return { a: above + 1, b: above + 1 };
+  }
+
+  /** Make room for `s` at `row`: answers BELOW it already using that number
+   *  or later move down by one (2AC2 → 2AC3...). A free number (a gap you
+   *  skipped) is just taken - nothing moves. */
+  private makeRoom(sheet: Sheet, col: number, row: number, s: Span): void {
+    const taken = sheet.rows.some((r, i) => {
+      if (i <= row) return false;
+      const n = parseNo(r.cells[col]?.answerNo);
+      return !!n && n.a <= s.b && n.b >= s.a;
+    });
+    if (!taken) return;
+    const by = s.b - s.a + 1;
+    sheet.rows.forEach((r, i) => {
+      if (i <= row) return;
+      const c = r.cells[col];
+      const n = parseNo(c?.answerNo);
+      if (c && n && n.a >= s.a) c.answerNo = spanNo({ a: n.a + by, b: n.b + by });
+    });
+  }
+
   setCurrent(round: Round, sheet: Sheet, col: number, s: Span): void {
     this.counters = { ...this.counters, [this.key(round, sheet, col)]: s };
   }
@@ -318,12 +370,27 @@ class AnswerNumbers {
     for (const sheet of round.sheets) {
       for (const c of this.numberedCols(round, sheet)) {
         let stamped: Span | null = null;
-        for (const row of sheet.rows) {
+        for (let i = 0; i < sheet.rows.length; i++) {
+          const row = sheet.rows[i];
           const cell = row.cells[c];
           if (!cell) continue;
           if (cellFilled(cell)) {
-            if (!cell.answerNo && !filled.has(`${sheet.id}|${row.id}|${c}`)) {
-              stamped = this.current(round, sheet, c);
+            const k = `${sheet.id}|${row.id}|${c}`;
+            if (!cell.answerNo && !filled.has(k)) {
+              const carry = this.carried.get(k);
+              this.carried.delete(k);
+              if (carry) {
+                // Another card for the answer above (Ctrl+Enter): same number,
+                // and the counter doesn't move.
+                cell.answerNo = carry;
+                continue;
+              }
+              // Going back up the flow: the answer takes the number after
+              // the one above it and pushes the later ones down (Adam). A
+              // number you picked with ‹ › + is used as is.
+              const manual = !!this.counters[this.key(round, sheet, c)];
+              stamped = this.numberAt(round, sheet, c, i);
+              if (!manual) this.makeRoom(sheet, c, i, stamped);
               cell.answerNo = spanNo(stamped);
             }
           } else if (cell.answerNo) {

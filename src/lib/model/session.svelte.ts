@@ -132,6 +132,14 @@ interface Shadow {
   /** Set by `resendEverything`: the next diff re-sends every sheet's structure
    *  (skeleton, meta, every row) as well as its cells. Never carried forward. */
   resend?: boolean;
+  /** With `resend`: the cells as we had last sent them, before the resend
+   *  cleared them - the only evidence that a BLANK cell is a deletion. */
+  resendWas?: Map<string, string>;
+}
+
+/** Nothing in it - what a skeleton cell, or one whose text was deleted, is. */
+function cellBlank(cell: Cell): boolean {
+  return !(cell.text?.trim() || cell.items?.length || cell.card || cell.cmNode);
 }
 
 function emptyShadow(): Shadow {
@@ -267,6 +275,19 @@ function diffRound(round: Round, prev: Shadow): { deltas: Delta[]; next: Shadow 
         const key = `${sheet.id}|${row.id}|${ci}`;
         const json = JSON.stringify(cell);
         next.cells.set(key, json);
+        // ⚠ A RESEND MUST NOT SEND A BLANK THAT WAS NEVER A DELETION.
+        //
+        // It used to resend every cell, blanks included - and a blank landing
+        // on your partner's side WIPES whatever they typed there while they
+        // were offline (a cell blank on your side because you never touched
+        // it). A blank only goes out when we had last sent that cell with
+        // something in it, i.e. it really was deleted. Cost: text you delete
+        // while THEY are away (you still connected) can stay on their side.
+        // Stale text they can see and delete beats their typing vanishing.
+        if (resend && prev.cells.get(key) === undefined && cellBlank(cell)) {
+          const was = prev.resendWas?.get(key);
+          if (!was || cellBlank(JSON.parse(was) as Cell)) return;
+        }
         // A row that was just inserted arrives empty on the far side, so only
         // emit a cell for it when it actually has something in it.
         if (prev.cells.get(key) !== json && (beforeSet.has(row.id) || json !== "{}")) {
@@ -338,7 +359,7 @@ function keepUnsent(next: Shadow, old: Shadow, pending: Delta[], theirs: Delta[]
         // Not theirs yet: forget the row, and its contents, so both re-send.
         const rows = next.rows.get(d.s);
         if (rows) next.rows.set(d.s, rows.filter((id) => id !== d.id));
-        for (const key of [...next.cells.keys()]) if (key.startsWith(`${d.s}|${d.id}|`)) next.cells.delete(key);
+        for (const key of [...next.cells.keys()]) if (key.startsWith(`${d.s}|${d.id}|`) && !touched.has(key)) next.cells.delete(key);
         kept = true;
         break;
       }
@@ -353,7 +374,9 @@ function keepUnsent(next: Shadow, old: Shadow, pending: Delta[], theirs: Delta[]
         const id = d.sheet.id;
         next.sheetMeta.delete(id);
         next.rows.delete(id);
-        for (const key of [...next.cells.keys()]) if (key.startsWith(`${id}|`)) next.cells.delete(key);
+        // Not the cells they just sent: echoing one back (a rejoin resend
+        // re-sends every sheet) could undo what they typed since.
+        for (const key of [...next.cells.keys()]) if (key.startsWith(`${id}|`) && !touched.has(key)) next.cells.delete(key);
         kept = true;
         break;
       }
@@ -1018,6 +1041,10 @@ class SessionStore {
   private resendEverything(): void {
     for (const doc of this.syncedDocs()) {
       const fresh = diffRound($state.snapshot(doc) as Round, emptyShadow()).next;
+      // What we had sent, so the diff can tell a deletion from a never-filled
+      // blank (see diffRound). A resend already pending keeps ITS record.
+      const old = this.shadows.get(doc.id);
+      fresh.resendWas = old?.resend ? old.resendWas : old?.cells;
       fresh.cells.clear();
       // Rows stay in the shadow so blank cells (text deleted while they were
       // away) still go out; `resend` makes the diff re-send the sheets and
@@ -1341,7 +1368,10 @@ class SessionStore {
             // re-seed: right after a rejoin their frames arrive too, and losing
             // the flag here would drop exactly the sheets it exists to resend.
             const resendPending = !!oldShadow?.resend;
-            if (resendPending) next.resend = true;
+            if (resendPending) {
+              next.resend = true;
+              next.resendWas = oldShadow!.resendWas;
+            }
             this.shadows.set(docId, next);
             // With nothing of ours pending, the shadow now matches the document
             // exactly, so there is nothing to send - and applying their change

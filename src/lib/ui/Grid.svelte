@@ -235,7 +235,7 @@
     }
     const raw = e.dataTransfer?.getData("text/nimbus-block");
     if (!raw) return;
-    let payload: { header: string; fullCard: string; node?: DocNode; smartFile?: string };
+    let payload: { header: string; fullCard: string; node?: DocNode; smartFile?: string; searchFile?: string; searchMtime?: number };
     try { payload = JSON.parse(raw); } catch { return; }
     const cell = cellAt(e as unknown as MouseEvent);
     if (!cell) return;
@@ -246,6 +246,14 @@
     if (node && payload.smartFile) {
       const sheetId = sheet.id;
       void smartKit.insertAt(sheetId, r, c, node, payload.smartFile).then((ok) => {
+        if (ok && store.activeSheetId === sheetId) store.cursor = { row: r, col: c };
+      });
+      return;
+    }
+    // From Ctrl+K search: the same, reading the exact copy from the file.
+    if (node && payload.searchFile && "__TAURI_INTERNALS__" in window) {
+      const sheetId = sheet.id;
+      void smartKit.insertFromLibrary(sheetId, r, c, node, payload.searchFile, payload.searchMtime).then((ok) => {
         if (ok && store.activeSheetId === sheetId) store.cursor = { row: r, col: c };
       });
       return;
