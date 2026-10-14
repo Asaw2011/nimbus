@@ -440,8 +440,9 @@
             <li>
               In Overviews and File, <b>click</b> a block to put it in the selected cell, or
               <b>drag</b> it onto any cell. Doc Search (<kbd>{combosLabel(km.openDocSearch, mac)}</kbd>)
-              still works exactly as before. Clicked inserts keep the card exactly - charts and
-              tables included - when you send it to the speech doc.
+              still works exactly as before. Clicked and dragged inserts - from here or from Doc
+              Search - keep the card exactly, charts and tables included, when you send it to the
+              speech doc.
             </li>
             <li>
               Suggestions match your <b>block headings</b>, so they work best when headings name
@@ -532,6 +533,8 @@
           </p>
           <ul>
             <li>Each new answer you put in the column takes the next number by itself - the small badge on the cell shows it. Click a badge to change it (<b>3</b>, or <b>2-3</b> for a group).</li>
+            <li><b>Another card for the same answer:</b> press <kbd>{combosLabel(km.insertRowBelow, mac)}</kbd> under it - the new row keeps that answer's number.</li>
+            <li><b>Went back up the flow?</b> An answer you put above others takes the number after the answer above it, and the ones below move up a number.</li>
             <li><b>An overview, or anything that answers no one argument:</b> click its badge and press <b>No number</b>. It keeps its own heading, goes at the top of the speech, and the answers after it move down a number.</li>
             <li>To answer out of order or group, use the column header's <b>‹ ›</b> and <b>+</b> first, or <kbd>{combosLabel(km.answerNext, mac)}</kbd> / <kbd>{combosLabel(km.answerPrev, mac)}</kbd> and <kbd>{combosLabel(km.answerGroup, mac)}</kbd>.</li>
             <li>Sending the column (<kbd>{combosLabel(km.sendRowToDoc, mac)}</kbd>) puts your answers in <b>number order</b>, each under its number and a <b>[xxx]</b> line with what they said, then what's under your block - however you inserted them. These sends add to the end of the doc.</li>

@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.7",
+    headline: "Answer numbers follow the flow, Smart blocks fits beside the doc, and partner flowing is safer after a drop.",
+    items: [
+      "**Answer numbers follow the flow.** Press Ctrl+Enter under an answer to add another card for it - the new row keeps the same number. Put an answer higher up the flow and it takes the lower number, and the answers below it move up one.",
+      "**Smart blocks fits beside the speech doc.** With the doc split next to your flow, the Smart blocks panel is narrower and shorter, so it doesn't cover your flow.",
+      "**Dragging from Doc Search keeps tables.** A block dragged out of Ctrl+K onto the flow now keeps its tables and charts when you send it to the doc, same as clicking it.",
+      "**Your partner's typing is safe when they reconnect.** If your partner typed while they were offline, coming back could wipe what they typed in cells that were empty on your side. Now only text you actually deleted is cleared. Best when you both have 1.5.7.",
+    ],
+  },
+  {
     version: "1.5.6",
     headline: "Partner flowing no longer loses pages when someone drops out.",
     items: [
