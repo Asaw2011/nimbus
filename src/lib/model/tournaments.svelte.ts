@@ -57,37 +57,93 @@ export function safeFileName(name: string): string {
   return (name.replace(/[\\/:*?"<>|]+/g, " ").trim() || "flow").slice(0, 80);
 }
 
+/** A tournament's flows live in a sub-folder with this name when it has one
+ *  (Adam's layout: Glenbrooks\ for the docs, Glenbrooks\flows\ for flows). */
+export const FLOWS_SUB = "flows";
+
+const LAST_PARENT_KEY = "nimbus.lastTourneyParent";
+
 class TournamentStore {
   list = $state<Tournament[]>(loadBlobCached<Tournament[]>(BLOB) ?? []);
+  /** Ids whose folder wasn't there at startup - renamed, moved, or a Dropbox
+   *  folder not synced yet. Shown with "Find it…", never dropped. */
+  missing = $state<string[]>([]);
 
   async init(): Promise<void> {
     const disk = await loadBlob<Tournament[]>(BLOB);
     if (disk) {
-      // Drop any whose folder was deleted on disk.
-      const alive: Tournament[] = [];
-      for (const t of disk) {
-        if (!inTauri() || (await invoke<boolean>("dir_exists", { path: t.path }))) {
-          alive.push(t);
+      // ⚠ A missing folder is KEPT, not dropped. Dropping it meant renaming the
+      // folder on disk (or Dropbox not having synced it yet) silently erased
+      // the tournament from Nimbus (Adam). Now it says so and offers "Find it…".
+      const gone: string[] = [];
+      if (inTauri()) {
+        for (const t of disk) {
+          if (!(await invoke<boolean>("dir_exists", { path: t.path }))) gone.push(t.id);
         }
       }
-      this.list = alive;
-      if (alive.length !== disk.length) this.persist();
+      this.list = disk;
+      this.missing = gone;
     }
+  }
+
+  /** Point a tournament whose folder went missing at its new location. */
+  async relink(id: string): Promise<boolean> {
+    if (!inTauri()) return false;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({ directory: true, multiple: false, title: "Find this tournament's folder" });
+    if (typeof path !== "string") return false;
+    this.list = this.list.map((t) => (t.id === id ? { ...t, path } : t));
+    this.missing = this.missing.filter((x) => x !== id);
+    this.persist();
+    return true;
+  }
+
+  /** Where this tournament's flows go: its `flows` sub-folder when it has one,
+   *  else the tournament folder itself. */
+  async flowsDir(t: Tournament): Promise<string> {
+    const sub = join(t.path, FLOWS_SUB);
+    if (inTauri()) {
+      try {
+        if (await invoke<boolean>("dir_exists", { path: sub })) return sub;
+      } catch {
+        /* fall back to the folder itself */
+      }
+    }
+    return t.path;
   }
 
   private persist(): void {
     saveBlob(BLOB, $state.snapshot(this.list) as Tournament[]);
   }
 
-  /** Pick a parent location and create a new tournament folder there. */
+  /** Pick a parent location and create a new tournament folder there, with a
+   *  `flows` folder inside it for the flows. The picker starts where the last
+   *  one went. Null if the picker was cancelled. */
   async createInPicked(name: string): Promise<Tournament | null> {
     if (!inTauri()) return null;
     const { open } = await import("@tauri-apps/plugin-dialog");
-    const parent = await open({ directory: true, multiple: false, title: "Where to create this tournament folder" });
+    let last: string | undefined;
+    try {
+      last = localStorage.getItem(LAST_PARENT_KEY) ?? undefined;
+    } catch {
+      /* no memory then */
+    }
+    const parent = await open({
+      directory: true,
+      multiple: false,
+      title: `Where should "${name.trim()}" go?`,
+      ...(last ? { defaultPath: last } : {}),
+    });
     if (typeof parent !== "string") return null;
+    try {
+      localStorage.setItem(LAST_PARENT_KEY, parent);
+    } catch {
+      /* fine */
+    }
     const path = join(parent, safeFileName(name));
     await invoke("create_dir", { path });
-    return this.add(name, path);
+    await invoke("create_dir", { path: join(path, FLOWS_SUB) });
+    return this.add(name.trim() || safeFileName(name), path);
   }
 
   /** Link an existing folder on the computer as a tournament. */
@@ -96,7 +152,11 @@ class TournamentStore {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const path = await open({ directory: true, multiple: false, title: "Choose a folder to use as a tournament" });
     if (typeof path !== "string") return null;
-    const name = path.split(/[\\/]/).filter(Boolean).pop() ?? "Tournament";
+    // Linking a "flows" folder itself: name it after the tournament folder
+    // around it ("Glenbrooks"), not "flows".
+    const parts = path.split(/[\\/]/).filter(Boolean);
+    let name = parts.pop() ?? "Tournament";
+    if (name.toLowerCase() === FLOWS_SUB && parts.length) name = parts.pop()!;
     return this.add(name, path);
   }
 
@@ -168,6 +228,7 @@ class TournamentStore {
   /** Unlink from Nimbus (does NOT delete the folder or its files). */
   unlink(id: string): void {
     this.list = this.list.filter((t) => t.id !== id);
+    this.missing = this.missing.filter((x) => x !== id);
     this.persist();
   }
 
@@ -235,10 +296,14 @@ class TournamentStore {
     const want = ext ?? (settings.defaultSaveFormat === "xlsx" ? "xlsx" : "nimbus");
     let taken: Set<string>;
     try {
+      // The folder new flows are written to: `flows` when the tournament has
+      // one (its files list with rel "flows"), else the tournament folder.
+      const dir = await this.flowsDir(t);
+      const rel = dir === t.path ? "" : FLOWS_SUB;
       const files = await invoke<FlowFile[]>("list_flows", { path: t.path });
       taken = new Set(
         files
-          .filter((f) => (f.rel ?? "") === "" && f.ext === want)
+          .filter((f) => (f.rel ?? "").toLowerCase() === rel && f.ext === want)
           .map((f) => f.name.trim().toLowerCase()),
       );
     } catch {
@@ -274,8 +339,15 @@ class TournamentStore {
     // and then deletes the old file. A file uniquified to "New Flow 2.nimbus"
     // while its round was still titled "New Flow" would be renamed back on top
     // of the original within 30s - destroying it after the fact.
-    const name = await this.uniqueFlowName(t, round.name, ext);
-    const path = join(t.path, `${safeFileName(name)}.${ext}`);
+    let name = await this.uniqueFlowName(t, round.name, ext);
+    const dir = await this.flowsDir(t);
+    let path = join(dir, `${safeFileName(name)}.${ext}`);
+    // Belt and braces: never write over a file that's already there, even if
+    // the listing above missed it (Dropbox mid-sync).
+    if (await invoke<boolean>("file_exists", { path })) {
+      name = `${name.slice(0, 70)} ${uid()}`;
+      path = join(dir, `${safeFileName(name)}.${ext}`);
+    }
     const toWrite = { ...round, name, filePath: path };
     if (excel) {
       const { roundToXlsx } = await import("../xlsx/xlsx");
@@ -297,8 +369,12 @@ class TournamentStore {
    *  null if it was already there) so the caller can re-point anything holding
    *  the old one - the dashboard's app-data mirror, in particular. */
   async moveFlow(file: FlowFile, target: Tournament): Promise<string | null> {
-    const to = join(target.path, `${file.name}.${file.ext}`);
-    if (to === file.path) return null;
+    const to = join(await this.flowsDir(target), `${file.name}.${file.ext}`);
+    if (to.toLowerCase() === file.path.toLowerCase()) return null;
+    // Never move ON TOP OF another flow - the move would replace it.
+    if (await invoke<boolean>("file_exists", { path: to })) {
+      throw new Error(`"${target.name}" already has a flow called "${file.name}". Rename one first.`);
+    }
     await invoke("move_path", { from: file.path, to });
     return to;
   }

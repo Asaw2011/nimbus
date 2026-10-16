@@ -78,8 +78,13 @@ export async function saveAs(
   const nimbusFilter = { name: "Nimbus flow", extensions: ["nimbus"] };
   const excelFilter = { name: "Excel workbook", extensions: ["xlsx"] };
   const { save } = await import("@tauri-apps/plugin-dialog");
+  // Start in the folder the flow already lives in (its tournament's flows
+  // folder), so you don't click your way back into it every time (Adam).
+  const fileName = fmt === "xlsx" ? excelName(round) : suggestName(round);
+  const sep = round.filePath?.includes("\\") ? "\\" : "/";
+  const dir = round.filePath ? round.filePath.slice(0, round.filePath.lastIndexOf(sep)) : "";
   const path = await save({
-    defaultPath: fmt === "xlsx" ? excelName(round) : suggestName(round),
+    defaultPath: dir ? dir + sep + fileName : fileName,
     filters: fmt === "xlsx" ? [excelFilter, nimbusFilter] : [nimbusFilter, excelFilter],
   });
   if (!path) return false;

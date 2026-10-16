@@ -25,7 +25,7 @@
   import { splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
-  import { tournaments, safeFileName, type Tournament, type FlowFile } from "../model/tournaments.svelte";
+  import { tournaments, safeFileName, FLOWS_SUB, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
@@ -144,11 +144,8 @@
   let flashTourney = $state<string | null>(null);
   /** What the computer's file manager is called, for hovers and buttons. */
   const fileApp = settings.isMac ? "Finder" : "File Explorer";
-  const pathSep = settings.isMac ? "/" : "\\";
   /** Where the new tournament's folder will go, for the panel's live line. */
-  const tourneyWhere = $derived(
-    ["Documents", "Nimbus", "tournaments", tourneyName.trim() ? safeFileName(tourneyName) : "…"].join(pathSep),
-  );
+  const tourneyWhere = $derived(tourneyName.trim() ? safeFileName(tourneyName) : "…");
   // Rename tournament inline
   let renamingTourney = $state<string | null>(null);
   let renameTourneyText = $state("");
@@ -593,22 +590,16 @@
     tourneyBusy = true;
     let t: Tournament | null = null;
     try {
-      // Tournaments now always live inside the home library's tournaments/ folder,
-      // so there's no folder picker - falls back to the picker only if the home
-      // folder isn't set up (e.g. a browser build).
-      t = homeTournamentsDir
-        ? await tournaments.createInHome(homeTournamentsDir, name)
-        : await tournaments.createInPicked(name);
+      // You choose where it goes (Adam keeps tournaments in Dropbox, not in
+      // Documents\Nimbus) - the picker opens where the last one went.
+      t = await tournaments.createInPicked(name);
     } catch (e) {
       tourneyError = `Couldn't make the folder: ${e instanceof Error ? e.message : String(e)}`;
       return;
     } finally {
       tourneyBusy = false;
     }
-    if (!t) {
-      if (homeTournamentsDir) tourneyError = "Couldn't make the folder.";
-      return;
-    }
+    if (!t) return; // picker cancelled - the panel stays open
     cancelNewTournament();
     await reloadFlows();
     showTournament(t.id);
@@ -668,8 +659,12 @@
     draggingRoundId = null;
     dragOver = null;
     if (flow) {
-      const to = await tournaments.moveFlow(flow, t);
-      if (to) await repointMirror(flow.path, to);
+      try {
+        const to = await tournaments.moveFlow(flow, t);
+        if (to) await repointMirror(flow.path, to);
+      } catch (e) {
+        alert(e instanceof Error ? e.message : String(e));
+      }
     } else if (roundId) {
       // Move an unfiled app-data round into the folder as a real file.
       const round = await loadRound(roundId);
@@ -838,7 +833,7 @@
           <button class="rename-btn" title="Rename flow"
             onclick={(e) => { e.stopPropagation(); startRename(file.path, flowTitle(file)); }}><Icon name="pencil" size="13" /></button>
         {/if}
-        {#if file.rel}
+        {#if file.rel && file.rel.toLowerCase() !== FLOWS_SUB}
           <span class="rel-badge" title="In sub-folder: {file.rel}">{file.rel}</span>
         {/if}
         {#if dupes.length > 0}
@@ -861,7 +856,7 @@
     <div class="tourney-head">
       <h2 class="section">TOURNAMENTS</h2>
       {#if !creatingTourney}
-        <button class="mini-btn" title="Make a new tournament folder in Documents{pathSep}Nimbus{pathSep}tournaments" onclick={() => (creatingTourney = true)}>+ New tournament</button>
+        <button class="mini-btn" title="Make a new tournament folder wherever you want, with a flows folder inside" onclick={() => (creatingTourney = true)}>+ New tournament</button>
         <button class="mini-btn" title="Use a folder you already have (in Dropbox, say) as a tournament. Nothing is moved or copied." onclick={linkFolder}>Link a folder…</button>
       {/if}
     </div>
@@ -881,7 +876,7 @@
           <button class="nt-create" disabled={!tourneyName.trim() || tourneyBusy} onclick={newTournament}>Create</button>
           <button class="nt-cancel" onclick={cancelNewTournament}>Cancel</button>
         </div>
-        <div class="nt-where">Folder: <code>{tourneyWhere}</code></div>
+        <div class="nt-where">Next you choose where it goes. Nimbus makes <code>{tourneyWhere}</code> there, with a <code>flows</code> folder inside for your flows.</div>
         {#if tourneyError}<div class="nt-error">{tourneyError}</div>{/if}
       </div>
     {/if}
@@ -978,6 +973,13 @@
               <button class="act-btn" title="Hide this tournament from Nimbus. Nothing is deleted - the folder and its flows stay on your computer." onclick={() => tournaments.unlink(t.id)}>Unlink</button>
             </div>
             <button class="folder-new" title="New flow in this tournament" onclick={() => newFlowInTournament(t)}><Icon name="plus" size="13" /> New flow</button>
+          </div>
+        {/if}
+        {#if tournaments.missing.includes(t.id)}
+          <div class="t-missing">
+            <span>Folder not found - it may have been renamed or moved (or Dropbox hasn't synced it yet).</span>
+            <button class="mini-btn" title="Pick this tournament's folder where it is now" onclick={async () => { if (await tournaments.relink(t.id)) await reloadFlows(); }}>Find it…</button>
+            <button class="mini-btn" title="Hide this tournament from Nimbus. Nothing is deleted." onclick={() => tournaments.unlink(t.id)}>Unlink</button>
           </div>
         {/if}
         {#if !collapsed.includes(t.id)}
@@ -1248,6 +1250,10 @@
   .nt-where { font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
   .nt-where code { font-size: 12px; color: var(--text); }
   .nt-error { font-size: 12px; color: #d33; }
+  .t-missing {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 0 12px 10px 40px; font-size: 12px; color: #c0392b;
+  }
   .folder.flash { animation: tourney-flash 1.6s ease-out; }
   @keyframes tourney-flash {
     0%, 30% { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
