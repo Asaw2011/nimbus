@@ -25,7 +25,7 @@
   import { splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
-  import { tournaments, safeFileName, FLOWS_SUB, type Tournament, type FlowFile } from "../model/tournaments.svelte";
+  import { tournaments, FLOWS_SUB, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
@@ -144,8 +144,6 @@
   let flashTourney = $state<string | null>(null);
   /** What the computer's file manager is called, for hovers and buttons. */
   const fileApp = settings.isMac ? "Finder" : "File Explorer";
-  /** Where the new tournament's folder will go, for the panel's live line. */
-  const tourneyWhere = $derived(tourneyName.trim() ? safeFileName(tourneyName) : "…");
   // Rename tournament inline
   let renamingTourney = $state<string | null>(null);
   let renameTourneyText = $state("");
@@ -856,7 +854,7 @@
     <div class="tourney-head">
       <h2 class="section">TOURNAMENTS</h2>
       {#if !creatingTourney}
-        <button class="mini-btn" title="Make a new tournament folder wherever you want, with a flows folder inside" onclick={() => (creatingTourney = true)}>+ New tournament</button>
+        <button class="mini-btn" title="Name a tournament, then pick the folder its flows go in" onclick={() => (creatingTourney = true)}>+ New tournament</button>
         <button class="mini-btn" title="Use a folder you already have (in Dropbox, say) as a tournament. Nothing is moved or copied." onclick={linkFolder}>Link a folder…</button>
       {/if}
     </div>
@@ -876,7 +874,7 @@
           <button class="nt-create" disabled={!tourneyName.trim() || tourneyBusy} onclick={newTournament}>Create</button>
           <button class="nt-cancel" onclick={cancelNewTournament}>Cancel</button>
         </div>
-        <div class="nt-where">Next you choose where it goes. Nimbus makes <code>{tourneyWhere}</code> there, with a <code>flows</code> folder inside for your flows.</div>
+        <div class="nt-where">The name is just what Nimbus shows. Next you pick the folder its flows go in - or make one with <b>New folder</b> in the picker. Renaming either one never breaks the other.</div>
         {#if tourneyError}<div class="nt-error">{tourneyError}</div>{/if}
       </div>
     {/if}
@@ -1248,7 +1246,6 @@
   .nt-create:disabled { opacity: 0.45; cursor: default; }
   .nt-cancel { background: var(--panel); color: var(--text-dim); border: 1px solid var(--border); }
   .nt-where { font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
-  .nt-where code { font-size: 12px; color: var(--text); }
   .nt-error { font-size: 12px; color: #d33; }
   .t-missing {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;

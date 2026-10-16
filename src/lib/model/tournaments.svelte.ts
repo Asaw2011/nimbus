@@ -116,9 +116,17 @@ class TournamentStore {
     saveBlob(BLOB, $state.snapshot(this.list) as Tournament[]);
   }
 
-  /** Pick a parent location and create a new tournament folder there, with a
-   *  `flows` folder inside it for the flows. The picker starts where the last
-   *  one went. Null if the picker was cancelled. */
+  /**
+   * A new tournament: `name` is only what Nimbus shows; the folder its flows go
+   * in is whatever you pick (or make with the picker's "New folder"). Nimbus
+   * creates NO folder of its own.
+   *
+   * ⚠ The name and the folder are deliberately separate. Making a folder named
+   * after the tournament put "04---St Marks" inside Adam's own "04---St Marks";
+   * renaming that copy to "flows" on disk then lost the tournament. The picker
+   * starts one level above the last folder picked (the next tournament's
+   * folder is usually a sibling). Null if the picker was cancelled.
+   */
   async createInPicked(name: string): Promise<Tournament | null> {
     if (!inTauri()) return null;
     const { open } = await import("@tauri-apps/plugin-dialog");
@@ -128,22 +136,29 @@ class TournamentStore {
     } catch {
       /* no memory then */
     }
-    const parent = await open({
+    const path = await open({
       directory: true,
       multiple: false,
-      title: `Where should "${name.trim()}" go?`,
+      title: `Pick the folder for "${name.trim()}" flows (or make one with New folder)`,
       ...(last ? { defaultPath: last } : {}),
     });
-    if (typeof parent !== "string") return null;
+    if (typeof path !== "string") return null;
     try {
-      localStorage.setItem(LAST_PARENT_KEY, parent);
+      const sep = path.includes("\\") ? "\\" : "/";
+      const trimmed = path.replace(/[\\/]+$/, "");
+      // Two levels up for a "flows" folder (…\Tournaments\04---St Marks\flows
+      // → …\Tournaments), else one level up.
+      let up = trimmed.slice(0, trimmed.lastIndexOf(sep));
+      if (trimmed.split(sep).pop()?.toLowerCase() === FLOWS_SUB) up = up.slice(0, up.lastIndexOf(sep));
+      if (up) localStorage.setItem(LAST_PARENT_KEY, up);
     } catch {
       /* fine */
     }
-    const path = join(parent, safeFileName(name));
-    await invoke("create_dir", { path });
-    await invoke("create_dir", { path: join(path, FLOWS_SUB) });
-    return this.add(name.trim() || safeFileName(name), path);
+    const label = name.trim() || "Tournament";
+    const t = this.add(label, path);
+    // That folder was already a tournament: it just takes the new name.
+    if (t.name !== label) this.rename(t.id, label);
+    return { ...t, name: label };
   }
 
   /** Link an existing folder on the computer as a tournament. */
