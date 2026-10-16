@@ -25,7 +25,7 @@
   import { splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
-  import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
+  import { tournaments, safeFileName, type Tournament, type FlowFile } from "../model/tournaments.svelte";
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
@@ -137,6 +137,18 @@
   // New-tournament inline input
   let creatingTourney = $state(false);
   let tourneyName = $state("");
+  /** Why the last create failed, shown in the New tournament panel. */
+  let tourneyError = $state("");
+  let tourneyBusy = $state(false);
+  /** The tournament just created - flashed so you can see where it went. */
+  let flashTourney = $state<string | null>(null);
+  /** What the computer's file manager is called, for hovers and buttons. */
+  const fileApp = settings.isMac ? "Finder" : "File Explorer";
+  const pathSep = settings.isMac ? "/" : "\\";
+  /** Where the new tournament's folder will go, for the panel's live line. */
+  const tourneyWhere = $derived(
+    ["Documents", "Nimbus", "tournaments", tourneyName.trim() ? safeFileName(tourneyName) : "…"].join(pathSep),
+  );
   // Rename tournament inline
   let renamingTourney = $state<string | null>(null);
   let renameTourneyText = $state("");
@@ -566,18 +578,62 @@
 
   // ---- tournaments ---------------------------------------------------------
 
-  async function newTournament() {
-    const name = tourneyName.trim();
+  function cancelNewTournament() {
     creatingTourney = false;
     tourneyName = "";
-    if (!name) return;
-    // Tournaments now always live inside the home library's tournaments/ folder,
-    // so there's no folder picker - falls back to the picker only if the home
-    // folder isn't set up (e.g. a browser build).
-    const t = homeTournamentsDir
-      ? await tournaments.createInHome(homeTournamentsDir, name)
-      : await tournaments.createInPicked(name);
-    if (t) await reloadFlows();
+    tourneyError = "";
+  }
+
+  // Only the Create button / Enter creates. Clicking away used to create
+  // whatever was typed (or silently cancel) - Adam found it confusing.
+  async function newTournament() {
+    const name = tourneyName.trim();
+    if (!name || tourneyBusy) return;
+    tourneyError = "";
+    tourneyBusy = true;
+    let t: Tournament | null = null;
+    try {
+      // Tournaments now always live inside the home library's tournaments/ folder,
+      // so there's no folder picker - falls back to the picker only if the home
+      // folder isn't set up (e.g. a browser build).
+      t = homeTournamentsDir
+        ? await tournaments.createInHome(homeTournamentsDir, name)
+        : await tournaments.createInPicked(name);
+    } catch (e) {
+      tourneyError = `Couldn't make the folder: ${e instanceof Error ? e.message : String(e)}`;
+      return;
+    } finally {
+      tourneyBusy = false;
+    }
+    if (!t) {
+      if (homeTournamentsDir) tourneyError = "Couldn't make the folder.";
+      return;
+    }
+    cancelNewTournament();
+    await reloadFlows();
+    showTournament(t.id);
+  }
+
+  /** Open a tournament, scroll to it and flash it briefly. */
+  function showTournament(id: string) {
+    collapsed = collapsed.filter((x) => x !== id);
+    flashTourney = id;
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-tourney="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+    );
+    setTimeout(() => {
+      if (flashTourney === id) flashTourney = null;
+    }, 1600);
+  }
+
+  /** Open the tournament's folder in File Explorer / Finder. */
+  async function revealTournament(t: Tournament) {
+    try {
+      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+      await revealItemInDir(t.path);
+    } catch (e) {
+      console.warn("reveal failed", e);
+    }
   }
 
   async function linkFolder() {
@@ -788,7 +844,7 @@
         {#if dupes.length > 0}
           <span
             class="dupe-badge"
-            title="This flow also exists at:&#10;{dupes.map((d) => d.path).join('\n')}&#10;&#10;Showing the live copy. The others are older leftovers - delete them in Finder/Explorer if you don't want them."
+            title="This flow also exists at:&#10;{dupes.map((d) => d.path).join('\n')}&#10;&#10;Showing the live copy. The others are older leftovers - delete them in {fileApp} if you don't want them."
           >{dupes.length + 1} copies</span>
         {/if}
         <span class="row-sp"></span>
@@ -804,25 +860,37 @@
          home "Recent flows" list. -->
     <div class="tourney-head">
       <h2 class="section">TOURNAMENTS</h2>
-      {#if creatingTourney}
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          class="tourney-input"
-          placeholder="Tournament name (a folder is made in Nimbus/tournaments)"
-          bind:value={tourneyName}
-          autofocus
-          onkeydown={(e) => { if (e.key === 'Enter') newTournament(); if (e.key === 'Escape') { creatingTourney = false; tourneyName = ''; } }}
-          onblur={newTournament}
-        />
-      {:else}
-        <button class="mini-btn" onclick={() => (creatingTourney = true)}>+ New tournament</button>
-        <button class="mini-btn" onclick={linkFolder}>Link a folder…</button>
+      {#if !creatingTourney}
+        <button class="mini-btn" title="Make a new tournament folder in Documents{pathSep}Nimbus{pathSep}tournaments" onclick={() => (creatingTourney = true)}>+ New tournament</button>
+        <button class="mini-btn" title="Use a folder you already have (in Dropbox, say) as a tournament. Nothing is moved or copied." onclick={linkFolder}>Link a folder…</button>
       {/if}
     </div>
+    {#if creatingTourney}
+      <div class="new-tourney">
+        <label class="nt-label" for="nt-name">New tournament</label>
+        <div class="nt-row">
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            id="nt-name"
+            class="tourney-input"
+            placeholder="Tournament name, e.g. Glenbrooks"
+            bind:value={tourneyName}
+            autofocus
+            onkeydown={(e) => { if (e.key === 'Enter') newTournament(); if (e.key === 'Escape') cancelNewTournament(); }}
+          />
+          <button class="nt-create" disabled={!tourneyName.trim() || tourneyBusy} onclick={newTournament}>Create</button>
+          <button class="nt-cancel" onclick={cancelNewTournament}>Cancel</button>
+        </div>
+        <div class="nt-where">Folder: <code>{tourneyWhere}</code></div>
+        {#if tourneyError}<div class="nt-error">{tourneyError}</div>{/if}
+      </div>
+    {/if}
 
     {#each tourneyList as t (t.id)}
       <section
         class="folder"
+        data-tourney={t.id}
+        class:flash={flashTourney === t.id}
         class:open={!collapsed.includes(t.id)}
         class:drop-target={(draggingFlow || draggingRoundId) && dragOver === t.id}
         class:drag-live={!!(draggingFlow || draggingRoundId)}
@@ -906,7 +974,8 @@
             <span class="t-sp"></span>
             <div class="folder-actions">
               <button class="act-btn" title="Rename tournament" onclick={() => { renamingTourney = t.id; renameTourneyText = t.name; }}><Icon name="pencil" size="13" /></button>
-              <button class="act-btn" title="Remove from Nimbus (keeps the folder on your Mac)" onclick={() => tournaments.unlink(t.id)}>Unlink</button>
+              <button class="act-btn" title="Show this tournament's folder in {fileApp}" onclick={() => revealTournament(t)}><Icon name="folder-open" size="13" /></button>
+              <button class="act-btn" title="Hide this tournament from Nimbus. Nothing is deleted - the folder and its flows stay on your computer." onclick={() => tournaments.unlink(t.id)}>Unlink</button>
             </div>
             <button class="folder-new" title="New flow in this tournament" onclick={() => newFlowInTournament(t)}><Icon name="plus" size="13" /> New flow</button>
           </div>
@@ -1159,7 +1228,30 @@
   .mini-btn:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
   .tourney-input, .tourney-input:focus {
     background: var(--bg); border: 1px solid var(--accent); color: var(--text);
-    border-radius: 6px; padding: 5px 10px; font-size: 13px; min-width: 320px;
+    border-radius: 6px; padding: 5px 10px; font-size: 13px;
+    flex: 1; min-width: 0;
+  }
+  /* The New tournament panel: name, Create / Cancel, and where the folder goes. */
+  .new-tourney {
+    background: var(--panel); border: 1px solid var(--accent);
+    border-radius: 14px; padding: 12px 14px; margin: -4px 0 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .nt-label { font-size: 13px; font-weight: 700; color: var(--text); }
+  .nt-row { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .nt-create, .nt-cancel {
+    border-radius: 6px; padding: 5px 14px; font-size: 13px; font-weight: 600; cursor: pointer; flex: none;
+  }
+  .nt-create { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+  .nt-create:disabled { opacity: 0.45; cursor: default; }
+  .nt-cancel { background: var(--panel); color: var(--text-dim); border: 1px solid var(--border); }
+  .nt-where { font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
+  .nt-where code { font-size: 12px; color: var(--text); }
+  .nt-error { font-size: 12px; color: #d33; }
+  .folder.flash { animation: tourney-flash 1.6s ease-out; }
+  @keyframes tourney-flash {
+    0%, 30% { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+    100% { box-shadow: 0 0 0 0 transparent; }
   }
 
   /* ---- Tournament = one cohesive folder card: a clickable header bar, and a

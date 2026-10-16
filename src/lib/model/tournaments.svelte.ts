@@ -1,4 +1,4 @@
-// Tournaments = real folders on the user's Mac. A tournament is a linked
+// Tournaments = real folders on the user's computer. A tournament is a linked
 // directory; its flows are the .nimbus / .xlsx files inside it. Creating a
 // tournament creates a folder; moving a flow moves the file on disk.
 
@@ -90,7 +90,7 @@ class TournamentStore {
     return this.add(name, path);
   }
 
-  /** Link an existing folder on the Mac as a tournament. */
+  /** Link an existing folder on the computer as a tournament. */
   async linkExisting(): Promise<Tournament | null> {
     if (!inTauri()) return null;
     const { open } = await import("@tauri-apps/plugin-dialog");
