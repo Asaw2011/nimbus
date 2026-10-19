@@ -980,6 +980,8 @@
     // The editor has to exist before we can insert into it - with the pane
     // closed, every one of these calls used to hit a null `docRef` and vanish.
     await ensureDocOpen();
+    // let the guided tour know a real send landed in the built-in doc
+    if (ops.length) window.dispatchEvent(new Event("nimbus:sent-to-doc"));
     if (mode === "cursor") {
       for (const op of ops) {
         if ("cm" in op) docRef?.insertCMAtCursor([op.cm]);
@@ -1475,7 +1477,7 @@
 <svelte:window onkeydown={onkeydown} />
 
 {#snippet tabs()}
-  <div class="tabs" class:bottom={settings.tabsPosition === "bottom"} role="tablist">
+  <div class="tabs" data-tour="tabs" class:bottom={settings.tabsPosition === "bottom"} role="tablist">
     <button class="tab home-tab" class:active={atHome} onclick={() => (atHome = true)}>
       ⌂ Home
     </button>
@@ -1571,7 +1573,7 @@
         onclick={() => { settings.compactTopBar = !settings.compactTopBar; settings.save(); }}
         title={settings.compactTopBar ? "Show the full top bar" : "Compact top bar (hide the words)"}
       ><Icon name={settings.compactTopBar ? "maximize" : "minimize"} /></button>
-      <button class="icon-btn" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})"><Icon name="doc" /><span class="btn-lbl">Speech doc</span></button>
+      <button class="icon-btn" data-tour="doc" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})"><Icon name="doc" /><span class="btn-lbl">Speech doc</span></button>
       <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards - drag onto the flow"><Icon name="layers" /><span class="btn-lbl">Quick cards</span></button>
       <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop 1.5.0 or newer running (no plugin); the built-in doc always works offline.">
         <span class="send-to-label">Send to</span>
@@ -1621,6 +1623,7 @@
            disagree, and the worrying combinations must not read as healthy. -->
       <button
         class="icon-btn"
+        data-tour="partner"
         class:active={showPartner}
         class:live={partnerState === "ok"}
         class:lagging={partnerState === "lag"}
@@ -1660,8 +1663,8 @@
                     : "Partner · reconnecting"}</span
       ></button>
       <button class="icon-btn" onclick={() => (showManual = true)} title="Manual - how everything works"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
-      <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
-      <button class="icon-btn" class:active={showHelp} onclick={() => (showHelp = !showHelp)} title="How do I…? - search what you want to do, in plain words; the full shortcut list is in here too ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">How do I…</span></button>
+      <button class="icon-btn" data-tour="settings" onclick={() => (showSettings = true)} title="Settings ({combosLabel(km.openSettings, mac)})"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
+      <button class="icon-btn" data-tour="help" class:active={showHelp} onclick={() => (showHelp = !showHelp)} title="How do I…? - search what you want to do, in plain words; the full shortcut list is in here too ({combosLabel(km.toggleHelp, mac)})">?<span class="btn-lbl">How do I…</span></button>
     </div>
 
     {#if settings.tabsPosition === "top"}{@render tabs()}{/if}
@@ -1738,7 +1741,7 @@
           <div class="doc-divider" onpointerdown={startDocResize} role="separator" aria-orientation="vertical"></div>
         {/if}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="doc-pane" class:drag-over={docDragOver} style={docExpanded ? "flex:1" : `width: ${docWidth}px`}
+        <div class="doc-pane" data-tour-panel="doc" class:drag-over={docDragOver} style={docExpanded ? "flex:1" : `width: ${docWidth}px`}
           ondragover={onDocDragOver} ondragleave={onDocDragLeave} ondrop={onDocDrop}>
           <div class="doc-tabs">
             {#each docsStore.docs as d (d.id)}

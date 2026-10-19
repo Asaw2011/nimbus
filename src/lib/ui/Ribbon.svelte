@@ -85,7 +85,13 @@
     });
   }
 
+  // Row edits and doc sends each live behind one "▾" menu instead of several
+  // always-on buttons - the biggest declutter of the bar.
+  let rowMenuOpen = $state(false);
+  let sendMenuOpen = $state(false);
+
   function insertRow(offset: 0 | 1) {
+    rowMenuOpen = false;
     const cur = store.cursor;
     if (!cur) return;
     store.insertRow(cur.row + offset);
@@ -93,6 +99,7 @@
   }
 
   function deleteRow() {
+    rowMenuOpen = false;
     const cur = store.cursor;
     if (cur) store.deleteRow(cur.row);
   }
@@ -138,25 +145,23 @@
   }
 </script>
 
-<!-- The size container. The ribbon sits inside `.flow-pane`, so opening the
-     built-in doc narrows it while the WINDOW stays exactly as wide as it was.
-     Width-based media queries can't see that - they only fire when the OS
-     window itself shrinks - so the bar kept full-size icons in a half-width
-     column and clipped. Everything below queries THIS element instead, which
-     narrows for any reason: OS splitscreen, the doc pane, or the doc pane
-     inside a splitscreened window. -->
-<div class="ribbon-wrap">
+<!-- One bar. Button area wraps to a second line when the pane gets narrow
+     (split screen, the speech doc open, or both) instead of shrinking the
+     buttons until they're unreadable. Prep clocks + density toggle sit in a
+     fixed aside on the right so they never get stranded on a wrapped line. -->
+<div class="ribbon-wrap" data-tour="ribbon">
 <div class="ribbon" class:compact={settings.ribbonMode === "compact"}>
-  <div class="group">
-    <div class="controls">
-      <button class="rb" title="Undo (⌘Z)" onclick={() => store.undo()}><span class="lbl">↶ Undo</span><span class="ico">↶</span></button>
-      <button class="rb" title="Redo (⌘⇧Z)" onclick={() => store.redo()}><span class="lbl">↷ Redo</span><span class="ico">↷</span></button>
+  <div class="ribbon-buttons">
+    <!-- Edit -->
+    <div class="rgroup">
+      <button class="rb" title="Undo (⌘Z)" onclick={() => store.undo()}>Undo</button>
+      <button class="rb" title="Redo (⌘⇧Z)" onclick={() => store.redo()}>Redo</button>
     </div>
-    <div class="caption">Edit</div>
-  </div>
 
-  <div class="group">
-    <div class="controls">
+    <span class="toolbar-sep"></span>
+
+    <!-- Text -->
+    <div class="rgroup">
       <span class="stepper" title={onDoc ? "Selected text size (speech doc)" : "Text size"}>
         <button class="rb slim" onclick={() => bumpFont(-1)}>−</button>
         <span class="font-size">{onDoc ? store.docSelSize : settings.fontSize}</span>
@@ -169,235 +174,176 @@
         <input type="color" oninput={(e) => ink(e.currentTarget.value)} />
       </label>
     </div>
-    <div class="caption">Text</div>
-  </div>
 
-  <div class="group">
-    <div class="controls">
-      <button class="rb" title="Insert a row above this one ({combosLabel(km.insertRowAbove, mac)})" onclick={() => insertRow(0)}><span class="lbl">+ Above</span><span class="ico">＋↑</span></button>
-      <button class="rb" title="Insert a row below this one ({combosLabel(km.insertRowBelow, mac)})" onclick={() => insertRow(1)}><span class="lbl">+ Below</span><span class="ico">＋↓</span></button>
-      <button class="rb" title="Delete this row ({combosLabel(km.deleteRow, mac)})" onclick={deleteRow}><span class="lbl">− Delete</span><span class="ico">✕</span></button>
+    <span class="toolbar-sep"></span>
+
+    <!-- Rows -->
+    <div class="rgroup">
+      <div class="row-menu-wrap">
+        <button class="rb" class:on={rowMenuOpen} title="Insert or delete rows" onclick={() => (rowMenuOpen = !rowMenuOpen)}>Row ▾</button>
+        {#if rowMenuOpen}
+          <button class="row-menu-backdrop" aria-label="Close menu" onclick={() => (rowMenuOpen = false)}></button>
+          <div class="row-menu-pop">
+            <button onclick={() => insertRow(0)}>Insert Above <kbd>{combosLabel(km.insertRowAbove, mac)}</kbd></button>
+            <button onclick={() => insertRow(1)}>Insert Below <kbd>{combosLabel(km.insertRowBelow, mac)}</kbd></button>
+            <button class="danger" onclick={deleteRow}>Delete Row <kbd>{combosLabel(km.deleteRow, mac)}</kbd></button>
+          </div>
+        {/if}
+      </div>
     </div>
-    <div class="caption">Rows</div>
-  </div>
 
-  <div class="group">
-    <div class="controls">
-      <!-- ⚠ `onmousedown` preventDefault on all four: without it, pressing the
-           button BLURS whatever you were typing in first. That is invisible for
-           a cell (the grid cursor stays put) but fatal for an answer tile, whose
-           identity lives in `store.focusedAnswer` and was cleared on blur - so
-           the mark landed on the whole cell around the tile instead of the tile
-           you were in. The keyboard shortcuts never blur, which is why they
-           worked and these did not. -->
-      <button class="rb dropped" title="They dropped this argument ({combosLabel(km.markDropped, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("dropped")}><span class="lbl">Dropped</span><span class="ico">⊘</span></button>
-      <button class="rb star" title="Must answer in your next speech ({combosLabel(km.markStarred, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("starred")}><span class="lbl">★ Star</span><span class="ico">★</span></button>
-      <button class="rb analytic" title="This is an analytic - no card ({combosLabel(km.markAnalytic, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("analytic")}><span class="lbl">Analytic</span><span class="ico">An</span></button>
-      <button class="rb card" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("card")}><span class="lbl">Card</span><span class="ico">Cd</span></button>
-      <button class="rb extend" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}><span class="lbl">➜ Extend</span><span class="ico">➜</span></button>
-      <button class="rb reply" title="Answer this argument - jumps to your reply and links it, so sending to the doc writes “AT: this argument” ({combosLabel(km.replyToArg, mac)})" onclick={reply}><span class="lbl">↩ Answer</span><span class="ico">↩</span></button>
-      <!-- The lane collapse toggle used to live here. It moved onto each lane's
-           own column header: a flow can now carry TWO split speeches, and one
-           toolbar button cannot say which lane it means. Removing a button only
-           frees width, so the ribbon budget is unaffected. -->
-      {#if onsendspeech}
-        <button class="rb send-doc" title="Send the ENTIRE ROW (every card in this speech) to the doc in flow order - mirrors the flow and de-dupes. ({combosLabel(km.sendRowToDoc, mac)})" onclick={onsendspeech}><span class="lbl">↕ Send Entire Row</span><span class="ico">↕</span></button>
-      {/if}
-      {#if onsendcell}
-        <button class="rb send-cell" title="Send the selected cell(s) to the doc AT THE CURSOR. Select a range first to send multiple cells. ({combosLabel(km.sendCellsToDoc, mac)})" onclick={onsendcell}><span class="lbl">⌖ {sendCellLabel}</span><span class="ico">⌖</span></button>
-      {/if}
-      {#if onremove}
-        <button class="rb remove" title="Clear this cell and remove its card from the doc ({combosLabel(km.removeFromDoc, mac)})" onclick={onremove}><span class="lbl">✕ Remove</span><span class="ico">✕</span></button>
+    <span class="toolbar-sep"></span>
+
+    <!-- Debate -->
+    <div class="rgroup">
+      <!-- ⚠ onmousedown preventDefault on the mark buttons: without it, pressing
+           the button blurs the cell or answer tile you were typing in, so the
+           mark lands on the whole cell instead of the tile. -->
+      <button class="rb" data-tour="drop" title="They dropped this argument ({combosLabel(km.markDropped, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("dropped")}>Dropped</button>
+      <button class="rb" title="Must answer in your next speech ({combosLabel(km.markStarred, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => mark("starred")}>Star</button>
+      <button class="rb" title="This is an analytic - no card ({combosLabel(km.markAnalytic, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("analytic")}>Analytic</button>
+      <button class="rb" data-tour="evidence" title="This is a carded argument ({combosLabel(km.markCard, mac)})" onmousedown={(e) => e.preventDefault()} onclick={() => evidence("card")}>Card</button>
+      <button class="rb" title="Extend this argument into your next speech ({combosLabel(km.extendArg, mac)})" onclick={extend}>Extend</button>
+      <button class="rb" title="Answer this argument - jumps to your reply and links it, so sending to the doc writes “AT: this argument” ({combosLabel(km.replyToArg, mac)})" onclick={reply}>Answer</button>
+      {#if onsendspeech || onsendcell || onremove}
+        <div class="row-menu-wrap">
+          <button class="rb" class:on={sendMenuOpen} data-tour="send" title="Send cards to the speech doc, or remove them" onclick={() => (sendMenuOpen = !sendMenuOpen)}>Send ▾</button>
+          {#if sendMenuOpen}
+            <button class="row-menu-backdrop" aria-label="Close menu" onclick={() => (sendMenuOpen = false)}></button>
+            <div class="row-menu-pop">
+              {#if onsendcell}
+                <button onclick={() => { sendMenuOpen = false; onsendcell?.(); }} title="Send the selected cell(s) to the doc at the cursor">{sendCellLabel} <kbd>{combosLabel(km.sendCellsToDoc, mac)}</kbd></button>
+              {/if}
+              {#if onsendspeech}
+                <button onclick={() => { sendMenuOpen = false; onsendspeech?.(); }} title="Send the whole row (every card in this speech) in flow order">Send entire row <kbd>{combosLabel(km.sendRowToDoc, mac)}</kbd></button>
+              {/if}
+              {#if onremove}
+                <button class="danger" onclick={() => { sendMenuOpen = false; onremove?.(); }} title="Clear this cell and remove its card from the doc">Remove from doc <kbd>{combosLabel(km.removeFromDoc, mac)}</kbd></button>
+              {/if}
+            </div>
+          {/if}
+        </div>
       {/if}
     </div>
-    <div class="caption">Debate</div>
-  </div>
 
-  <div class="group">
-    <div class="controls">
-      <button class="rb" class:on={spreadMode === "vertical"} title="See several flows stacked, columns aligned ({combosLabel(km.toggleSpread, mac)})" onclick={() => onspread("vertical")}><span class="lbl">▤ Stack</span><span class="ico">▤</span></button>
-      <button class="rb" class:on={spreadMode === "horizontal"} title="See several flows next to each other" onclick={() => onspread("horizontal")}><span class="lbl">◫ Split</span><span class="ico">◫</span></button>
+    <span class="toolbar-sep"></span>
+
+    <!-- View -->
+    <div class="rgroup">
+      <button class="rb" data-tour="spread" class:on={spreadMode === "vertical"} title="See several flows stacked, columns aligned ({combosLabel(km.toggleSpread, mac)})" onclick={() => onspread("vertical")}>Stack</button>
+      <button class="rb" class:on={spreadMode === "horizontal"} title="See several flows next to each other" onclick={() => onspread("horizontal")}>Split</button>
       <span class="zoom-ctl">
         <button class="rb zoom-btn" title="Zoom out ({combosLabel(km.zoomOut, mac)})" onclick={() => settings.zoomOut()}>−</button>
         <button class="rb zoom-pct" title="Reset zoom ({combosLabel(km.zoomReset, mac)})" onclick={() => settings.zoomReset()}>{Math.round(settings.zoom * 100)}%</button>
         <button class="rb zoom-btn" title="Zoom in ({combosLabel(km.zoomIn, mac)})" onclick={() => settings.zoomIn()}>+</button>
       </span>
     </div>
-    <div class="caption">View</div>
   </div>
 
-  <span class="ribbon-spacer"></span>
-
-  <!-- Prep clocks, pinned to the right end in BOTH densities so they never
-       shift as the conditional buttons (partner lane, send, remove) come and
-       go. Each team's clock: click the time to correct it, the button to
-       start/stop, right-click to reset to a full allotment. -->
-  <div class="prep-group">
-    {#each SIDES as side (side)}
-      <div class="prep" class:aff={side === "aff"} class:neg={side === "neg"} class:live={prep.running(side)} class:spent={prep.spent(side)}>
-        <span class="prep-tag">{side === "aff" ? "AFF" : "NEG"}</span>
-        {#if editingSide === side}
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            class="prep-time prep-edit"
-            bind:value={prepText}
-            autofocus
-            onblur={commitEditPrep}
-            onkeydown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter") { e.preventDefault(); commitEditPrep(); }
-              else if (e.key === "Escape") { editingSide = null; }
-            }}
-          />
-        {:else}
+  <!-- Right-side aside: prep clocks + density toggle. Never wraps or shrinks. -->
+  <div class="ribbon-aside">
+    <div class="prep-group">
+      {#each SIDES as side (side)}
+        <div class="prep" class:aff={side === "aff"} class:neg={side === "neg"} class:live={prep.running(side)} class:spent={prep.spent(side)}>
+          <span class="prep-tag">{side === "aff" ? "AFF" : "NEG"}</span>
+          {#if editingSide === side}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              class="prep-time prep-edit"
+              bind:value={prepText}
+              autofocus
+              onblur={commitEditPrep}
+              onkeydown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") { e.preventDefault(); commitEditPrep(); }
+                else if (e.key === "Escape") { editingSide = null; }
+              }}
+            />
+          {:else}
+            <button
+              class="prep-time"
+              title="{side === 'aff' ? 'Aff' : 'Neg'} prep remaining - click to correct it by hand"
+              onclick={() => startEditPrep(side)}
+            >{prep.label(side)}</button>
+          {/if}
           <button
-            class="prep-time"
-            title="{side === 'aff' ? 'Aff' : 'Neg'} prep remaining - click to correct it by hand"
-            onclick={() => startEditPrep(side)}
-          >{prep.label(side)}</button>
-        {/if}
-        <button
-          class="prep-go"
-          title={prep.running(side)
-            ? `Stop ${side === "aff" ? "aff" : "neg"} prep`
-            : prep.spent(side)
-              ? "No prep left - right-click to reset"
-              : `Start ${side === "aff" ? "aff" : "neg"} prep (stops the other team's clock)`}
-          disabled={prep.spent(side) && !prep.running(side)}
-          onclick={() => prep.toggle(side)}
-          oncontextmenu={(e) => { e.preventDefault(); prep.reset(side); }}
-        >{prep.running(side) ? "⏸" : "▶"}</button>
-      </div>
-    {/each}
-  </div>
+            class="prep-go"
+            title={prep.running(side)
+              ? `Stop ${side === "aff" ? "aff" : "neg"} prep`
+              : prep.spent(side)
+                ? "No prep left - right-click to reset"
+                : `Start ${side === "aff" ? "aff" : "neg"} prep (stops the other team's clock)`}
+            disabled={prep.spent(side) && !prep.running(side)}
+            onclick={() => prep.toggle(side)}
+            oncontextmenu={(e) => { e.preventDefault(); prep.reset(side); }}
+          >{prep.running(side) ? "⏸" : "▶"}</button>
+        </div>
+      {/each}
+    </div>
 
-  <button
-    class="rb density-toggle"
-    title={settings.ribbonMode === "full"
-      ? "Condense the toolbar - fits a splitscreen half"
-      : "Expand the toolbar to full width"}
-    onclick={() => {
-      settings.ribbonMode = settings.ribbonMode === "full" ? "compact" : "full";
-      settings.save();
-    }}
-  >{settings.ribbonMode === "full" ? "⇥⇤" : "⇤⇥"}</button>
+    <button
+      class="rb density-toggle"
+      title={settings.ribbonMode === "full"
+        ? "Condense the toolbar - fits a splitscreen half"
+        : "Expand the toolbar to full width"}
+      onclick={() => {
+        settings.ribbonMode = settings.ribbonMode === "full" ? "compact" : "full";
+        settings.save();
+      }}
+    >{settings.ribbonMode === "full" ? "Compact" : "Full"}</button>
+  </div>
 </div>
 </div>
 
 <style>
-  /* One bar, two densities. `full` fills the window at 46px; `compact` fits a
-     splitscreen half and is also SHORTER - its height follows its (smaller)
-     icons, so condensing gives the flow back vertical room too. Asked for: the
-     condensed bar used to keep the full 46px around 22px icons.
-
-     ⚠ `overflow: hidden`, not `auto`. The old bar scrolled horizontally, which
-     is the thing being fixed - a toolbar you have to scroll is a toolbar whose
-     right-hand buttons you never find. Everything here is sized so it fits;
-     if a future button breaks that, the fix is to shrink the set, not to bring
-     the scrollbar back. */
   .ribbon-wrap {
-    container-type: inline-size;
-    container-name: ribbon;
     flex-shrink: 0;
   }
   .ribbon {
-    --rb-size: 32px;   /* icon button box - scaled down in compact */
-    --rb-font: 16px;
-    --rb-gap: 3px;
     display: flex;
     align-items: center;
-    gap: var(--rb-gap);
-    height: 46px;
+    gap: 8px;
+    height: 48px;
     box-sizing: border-box;
     padding: 0 8px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
-    /* Last-resort only. The size steps below shrink the bar to fit the space it
-       actually has, so this should never engage in normal use - but there is a
-       width at which 24 buttons genuinely cannot fit, and scrolling to reach a
-       button beats the button not existing. `thin` so the scrollbar can't eat
-       into the 46px. */
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: thin;
-    flex-shrink: 0;
   }
-  /* Compact is sized against a real target, not by eye: half of a 1366 laptop
-     is 683px, and that is the splitscreen case this mode exists for. */
-  .ribbon.compact {
-    --rb-size: 22px;
-    --rb-font: 12px;
-    --rb-gap: 0px;
-    padding: 0 4px;
-    /* 4px above and below the icon box; tracks the size steps below. */
-    height: calc(var(--rb-size) + 8px);
-  }
-  .ribbon.compact .rb { padding: 0 2px; }
-  /* The two multi-part readouts (text size −13+, zoom −70%+) are ~150px of the
-     bar between them, which is the difference between "narrower" and "about
-     half". Compact is the space-saving mode, so they go here too, not only at
-     narrow widths. Zoom keeps its keybinds and pinch; text size is in Settings. */
-  .ribbon.compact .zoom-ctl,
-  .ribbon.compact .stepper { display: none; }
-  /* Every labeled button carries a full-text .lbl and a single-glyph .ico.
-     The bar is icon-only in both densities now, so .lbl is always hidden and
-     .ico always shown - the wording survives in each button's `title`, which
-     is where it was already duplicated. Kept as two spans rather than deleting
-     the labels so bringing text back is a CSS change, not a rewrite. */
-  .lbl { display: none; }
-  .ico { display: inline; }
-  /* Group captions (EDIT / TEXT / ROWS / …) stacked under the controls and are
-     what made the bar tall enough to need two rows. Icon-only has no room for
-     them; the group separators carry the grouping instead. */
-  .caption { display: none; }
-  .ribbon-spacer { flex: 1; min-width: 4px; }
-  .group {
+  /* One row, no wrap, no scrollbar. Clusters separated by a thin divider + a
+     gap, not boxes. If a pane gets too narrow for everything, use Compact. */
+  .ribbon-buttons {
+    flex: 0 1 auto;
     display: flex;
-    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
-    padding: 0 6px;
-    border-right: 1px solid var(--border);
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
   }
-  .ribbon.compact .group { padding: 0 3px; }
-  .group:first-child {
-    padding-left: 0;
-  }
-  .group:last-child {
-    border-right: none;
-  }
-  .controls {
+  .rgroup {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
   }
-  .zoom-ctl {
-    display: inline-flex;
-    align-items: center;
-    margin-left: 6px;
-    gap: 1px;
+  .toolbar-sep {
+    width: 1px;
+    align-self: center;
+    height: 24px;
+    background: var(--border);
+    margin: 0 3px;
   }
-  .zoom-btn { min-width: 22px; padding: 2px 4px; }
-  .zoom-pct { min-width: 42px; padding: 2px 4px; font-variant-numeric: tabular-nums; }
-  .caption {
-    text-align: center;
-    font-size: 9.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
-    padding: 2px 0 1px;
-    user-select: none;
-  }
-  /* A square box scaled off the bar's own --rb-size, so an icon fills the bar's
-     height in full mode and shrinks as one piece in compact. */
+  /* One shared button look - same height + min-width so the bar reads evenly.
+     No per-action colors; only state differs. */
   .rb {
-    background: transparent;
-    border: 1px solid transparent;
+    background: var(--bg);
+    border: 1px solid var(--border);
     color: var(--text);
-    border-radius: 5px;
-    height: var(--rb-size);
-    min-width: var(--rb-size);
-    padding: 0 4px;
-    font-size: var(--rb-font);
+    border-radius: 6px;
+    height: 30px;
+    box-sizing: border-box;
+    min-width: 34px;
+    padding: 0 11px;
+    font-size: 13px;
     line-height: 1;
     cursor: pointer;
     white-space: nowrap;
@@ -405,160 +351,66 @@
     align-items: center;
     justify-content: center;
   }
-  .rb:hover {
-    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-    border-color: var(--border);
-  }
-
-  /* ---- prep clocks ---- */
-  /* Sticky to the right edge so that in the last-resort scrolling case the
-     clocks stay put while the buttons scroll under them. Prep time is the one
-     thing on this bar you need at a glance mid-round; it should never be the
-     part that scrolls out of sight. The panel background stops buttons showing
-     through as they pass beneath. */
-  .prep-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding-left: 8px;
-    border-left: 1px solid var(--border);
-    flex-shrink: 0;
-    position: sticky;
-    right: 0;
-    z-index: 1;
-    background: var(--panel);
-  }
-  .ribbon.compact .prep-group { gap: 3px; padding-left: 5px; }
-  .prep {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    height: var(--rb-size);
-    padding: 0 4px 0 6px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-  }
-  .ribbon.compact .prep { padding: 0 2px 0 4px; }
-  /* Each clock wears its own side's colour, the same blue/red the flow uses, so
-     you can tell them apart without reading the tag. */
-  .prep.aff { border-color: color-mix(in srgb, var(--aff, #1a6fd4) 45%, var(--border)); }
-  .prep.neg { border-color: color-mix(in srgb, var(--neg, #c8442a) 45%, var(--border)); }
-  /* A running clock is the one thing on this bar you must be able to spot from
-     across a room mid-round, so it gets a filled wash, not a border tint. */
-  .prep.live.aff { background: color-mix(in srgb, var(--aff, #1a6fd4) 16%, var(--bg)); }
-  .prep.live.neg { background: color-mix(in srgb, var(--neg, #c8442a) 16%, var(--bg)); }
-  .prep.spent { opacity: 0.55; }
-  .prep-tag {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: var(--text-dim);
-    user-select: none;
-  }
-  .ribbon.compact .prep-tag { font-size: 8px; }
-  .prep.aff .prep-tag { color: var(--aff, #1a6fd4); }
-  .prep.neg .prep-tag { color: var(--neg, #c8442a); }
-  /* Tabular figures: without them the digits change width as the clock counts
-     and the whole bar twitches once a second. */
-  .prep-time {
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-size: calc(var(--rb-font) - 1px);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    padding: 0 3px;
-    min-width: 40px;
-    text-align: center;
-    cursor: text;
-  }
-  .ribbon.compact .prep-time { min-width: 33px; padding: 0 1px; }
-  .prep-time:hover { text-decoration: underline dotted; }
-  .prep-edit {
-    border: 1px solid var(--accent);
-    border-radius: 4px;
-    background: var(--panel);
-    outline: none;
-    cursor: text;
-  }
-  .prep-edit:hover { text-decoration: none; }
-  .prep-go {
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    font-size: calc(var(--rb-font) - 3px);
-    line-height: 1;
-    padding: 2px;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-  .prep-go:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  .prep-go:disabled { opacity: 0.4; cursor: default; }
-  .density-toggle { flex-shrink: 0; margin-left: 4px; }
+  .rb:hover { border-color: var(--accent); }
+  .rb:active { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+  /* Toggled (Stack / Split / Row menu open): the one filled state. */
   .rb.on {
     background: var(--accent);
+    border-color: var(--accent);
     color: #fff;
   }
-  .rb.slim {
-    min-width: 22px;
-    padding: 0 4px;
-    font-size: 14px;
-  }
-  .rb.b {
-    font-weight: 800;
-    min-width: 26px;
-  }
-  .rb.i {
-    font-style: italic;
-    font-family: Georgia, serif;
-    min-width: 26px;
-  }
-  .rb.dropped {
-    color: var(--mark-dropped);
-  }
-  .rb.star {
-    color: var(--mark-star);
-  }
-  .rb.analytic {
-    color: var(--analytic);
-  }
-  .rb.card {
-    color: var(--card);
-  }
-  .rb.extend {
-    color: var(--accent);
-  }
-  .rb.send-doc {
-    color: var(--analytic);
-    border-color: var(--analytic);
-  }
-  .rb.send-cell {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-  .rb.remove {
-    color: var(--mark-dropped);
-    border-color: var(--mark-dropped);
-  }
-  .stepper {
+  .rb.b { font-weight: 800; }
+  .rb.i { font-style: italic; font-family: Georgia, serif; }
+
+  /* Compact: smaller buttons + tighter gaps, and the two wide readouts drop out
+     (zoom keeps its keybinds + pinch; text size lives in Settings). */
+  .ribbon.compact { height: 38px; padding: 0 6px; gap: 6px; }
+  .ribbon.compact .rb { height: 26px; min-width: 28px; padding: 0 8px; font-size: 11px; }
+  .ribbon.compact .ribbon-buttons { gap: 2px; }
+  .ribbon.compact .rgroup { gap: 2px; }
+  .ribbon.compact .toolbar-sep { margin: 0 2px; }
+  .ribbon.compact .zoom-ctl,
+  .ribbon.compact .stepper { display: none; }
+
+  /* The text-size stepper and the zoom control are both pills: one bordered box
+     with seamless −/value/+ inside, so they match each other and sit the same
+     height as the plain buttons (instead of three separate little boxes). */
+  .stepper,
+  .zoom-ctl {
     display: inline-flex;
     align-items: center;
-    gap: 1px;
+    height: 30px;
+    box-sizing: border-box;
     border: 1px solid var(--border);
-    border-radius: 5px;
+    border-radius: 6px;
     padding: 0 2px;
+    gap: 1px;
   }
+  .stepper .rb,
+  .zoom-ctl .rb {
+    background: transparent;
+    border-color: transparent;
+    height: 26px;
+    min-width: 24px;
+    padding: 0 7px;
+  }
+  .stepper .rb:hover,
+  .zoom-ctl .rb:hover {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: transparent;
+  }
+  .zoom-pct { min-width: 46px; font-variant-numeric: tabular-nums; }
   .font-size {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text);
-    min-width: 18px;
+    min-width: 22px;
     text-align: center;
+    font-variant-numeric: tabular-nums;
   }
   .swatch {
     position: relative;
     overflow: hidden;
-    min-width: 26px;
+    min-width: 30px;
   }
   .ink-a {
     font-weight: 700;
@@ -572,79 +424,128 @@
     cursor: pointer;
   }
 
-  /* ──────────────────────────────────────────────────────────────────────────
-     SIZE STEPS - deliberately LAST in this file.
+  /* ---- Row ▾ dropdown ---- */
+  .row-menu-wrap { position: relative; }
+  .row-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: transparent;
+    border: none;
+    cursor: default;
+  }
+  .row-menu-pop {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 41;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+  .row-menu-pop button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+  }
+  .row-menu-pop button:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .row-menu-pop button.danger:hover {
+    background: color-mix(in srgb, var(--mark-dropped) 16%, transparent);
+    color: var(--mark-dropped);
+  }
+  .row-menu-pop kbd {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: inherit;
+  }
 
-     ⚠ Two rules decide which of these wins, and both bit once:
-       1. Specificity. A container query adds NONE, so every selector below is
-          repeated at `.ribbon.compact` specificity - a bare `.ribbon` rule
-          loses to the `.ribbon.compact` block above and compact came out
-          LARGER than full at the same width.
-       2. Source order. At EQUAL specificity the later rule wins, so these must
-          sit after the base `.ribbon.compact …` declarations. When they sat
-          above them, compact silently kept its base padding and overflowed a
-          510px column by 69px while full only overflowed by 39px.
-     ────────────────────────────────────────────────────────────────────────── */
-  /* Narrower still - a 1280 screen's half, or a dragged-in window. The bar
-     clips rather than scrolls, so it has to keep shrinking or buttons become
-     unreachable. The side TAG goes first: the clocks are already colour-coded
-     aff-blue and neg-red, so the letters are the redundant part. */
-  /* ⚠ These narrow-width steps apply to BOTH densities, not just compact. The
-     bar clips instead of scrolling, so a full-mode bar in a 640px window would
-     silently lose its right-hand buttons - worse than the scrollbar this
-     replaced. Below these widths there is no room for full mode anyway, so it
-     degrades into the same thing rather than breaking. */
-  /* ⚠ Each selector is repeated at `.ribbon.compact` specificity. A media query
-     adds NO specificity, so a bare `.ribbon` rule here loses to the
-     `.ribbon.compact` block above it and compact would come out LARGER than
-     full at the same width - which is exactly what happened. */
-  /* Full mode needs ~1145px, so the first step has to fire not far below that -
-     otherwise opening the speech doc (which takes 380px by default) drops the
-     bar to a 980px column while it is still drawing 32px icons, and it clips.
-     That was the reported bug. Each step is measured, not guessed. */
-  @container ribbon (max-width: 1160px) {
-    .ribbon, .ribbon.compact { --rb-size: 27px; --rb-font: 14px; }
+  /* ---- right aside: prep clocks + density ---- */
+  .ribbon-aside {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
   }
-  @container ribbon (max-width: 1020px) {
-    .ribbon, .ribbon.compact { --rb-size: 23px; --rb-font: 12.5px; }
-    .ribbon .group, .ribbon.compact .group { padding: 0 2px; }
+  .prep-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
-  /* The two multi-part readouts go here rather than later: together they are
-     ~150px, which buys several steps' worth of room in one move, and both have
-     another way in (zoom keybinds and pinch; text size in Settings). */
-  @container ribbon (max-width: 900px) {
-    .ribbon, .ribbon.compact { --rb-size: 22px; --rb-font: 12px; }
-    .ribbon .zoom-ctl, .ribbon .stepper { display: none; }
+  .prep {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 4px 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
   }
-  @container ribbon (max-width: 720px) {
-    .ribbon, .ribbon.compact { --rb-size: 20px; --rb-font: 11px; padding: 0 2px; }
-    .ribbon .group, .ribbon.compact .group { padding: 0 1px; }
-    .ribbon .prep-tag { display: none; }
-    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 26px; }
-    .ribbon .prep, .ribbon.compact .prep { padding: 0 1px 0 3px; }
-    .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 3px; gap: 2px; }
-    /* Measured: 24 buttons plus two clocks need ~794px here, and a 1366 laptop's
-       splitscreen half is 683. The two multi-part READOUTS are what gets cut -
-       together they are ~150px, and both have another way in: zoom has its
-       keybinds and pinch-zoom, text size is in Settings. Cutting actual debate
-       actions instead would be the wrong trade. */
-    .ribbon .zoom-ctl,
-    .ribbon .stepper { display: none; }
+  /* Each clock wears its own side's colour, the same blue/red the flow uses. */
+  .prep.aff { border-color: color-mix(in srgb, var(--aff, #1a6fd4) 45%, var(--border)); }
+  .prep.neg { border-color: color-mix(in srgb, var(--neg, #c8442a) 45%, var(--border)); }
+  /* A running clock gets a filled wash so you can spot it across a room. */
+  .prep.live.aff { background: color-mix(in srgb, var(--aff, #1a6fd4) 16%, var(--bg)); }
+  .prep.live.neg { background: color-mix(in srgb, var(--neg, #c8442a) 16%, var(--bg)); }
+  .prep.spent { opacity: 0.55; }
+  .prep-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    user-select: none;
   }
-  /* A 1280 laptop's splitscreen half is 640, which the step above only just
-     clears. One more notch keeps real headroom there. */
-  @container ribbon (max-width: 660px) {
-    .ribbon, .ribbon.compact { --rb-size: 19px; --rb-font: 10.5px; --rb-gap: 0px; }
-    .ribbon .group, .ribbon.compact .group { padding: 0; }
-    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 24px; }
+  .prep.aff .prep-tag { color: var(--aff, #1a6fd4); }
+  .prep.neg .prep-tag { color: var(--neg, #c8442a); }
+  /* Tabular figures so the digits don't twitch the bar once a second. */
+  .prep-time {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 0 3px;
+    min-width: 40px;
+    text-align: center;
+    cursor: text;
   }
-  /* The doc pane can take far more than half. Keep shrinking rather than
-     handing someone a scrollbar the moment they open a speech doc. */
-  @container ribbon (max-width: 560px) {
-    .ribbon, .ribbon.compact { --rb-size: 17px; --rb-font: 9.5px; }
-    .ribbon .group, .ribbon.compact .group { border-right: none; }
-    .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 21px; font-size: 9.5px; }
-    .ribbon .prep, .ribbon.compact .prep { padding: 0 0 0 2px; }
-    .ribbon .prep-group, .ribbon.compact .prep-group { padding-left: 2px; gap: 1px; }
+  .prep-time:hover { text-decoration: underline dotted; }
+  .prep-edit {
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--panel);
+    outline: none;
+    cursor: text;
   }
+  .prep-edit:hover { text-decoration: none; }
+  .prep-go {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .prep-go:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .prep-go:disabled { opacity: 0.4; cursor: default; }
+  .density-toggle { color: var(--text-dim); }
 </style>

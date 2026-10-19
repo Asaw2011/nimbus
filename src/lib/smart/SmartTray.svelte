@@ -399,6 +399,7 @@
   {#if open}
     <div
       class="tray"
+      data-tour-panel="smart"
       class:dropping
       role="dialog"
       tabindex="-1"
@@ -870,6 +871,7 @@
 
   <button
     class="pill"
+    data-tour="smart"
     class:has={list.length > 0}
     class:dropping
     onclick={() => (open = !open)}

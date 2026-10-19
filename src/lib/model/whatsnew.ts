@@ -24,6 +24,18 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.0",
+    headline: "A guided tour you can replay, a cleaner toolbar, fast row jumps, easier settings, and much smarter importing.",
+    items: [
+      "**Take the guided tour any time.** New, or want a refresher? Settings → Help → Replay tour opens a sample round and walks you through the main features - typing, dropping, cards, Smart blocks, sending to the doc, and flowing with a partner.",
+      "**A cleaner toolbar.** Buttons show their words, all one size, on a single row. Insert/delete rows live under a \"Row\" menu and the send buttons under a \"Send\" menu, so the bar stays uncluttered.",
+      "**Jump rows fast.** PgUp / PgDn move the cursor several rows at once - set how many in Settings → Keyboard.",
+      "**Settings are easier to find.** A search box at the top, a dedicated \"Timers & Prep\" tab, a \"Help\" tab, and roomier spacing.",
+      "**Importing opponent docs is much smarter.** It reads whole-round docs (1NC/2NC/1NR), gives each off-case its own page instead of clumping them, copes with docs that number their headings inconsistently, and names pages by their position (Politics DA, the K) - or just \"OFF\" when the doc gives no name. Turn naming off in Settings → Flow & Formats.",
+      "**PF contention pages.** Pro and Con contention sheets show only the columns that belong to that side's case, in debate order.",
+    ],
+  },
+  {
     version: "1.5.7",
     headline: "Answer numbers follow the flow, Smart blocks fits beside the doc, and partner flowing is safer after a drop.",
     items: [

@@ -3,6 +3,7 @@
   import Dashboard from "$lib/ui/Dashboard.svelte";
   import FlowView from "$lib/ui/FlowView.svelte";
   import Tutorial from "$lib/ui/Tutorial.svelte";
+  import GuidedTour from "$lib/ui/GuidedTour.svelte";
   import WhatsNew from "$lib/ui/WhatsNew.svelte";
   import { hasUnseenNotes } from "$lib/model/whatsnew";
   import { store } from "$lib/model/round.svelte";
@@ -42,7 +43,30 @@
   let authChecked = $state(false);
   let versionBlock = $state<VersionBlock | null>(null);
   let showTutorial = $state(false);
+  let showTour = $state(false);
   let showWhatsNew = $state(false);
+
+  // The welcome's "Take the tour": open a sample round to walk over (unless
+  // they're already in a flow), then let the spotlight tour run. The tour waits
+  // for its targets, so it's fine that opening the sample is async.
+  function startTour() {
+    showTutorial = false;
+    // the tour walks the Smart blocks tray, which is off by default - turn it
+    // on so the pill is actually there to point at.
+    if (!settings.smartBlocksEnabled) { settings.smartBlocksEnabled = true; settings.save(); }
+    if (!(view === "flow" && store.round)) {
+      window.dispatchEvent(new Event("nimbus:sample"));
+    }
+    showTour = true;
+  }
+  function endTour() {
+    showTour = false;
+    // seen it - don't pop the welcome again on the next launch.
+    if (settings.showTutorial) {
+      settings.showTutorial = false;
+      settings.save();
+    }
+  }
   let showSetup = $state(false);
   let pendingUpdate = $state<UpdateInfo | null>(null);
   let updateState = $state<"idle" | "downloading" | "done">("idle");
@@ -161,6 +185,9 @@
     window.addEventListener("pagehide", flushAll);
     window.addEventListener("beforeunload", flushAll);
     document.addEventListener("visibilitychange", onVisibility);
+    // Settings "Replay the guided tour" fires this from anywhere.
+    const onReplayTour = () => startTour();
+    window.addEventListener("nimbus:start-tour", onReplayTour);
     return () => {
       clearInterval(heartbeat);
       clearInterval(fileBeat);
@@ -168,6 +195,7 @@
       window.removeEventListener("pagehide", flushAll);
       window.removeEventListener("beforeunload", flushAll);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("nimbus:start-tour", onReplayTour);
     };
   }
 
@@ -354,7 +382,11 @@
      straight over the sign-in screen. Nothing that overlays the app should be
      reachable before the user is through the gate. -->
 {#if showTutorial && !showSetup && auth.signedIn && !versionBlock && !isSubWindow}
-  <Tutorial onclose={() => (showTutorial = false)} />
+  <Tutorial onclose={() => (showTutorial = false)} onstarttour={startTour} />
+{/if}
+
+{#if showTour && !isSubWindow}
+  <GuidedTour onclose={endTour} />
 {/if}
 
 <!-- Same gate as the tutorial, for the same reason: nothing overlays the app

@@ -103,7 +103,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="howdoi" role="dialog" aria-label="How do I" tabindex="-1" {onkeydown}>
+<div class="howdoi" data-tour-panel="help" role="dialog" aria-label="How do I" tabindex="-1" {onkeydown}>
   <div class="head">
     <h3>How do I…?</h3>
     <button class="x" onclick={onclose} aria-label="Close">×</button>
@@ -124,6 +124,8 @@
         <tr><td><kbd>{combosLabel(km.clearCell, mac)}</kbd></td><td>Delete cell (row stays)</td></tr>
         <tr><td><kbd>{combosLabel(km.jumpFilledUp, mac)}</kbd></td><td>Jump to filled cell above</td></tr>
         <tr><td><kbd>{combosLabel(km.jumpFilledDown, mac)}</kbd></td><td>Jump to filled cell below</td></tr>
+        <tr><td><kbd>{combosLabel(km.jumpRowsUp, mac)}</kbd></td><td>Jump up {settings.jumpRows} rows (fast travel)</td></tr>
+        <tr><td><kbd>{combosLabel(km.jumpRowsDown, mac)}</kbd></td><td>Jump down {settings.jumpRows} rows (fast travel)</td></tr>
         <tr><td><kbd>{combosLabel(km.extendArg, mac)}</kbd></td><td>Extend argument → next speech</td></tr>
         <tr><td><kbd>{combosLabel(km.replyToArg, mac)}</kbd></td><td>Answer argument → your reply, linked for “AT:”</td></tr>
         <tr><td><kbd>{combosLabel(km.markDropped, mac)}</kbd></td><td>Mark dropped</td></tr>

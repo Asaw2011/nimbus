@@ -43,10 +43,23 @@
   // In spread view every sheet renders the full range so speech columns
   // align vertically across all visible flows; pre-start cells are dead.
   const colStart = $derived(spread ? 0 : sheet.startCol);
+  // A sheet can pin its own column order (PF contention sheets do). Ignored in
+  // spread so every flow still lines its speech columns up vertically. Values
+  // are real template indices, so everything downstream addresses cells the same.
+  const customCols = $derived.by(() => {
+    if (spread || !sheet.cols) return null;
+    const idx = new Map(speeches.map((s, i) => [s.id, i]));
+    return sheet.cols
+      .map((id) => idx.get(id))
+      .filter((c): c is number => c !== undefined);
+  });
   // Either lane can be collapsed to declutter. Purely a view filter - the cells
   // still exist and still export; only the rendering skips them.
   const visibleSpeeches = $derived(
-    speeches.slice(colStart).filter((s) => !store.isLaneHidden(s.id)),
+    (customCols
+      ? customCols.map((c) => speeches[c])
+      : speeches.slice(colStart)
+    ).filter((s) => !store.isLaneHidden(s.id)),
   );
   // Color follows the SPEECH, not the page: aff columns blue, neg columns
   // red on every sheet - like flowing with two pens. Template-driven, so it
@@ -63,9 +76,11 @@
   // moment a lane was hidden - the headers would shift left while the cells
   // stayed put.
   const colIdx = $derived.by(() => {
-    const cols = speeches
-      .map((_, c) => c)
-      .filter((c) => c >= colStart && !store.isLaneHidden(speeches[c].id));
+    const cols = customCols
+      ? customCols.filter((c) => !store.isLaneHidden(speeches[c].id))
+      : speeches
+          .map((_, c) => c)
+          .filter((c) => c >= colStart && !store.isLaneHidden(speeches[c].id));
     if (settings.myLaneSide !== "right") return cols;
     // ⚠ RENDER ORDER ONLY. The values in `cols` are real template indices and
     // stay real - everything downstream (the cell lookup, `sourceCol`, the
@@ -649,6 +664,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="grid-scroll"
+  data-tour="grid"
   class:dragging={drag !== null && drag.moved}
   bind:this={scroller}
   {onscroll}
@@ -659,7 +675,7 @@
   ondragleave={ondragleave_grid}
   ondrop={ondrop_grid}
 >
-  <div class="headers" style="grid-template-columns: {colTemplate}">
+  <div class="headers" data-tour="headers" style="grid-template-columns: {colTemplate}">
     {#each colIdx as c (speeches[c].id)}
       {@const speech = speeches[c]}
       {@const otherLane = isOtherLane(speech, store.laneHere)}

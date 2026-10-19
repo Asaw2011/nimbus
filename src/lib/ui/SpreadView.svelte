@@ -157,6 +157,7 @@
      horizontal position only, panels by their axis - drops can't miss. -->
 <div
   class="spread-wrap"
+  data-tour-panel="spread"
   role="application"
   ondragover={draggingPanel ? trackPanelDrag : draggingChip ? trackChipDrag : undefined}
   ondrop={draggingPanel ? dropPanel : draggingChip ? dropChip : undefined}

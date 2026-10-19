@@ -2,7 +2,7 @@
   import { settings } from "../model/settings.svelte";
   import { combosLabel } from "../model/keymap";
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, onstarttour }: { onclose: () => void; onstarttour: () => void } = $props();
 
   const mac = settings.isMac;
   const km = $derived(settings.keymap);
@@ -66,12 +66,12 @@
     </div>
 
     <div class="actions">
-      <button class="primary" onclick={onclose}>Start flowing</button>
       <button
-        class="ghost"
-        title="Opens a filled-in practice flow. Nothing is saved unless you change something."
-        onclick={() => { onclose(); window.dispatchEvent(new Event("nimbus:sample")); }}
-      >Try a sample round</button>
+        class="primary"
+        title="Opens a filled-in practice round and walks you through the main features. Nothing is saved unless you change something."
+        onclick={onstarttour}
+      >Take the quick tour</button>
+      <button class="ghost" onclick={onclose}>Skip, just let me flow</button>
       <button class="ghost" onclick={dismissForever}>Don't show this again</button>
     </div>
     <p class="foot">

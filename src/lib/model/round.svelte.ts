@@ -3,7 +3,7 @@
 // autosave can never be bypassed.
 
 import type { ArgRef, Cell, CellItem, Round, Sheet, Side, Speech, SpeechTemplate } from "./types";
-import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, uid } from "./types";
+import { INITIAL_ROWS, defaultStartCol, makeRow, makeSheet, pfContentionCols, uid } from "./types";
 import { saveRoundJson } from "./persist";
 import { settings } from "./settings.svelte";
 
@@ -795,6 +795,9 @@ class RoundStore {
       ? defaultStartCol(this.round.template, kind)
       : 0;
     const sheet = makeSheet(title, this.nCols, kind, startCol, settings.startRows);
+    // PF contention sheets carry only their own side's columns, in debate order
+    const cols = this.round ? pfContentionCols(this.round.template, kind) : null;
+    if (cols) sheet.cols = cols;
     this.mutate((r) => r.sheets.push(sheet));
     this.activeSheetId = sheet.id;
     this.cursor = { row: 0, col: startCol };
@@ -1219,6 +1222,16 @@ class RoundStore {
     for (let r = row + dir; r >= 0 && r < sheet.rows.length; r += dir) {
       if (filled(r)) { this.cursor = { row: r, col }; return; }
     }
+  }
+
+  /** Fast-travel the cursor up/down by `n` rows (PgUp/PgDn), clamped to the
+   *  sheet. Pure cursor move - no mutation, so it costs no undo step. */
+  jumpRows(dir: 1 | -1, n: number): void {
+    const sheet = this.activeSheet;
+    if (!sheet || !this.cursor) return;
+    const { row, col } = this.cursor;
+    const target = Math.max(0, Math.min(row + dir * n, sheet.rows.length - 1));
+    if (target !== row) this.cursor = { row: target, col };
   }
 
   toggleCellExpanded(row: number, col: number): void {

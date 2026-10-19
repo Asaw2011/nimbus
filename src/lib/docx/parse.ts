@@ -156,6 +156,17 @@ const VERBATIM_STYLE_LEVEL: Record<string, number> = {
   tagheading: 4,
 };
 
+// A top-level position label ("OFF", "Off-Case", "Case", "1NC Off"). Opponent
+// docs often level these inconsistently - some positions H1, some H2 - which
+// buries the deeper ones under the previous position when the tree nests by
+// level. We detect these so they can be pulled back to one level (see below).
+const POSITION_MARKER_RE =
+  /^(?:(?:1nc|2nc|neg|negative)\s*)?(?:off(?:[-\s]?cases?)?|case(?:\s*(?:neg|negs|answers|defense|frontlines?))?)\s*$/;
+function isPositionMarker(text: string): boolean {
+  const t = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return !!t && POSITION_MARKER_RE.test(t);
+}
+
 export function parseDocx(buf: ArrayBuffer): ParsedDoc {
   const files = unzipSync(new Uint8Array(buf));
   const docXml = files["word/document.xml"];
@@ -170,8 +181,9 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
   let paragraphCount = 0;
   let headingCount = 0;
 
-  const paragraphs = xml.getElementsByTagNameNS("*", "p");
-  for (const p of Array.from(paragraphs)) {
+  const paragraphs = Array.from(xml.getElementsByTagNameNS("*", "p"));
+
+  for (const p of paragraphs) {
     paragraphCount++;
     const text = paragraphText(p);
     if (!text.trim()) continue;
@@ -202,11 +214,25 @@ export function parseDocx(buf: ArrayBuffer): ParsedDoc {
     while (stack.length > 0 && stack[stack.length - 1].level >= level) {
       stack.pop();
     }
+    // A position marker (OFF / Case) must not nest UNDER another position that
+    // already carries its own cards - that's a sibling the author leveled one
+    // notch too deep (mixed-level 1NCs like H1 OFF + H2 OFF). Pop past those so
+    // it lands as a sibling. A pure HAT (children are all sub-headings, no cards
+    // of its own) is NOT popped, so the common "OFF hat → OFF blocks" still nests.
+    if (!analytic && level < 4 && isPositionMarker(text)) {
+      while (stack.length > 0 && hasOwnCards(stack[stack.length - 1])) stack.pop();
+    }
     (stack[stack.length - 1]?.children ?? roots).push(node);
     stack.push(node);
   }
 
   return { nodes: roots, paragraphCount, headingCount };
+}
+
+/** Does this heading carry card/analytic content of its own (vs. only grouping
+ *  sub-headings)? Used to tell a real position from a bare hat. */
+function hasOwnCards(n: DocNode): boolean {
+  return (n.body?.length ?? 0) > 0 || n.children.some((c) => c.isAnalytic || c.level >= 4);
 }
 
 /**
@@ -354,6 +380,14 @@ export function flowLines(node: DocNode): string[] {
  *    heading. When everything under it is a card/analytic tag, this IS the
  *    position - expanding it is what produced one sheet per tagline.
  */
+/** A whole-SPEECH heading ("1NC---Round 6---NU", "2NC…") that wraps a round
+ *  doc's speeches. Its children are the positions - we split under it, not on it. */
+function isSpeechWrapper(node: DocNode): boolean {
+  if (!node.children.some((c) => !c.isAnalytic && c.level < 4)) return false;
+  const t = node.text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return /^(1ac|2ac|1nc|2nc|1nr|2nr|1ar|2ar)\b/.test(t);
+}
+
 function isOffContainer(node: DocNode): boolean {
   if (node.children.length < 2) return false;
   if (!node.children.some((c) => !c.isAnalytic && c.level < 4)) return false;
@@ -403,6 +437,13 @@ export function positionSections(roots: DocNode[]): DocNode[] {
     holdsPositions(level[0])
   ) {
     level = level[0].children;
+  }
+  // Whole-round doc: the top level is SPEECH wrappers ("1NC---Round 6", "2NC…",
+  // "1NR…"), each holding that speech's positions. Split by position, not by
+  // speech - drop into the wrappers so each off-case/advantage is its own sheet
+  // instead of a whole speech collapsing onto one page.
+  if (level.length >= 2 && level.every(isSpeechWrapper)) {
+    level = level.flatMap((n) => n.children);
   }
   const out: DocNode[] = [];
   for (const node of level) {
@@ -468,7 +509,7 @@ const POSITION_MARKER = /^(da|das|disad|disads|disadvantage|cp|cps|pic|pics|coun
  * (DA, CP, K, T…). "They're single-payer." and plan texts stay rows.
  */
 function positionLabel(raw: string): string {
-  const t = raw.trim().replace(/\.+$/, "").trim();
+  const t = raw.trim().replace(/[.:]+$/, "").trim(); // tags end "POLITICS DA:" / "States CP."
   if (!isNameLike(t)) return "";
   const words = t.split(/[\s\-–—]+/).filter(Boolean);
   const marked = words.some((w) => POSITION_MARKER.test(w));
@@ -485,6 +526,22 @@ function firstTagNode(node: DocNode): DocNode | undefined {
   return undefined;
 }
 
+/** Canonical short name for a position's argument TYPE, read from its content.
+ *  Last-resort naming when the doc gave the position no label of its own. */
+function archetypeName(section: DocNode, title: string): string {
+  const blob = [title, section.text, firstTagText(section), ...section.children.slice(0, 4).map((c) => c.text)]
+    .join("  ")
+    .toLowerCase();
+  if (/\bcase\b/.test(title.toLowerCase())) return "Case";
+  if (/counterplan|\bcp\b|\bpic\b/.test(blob)) return "CP";
+  if (/disadvantage|\bdisad\b|\bda\b/.test(blob)) return "DA";
+  if (/kritik|alternative|\bthe alt\b|role of the ballot/.test(blob)) return "K";
+  if (/framework|normative framework/.test(blob)) return "Framework";
+  if (/topical|\blimits\b|counter-?interp/.test(blob)) return "T";
+  if (/\btheory\b|\bshell\b|voter|\brvis?\b|competing interp/.test(blob)) return "Theory";
+  return "";
+}
+
 /**
  * Display title per section. A cleaned title is kept as-is UNLESS it's useless
  * as a sheet name - either generic ("OFF", "1NC") or shared by 2+ sections (the
@@ -494,13 +551,8 @@ function firstTagNode(node: DocNode): DocNode | undefined {
  * than named with a whole sentence. Unique, meaningful titles (a 1AC's
  * advantage names) are never touched, so 1ACs keep their block-as-title.
  */
-export function sectionTitles(sections: DocNode[]): string[] {
+export function sectionTitles(sections: DocNode[], autoName = true): string[] {
   const cleaned = sections.map((s) => cleanSectionTitle(s.text));
-  const counts = new Map<string, number>();
-  for (const c of cleaned) {
-    const k = titleKey(c);
-    counts.set(k, (counts.get(k) ?? 0) + 1);
-  }
   const generic = new Set(["off", "offcase", "1nc", "2nc", "neg", ""]);
   return sections.map((s, i) => {
     const clean = cleaned[i];
@@ -508,23 +560,34 @@ export function sectionTitles(sections: DocNode[]): string[] {
     // `!isNameLike(clean)` is the rule "a long name is left untitled". It used
     // to gate only the tagline FALLBACK below, so a section whose own heading
     // was a whole sentence still became a sheet named with that sentence.
-    const useless =
-      generic.has(key) || (counts.get(key) ?? 0) >= 2 || !isNameLike(clean);
+    // A real repeated name (a 1NC "Solvency" and its 2NC "Solvency" extension)
+    // is KEPT, not discarded for a tagline - the old 2+ rule renamed those
+    // blocks after their first card. Only generic or sentence-y names fall back.
+    const useless = generic.has(key) || !isNameLike(clean);
     if (!useless) return clean;
+    // Auto-naming OFF: keep the doc's own heading ("OFF", "1NC---Off"). ON
+    // (default): always work out a useful name from the position's content.
+    if (!autoName) return clean;
     // Many 1NCs label every block "1NC---OFF" and write the position's name
-    // just under it - as a plain line ("States CP") or as a tag with no card
-    // ("MIDTERMS DA."). Take it when it plainly is a name.
+    // just under it - as a plain line ("States CP") or a card-less tag
+    // ("MIDTERMS DA.", "KRITIK.", "SHELL."). Take it when it plainly is a name.
     const plain = s.body[0] ? positionLabel(s.body[0]) : "";
     if (plain) return plain;
+    // A position name written as a bare label - a card-LESS tag or analytic
+    // ("POLITICS DA:", "States CP", "KRITIK.", "SHELL."). A real card (it has a
+    // cite or a body) is NOT a name - "Federalism is high." is the DA's first
+    // card, not the DA's name, so it's skipped.
     const tag = firstTagNode(s);
-    if (tag && !tag.isAnalytic && !tag.body.length && !citeTextOf(tag)) {
+    if (tag && !tag.body.length && !citeTextOf(tag)) {
       const label = positionLabel(tag.text);
       if (label) return label;
     }
-    // Not a usable name - fall back to the first tagline, but only if it reads
-    // like a label. A full sentence is left untitled instead.
-    const first = firstTagText(s);
-    return isNameLike(first) ? first : "";
+    // No label of its own - name it by argument type (K / T / DA / CP / …).
+    const arche = archetypeName(s, clean);
+    if (arche) return arche;
+    // Nothing nameable in the doc - keep the heading ("OFF" stays "OFF"), never
+    // invent a name from a card's tagline.
+    return clean;
   });
 }
 

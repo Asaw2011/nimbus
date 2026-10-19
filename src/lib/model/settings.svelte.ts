@@ -172,6 +172,10 @@ export interface Persisted {
   macros: Macro[];
   /** How many rows the bulk insert actions add (default 3, clamped 2–50). */
   bulkRows: number;
+  /** How many rows PgUp/PgDn fast-travels (default 5, clamped 2–50). */
+  jumpRows: number;
+  /** Auto-name imported positions from their content (off = keep "OFF" etc.). */
+  autoNameSheets: boolean;
   /** Grid zoom factor (default 1, clamped 0.5–2.5). */
   zoom: number;
   docZoom: number;
@@ -313,6 +317,13 @@ export function clampBulkRows(n: number): number {
   return Math.min(50, Math.max(2, Math.round(n)));
 }
 
+/** How many rows PgUp/PgDn fast-travels. Clamped to 2–50. */
+export const DEFAULT_JUMP_ROWS = 5;
+export function clampJumpRows(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_JUMP_ROWS;
+  return Math.min(50, Math.max(2, Math.round(n)));
+}
+
 /** A new sheet's starting row count, clamped to 4–80 (paper grows past it). */
 export function clampStartRows(n: number): number {
   if (!Number.isFinite(n)) return INITIAL_ROWS;
@@ -449,6 +460,8 @@ class Settings {
   fontSize = $state(13);
   rowHeight = $state(26);
   bulkRows = $state(DEFAULT_BULK_ROWS);
+  jumpRows = $state(DEFAULT_JUMP_ROWS);
+  autoNameSheets = $state(true);
   zoom = $state(1);
   /** Speech-doc view zoom (pinch-to-zoom), default 1, clamped 0.5–2.5. */
   docZoom = $state(1);
@@ -592,6 +605,8 @@ class Settings {
     if (typeof p.defaultCustomId === "string") this.defaultCustomId = p.defaultCustomId;
     if (p.startRows !== undefined) this.startRows = clampStartRows(p.startRows);
     if (p.bulkRows !== undefined) this.bulkRows = clampBulkRows(p.bulkRows);
+    if (p.jumpRows !== undefined) this.jumpRows = clampJumpRows(p.jumpRows);
+    if (p.autoNameSheets !== undefined) this.autoNameSheets = p.autoNameSheets;
     if (p.zoom !== undefined) this.zoom = clampZoom(p.zoom);
     if (p.docZoom !== undefined) this.docZoom = clampZoom(p.docZoom);
     if (p.sendAtCursor !== undefined) this.sendAtCursor = p.sendAtCursor;
@@ -715,6 +730,8 @@ class Settings {
       defaultCustomId: this.defaultCustomId,
       startRows: this.startRows,
       bulkRows: this.bulkRows,
+      jumpRows: this.jumpRows,
+      autoNameSheets: this.autoNameSheets,
       zoom: this.zoom,
       docZoom: this.docZoom,
       sendAtCursor: this.sendAtCursor,
@@ -999,6 +1016,11 @@ class Settings {
     this.save();
   }
 
+  setJumpRows(n: number): void {
+    this.jumpRows = clampJumpRows(n);
+    this.save();
+  }
+
   setZoom(n: number): void {
     this.zoom = clampZoom(n);
     this.save();
@@ -1026,7 +1048,7 @@ class Settings {
   findBinding(combo: Combo): string | null {
     for (const [action, combos] of Object.entries(this.keymap)) {
       if (combos.some((c) => sameCombo(c, combo))) {
-        return actionLabel(action as ActionId, this.bulkRows);
+        return actionLabel(action as ActionId, this.bulkRows, this.jumpRows);
       }
     }
     for (const m of this.macros) {

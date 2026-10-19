@@ -114,13 +114,35 @@
   // Settings are split into tabs (CardMirror-style) instead of one long scroll.
   const TABS = [
     { id: "appearance", label: "Appearance" },
+    { id: "timers", label: "Timers & Prep" },
     { id: "formats", label: "Flow & Formats" },
     { id: "editing", label: "Editing" },
     { id: "keyboard", label: "Keyboard" },
     { id: "library", label: "Library" },
+    { id: "help", label: "Help" },
     { id: "experimental", label: "Experimental" },
     { id: "backup", label: "Backup" },
   ] as const;
+
+  // Search across every tab. While there's a query we render all sections (see
+  // the `q ||` guards) and a post-render pass hides the ones that don't match.
+  let query = $state("");
+  const q = $derived(query.trim().toLowerCase());
+  let scrollEl: HTMLDivElement | null = $state(null);
+  let matchCount = $state(0);
+  $effect(() => {
+    const needle = q;
+    const root = scrollEl;
+    if (!root) return;
+    const sections = root.querySelectorAll("section");
+    let shown = 0;
+    for (const s of sections) {
+      const hit = !needle || (s.textContent ?? "").toLowerCase().includes(needle);
+      (s as HTMLElement).style.display = hit ? "" : "none";
+      if (hit && needle) shown++;
+    }
+    matchCount = shown;
+  });
   // The panel remounts each time it opens, so reading the prop once at mount is
   // exactly right - untrack keeps it out of the reactive graph (and quiet).
   let tab = $state<(typeof TABS)[number]["id"]>(
@@ -347,6 +369,7 @@
 
 <div
   class="backdrop"
+  data-tour-panel="settings"
   onclick={onclose}
   onkeydown={(e) => e.key === "Escape" && onclose()}
   role="presentation"
@@ -365,18 +388,29 @@
   >
     <div class="head">
       <h2>Settings</h2>
+      <div class="search">
+        <input
+          type="search"
+          placeholder="Search settings…"
+          bind:value={query}
+          onkeydown={(e) => { if (e.key === "Escape" && query) { e.stopPropagation(); query = ""; } }}
+        />
+      </div>
       <button class="close" onclick={onclose}>×</button>
     </div>
 
     <div class="layout">
-      <nav class="tabbar">
+      <nav class="tabbar" class:searching={q}>
         {#each TABS as t (t.id)}
           <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>{t.label}</button>
         {/each}
       </nav>
 
-      <div class="scroll">
-    {#if tab === "appearance"}
+      <div class="scroll" bind:this={scrollEl}>
+    {#if q && matchCount === 0}
+      <p class="no-matches">No settings match “{query}”.</p>
+    {/if}
+    {#if q || tab === "appearance"}
     <section>
       <h3>Theme &amp; colors</h3>
       <div class="row theme-row">
@@ -536,14 +570,6 @@
         />
       </label>
       <label class="row">
-        Show welcome tutorial on open
-        <input
-          type="checkbox"
-          checked={settings.showTutorial}
-          onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
-        />
-      </label>
-      <label class="row">
         Default save format
         <div class="seg">
           <button
@@ -560,7 +586,7 @@
 
     {/if}
 
-    {#if tab === "formats"}
+    {#if q || tab === "formats"}
     <section>
       <h3>New flows</h3>
       <p class="hint">Which format a new flow starts with, and how much blank paper it opens with. Both apply to every new flow you create.</p>
@@ -582,6 +608,14 @@
         </span>
       </label>
       <p class="hint">Paper still grows as you flow past the bottom - this only sets how tall each new sheet opens.</p>
+      <label class="row">
+        <span>Auto-name imported pages<br /><small class="sub">When you import a doc, name each page by its content (the K, T, Cap K…) instead of the raw heading. Off = keep the doc's own label (OFF, 1NC---Off).</small></span>
+        <input
+          type="checkbox"
+          checked={settings.autoNameSheets}
+          onchange={(e) => { settings.autoNameSheets = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
     </section>
 
     <section>
@@ -717,7 +751,7 @@
     </section>
     {/if}
 
-    {#if tab === "keyboard"}
+    {#if q || tab === "keyboard"}
     <section>
       <h3>Keybinds</h3>
       <p class="hint">
@@ -736,11 +770,23 @@
           onchange={(e) => settings.setBulkRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
         />
       </div>
+      <div class="row">
+        <label for="jump-rows">Row jump distance (PgUp / PgDn)</label>
+        <input
+          id="jump-rows"
+          class="num-field"
+          type="number"
+          min="2"
+          max="50"
+          value={settings.jumpRows}
+          onchange={(e) => settings.setJumpRows((e.currentTarget as HTMLInputElement).valueAsNumber)}
+        />
+      </div>
       {#each ACTION_GROUPS as group (group.title)}
         <div class="kb-group-title">{group.title}</div>
         {#each group.actions as action (action)}
           <div class="row">
-            {actionLabel(action, settings.bulkRows)}
+            {actionLabel(action, settings.bulkRows, settings.jumpRows)}
             <span class="binds">
               {#each settings.keymap[action] ?? [] as combo, bi (bi)}
                 <span class="bind-chip">
@@ -783,7 +829,7 @@
     </section>
     {/if}
 
-    {#if tab === "editing"}
+    {#if q || tab === "editing"}
     <section>
       <h3>Pasting</h3>
       <label class="row">
@@ -914,7 +960,7 @@
     </section>
     {/if}
 
-    {#if tab === "backup"}
+    {#if q || tab === "backup"}
     <section>
       <h3>Backup</h3>
       <p class="hint">
@@ -935,7 +981,7 @@
     </section>
     {/if}
 
-    {#if tab === "library"}
+    {#if q || tab === "library"}
     <section>
       <h3>Search Library</h3>
       <p class="hint">
@@ -993,7 +1039,7 @@
     </section>
     {/if}
 
-    {#if tab === "appearance"}
+    {#if q || tab === "timers"}
     <section>
       <h3>Readers &amp; read time</h3>
       <p class="hint">
@@ -1154,6 +1200,9 @@
         </label>
       {/each}
     </section>
+    {/if}
+
+    {#if q || tab === "appearance"}
     <section>
       <h3>Speech Doc Style &amp; Headings</h3>
       <p class="hint">
@@ -1245,7 +1294,26 @@
     </section>
     {/if}
 
-    {#if tab === "experimental"}
+    {#if q || tab === "help"}
+    <section>
+      <h3>Guided tour &amp; help</h3>
+      <p class="hint">New here, or want a refresher? Take the walkthrough any time - it opens a sample round and points at each feature.</p>
+      <label class="row">
+        <span>Guided tour<br /><small class="sub">Walk through a sample round, step by step</small></span>
+        <button class="chip" onclick={() => { onclose(); window.dispatchEvent(new Event("nimbus:start-tour")); }}>Replay tour</button>
+      </label>
+      <label class="row">
+        Show welcome tutorial on open
+        <input
+          type="checkbox"
+          checked={settings.showTutorial}
+          onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
+        />
+      </label>
+    </section>
+    {/if}
+
+    {#if q || tab === "experimental"}
     <section>
       <h3>Experimental</h3>
       <p class="hint">Newer, still-changing features. Turn them on if you want them; leave them off to keep the flow clean. Each is off by default, and with it off nothing about your flow or your sends changes.</p>
@@ -1268,7 +1336,7 @@
     </section>
     {/if}
 
-    {#if tab === "backup"}
+    {#if q || tab === "backup"}
     <section>
       <h3>Updates</h3>
       <div class="backup-row">
@@ -1313,8 +1381,8 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 16px;
-    width: min(760px, 94vw);
-    height: min(620px, 88vh);
+    width: min(840px, 94vw);
+    height: min(680px, 90vh);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1346,7 +1414,23 @@
   }
   .close:hover { color: var(--text); background: var(--bg); }
 
+  .search { flex: 1; margin: 0 16px; }
+  .search input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 12px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+  }
+  .search input:focus { border-color: var(--accent); }
+
   .layout { display: flex; flex: 1; min-height: 0; }
+  .tabbar.searching { opacity: 0.4; pointer-events: none; }
+  .no-matches { font-size: 13px; color: var(--text-dim); margin: 4px 0 16px; }
   .tabbar {
     display: flex;
     flex-direction: column;
@@ -1374,18 +1458,20 @@
   }
   .tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .tab.active { color: var(--text); background: color-mix(in srgb, var(--accent) 16%, transparent); }
-  .scroll { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 26px 26px; }
+  .scroll { flex: 1; min-width: 0; overflow-y: auto; padding: 24px 32px 32px; }
   section {
     margin-top: 4px;
-    margin-bottom: 22px;
+    margin-bottom: 30px;
+    padding-bottom: 26px;
+    border-bottom: 1px solid var(--border);
   }
-  section:last-child { margin-bottom: 0; }
+  section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
   h3 {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-dim);
-    margin: 0 0 8px;
+    margin: 0 0 12px;
   }
   .hint {
     font-size: 12px;
@@ -1424,8 +1510,8 @@
     justify-content: space-between;
     align-items: center;
     font-size: 13px;
-    padding: 5px 0;
-    gap: 12px;
+    padding: 8px 0;
+    gap: 16px;
   }
   .hint-inline { font-size: 12px; color: var(--text-dim); }
   .speech-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }

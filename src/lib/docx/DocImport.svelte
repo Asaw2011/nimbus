@@ -7,6 +7,7 @@
 
   import { parseDocx, flowLines, flowRows, guessTargetSheet, positionSections, sectionTitles, cleanSectionTitle, collectArguments, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
+  import { settings } from "../model/settings.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow, type Cell } from "../model/types";
 
   let parsed = $state<ParsedDoc | null>(null); // raw parse result; set once, never rewritten
@@ -169,59 +170,75 @@
     return `fills ${abbr} from row ${lastUsed + 2}`;
   }
 
+  function processDoc(buf: ArrayBuffer, name: string) {
+    fileName = name;
+    status = "";
+    try {
+      const base = parseDocx(buf);
+      rawNodes = base.nodes;
+      splitLevel = "auto";
+      parsed = base; // raw result only; the split lives in `sections`
+      const nodes = applySplit(rawNodes, "auto");
+      sections = nodes;
+      const t = sectionTitles(nodes, settings.autoNameSheets);
+      checked = nodes.map((n, i) => !isPlan(t[i] ?? "") && !isPlan(cleanSectionTitle(n.text)));
+      titles = t;
+      // Guess where each section belongs: an answer doc ("AT: Cap K")
+      // matches the existing Cap K sheet; unmatched sections make new ones.
+      // Match on the cleaned display title, not the raw "OFF" heading, so
+      // off-cases don't all collapse onto one sheet.
+      const sheets = store.round?.sheets ?? [];
+      targets = nodes.map(
+        (n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new",
+      );
+      // Column guess, strongest signal first. Always overridable.
+      const fromRound = guessColumnFromRound(targets);
+      const fromName = guessColumnFromName(name);
+      // Every branch resolves through myLaneOf: on a split speech the import
+      // lands in YOUR lane, never your partner's.
+      if (fromRound !== null) {
+        speechIdx = myLaneOf(fromRound);
+        guessNote = `guessed - matched sheets are filled up to ${speeches[fromRound - 1]?.abbr ?? "?"}`;
+      } else if (fromName !== null) {
+        speechIdx = myLaneOf(fromName);
+        guessNote = "guessed from the filename";
+      } else {
+        const negIdx = speeches.findIndex((s) => s.side === "neg");
+        speechIdx = myLaneOf(Math.max(0, negIdx));
+        guessNote = "default - double-check the column";
+      }
+      if (nodes.length === 0) {
+        status = `Read ${base.paragraphCount} paragraphs but found no Heading styles - is this a Verbatim-formatted doc?`;
+        parsed = null;
+      }
+    } catch (err) {
+      status = err instanceof Error ? err.message : String(err);
+      parsed = null;
+    }
+  }
+
   function onFile(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    fileName = file.name;
-    status = "";
+    const name = file.name;
     const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const base = parseDocx(reader.result as ArrayBuffer);
-        rawNodes = base.nodes;
-        splitLevel = "auto";
-        parsed = base; // raw result only; the split lives in `sections`
-        const nodes = applySplit(rawNodes, "auto");
-        sections = nodes;
-        const t = sectionTitles(nodes);
-        checked = nodes.map((n, i) => !isPlan(t[i] ?? "") && !isPlan(cleanSectionTitle(n.text)));
-        titles = t;
-        // Guess where each section belongs: an answer doc ("AT: Cap K")
-        // matches the existing Cap K sheet; unmatched sections make new ones.
-        // Match on the cleaned display title, not the raw "OFF" heading, so
-        // off-cases don't all collapse onto one sheet.
-        const sheets = store.round?.sheets ?? [];
-        targets = nodes.map(
-          (n, i) => guessTargetSheet(t[i] ?? n.text, sheets) ?? "new",
-        );
-        // Column guess, strongest signal first. Always overridable.
-        const fromRound = guessColumnFromRound(targets);
-        const fromName = guessColumnFromName(file.name);
-        // Every branch resolves through myLaneOf: on a split speech the import
-        // lands in YOUR lane, never your partner's.
-        if (fromRound !== null) {
-          speechIdx = myLaneOf(fromRound);
-          guessNote = `guessed - matched sheets are filled up to ${speeches[fromRound - 1]?.abbr ?? "?"}`;
-        } else if (fromName !== null) {
-          speechIdx = myLaneOf(fromName);
-          guessNote = "guessed from the filename";
-        } else {
-          const negIdx = speeches.findIndex((s) => s.side === "neg");
-          speechIdx = myLaneOf(Math.max(0, negIdx));
-          guessNote = "default - double-check the column";
-        }
-        if (nodes.length === 0) {
-          status = `Read ${base.paragraphCount} paragraphs but found no Heading styles - is this a Verbatim-formatted doc?`;
-          parsed = null;
-        }
-      } catch (err) {
-        status = err instanceof Error ? err.message : String(err);
-        parsed = null;
-      }
-    };
+    reader.onload = () => processDoc(reader.result as ArrayBuffer, name);
     reader.readAsArrayBuffer(file);
     input.value = "";
+  }
+
+  // A free sample doc ("Midterms DA") ships with the app so anyone can try an
+  // import without hunting for a file - handy for the tour / first run.
+  async function loadSample() {
+    status = "Loading the sample…";
+    try {
+      const res = await fetch("/samples/midterms-da.docx");
+      if (!res.ok) throw new Error("Couldn't load the sample file.");
+      processDoc(await res.arrayBuffer(), "Midterms DA.docx");
+    } catch (err) {
+      status = err instanceof Error ? err.message : String(err);
+    }
   }
 
   // Re-derive the split whenever the user changes the split level. This runs a
@@ -238,7 +255,7 @@
   function resplit(level: typeof splitLevel) {
     const nodes = applySplit(rawNodes, level);
     const sheets = store.round?.sheets ?? [];
-    const t = sectionTitles(nodes);
+    const t = sectionTitles(nodes, settings.autoNameSheets);
     sections = nodes;
     checked = nodes.map((n, i) => !isPlan(t[i] ?? "") && !isPlan(cleanSectionTitle(n.text)));
     titles = t;
@@ -351,6 +368,7 @@
       Import speech doc (.docx)
       <input type="file" accept=".docx" onchange={onFile} />
     </label>
+    <button class="chip sample-btn" onclick={loadSample} title="A free sample 1NC that ships with Nimbus - try an import without finding a file">Try the sample (Midterms DA)</button>
   {:else}
     <div class="preview">
       <div class="preview-head">

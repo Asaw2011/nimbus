@@ -9,7 +9,7 @@
 // column. Smart features (extension arrows, cross-flow links, AI) layer on
 // top of this base without changing the mental model.
 
-import { sideTurn } from "./turns";
+import { formatOf, sideTurn } from "./turns";
 
 export type Side = "aff" | "neg" | "neutral";
 
@@ -169,6 +169,14 @@ export interface Sheet {
    * start at the block.
    */
   startCol: number;
+  /**
+   * Explicit column order for this sheet, as speech ids. When set it overrides
+   * startCol and the template order: the sheet renders exactly these columns, in
+   * this order (PF contention sheets use it to drop the columns that belong to
+   * the other side's case). Cells are still stored by template index, so this is
+   * a render-only reorder - nothing to migrate. Unset = old behaviour.
+   */
+  cols?: string[];
   /** Custom accent color; when unset, the kind default applies (aff blue / neg red). */
   color?: string;
   rows: Row[];
@@ -501,13 +509,19 @@ export function makeSheet(
 
 /**
  * Where a sheet kind starts, per debate practice (mirrors the user's Verbatim
- * flow template): off-case pages at the first neg speech, overviews at the
- * block, everything else at the first speech.
+ * flow template): case pages at the first aff speech, off-case pages at the
+ * first neg speech, overviews at the block, everything else at the first speech.
  */
 export function defaultStartCol(
   template: SpeechTemplate,
   kind: SheetKind,
 ): number {
+  if (kind === "case") {
+    // an advantage/case page is the aff's, so start it at the first aff column.
+    // matters for PF con-first, where col 0 is the Con case, not the Pro's.
+    const i = template.speeches.findIndex((s) => s.side === "aff");
+    return Math.max(0, i);
+  }
   if (kind === "offcase") {
     const i = template.speeches.findIndex((s) => s.side === "neg");
     return Math.max(0, i);
@@ -523,4 +537,39 @@ export function defaultStartCol(
     return Math.max(0, neg);
   }
   return 0;
+}
+
+/**
+ * The columns a PF contention sheet actually carries, as speech ids in order.
+ * A case sheet is the Pro's (aff), an off-case sheet the Con's (neg). The sheet
+ * shows its own side's case, the other side's rebuttal (and its own rebuttal
+ * too, but only when it speaks SECOND - the first speaker's rebuttal attacks the
+ * opponent's case, so it lives on the opponent's sheet), then both summaries and
+ * both final focuses, all in speech order. The other side's case is dropped.
+ * Returns null for anything that isn't a PF case/off-case sheet, so every other
+ * format and sheet kind keeps the plain template order.
+ */
+export function pfContentionCols(
+  template: SpeechTemplate,
+  kind: SheetKind,
+): string[] | null {
+  if (formatOf(template) !== "pf") return null;
+  if (kind !== "case" && kind !== "offcase") return null;
+  const own: Side = kind === "case" ? "aff" : "neg";
+  const opp: Side = own === "aff" ? "neg" : "aff";
+  const ownFirst = template.speeches[0]?.side === own;
+
+  const ids: string[] = [];
+  for (const s of template.speeches) {
+    const label = s.label.toLowerCase();
+    if (label.includes("constructive")) {
+      if (s.side === own) ids.push(s.id); // drop the other side's case
+    } else if (label.includes("rebuttal")) {
+      // other side's rebuttal always; our own only if we speak second
+      if (s.side === opp || !ownFirst) ids.push(s.id);
+    } else {
+      ids.push(s.id); // summaries + final focuses, both sides
+    }
+  }
+  return ids;
 }

@@ -648,6 +648,12 @@
     } else if (matchesAny(e, km.jumpFilledDown)) {
       e.preventDefault();
       store.jumpToFilled(1);
+    } else if (matchesAny(e, km.jumpRowsUp)) {
+      e.preventDefault();
+      store.jumpRows(-1, settings.jumpRows);
+    } else if (matchesAny(e, km.jumpRowsDown)) {
+      e.preventDefault();
+      store.jumpRows(1, settings.jumpRows);
     } else if (matchesAny(e, km.insertRow3Above)) {
       e.preventDefault();
       const n = settings.bulkRows;

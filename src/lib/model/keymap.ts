@@ -18,6 +18,8 @@ export type ActionId =
   | "clearCell"
   | "jumpFilledUp"
   | "jumpFilledDown"
+  | "jumpRowsUp"
+  | "jumpRowsDown"
   | "extendArg"
   | "replyToArg"
   | "markDropped"
@@ -76,6 +78,8 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   clearCell: "Delete cell (this cell only - the row stays)",
   jumpFilledUp: "Jump to filled cell above (in column)",
   jumpFilledDown: "Jump to filled cell below (in column)",
+  jumpRowsUp: "Jump up several rows",
+  jumpRowsDown: "Jump down several rows",
   extendArg: "Extend argument (arrow to next speech)",
   replyToArg: "Answer this argument (jump to your reply, linked)",
   markDropped: "Mark dropped",
@@ -153,6 +157,8 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   // reach the other. Rebindable in Settings → Keyboard if the overlap grates.
   jumpFilledUp: [{ key: "arrowup", mod: true }],
   jumpFilledDown: [{ key: "arrowdown", mod: true }],
+  jumpRowsUp: [{ key: "pageup" }],
+  jumpRowsDown: [{ key: "pagedown" }],
   extendArg: [{ key: "g", mod: true }],
   // Pairs with extendArg on Ctrl/⌘+G: same key, shifted, opposite direction
   // (extend goes to your NEXT speech, reply goes to the opponent’s). Checked
@@ -228,7 +234,7 @@ export interface ActionGroup { title: string; actions: ActionId[]; }
 export const ACTION_GROUPS: ActionGroup[] = [
   {
     title: "Rows & cells",
-    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "deleteRow", "clearCell", "jumpFilledUp", "jumpFilledDown"],
+    actions: ["insertRowBelow", "insertRowAbove", "insertRow3Below", "insertRow3Above", "deleteRow", "clearCell", "jumpFilledUp", "jumpFilledDown", "jumpRowsUp", "jumpRowsDown"],
   },
   {
     title: "Flowing & marks",
@@ -289,10 +295,12 @@ export const RESERVED_COMBOS: { combo: Combo; label: string }[] = [
 /** Default count for the two bulk row-insert actions. User-editable in Settings. */
 export const DEFAULT_BULK_ROWS = 3;
 
-/** Action label, with the live bulk-row count folded into the two bulk actions. */
-export function actionLabel(action: ActionId, bulkRows: number): string {
+/** Action label, with the live bulk-row / jump counts folded into their actions. */
+export function actionLabel(action: ActionId, bulkRows: number, jumpRows = 5): string {
   if (action === "insertRow3Below") return `Insert ${bulkRows} rows below`;
   if (action === "insertRow3Above") return `Insert ${bulkRows} rows above`;
+  if (action === "jumpRowsDown") return `Jump down ${jumpRows} rows`;
+  if (action === "jumpRowsUp") return `Jump up ${jumpRows} rows`;
   return ACTION_LABELS[action];
 }
 
@@ -334,6 +342,8 @@ const KEY_LABELS_MAC: Record<string, string> = {
   arrowdown: "↓",
   arrowleft: "←",
   arrowright: "→",
+  pageup: "⇞",
+  pagedown: "⇟",
   " ": "Space",
   // Most people have never heard of "backtick"; say where the key is.
   "`": "` (left of 1)",
@@ -350,6 +360,8 @@ const KEY_LABELS_WIN: Record<string, string> = {
   arrowdown: "↓",
   arrowleft: "←",
   arrowright: "→",
+  pageup: "PgUp",
+  pagedown: "PgDn",
   " ": "Space",
   // Shift+] reports "}" - show the key you actually press.
   "}": "]",

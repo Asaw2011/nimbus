@@ -38,7 +38,7 @@
 </script>
 
 <div class="pp-backdrop" role="presentation" onclick={onclose}></div>
-<div class="pp-modal" role="dialog" aria-label="Flow with a partner">
+<div class="pp-modal" data-tour-panel="partner" role="dialog" aria-label="Flow with a partner">
   <div class="pp-head">
     <span class="pp-title">Flow with a partner</span>
     <span class="pp-sp"></span>
