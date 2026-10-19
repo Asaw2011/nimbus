@@ -24,6 +24,7 @@
   import type { Round, RoundMeta, Side, SpeechTemplate } from "../model/types";
   import { splitForSide, splitTargetFor, policyTemplate } from "../model/templates";
   import { buildSampleSheets, sample } from "../model/sample.svelte";
+  import { smartKit } from "../smart/kit.svelte";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
@@ -553,7 +554,23 @@
     store.activeSheetId = store.round.sheets[0]?.id ?? null;
     store.cursor = { row: 1, col: 0 };
     sample.roundId = store.round.id;
+    // Load the free sample file into this round's Smart kit BEFORE opening, so
+    // the guided tour's Smart blocks step has real blocks to click onto the
+    // flow. Best-effort - a failure just leaves the kit empty.
+    await loadSampleKit(store.round.id);
     onopen();
+  }
+
+  async function loadSampleKit(roundId: string) {
+    try {
+      const res = await fetch("/samples/midterms-da.docx");
+      if (!res.ok) return;
+      const file = new File([await res.arrayBuffer()], "Midterms DA.docx");
+      await smartKit.attach(roundId);
+      await smartKit.addDropped([file]);
+    } catch {
+      // the sample kit is a nicety; never block opening the round on it
+    }
   }
   // The welcome card asks for it from outside the dashboard.
   $effect(() => {

@@ -23,9 +23,8 @@
 // click), `stop()` works at any point, and files that are not already on the
 // disk are skipped by default rather than downloaded.
 
-import { invoke } from "@tauri-apps/api/core";
 import { saveBlob, loadBlob, loadBlobCached } from "$lib/model/blobs";
-import { fileIndex, type LibFile } from "./file-index.svelte";
+import { fileIndex, readLibBytes, type LibFile } from "./file-index.svelte";
 import { extractSpeechDocHeadings } from "$lib/docx/cmir";
 
 interface ContentDoc {
@@ -174,7 +173,7 @@ class ContentIndexStore {
           result.set(f.path, cached);
         } else {
           try {
-            const bytes = await invoke<number[]>("read_binary_file", { path: f.path });
+            const bytes = await readLibBytes(f.path);
             const heads = extractSpeechDocHeadings(new Uint8Array(bytes).buffer);
             const headings = heads.map((h) => h.text).slice(0, MAX_HEADINGS_PER_DOC);
             result.set(f.path, { path: f.path, mtime: f.mtime, headings });

@@ -11,7 +11,7 @@
 
   // check = what the user has to actually DO before the step unlocks. null means
   // it's a read-and-Next step. anchor = the element to ring, by data-tour tag.
-  type Check = "type" | "drop" | "evidence" | "smart" | "addpage" | "spread" | "doc" | "send" | "partner" | "help" | "settings";
+  type Check = "type" | "drop" | "evidence" | "smart" | "docsearch" | "addpage" | "spread" | "doc" | "send" | "partner" | "help" | "settings";
   type Step = { title: string; body: string; anchor: string | null; check: Check | null; hint?: string };
 
   const steps = $derived<Step[]>([
@@ -44,10 +44,17 @@
     },
     {
       title: "Smart blocks",
-      body: "Open the Smart blocks tray. Add your case files to its kit and it surfaces the exact blocks that answer what's on the page - click one to drop it in.",
+      body: "Open the Smart blocks tray. The free \"Midterms DA\" sample is already in its kit, so it suggests blocks that answer the page - click one to drop it in. Add your own files to teach it yours.",
       anchor: '[data-tour="smart"]',
       check: "smart",
       hint: "Beta. It never types for you - every insert is a click.",
+    },
+    {
+      title: "Find any card - ⌘K",
+      body: "Press the shortcut to open Doc Search. The sample \"Midterms DA\" is already in there - search it, then click a block to drop it on your flow. Point it at your own card folders in Settings → Library.",
+      anchor: null,
+      check: "docsearch",
+      hint: `Shortcut: ${combosLabel(km.openDocSearch, mac)}`,
     },
     {
       title: "Add a page",
@@ -147,6 +154,7 @@
       case "evidence": return cur.ev > base.ev;
       case "addpage": return cur.sheets > base.sheets;
       case "smart": return !!document.querySelector('[data-tour-panel="smart"]');
+      case "docsearch": return !!document.querySelector('[data-tour-panel="docsearch"]');
       case "spread": return !!document.querySelector('[data-tour-panel="spread"]');
       case "doc": return !!document.querySelector('[data-tour-panel="doc"]');
       case "send": return sent;

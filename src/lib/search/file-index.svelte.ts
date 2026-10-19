@@ -43,8 +43,37 @@ function byUniquePath(files: LibFile[]): LibFile[] {
   return files.filter((f) => (seen.has(f.path) ? false : (seen.add(f.path), true)));
 }
 
+// A free sample card file ("Midterms DA") ships inside the app and is always
+// listed in Doc Search (⌘K), even for someone who hasn't added a card library
+// yet - so the guided tour has something real to search and insert. Its bytes
+// aren't on disk; they're fetched from the bundled asset (see readLibBytes).
+export const SAMPLE_DOC_PATH = "sample://midterms-da.docx";
+const SAMPLE_FILE: LibFile = {
+  path: SAMPLE_DOC_PATH,
+  name: "Midterms DA (sample)",
+  ext: "docx",
+  mtime: 1_792_000_000_000,
+  size: 443748,
+  offline: false,
+};
+/** Keep the bundled sample at the front of the library, de-duped. */
+function withSample(list: LibFile[]): LibFile[] {
+  return [SAMPLE_FILE, ...list.filter((f) => f.path !== SAMPLE_DOC_PATH)];
+}
+
+/** Read a library file's bytes - fetches the bundled asset for the sample,
+ *  otherwise reads from disk via Tauri. Used by the content index and ⌘K insert. */
+export async function readLibBytes(path: string): Promise<number[]> {
+  if (path === SAMPLE_DOC_PATH) {
+    const res = await fetch("/samples/midterms-da.docx");
+    if (!res.ok) throw new Error("Couldn't load the bundled sample.");
+    return Array.from(new Uint8Array(await res.arrayBuffer()));
+  }
+  return invoke<number[]>("read_binary_file", { path });
+}
+
 class FileIndexStore {
-  files = $state<LibFile[]>([]);
+  files = $state<LibFile[]>(withSample([]));
   scanning = $state(false);
   lastScanned = $state(0);
   error = $state("");
@@ -53,7 +82,7 @@ class FileIndexStore {
     // Load cached index immediately for instant first paint
     const cached = loadBlobCached<{ files: LibFile[]; scannedAt: number }>(CACHE_BLOB);
     if (cached?.files) {
-      this.files = byUniquePath(cached.files);
+      this.files = withSample(byUniquePath(cached.files));
       this.lastScanned = cached.scannedAt ?? 0;
     }
     // Rescan in background when app starts
@@ -65,7 +94,7 @@ class FileIndexStore {
       if (!cached?.files) {
         void loadBlob<{ files: LibFile[]; scannedAt: number }>(CACHE_BLOB).then((disk) => {
           if (this.scanDone || !disk?.files) return;
-          this.files = byUniquePath(disk.files);
+          this.files = withSample(byUniquePath(disk.files));
           this.lastScanned = disk.scannedAt ?? 0;
         });
       }
@@ -92,7 +121,7 @@ class FileIndexStore {
 
     if (roots.length === 0) {
       this.scanDone = true;
-      this.files = [];
+      this.files = withSample([]);
       return;
     }
 
@@ -102,7 +131,7 @@ class FileIndexStore {
     try {
       const files = byUniquePath(await invoke<LibFile[]>("scan_library_roots", { roots }));
       this.scanDone = true;
-      this.files = files;
+      this.files = withSample(files);
       this.lastScanned = Date.now();
       // Persist the DEDUPED list - writing the raw one back would just reseed
       // the bad cache for the next launch.

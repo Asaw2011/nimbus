@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { fileIndex, relativeTime, type LibFile } from "./file-index.svelte";
+  import { fileIndex, readLibBytes, relativeTime, type LibFile } from "./file-index.svelte";
   import { contentIndex } from "./content-index.svelte";
   import { nodeChip, type DocNode } from "$lib/docx/parse";
   import { parseSpeechDoc, readCmirDoc, cmirTopLevel } from "$lib/docx/cmir";
   import { store } from "$lib/model/round.svelte";
-  import { invoke } from "@tauri-apps/api/core";
 
   let { onclose, onappenddoc = null, onappendcm = null, docOnly = false }: {
     onclose: () => void;
@@ -20,7 +19,7 @@
   async function getCMDocJSON(file: LibFile): Promise<{ type: string; content?: unknown[] } | null> {
     if (cmDocCache.has(file.path)) return cmDocCache.get(file.path) as never;
     try {
-      const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
+      const bytes = await readLibBytes(file.path);
       const { fromDocx, schema } = await import("$lib/cardmirror");
       let json: unknown;
       if (file.ext === "cmir") {
@@ -272,7 +271,7 @@
     parsing = true; parseError = "";
     try {
       if (file.name.startsWith("~$")) throw new Error("Word lock file");
-      const bytes = await invoke<number[]>("read_binary_file", { path: file.path });
+      const bytes = await readLibBytes(file.path);
       const parsed = parseSpeechDoc(new Uint8Array(bytes).buffer);
       cacheParse(file.path, parsed.nodes);
       setDived(file, parsed.nodes, keepQuery);
@@ -490,7 +489,7 @@
 <svelte:window onpointerdown={onWindowPointerDown} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="ds-panel" style="transform: translate({px}px, {py}px)" onkeydown={onkeydown} onpointermove={moveDrag} onpointerup={endDrag} role="dialog" aria-label="Doc Search" tabindex="-1">
+<div class="ds-panel" data-tour-panel="docsearch" style="transform: translate({px}px, {py}px)" onkeydown={onkeydown} onpointermove={moveDrag} onpointerup={endDrag} role="dialog" aria-label="Doc Search" tabindex="-1">
   <!-- Header (drag handle) -->
   <div class="ds-header" onpointerdown={startDrag}>
     <div class="ds-title">

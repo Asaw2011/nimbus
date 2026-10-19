@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.1",
+    headline: "A free sample card file, searchable in Doc Search (⌘K) and ready in Smart blocks.",
+    items: [
+      "**A free sample ships with Nimbus.** \"Midterms DA (sample)\" is always in Doc Search (⌘K) - search it and click a block to drop it on your flow, even before you've added your own card folders. It's also loaded into the sample round's Smart blocks, so the guided tour (now with a ⌘K step) can show block-importing end to end.",
+    ],
+  },
+  {
     version: "1.6.0",
     headline: "A guided tour you can replay, a cleaner toolbar, fast row jumps, easier settings, and much smarter importing.",
     items: [
