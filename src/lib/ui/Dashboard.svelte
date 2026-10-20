@@ -22,9 +22,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Round, RoundMeta, Side, SpeechTemplate } from "../model/types";
-  import { splitForSide, splitTargetFor, policyTemplate } from "../model/templates";
-  import { buildSampleSheets, sample } from "../model/sample.svelte";
-  import { smartKit } from "../smart/kit.svelte";
+  import { splitForSide, splitTargetFor } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, type Tournament, type FlowFile } from "../model/tournaments.svelte";
@@ -531,54 +529,6 @@
     onopen();
   }
 
-  /**
-   * A filled-in Policy flow to try things on. A NEW round with a unique name,
-   * created like "Start flowing" - nothing is written until the user edits it,
-   * so looking around and leaving leaves nothing behind.
-   *
-   * The sheets are set directly, not through store.mutate: that would count as
-   * the first edit and save a file the user never asked for.
-   */
-  async function trySample() {
-    const template = policyTemplate();
-    if (homeTourney && "__TAURI_INTERNALS__" in window) {
-      const name = await tournaments.uniqueFlowName(homeTourney, "Sample Round");
-      store.newRound(template, name, undefined, saveOnFirstEdit(homeTourney));
-    } else {
-      store.newRound(template, "Sample Round");
-    }
-    if (!store.round) return;
-    store.round.affTeam = "Sample Aff";
-    store.round.negTeam = "Sample Neg";
-    store.round.sheets = buildSampleSheets(template.speeches.length);
-    store.activeSheetId = store.round.sheets[0]?.id ?? null;
-    store.cursor = { row: 1, col: 0 };
-    sample.roundId = store.round.id;
-    // Load the free sample file into this round's Smart kit BEFORE opening, so
-    // the guided tour's Smart blocks step has real blocks to click onto the
-    // flow. Best-effort - a failure just leaves the kit empty.
-    await loadSampleKit(store.round.id);
-    onopen();
-  }
-
-  async function loadSampleKit(roundId: string) {
-    try {
-      const res = await fetch("/samples/midterms-da.docx");
-      if (!res.ok) return;
-      const file = new File([await res.arrayBuffer()], "Midterms DA.docx");
-      await smartKit.attach(roundId);
-      await smartKit.addDropped([file]);
-    } catch {
-      // the sample kit is a nicety; never block opening the round on it
-    }
-  }
-  // The welcome card asks for it from outside the dashboard.
-  $effect(() => {
-    const h = () => void trySample();
-    window.addEventListener("nimbus:sample", h);
-    return () => window.removeEventListener("nimbus:sample", h);
-  });
-
   async function openFlowFile() {
     const round = await openFromFile();
     if (round) {
@@ -802,7 +752,6 @@
           <button class="quick-btn" onclick={openFlowFile} title="Open a .nimbus flow, or an Excel (.xlsx) flow - Verbatim's included">Open a flow</button>
           <button class="quick-btn" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
         </div>
-        <button class="sample-btn" onclick={trySample} title="Opens a filled-in practice flow. Nothing is saved unless you change something.">✦ New to Nimbus? Try a sample round</button>
         <p class="quick-hint">Already flow in Excel? <b>Open a flow</b> opens your .xlsx (Verbatim flows too), and you can save back to Excel any time.</p>
       </div>
 
@@ -1184,11 +1133,6 @@
   }
   .quick-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
   .quick-btn:disabled { opacity: 0.55; cursor: default; }
-  .sample-btn {
-    align-self: flex-start; background: none; border: none; padding: 0;
-    color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  }
-  .sample-btn:hover { text-decoration: underline; }
   .quick-hint { margin: 0; font-size: 12px; line-height: 1.4; color: var(--text-dim); }
   .quick-hint b { color: var(--text); font-weight: 600; }
 

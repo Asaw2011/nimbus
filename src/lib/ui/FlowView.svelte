@@ -28,7 +28,6 @@
   import PartnerPanel from "./PartnerPanel.svelte";
   import SmartTray from "$lib/smart/SmartTray.svelte";
   import { session } from "$lib/model/session.svelte";
-  import { sample } from "$lib/model/sample.svelte";
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
   import { cardmirror } from "$lib/doc/cardmirror.svelte";
   import { answerNumbers, cellFilled, parseNo, spanHeading, type Span } from "$lib/model/lineup.svelte";
@@ -36,11 +35,8 @@
 
   let { onexit }: { onexit: () => void } = $props();
 
-  // A sample round opens straight onto its first page - the round home of an
-  // empty demo would show nothing worth trying.
-  const isSample = $derived(!!sample.roundId && sample.roundId === store.round?.id);
-  let sampleNoteClosed = $state(false);
-  let atHome = $state(!(sample.roundId && sample.roundId === store.round?.id && store.activeSheetId));
+  // the tour's practice round skips the round home and opens on its page
+  let atHome = $state(!(store.scratchId && store.scratchId === store.round?.id && store.activeSheetId));
   let showHelp = $state(false);
   let showManual = $state(false);
   let showQuickCards = $state(false);
@@ -211,6 +207,7 @@
       case "partner": showPartner = true; break;
       case "quick": showQuickCards = true; break;
       case "bank": showBank = true; break;
+      case "tour": window.dispatchEvent(new Event("nimbus:start-tour")); return;
     }
     if (keyLabel && keyLabel !== "-") flashSend(`Tip: next time press ${keyLabel}`);
   }
@@ -1681,12 +1678,6 @@
           class="flow-pane"
           use:pinchZoom={flowZoomOpts}
         >
-          {#if isSample && !sampleNoteClosed}
-            <div class="sample-note">
-              <span><b>This is a sample round.</b> Click any cell and type, try the keys, mark things, send cells to the speech doc - you can't break anything. It's only saved if you change something; delete it from the home screen when you're done.</span>
-              <button onclick={() => (sampleNoteClosed = true)} title="Hide this note">✕</button>
-            </div>
-          {/if}
           <!-- The formatting ribbon lives at the top of the FLOW column, not
                spanning the whole window - so with the doc open it locks over the
                flow only and the doc gets its own full-height column beside it. -->
@@ -2153,26 +2144,6 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-  }
-  .sample-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 7px 12px;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--text);
-    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-    border-bottom: 1px solid var(--border);
-  }
-  .sample-note span { flex: 1; }
-  .sample-note button {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0 2px;
   }
   .zoom-wrap {
     flex: 1;

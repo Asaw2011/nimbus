@@ -1,6 +1,6 @@
 <script lang="ts">
   // The in-app manual: a scrollable reference covering every feature. Opened
-  // from the top bar (📖) or the welcome tutorial. Pure content - no app state.
+  // from the top bar (📖). Pure content - no app state.
   import { settings } from "../model/settings.svelte";
   import { combosLabel } from "../model/keymap";
 

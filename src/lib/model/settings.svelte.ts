@@ -107,8 +107,8 @@ export interface Persisted {
   fontFamily: string;
   fontSize: number;
   rowHeight: number;
-  /** Show the welcome tutorial on app open until dismissed. */
-  showTutorial: boolean;
+  /** The guided tour has been started or offered once (new users get it after setup). */
+  tourOffered?: boolean;
   /** First-run setup prompt (theme / format / save format) has been completed. */
   setupDone?: boolean;
   /** One-time migration of loose app-data flows into the home folder has run. */
@@ -376,7 +376,7 @@ export const DEFAULT_DOC_TYPOGRAPHY: DocTypography = {
 
 class Settings {
   theme = $state<Theme>("light");
-  showTutorial = $state(true);
+  tourOffered = $state(false);
   /** Whether the one-time first-run setup prompt has been completed. */
   setupDone = $state(false);
   /** Whether loose app-data flows have been migrated into the home folder. */
@@ -558,7 +558,7 @@ class Settings {
     if (p.fontFamily !== undefined) this.fontFamily = p.fontFamily;
     if (p.fontSize) this.fontSize = p.fontSize;
     if (p.rowHeight) this.rowHeight = p.rowHeight;
-    if (p.showTutorial !== undefined) this.showTutorial = p.showTutorial;
+    if (p.tourOffered !== undefined) this.tourOffered = p.tourOffered;
     if (p.setupDone !== undefined) this.setupDone = p.setupDone;
     if (p.homeMigrated !== undefined) this.homeMigrated = p.homeMigrated;
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
@@ -709,7 +709,7 @@ class Settings {
       fontFamily: this.fontFamily,
       fontSize: this.fontSize,
       rowHeight: this.rowHeight,
-      showTutorial: this.showTutorial,
+      tourOffered: this.tourOffered,
       setupDone: this.setupDone,
       homeMigrated: this.homeMigrated,
       compactTopBar: this.compactTopBar,

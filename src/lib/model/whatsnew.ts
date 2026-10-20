@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.2",
+    headline: "One hands-on guided tour, built around pulling blocks with ⌘K.",
+    items: [
+      "**A new guided tour, and everyone gets asked once.** It opens a blank practice page and has you fill it from the free Midterms DA file with Doc Search (⌘K): open the file, click a block, watch it land. Then it walks Smart blocks, Send to Doc, Stack, partner flowing and the rest, one step at a time.",
+      "**New here? You start in the tour.** After setup, new users go straight into it instead of a wall-of-text welcome screen. Skip it any time with Esc.",
+      "**Sample rounds are gone.** The tour replaced them. Its practice round is never saved and disappears when you're done. Replay it from Settings → Help, or ask How do I… \"tour\".",
+    ],
+  },
+  {
     version: "1.6.1",
     headline: "A free sample card file, searchable in Doc Search (⌘K) and ready in Smart blocks.",
     items: [

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import Dashboard from "$lib/ui/Dashboard.svelte";
   import FlowView from "$lib/ui/FlowView.svelte";
-  import Tutorial from "$lib/ui/Tutorial.svelte";
+  import TourPrompt from "$lib/ui/TourPrompt.svelte";
+  import { openPracticeRound, closePracticeRound } from "$lib/model/practice.svelte";
   import GuidedTour from "$lib/ui/GuidedTour.svelte";
   import WhatsNew from "$lib/ui/WhatsNew.svelte";
   import { hasUnseenNotes } from "$lib/model/whatsnew";
@@ -42,30 +43,45 @@
   // until then we render nothing rather than a login form we might not need.
   let authChecked = $state(false);
   let versionBlock = $state<VersionBlock | null>(null);
-  let showTutorial = $state(false);
+  let showTourPrompt = $state(false);
   let showTour = $state(false);
   let showWhatsNew = $state(false);
+  // patch notes that were due but waited for the tour / tour prompt to finish
+  let whatsNewAfterTour = false;
 
-  // The welcome's "Take the tour": open a sample round to walk over (unless
-  // they're already in a flow), then let the spotlight tour run. The tour waits
-  // for its targets, so it's fine that opening the sample is async.
-  function startTour() {
-    showTutorial = false;
+  // The one guided tour: always on a fresh practice round (a blank Midterms DA
+  // page you fill from the bundled file with ⌘K), never on the user's own flow.
+  async function startTour() {
+    showTourPrompt = false;
+    if (!settings.tourOffered) { settings.tourOffered = true; settings.save(); }
     // the tour walks the Smart blocks tray, which is off by default - turn it
     // on so the pill is actually there to point at.
     if (!settings.smartBlocksEnabled) { settings.smartBlocksEnabled = true; settings.save(); }
-    if (!(view === "flow" && store.round)) {
-      window.dispatchEvent(new Event("nimbus:sample"));
-    }
+    // bounce through the dashboard so FlowView remounts onto the practice page
+    view = "dashboard";
+    await tick();
+    await openPracticeRound();
+    view = "flow";
     showTour = true;
   }
   function endTour() {
     showTour = false;
-    // seen it - don't pop the welcome again on the next launch.
-    if (settings.showTutorial) {
-      settings.showTutorial = false;
-      settings.save();
-    }
+    if (closePracticeRound()) view = "dashboard";
+    maybeWhatsNewLater();
+  }
+  // left the practice round mid-tour (back arrow) - nothing left to point at
+  $effect(() => {
+    if (showTour && view === "dashboard") endTour();
+  });
+  function skipTourPrompt() {
+    showTourPrompt = false;
+    settings.tourOffered = true;
+    settings.save();
+    maybeWhatsNewLater();
+  }
+  function maybeWhatsNewLater() {
+    if (whatsNewAfterTour && hasUnseenNotes(settings.lastSeenVersion)) showWhatsNew = true;
+    whatsNewAfterTour = false;
   }
   let showSetup = $state(false);
   let pendingUpdate = $state<UpdateInfo | null>(null);
@@ -127,23 +143,16 @@
     if (!settings.setupDone) {
       showSetup = true;
     } else {
-      // First-open (or re-enabled) welcome tutorial.
-      if (settings.showTutorial) showTutorial = true;
+      // Everyone who hasn't seen the guided tour gets asked once (1.6.2 is
+      // where it became the main way in). Patch notes wait until after, so
+      // there's never two modals stacked.
+      if (!settings.tourOffered) showTourPrompt = true;
       // Patch notes, once, when the running build is newer than the last one whose
       // notes were shown - whether it got here by the auto-updater or by someone
       // downloading the installer.
-      //
-      // ⚠ Never stacked on top of the tutorial. A brand-new machine gets the
-      // tutorial, which is the better first thing to read and explains the app
-      // rather than what changed in it; the version is still recorded below so
-      // that user doesn't then get a changelog for the build they started on.
       if (hasUnseenNotes(settings.lastSeenVersion)) {
-        if (showTutorial) {
-          settings.lastSeenVersion = APP_VERSION;
-          settings.save();
-        } else {
-          showWhatsNew = true;
-        }
+        if (showTourPrompt) whatsNewAfterTour = true;
+        else showWhatsNew = true;
       }
     }
     setupCloseGuard();
@@ -200,12 +209,12 @@
   }
 
   // When the first-run setup is finished: record the running version so a
-  // brand-new user gets the tutorial, not a changelog, then hand off to it.
+  // brand-new user gets the tour, not a changelog, then drop them right into it.
   function onSetupDone() {
     showSetup = false;
     settings.lastSeenVersion = APP_VERSION;
     settings.save();
-    if (settings.showTutorial) showTutorial = true;
+    if (!settings.tourOffered) void startTour();
   }
 
   async function installUpdate() {
@@ -372,28 +381,23 @@
   <Dashboard onopen={() => (view = "flow")} />
 {/if}
 
-<!-- First-run setup: gated behind the sign-in gate like the tutorial, and shown
-     ahead of it (onMount only sets showTutorial once setup is done). -->
+<!-- First-run setup: gated behind the sign-in gate, and shown ahead of the
+     tour (onSetupDone starts it). -->
 {#if showSetup && auth.signedIn && !versionBlock && !isSubWindow}
   <Setup onclose={onSetupDone} />
 {/if}
 
-<!-- Gated: the tutorial's backdrop is z-index 50, so on a first run it rendered
-     straight over the sign-in screen. Nothing that overlays the app should be
-     reachable before the user is through the gate. -->
-{#if showTutorial && !showSetup && auth.signedIn && !versionBlock && !isSubWindow}
-  <Tutorial onclose={() => (showTutorial = false)} onstarttour={startTour} />
+<!-- Gated: an overlay once rendered straight over the sign-in screen. Nothing
+     that overlays the app should be reachable before the user is through. -->
+{#if showTourPrompt && !showSetup && auth.signedIn && !versionBlock && !isSubWindow}
+  <TourPrompt onstart={() => void startTour()} onlater={skipTourPrompt} />
 {/if}
 
 {#if showTour && !isSubWindow}
   <GuidedTour onclose={endTour} />
 {/if}
 
-<!-- Same gate as the tutorial, for the same reason: nothing overlays the app
-     until the user is through sign-in. `!showTutorial` is belt-and-braces -
-     onMount already picks one or the other - so a future change to either can't
-     stack two modals on a first run. -->
-{#if showWhatsNew && !showTutorial && auth.signedIn && !versionBlock && !isSubWindow}
+{#if showWhatsNew && !showTourPrompt && !showTour && auth.signedIn && !versionBlock && !isSubWindow}
   <WhatsNew onclose={() => (showWhatsNew = false)} />
 {/if}
 

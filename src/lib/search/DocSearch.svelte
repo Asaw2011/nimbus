@@ -377,6 +377,7 @@
       // Advance to the next row so consecutive inserts stack down the column
       // without manually clicking the next cell - like flowing top to bottom.
       store.cursor = { row: row + 1, col };
+      window.dispatchEvent(new Event("nimbus:docsearch-inserted")); // guided tour listens
     }
   }
 
@@ -489,7 +490,7 @@
 <svelte:window onpointerdown={onWindowPointerDown} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="ds-panel" data-tour-panel="docsearch" style="transform: translate({px}px, {py}px)" onkeydown={onkeydown} onpointermove={moveDrag} onpointerup={endDrag} role="dialog" aria-label="Doc Search" tabindex="-1">
+<div class="ds-panel" data-tour-panel="docsearch" data-tour-dived={mode === "within" && divedFile ? "1" : undefined} style="transform: translate({px}px, {py}px)" onkeydown={onkeydown} onpointermove={moveDrag} onpointerup={endDrag} role="dialog" aria-label="Doc Search" tabindex="-1">
   <!-- Header (drag handle) -->
   <div class="ds-header" onpointerdown={startDrag}>
     <div class="ds-title">

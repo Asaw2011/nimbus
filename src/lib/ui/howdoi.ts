@@ -15,7 +15,7 @@ import type { ActionId } from "../model/keymap";
  *  button or shortcut already calls. */
 export type HowRun =
   | "doc" | "spread" | "timer" | "search" | "home" | "newSheet"
-  | "settings" | "partner" | "quick" | "bank";
+  | "settings" | "partner" | "quick" | "bank" | "tour";
 
 export interface HowTo {
   id: string;
@@ -394,10 +394,11 @@ export const HOWTOS: HowTo[] = [
     manual: "tournaments",
   },
   {
-    id: "sample",
-    title: "Practice on a sample round",
-    words: "sample practice demo example try learn tutorial",
-    body: "The home screen's \"Try a sample round\" opens a filled-in practice flow. Try anything - it's only saved if you change something.",
+    id: "tour",
+    title: "Take the guided tour",
+    words: "tour guided tutorial sample practice demo example try learn walkthrough new start",
+    body: "The guided tour opens a practice round, has you pull blocks from the free Midterms DA file with ⌘K, then walks the main tools one step at a time. Nothing is saved. Start it here or from Settings → Help → Replay tour.",
+    run: "tour", runLabel: "Start the tour",
   },
   {
     id: "keys",

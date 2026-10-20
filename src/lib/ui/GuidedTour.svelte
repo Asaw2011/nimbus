@@ -11,50 +11,64 @@
 
   // check = what the user has to actually DO before the step unlocks. null means
   // it's a read-and-Next step. anchor = the element to ring, by data-tour tag.
-  type Check = "type" | "drop" | "evidence" | "smart" | "docsearch" | "addpage" | "spread" | "doc" | "send" | "partner" | "help" | "settings";
+  type Check = "type" | "drop" | "evidence" | "smart" | "docsearch" | "dive" | "insert" | "addpage" | "spread" | "doc" | "send" | "partner" | "help" | "settings";
   type Step = { title: string; body: string; anchor: string | null; check: Check | null; hint?: string };
 
   const steps = $derived<Step[]>([
     {
-      title: "Welcome - let's actually flow",
-      body: "This is a real sample round. I'll point at each feature and you try it yourself. Press Esc to bail any time.",
+      title: "Welcome to Nimbus - let's flow a page",
+      body: "This is a blank practice round with one page, the Midterms DA. You'll fill it in yourself from a real card file that ships with Nimbus, then try the main tools. Nothing here gets saved. Esc bails any time.",
       anchor: null,
       check: null,
     },
     {
       title: "Type in a cell",
-      body: "Click any cell and type a few words. It's a grid like Excel - no setup, just go.",
+      body: "Click any cell and type a few words. It's a grid like Excel - columns are speeches, rows are arguments.",
       anchor: '[data-tour="grid"]',
       check: "type",
-      hint: "Columns are speeches, rows are arguments.",
+      hint: "No setup, just go.",
     },
     {
-      title: "Mark it Dropped",
-      body: "Click a cell, then hit Dropped so you remember they didn't answer it.",
-      anchor: '[data-tour="drop"]',
-      check: "drop",
-      hint: `Shortcut: ${combosLabel(km.markDropped, mac)}`,
+      title: "Open Doc Search - ⌘K",
+      body: "This is how you pull blocks out of your card files onto the flow. Click a cell where you want the block to land, then press the shortcut.",
+      anchor: '[data-tour="grid"]',
+      check: "docsearch",
+      hint: `Shortcut: ${combosLabel(km.openDocSearch, mac)}`,
+    },
+    {
+      title: "Open the Midterms DA file",
+      body: "Type \"midterms\" and open \"Midterms DA (sample)\". It's a free file that comes with Nimbus, so it's always there even before you add your own.",
+      anchor: '[data-tour-panel="docsearch"]',
+      check: "dive",
+      hint: "Arrow keys + Enter work too.",
+    },
+    {
+      title: "Insert a block",
+      body: "Click any heading or card (or pick it and hit Enter). It lands in the cell you picked, and the cursor moves down so the next one stacks under it.",
+      anchor: '[data-tour-panel="docsearch"]',
+      check: "insert",
+      hint: "Grab a few. A block brings its cards along - click ▸ in the cell to expand them. Later, point Doc Search at your own card folders in Settings → Library.",
     },
     {
       title: "Card or analytic",
-      body: "Mark a cell as a Card (carded evidence) - the ink recolors so you can read the flow at a glance. Analytic works the same way.",
+      body: "Close Doc Search with its ✕, click a cell, and mark it a Card. The ink recolors so you can read the flow at a glance. Analytic works the same way.",
       anchor: '[data-tour="evidence"]',
       check: "evidence",
       hint: `Aff columns are blue, neg red. Card: ${combosLabel(km.markCard, mac)}`,
     },
     {
+      title: "Mark it Dropped",
+      body: "Click a cell, then hit Dropped so you remember the other side never answered it.",
+      anchor: '[data-tour="drop"]',
+      check: "drop",
+      hint: `Shortcut: ${combosLabel(km.markDropped, mac)}`,
+    },
+    {
       title: "Smart blocks",
-      body: "Open the Smart blocks tray. The free \"Midterms DA\" sample is already in its kit, so it suggests blocks that answer the page - click one to drop it in. Add your own files to teach it yours.",
+      body: "Open the Smart blocks tray. Midterms DA is already in its kit, so it suggests blocks that answer the page - click one to drop it in.",
       anchor: '[data-tour="smart"]',
       check: "smart",
       hint: "Beta. It never types for you - every insert is a click.",
-    },
-    {
-      title: "Find any card - ⌘K",
-      body: "Press the shortcut to open Doc Search. The sample \"Midterms DA\" is already in there - search it, then click a block to drop it on your flow. Point it at your own card folders in Settings → Library.",
-      anchor: null,
-      check: "docsearch",
-      hint: `Shortcut: ${combosLabel(km.openDocSearch, mac)}`,
     },
     {
       title: "Add a page",
@@ -72,7 +86,7 @@
     },
     {
       title: "Send a cell to the doc",
-      body: "Click a cell that has a card in it, then hit Send Cell - it lands in the speech doc at your cursor, formatting and all.",
+      body: "Click one of the Midterms cards you inserted, then hit Send Cell - the full card lands in the speech doc at your cursor, formatting and all.",
       anchor: '[data-tour="send"]',
       check: "send",
       hint: `Send a whole row at once with ${combosLabel(km.sendRowToDoc, mac)}.`,
@@ -86,7 +100,7 @@
     },
     {
       title: "Flow with a partner",
-      body: "Open Partner flow to share this round live - you both flow into the same sheets in real time, each in your own color.",
+      body: "Open Partner flow to share a round live - you both flow into the same sheets in real time, each in your own color.",
       anchor: '[data-tour="partner"]',
       check: "partner",
       hint: "One of you starts a session and sends the code; the other joins.",
@@ -106,7 +120,7 @@
     },
     {
       title: "That's the basics - go flow",
-      body: "You've touched the main things. Poke at anything in this sample; the Manual has the rest. Reopen this from Settings → Show welcome tutorial.",
+      body: "Hit Done and you're back home, ready to start a real round. The practice round goes away. Replay this any time from Settings → Help.",
       anchor: null,
       check: null,
     },
@@ -119,12 +133,18 @@
   let rect = $state<DOMRect | null>(null);
   let done = $state(false); // current step's action completed
   let sent = false; // a cell was sent to the doc since this step opened
+  let inserted = false; // a ⌘K block landed on the flow since this step opened
 
   // the send gate can't be read off the store, so FlowView pings us on a send.
   $effect(() => {
     const h = () => (sent = true);
+    const ins = () => (inserted = true);
     window.addEventListener("nimbus:sent-to-doc", h);
-    return () => window.removeEventListener("nimbus:sent-to-doc", h);
+    window.addEventListener("nimbus:docsearch-inserted", ins);
+    return () => {
+      window.removeEventListener("nimbus:sent-to-doc", h);
+      window.removeEventListener("nimbus:docsearch-inserted", ins);
+    };
   });
 
   // a flat read of everything a gate might compare against.
@@ -155,6 +175,8 @@
       case "addpage": return cur.sheets > base.sheets;
       case "smart": return !!document.querySelector('[data-tour-panel="smart"]');
       case "docsearch": return !!document.querySelector('[data-tour-panel="docsearch"]');
+      case "dive": return !!document.querySelector('[data-tour-panel="docsearch"][data-tour-dived]');
+      case "insert": return inserted;
       case "spread": return !!document.querySelector('[data-tour-panel="spread"]');
       case "doc": return !!document.querySelector('[data-tour-panel="doc"]');
       case "send": return sent;
@@ -179,6 +201,7 @@
     untrack(() => {
       done = false;
       sent = false;
+      inserted = false;
       base = scan();
       const sel = steps[idx].anchor;
       if (sel) (document.querySelector(sel) as HTMLElement | null)?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -217,19 +240,24 @@
     const vw = window.innerWidth, vh = window.innerHeight;
     const W = 320, H = 190;
     const left = Math.max(12, Math.min(rect.left, vw - W - 12));
-    let top: number;
-    if (vh - rect.bottom >= H + 20) top = rect.bottom + 14;
-    else if (rect.top >= H + 20) top = rect.top - H - 14;
-    else top = (vh - H) / 2;
-    top = Math.max(12, Math.min(top, vh - H - 12));
-    return `left:${left}px;top:${top}px;width:${W}px;`;
+    const clampTop = (t: number) => Math.max(12, Math.min(t, vh - H - 12));
+    if (vh - rect.bottom >= H + 20) return `left:${left}px;top:${rect.bottom + 14}px;width:${W}px;`;
+    if (rect.top >= H + 20) return `left:${left}px;top:${rect.top - H - 14}px;width:${W}px;`;
+    // tall targets (like the Doc Search panel) - sit beside it instead of on top
+    if (vw - rect.right >= W + 20) return `left:${rect.right + 14}px;top:${clampTop(rect.top)}px;width:${W}px;`;
+    if (rect.left >= W + 20) return `left:${rect.left - W - 14}px;top:${clampTop(rect.top)}px;width:${W}px;`;
+    return `left:${left}px;top:${clampTop((vh - H) / 2)}px;width:${W}px;`;
   });
 
   function next() { if (last) onclose(); else { advancing = false; i++; } }
   function back() { if (i > 0) i--; }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") { e.preventDefault(); onclose(); }
+    // Esc inside Doc Search / Settings / etc closes that panel, not the whole tour
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    if (document.querySelector("[data-tour-panel]")) return;
+    e.preventDefault();
+    onclose();
   }
 </script>
 

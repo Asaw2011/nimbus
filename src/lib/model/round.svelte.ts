@@ -291,6 +291,9 @@ class RoundStore {
    */
   private onFirstEdit: ((round: Round) => void) | null = null;
 
+  /** id of the guided tour's practice round - never written anywhere. */
+  scratchId = "";
+
   /** True for a round made by {@link newRound} that nothing has been done in. */
   get untouched(): boolean {
     return this.onFirstEdit !== null;
@@ -752,6 +755,7 @@ class RoundStore {
     if (!this.round) return;
     // Nothing has been done in this new round - don't write it anywhere.
     if (this.onFirstEdit) return;
+    if (this.round.id === this.scratchId) return;
     const { id } = this.round;
     // Serialize BEFORE clearing `dirty` and before awaiting, so an edit that
     // lands mid-write re-dirties and gets its own flush.

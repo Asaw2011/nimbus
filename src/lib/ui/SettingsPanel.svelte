@@ -1297,18 +1297,10 @@
     {#if q || tab === "help"}
     <section>
       <h3>Guided tour &amp; help</h3>
-      <p class="hint">New here, or want a refresher? Take the walkthrough any time - it opens a sample round and points at each feature.</p>
+      <p class="hint">New here, or want a refresher? Take the walkthrough any time - it opens a practice round, has you pull blocks from the free Midterms DA file with ⌘K, and points at each feature.</p>
       <label class="row">
-        <span>Guided tour<br /><small class="sub">Walk through a sample round, step by step</small></span>
+        <span>Guided tour<br /><small class="sub">Build a practice flow step by step</small></span>
         <button class="chip" onclick={() => { onclose(); window.dispatchEvent(new Event("nimbus:start-tour")); }}>Replay tour</button>
-      </label>
-      <label class="row">
-        Show welcome tutorial on open
-        <input
-          type="checkbox"
-          checked={settings.showTutorial}
-          onchange={(e) => { settings.showTutorial = e.currentTarget.checked; settings.save(); }}
-        />
       </label>
     </section>
     {/if}
