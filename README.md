@@ -130,8 +130,8 @@ are done. Nimbus tells you what changed the first time you open a new version.
 
 **Power tools**
 - **Excel-style ribbon** — font, size, bold/italic, ink color, rows, debate
-  marks, view. Two densities (full width, or condensed for splitscreen) that
-  resize themselves to the space available instead of scrolling
+  marks, view. Three styles (Traditional, Simple, Retro) and two densities that
+  resize themselves to the space available - never cut off, never scrolling
 - **Answer this argument** (`Ctrl+Shift+G`) — jumps to your reply in the next
   opposing speech and records the link, so the speech doc gets "AT: *that*
   argument" instead of guessing
@@ -158,8 +158,9 @@ are done. Nimbus tells you what changed the first time you open a new version.
 - Correctly imports Verbatim-exported `.xlsx` files (handles blank leading rows)
 
 **Tournaments = real folders**
-- A tournament is an actual folder on your computer. Create one and Nimbus makes
-  the folder; **link** any existing folder to use it as a tournament
+- A tournament is an actual folder on your computer. Create one by naming it
+  and picking (or making) its folder anywhere - Dropbox is fine; **link** any
+  existing folder to use it as a tournament
 - Flows live inside as files; **drag a flow between tournaments** to move the
   file on disk — organize in Nimbus or in Finder/Explorer, it's the same files
 

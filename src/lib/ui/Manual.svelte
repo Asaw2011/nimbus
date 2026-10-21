@@ -610,6 +610,10 @@
             shows up under it.
           </p>
           <ul>
+            <li><b>+ New tournament</b>: type the name you want to see in Nimbus, press <b>Create</b>, then pick the folder its flows go in (or make one with <b>New folder</b> in the picker). The name is only a label - renaming it never touches the folder.</li>
+            <li>If a tournament's folder has a <b>flows</b> folder inside, new flows save straight into it, and <b>Save As</b> opens in the folder a flow already lives in.</li>
+            <li>Renamed or moved a folder? The tournament says <b>Folder not found</b> - click <b>Find it…</b> and pick it again. The folder button opens it in File Explorer / Finder.</li>
+            <li><b>Unlink</b> only hides a tournament from Nimbus; nothing is deleted, and it stays hidden.</li>
             <li>A flow that exists in more than one place collapses to a single row with an <b>N copies</b> badge; hover it to see the other paths. Nothing is deleted or hidden without a trace.</li>
             <li>Tournaments start collapsed; one you make during a session stays open.</li>
             <li><b>Reorder them</b> by dragging the <b>⠿</b> handle at the left of a folder, or by focusing it and pressing <kbd>↑</kbd> / <kbd>↓</kbd>. The order is saved.</li>
@@ -620,9 +624,10 @@
         <section id="sec-toolbar">
           <h2>The toolbar &amp; top bar</h2>
           <ul>
-            <li>The <b>top bar</b> carries the panels - speech doc, quick cards, timer, arguments, partner flow, manual, settings. <b>⤡</b> condenses it to icons when you want the vertical room; it does that on its own in a narrow window.</li>
-            <li>The <b>ribbon</b> below it has two densities - full and condensed - cycled by the <b>⇥⇤</b> button on its right. Both are the same height, so switching never shifts the grid.</li>
-            <li>It resizes itself to fit whatever room it has, including when the speech doc is open beside it. The prep clocks stay pinned to the right so they're always reachable.</li>
+            <li>The <b>top bar</b> carries the panels - speech doc, quick cards, timer, arguments, partner flow, manual, settings. <b>⤡</b> condenses it to icons when you want the vertical room. It keeps its words while they fit, switches to icons when they don't, and only as a last resort starts a second row - nothing is ever cut off.</li>
+            <li>Pick the <b>toolbar style</b> in <b>Settings → Appearance</b>: <b>Traditional</b> (icons), <b>Simple</b> (word buttons) or <b>Retro</b> (icons, classic Windows look).</li>
+            <li>The <b>ribbon</b> has two densities - full and condensed - switched by the button on its right.</li>
+            <li>It resizes itself to fit whatever room it has, including when the speech doc is open beside it, and wraps onto a second row rather than cutting buttons off. The prep clocks stay pinned to the right so they're always reachable.</li>
             <li>In the condensed ribbon the text-size and zoom readouts are hidden - zoom keeps its shortcuts and pinch, and text size is in Settings.</li>
           </ul>
         </section>

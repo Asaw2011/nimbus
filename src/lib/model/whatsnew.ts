@@ -24,6 +24,18 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.3",
+    headline: "Pick your toolbar style, nothing gets cut off, and tournament folders that make sense.",
+    items: [
+      "**Choose your toolbar.** Settings → Appearance → Toolbar style: **Traditional** (the icon bar), **Simple** (word buttons) or **Retro** (icons with a classic Windows look).",
+      "**Nothing gets cut off.** On a smaller or scaled screen the toolbar and the top bar no longer chop off buttons at the right edge. They shrink to fit, switch to icons only when the words don't fit, and use a second row only as a last resort.",
+      "**New tournament, your way.** Type the name you want to see, press Create, then pick the folder its flows go in - anywhere, like your Dropbox tournament folder. The name is just a label, so renaming either one never breaks the other.",
+      "**Folders that stay put.** A tournament whose folder was renamed or moved now says \"Folder not found\" with a Find it… button instead of silently disappearing. Unlinked tournaments stay unlinked. A new folder button opens a tournament in File Explorer / Finder.",
+      "**Flows folder.** If a tournament's folder has a \"flows\" folder inside, new flows save straight into it, and Save As opens in the folder the flow is already in.",
+      "**Smart suggestions for the page you're on.** On the Midterms DA page you only see answers for Midterms DA. The 2AC lists still cover every page.",
+    ],
+  },
+  {
     version: "1.6.2",
     headline: "One hands-on guided tour, built around pulling blocks with ⌘K.",
     items: [
