@@ -271,7 +271,7 @@
 
       // Discover tournament folders inside tournaments/ (empty ones included).
       for (const s of await tournaments.subdirs(homeTournamentsDir)) {
-        tournaments.addLibrary(s.name, s.path);
+        tournaments.discover(s.name, s.path);
       }
 
       // Seed a couple of examples only on a truly fresh install (nothing on disk).

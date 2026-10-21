@@ -62,14 +62,27 @@ export function safeFileName(name: string): string {
 export const FLOWS_SUB = "flows";
 
 const LAST_PARENT_KEY = "nimbus.lastTourneyParent";
+const UNLINKED_BLOB = "tournaments-unlinked";
+
+/** Paths compare case- and slash-insensitively (Windows / macOS). */
+function pathKey(p: string): string {
+  return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
 
 class TournamentStore {
   list = $state<Tournament[]>(loadBlobCached<Tournament[]>(BLOB) ?? []);
   /** Ids whose folder wasn't there at startup - renamed, moved, or a Dropbox
    *  folder not synced yet. Shown with "Find it…", never dropped. */
   missing = $state<string[]>([]);
+  /** Folders you unlinked. Startup discovery (the folders inside
+   *  Documents\Nimbus\tournaments) skips these - it used to re-add an
+   *  unlinked folder on every launch, so an empty duplicate "04---St Marks"
+   *  kept coming back (Adam). Linking the folder yourself clears it. */
+  private unlinked = new Set<string>(loadBlobCached<string[]>(UNLINKED_BLOB) ?? []);
 
   async init(): Promise<void> {
+    const gone = await loadBlob<string[]>(UNLINKED_BLOB);
+    if (gone) for (const p of gone) this.unlinked.add(p);
     const disk = await loadBlob<Tournament[]>(BLOB);
     if (disk) {
       // ⚠ A missing folder is KEPT, not dropped. Dropping it meant renaming the
@@ -110,6 +123,10 @@ class TournamentStore {
       }
     }
     return t.path;
+  }
+
+  private persistUnlinked(): void {
+    saveBlob(UNLINKED_BLOB, [...this.unlinked]);
   }
 
   private persist(): void {
@@ -181,6 +198,13 @@ class TournamentStore {
     return this.add(name, path);
   }
 
+  /** A folder found inside Documents\Nimbus\tournaments at startup: added
+   *  unless you unlinked it before. Null when skipped. */
+  discover(name: string, path: string): Tournament | null {
+    if (this.unlinked.has(pathKey(path))) return null;
+    return this.add(name, path);
+  }
+
   /** Immediate sub-folders of a directory. Used to discover tournament folders
    *  that live inside the home library's `tournaments/` folder - empty ones
    *  included, which a flow listing can't see. */
@@ -204,6 +228,8 @@ class TournamentStore {
   }
 
   private add(name: string, path: string): Tournament {
+    // Adding a folder on purpose undoes an earlier unlink of it.
+    if (this.unlinked.delete(pathKey(path))) this.persistUnlinked();
     const existing = this.list.find((t) => t.path === path);
     if (existing) return existing;
     const t: Tournament = { id: uid(), name, path };
@@ -242,6 +268,11 @@ class TournamentStore {
 
   /** Unlink from Nimbus (does NOT delete the folder or its files). */
   unlink(id: string): void {
+    const t = this.list.find((x) => x.id === id);
+    if (t) {
+      this.unlinked.add(pathKey(t.path));
+      this.persistUnlinked();
+    }
     this.list = this.list.filter((t) => t.id !== id);
     this.missing = this.missing.filter((x) => x !== id);
     this.persist();

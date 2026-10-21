@@ -214,6 +214,45 @@
   }
 
   let showDocSearch = $state(false);
+  // ---- top bar fit: words → icons → second row, by measurement ----
+  // Widths the bar NEEDED in each mode, remembered when it overflowed, so it
+  // steps back up only once there's room again (no flip-flopping).
+  let topbarEl = $state<HTMLDivElement | null>(null);
+  let topFit = $state<"full" | "icons" | "wrap">("full");
+  let needFull = 0;
+  let needIcons = 0;
+  function fitTopbar() {
+    const el = topbarEl;
+    if (!el) return;
+    const room = el.clientWidth;
+    const over = el.scrollWidth > room + 1;
+    if (topFit === "full") {
+      if (over) { needFull = el.scrollWidth; topFit = "icons"; }
+    } else if (topFit === "icons") {
+      if (over) { needIcons = el.scrollWidth; topFit = "wrap"; }
+      else if (room >= needFull) topFit = "full";
+    } else {
+      if (room >= needFull) topFit = "full";
+      else if (room >= needIcons) topFit = "icons";
+    }
+  }
+  $effect(() => {
+    const el = topbarEl;
+    if (!el) return;
+    // A timer, not requestAnimationFrame: rAF is paused while the window isn't
+    // drawing, and the bar must still be right the moment it is.
+    let raf = 0;
+    const kick = () => { clearTimeout(raf); raf = window.setTimeout(fitTopbar, 30); };
+    // The bar itself (window / doc pane resizes) and every button in it (a
+    // label that appears, e.g. "Partner · not connected").
+    const ro = new ResizeObserver(kick);
+    const watch = () => { ro.disconnect(); ro.observe(el); for (const c of el.children) ro.observe(c); };
+    watch();
+    const mo = new MutationObserver(() => { watch(); kick(); });
+    mo.observe(el, { childList: true });
+    return () => { clearTimeout(raf); ro.disconnect(); mo.disconnect(); };
+  });
+
   let docOpen = $state(false);
   // Docked width is user-resizable and remembered across sessions. Can go
   // narrow (240px) so the doc doesn't crowd the flow.
@@ -1542,7 +1581,7 @@
     ondragover={draggingTab ? trackDrag : undefined}
     ondrop={draggingTab ? dropTab : undefined}
   >
-    <div class="topbar" class:compact={settings.compactTopBar}>
+    <div class="topbar" class:compact={settings.compactTopBar} class:icons={topFit !== "full"} class:wrap={topFit === "wrap"} bind:this={topbarEl}>
       <button class="back" onclick={onexit} title="Back to rounds">←</button>
       {#if !settings.compactTopBar}
         <span class="round-name">{round.name}</span>
@@ -1922,22 +1961,19 @@
   }
   .topbar {
     display: flex;
-    /* ⚠ Never clips (Adam): on a smaller or scaled screen "How do I…" ran off
-       the right edge. Words drop first (below), then it wraps. */
-    flex-wrap: wrap;
     align-items: center;
     gap: 4px 10px;
     padding: 6px 10px;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
-    container-type: inline-size;
-    container-name: topbar;
   }
-  .topbar .round-name { max-width: 26cqw; }
-  .topbar .meta { max-width: 18cqw; }
-  @container topbar (max-width: 1500px) {
-    .topbar .btn-lbl, .topbar .send-to-label { display: none; }
-  }
+  /* ⚠ Never clips (Adam): on a smaller or scaled screen "How do I…" ran off
+     the right edge. `topFit` (FlowView script) keeps the words while they
+     fit, drops to icons only when they don't, and wraps only if even the
+     icons don't fit. Measured, not a fixed width - a fixed breakpoint hid the
+     words on screens that had room for them. */
+  .topbar.icons .btn-lbl, .topbar.icons .send-to-label { display: none; }
+  .topbar.wrap { flex-wrap: wrap; }
   /* Compact: no round-name/meta, tighter padding + smaller controls, so the
      bar shrinks to just the buttons and gives the flow more vertical room. */
   .topbar.compact {
