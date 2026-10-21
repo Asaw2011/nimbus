@@ -7,6 +7,7 @@
   import CxGrid from "./CxGrid.svelte";
   import Icon from "./Icon.svelte";
   import Ribbon from "./Ribbon.svelte";
+  import RibbonClassic from "./RibbonClassic.svelte";
   import RoundHome from "./RoundHome.svelte";
   import SpreadView from "./SpreadView.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
@@ -1682,7 +1683,10 @@
                spanning the whole window - so with the doc open it locks over the
                flow only and the doc gets its own full-height column beside it. -->
           {#if !atHome}
-            <Ribbon
+            <!-- Settings → Appearance → Toolbar: Traditional / Retro (the icon
+                 bar, retro is a skin on it) or Simple (word buttons). -->
+            {@const Bar = settings.toolbarStyle === "simple" ? Ribbon : RibbonClassic}
+            <Bar
               {spreadMode}
               onspread={setSpread}
               onsendspeech={sendSpeechToDoc}
@@ -1918,11 +1922,21 @@
   }
   .topbar {
     display: flex;
+    /* ⚠ Never clips (Adam): on a smaller or scaled screen "How do I…" ran off
+       the right edge. Words drop first (below), then it wraps. */
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 4px 10px;
     padding: 6px 10px;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
+    container-type: inline-size;
+    container-name: topbar;
+  }
+  .topbar .round-name { max-width: 26cqw; }
+  .topbar .meta { max-width: 18cqw; }
+  @container topbar (max-width: 1500px) {
+    .topbar .btn-lbl, .topbar .send-to-label { display: none; }
   }
   /* Compact: no round-name/meta, tighter padding + smaller controls, so the
      bar shrinks to just the buttons and gives the flow more vertical room. */

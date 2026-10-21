@@ -562,6 +562,23 @@
         </select>
       </label>
       <label class="row">
+        <span>Toolbar style<br /><small class="sub">Traditional: icons. Simple: words. Retro: icons, classic Windows look.</small></span>
+        <div class="seg">
+          <button
+            class:on={settings.toolbarStyle === "traditional"}
+            onclick={() => { settings.toolbarStyle = "traditional"; settings.save(); }}
+          >Traditional</button>
+          <button
+            class:on={settings.toolbarStyle === "simple"}
+            onclick={() => { settings.toolbarStyle = "simple"; settings.save(); }}
+          >Simple</button>
+          <button
+            class:on={settings.toolbarStyle === "retro"}
+            onclick={() => { settings.toolbarStyle = "retro"; settings.save(); }}
+          >Retro</button>
+        </div>
+      </label>
+      <label class="row">
         <span>Compact doc chrome<br /><small class="sub">Tighter speech-doc toolbar + outline, so the document gets more room</small></span>
         <input
           type="checkbox"

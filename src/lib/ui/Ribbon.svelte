@@ -298,27 +298,34 @@
 <style>
   .ribbon-wrap {
     flex-shrink: 0;
+    container-type: inline-size;
+    container-name: simplebar;
   }
+  /* ⚠ NEVER CLIPS (Adam). It used to be one row with `overflow: hidden`, and
+     on a smaller screen the right-hand buttons were cut off where nobody could
+     reach them. Now the bar spreads its buttons across the whole width, and
+     when they truly don't fit they WRAP onto a second row. */
   .ribbon {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 48px;
+    min-height: 48px;
     box-sizing: border-box;
-    padding: 0 8px;
+    padding: 4px 8px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
   }
-  /* One row, no wrap, no scrollbar. Clusters separated by a thin divider + a
-     gap, not boxes. If a pane gets too narrow for everything, use Compact. */
+  /* Buttons take every pixel left of the clocks and spread across it; the
+     size steps at the bottom shrink them as the bar narrows, and only past
+     the last step do they wrap. */
   .ribbon-buttons {
-    flex: 0 1 auto;
+    flex: 1 1 0;
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    justify-content: space-between;
     align-items: center;
-    gap: 6px;
+    gap: 4px 4px;
     min-width: 0;
-    overflow: hidden;
   }
   .rgroup {
     display: flex;
@@ -364,7 +371,7 @@
 
   /* Compact: smaller buttons + tighter gaps, and the two wide readouts drop out
      (zoom keeps its keybinds + pinch; text size lives in Settings). */
-  .ribbon.compact { height: 38px; padding: 0 6px; gap: 6px; }
+  .ribbon.compact { min-height: 38px; padding: 3px 6px; gap: 3px 6px; }
   .ribbon.compact .rb { height: 26px; min-width: 28px; padding: 0 8px; font-size: 11px; }
   .ribbon.compact .ribbon-buttons { gap: 2px; }
   .ribbon.compact .rgroup { gap: 2px; }
@@ -479,6 +486,7 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+    flex-wrap: wrap;
     margin-left: auto;
     padding-left: 8px;
     border-left: 1px solid var(--border);
@@ -548,4 +556,25 @@
   .prep-go:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .prep-go:disabled { opacity: 0.4; cursor: default; }
   .density-toggle { color: var(--text-dim); }
+
+  /* ---- size steps (last, so they win; repeated at .compact specificity since
+     a container query adds none). Shrink before anything wraps. ---- */
+  @container simplebar (max-width: 1500px) {
+    .ribbon .rb, .ribbon.compact .rb { padding: 0 7px; font-size: 12.5px; }
+    .ribbon .toolbar-sep, .ribbon.compact .toolbar-sep { margin: 0 1px; }
+  }
+  @container simplebar (max-width: 1250px) {
+    .ribbon .rb, .ribbon.compact .rb { height: 27px; min-width: 26px; padding: 0 5px; font-size: 12px; }
+    .ribbon .stepper, .ribbon .zoom-ctl { display: none; }
+    .ribbon .toolbar-sep, .ribbon.compact .toolbar-sep { display: none; }
+    .ribbon .prep-tag { display: none; }
+  }
+  @container simplebar (max-width: 950px) {
+    .ribbon .rb, .ribbon.compact .rb { height: 25px; min-width: 22px; padding: 0 4px; font-size: 11px; }
+    .ribbon .rgroup, .ribbon.compact .rgroup { gap: 2px; }
+    .ribbon, .ribbon.compact { padding: 3px 4px; gap: 4px; }
+  }
+  @container simplebar (max-width: 720px) {
+    .ribbon .rb, .ribbon.compact .rb { height: 23px; min-width: 20px; padding: 0 3px; font-size: 10px; border-radius: 4px; }
+  }
 </style>

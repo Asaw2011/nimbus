@@ -132,6 +132,9 @@ export interface Persisted {
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
+  /** Toolbar look: "traditional" (the icon bar), "simple" (word buttons), or
+   *  "retro" (the icon bar in a classic-Windows skin). */
+  toolbarStyle: ToolbarStyle;
   /** Minutes of prep each team starts a round with (policy, and any format
    *  that isn't LD or PF). */
   prepMinutes: number;
@@ -348,6 +351,7 @@ export function clampPrepMinutes(n: number): number {
  * difference is scale and spacing, so switching never moves the grid.
  */
 export type RibbonMode = "full" | "compact";
+export type ToolbarStyle = "traditional" | "simple" | "retro";
 
 /** Anything that isn't "full" - including the retired "icons"/"slim" - is
  *  compact. Keeps an old save's intent instead of resetting it to full. */
@@ -395,6 +399,7 @@ class Settings {
   answerNumbers = $state(false);
   answerNumbersTipSeen = $state(false);
   ribbonMode = $state<RibbonMode>("full");
+  toolbarStyle = $state<ToolbarStyle>("traditional");
   /** Prep each team gets, in minutes. Policy is 8; LD/PF are shorter, so it is
    *  a setting rather than a constant. Editable per round from the ribbon. */
   prepMinutes = $state(8);
@@ -572,6 +577,9 @@ class Settings {
     // splitscreen - so both retired names load as "compact" rather than falling
     // back to "full" and silently undoing someone's choice.
     if (p.ribbonMode) this.ribbonMode = normalizeRibbonMode(p.ribbonMode);
+    if (p.toolbarStyle === "traditional" || p.toolbarStyle === "simple" || p.toolbarStyle === "retro") {
+      this.toolbarStyle = p.toolbarStyle;
+    }
     // Back-compat: an older save had a boolean compactRibbon (= icons-only).
     else if ((p as { compactRibbon?: boolean }).compactRibbon) this.ribbonMode = "compact";
     if (typeof p.prepMinutes === "number") this.prepMinutes = clampPrepMinutes(p.prepMinutes);
@@ -719,6 +727,7 @@ class Settings {
       answerNumbers: this.answerNumbers,
       answerNumbersTipSeen: this.answerNumbersTipSeen,
       ribbonMode: this.ribbonMode,
+      toolbarStyle: this.toolbarStyle,
       prepMinutes: this.prepMinutes,
       prepMinutesLd: this.prepMinutesLd,
       prepMinutesPf: this.prepMinutesPf,

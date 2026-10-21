@@ -89,6 +89,7 @@
     void smartKit.dismissed;
     void settings.smartStarters;
     void smartKit.speechMode;
+    void store.activeSheetId;
     const t = setTimeout(() => untrack(recompute), 250);
     return () => clearTimeout(t);
   });
@@ -120,7 +121,11 @@
     // argument stays in the list (marked, and placed in that row); the
     // per-argument cards drop it, so each block shows exactly once.
     starters = smartKit.starters(round, store.laneHere, settings.smartStarters && ans !== "1AR", smartKit.claimedBy(next));
-    const shown = smartKit.withoutListed(next, starters);
+    // Suggestions are for the page you're ON (Adam): on the Midterms DA page,
+    // only Midterms DA answers. Worked out across the round first, so the 2AC
+    // lists above (which do span pages) still know what each argument claimed.
+    const here = store.activeSheetId;
+    const shown = smartKit.withoutListed(next, starters).filter((s) => s.sheetId === here);
     for (const s of shown) if (!firstSeen.has(s.key)) firstSeen.set(s.key, now);
     list = shown.sort((a, b) => (firstSeen.get(b.key) ?? 0) - (firstSeen.get(a.key) ?? 0));
   }
