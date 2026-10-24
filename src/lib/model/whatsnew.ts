@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.4",
+    headline: "Starred arguments follow you to every page.",
+    items: [
+      "**Stars show up on your other pages.** Star something on one flow and it sits in a gold strip by the tabs while you're on any other page, so a must-answer never slips. Click it to jump straight to that cell, or × to unstar once you've got it. Hide the strip with its ▾.",
+    ],
+  },
+  {
     version: "1.6.3",
     headline: "Pick your toolbar style, nothing gets cut off, and tournament folders that make sense.",
     items: [

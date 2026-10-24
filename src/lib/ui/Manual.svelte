@@ -142,7 +142,7 @@
           </p>
           <ul>
             <li><b>Dropped</b> (<kbd>{combosLabel(km.markDropped, mac)}</kbd>) - a conceded argument.</li>
-            <li><b>Star</b> (<kbd>{combosLabel(km.markStarred, mac)}</kbd>) - must-answer.</li>
+            <li><b>Star</b> (<kbd>{combosLabel(km.markStarred, mac)}</kbd>) - must-answer. Stars on your other pages show in a gold strip by the tabs; click one to jump to it, × to unstar.</li>
             <li><b>Analytic</b> (<kbd>{combosLabel(km.markAnalytic, mac)}</kbd>) - green ink, your own analysis.</li>
             <li><b>Card</b> (<kbd>{combosLabel(km.markCard, mac)}</kbd>) - evidence, purple ink.</li>
             <li><b>Extend</b> (<kbd>{combosLabel(km.extendArg, mac)}</kbd>) - draws an arrow carrying the argument to the next same-side speech.</li>

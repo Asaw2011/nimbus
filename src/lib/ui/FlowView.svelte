@@ -12,6 +12,7 @@
   import SpreadView from "./SpreadView.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
   import DocSearch from "$lib/search/DocSearch.svelte";
+  import StarredStrip from "./StarredStrip.svelte";
   import SpeechDoc from "$lib/doc/SpeechDoc.svelte";
   import { docBridge } from "$lib/doc/docBridge.svelte";
   import { docsStore, setDocFlush } from "$lib/doc/docs.svelte";
@@ -1297,6 +1298,11 @@
     spreadMode = "off";
   }
 
+  function jumpToStar(sheetId: string, row: number, col: number) {
+    openSheet(sheetId);
+    store.cursor = { row, col };
+  }
+
   function setSpread(mode: "vertical" | "horizontal") {
     spreadMode = spreadMode === mode ? "off" : mode;
     if (spreadMode !== "off") {
@@ -1514,6 +1520,9 @@
 <svelte:window onkeydown={onkeydown} />
 
 {#snippet tabs()}
+  {#if settings.tabsPosition === "bottom"}
+    <StarredStrip hereId={atHome ? null : store.activeSheetId} bottom onjump={jumpToStar} />
+  {/if}
   <div class="tabs" data-tour="tabs" class:bottom={settings.tabsPosition === "bottom"} role="tablist">
     <button class="tab home-tab" class:active={atHome} onclick={() => (atHome = true)}>
       ⌂ Home
@@ -1570,6 +1579,9 @@
     {/each}
     <button class="tab new" onclick={openNewSheet} title="New sheet ({combosLabel(km.newSheet, mac)})">+</button>
   </div>
+  {#if settings.tabsPosition !== "bottom"}
+    <StarredStrip hereId={atHome ? null : store.activeSheetId} onjump={jumpToStar} />
+  {/if}
 {/snippet}
 
 {#if round}
