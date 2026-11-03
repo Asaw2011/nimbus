@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.5",
+    headline: "Send cards straight into Falcon, and the Simple toolbar is the default.",
+    items: [
+      "**Send to Falcon.** Send to (top bar) now picks between your **Speech doc**, **CardMirror** and **Falcon**. Cards go straight into Falcon's speech doc with the highlighting, cites and structure, and it doesn't steal your focus. The first time, Falcon asks you to Allow Nimbus - click it and that card lands. Needs a Falcon with linked apps; if Falcon isn't open, the card is copied so you can ⌘V it.",
+      "**Pick where cards go from the Send menu too.** The toolbar's Send ▾ menu has the same Speech doc / CardMirror / Falcon choice.",
+      "**Clearer send messages.** If the doc you're sending to is in read mode, or the app has Nimbus blocked, Nimbus says so. The very first CardMirror send now tells you it's waiting for your OK instead of saying no doc is open.",
+      "**Simple toolbar by default.** The word-button toolbar is now the default and listed first in Settings → Appearance → Toolbar style. Everyone moves to it once with this update; switch back to Traditional or Retro there anytime and it sticks.",
+    ],
+  },
+  {
     version: "1.6.4",
     headline: "Starred arguments follow you to every page.",
     items: [
