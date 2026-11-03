@@ -540,17 +540,18 @@
             <li>Sending the column (<kbd>{combosLabel(km.sendRowToDoc, mac)}</kbd>) puts your answers in <b>number order</b>, each under its number and a <b>[xxx]</b> line with what they said, then what's under your block - however you inserted them. These sends add to the end of the doc.</li>
             <li>Only your own answers are numbered - never the other team's columns, so it doesn't matter how you and your partner flowed them.</li>
           </ul>
-          <h3>Sending to CardMirror instead</h3>
+          <h3>Sending to CardMirror or Falcon instead</h3>
           <p>
-            <b>Send to</b> in the top bar chooses between Nimbus's own speech doc
-            and <b>CardMirror Desktop</b>. Cards go straight across - highlighting,
+            <b>Send to</b> in the top bar chooses between Nimbus's own speech doc,
+            <b>CardMirror Desktop</b> and <b>Falcon</b>. Cards go straight across - highlighting,
             cites, images and structure all survive, and it doesn't steal your
             focus mid-round.
           </p>
           <ul>
             <li>Needs <b>CardMirror 1.5.0 or newer</b> running. <b>There is no plugin to install</b> - earlier versions of Nimbus needed one and no longer do.</li>
             <li>The dropdown beside it picks which CardMirror document receives sends; leave it on <b>Auto</b> to use whichever one CardMirror has starred as the speech doc.</li>
-            <li>If CardMirror isn't running, the card goes to your <b>clipboard</b> instead so nothing is lost - paste it wherever you meant it to go.</li>
+            <li><b>Falcon</b> just needs to be open. The first time, Falcon asks whether to let Nimbus in - click <b>Allow</b> and that card lands; you can change it later in Falcon's Settings → General → Linked apps.</li>
+            <li>If CardMirror or Falcon isn't running, the card goes to your <b>clipboard</b> instead so nothing is lost - paste it wherever you meant it to go.</li>
           </ul>
         </section>
 

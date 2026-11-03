@@ -236,9 +236,9 @@ export const HOWTOS: HowTo[] = [
   },
   {
     id: "cardmirror",
-    title: "Send cards to CardMirror",
-    words: "cardmirror card mirror send desktop app external doc",
-    body: "Switch Send to (top bar) from Doc to CardMirror, and sends go straight into CardMirror Desktop (1.5.0 or newer) with all the formatting - no plugin needed. If CardMirror isn't open, the card is copied to your clipboard instead.",
+    title: "Send cards to CardMirror or Falcon",
+    words: "cardmirror card mirror falcon send desktop app external doc",
+    body: "Switch Send to (top bar) from Doc to CardMirror or Falcon, and sends go straight into that app with all the formatting - no plugin needed (CardMirror needs 1.5.0 or newer). The first time, Falcon asks you to Allow Nimbus. If the app isn't open, the card is copied to your clipboard instead.",
     manual: "senddoc",
   },
   {

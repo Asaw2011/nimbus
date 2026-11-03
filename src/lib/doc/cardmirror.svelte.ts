@@ -2,6 +2,10 @@
 // Rust `cm_*` commands (src-tauri/src/cmbridge.rs). All shapes mirror
 // reference-docs/cardmirror-plugin-api.md. Outside Tauri (plain web build) it's
 // inert so the app still runs - the built-in SpeechDoc stays the fallback there.
+//
+// Falcon serves the same bridge with the same answers, so one class covers both:
+// `cardmirror` and `falcon` below differ only in which session file the Rust
+// side reads (the `editor` argument).
 
 function inTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -56,8 +60,18 @@ export interface CmInsertResp {
   error?: string;
 }
 
+/** The editors Nimbus can send cards into over the bridge. */
+export type EditorId = "cardmirror" | "falcon";
+
 class CardMirror {
-  /** CardMirror Desktop is reachable (session file present + ping ok). */
+  constructor(
+    /** Which editor's session file the Rust side reads. */
+    readonly id: EditorId,
+    /** What messages call it ("Sent to Falcon"). */
+    readonly label: string,
+  ) {}
+
+  /** The editor is reachable (session file present + ping ok). */
   running = $state(false);
   appVersion = $state<string | null>(null);
   /** Last request came back `pending:"consent"` - user must approve "nimbus" in
@@ -107,7 +121,7 @@ class CardMirror {
       return false;
     }
     try {
-      const r = await invoke<PingResp>("cm_ping");
+      const r = await invoke<PingResp>("cm_ping", { editor: this.id });
       this.running = !!r.ok;
       this.appVersion = r.appVersion ?? null;
       if (!r.ok) this.lastError = r.error ?? null;
@@ -122,7 +136,7 @@ class CardMirror {
   async refreshDocs(): Promise<void> {
     if (!inTauri()) return;
     try {
-      const r = await invoke<DocsResp>("cm_list_docs");
+      const r = await invoke<DocsResp>("cm_list_docs", { editor: this.id });
       if (r.pending === "consent") {
         this.needsConsent = true;
         this.docs = [];
@@ -153,7 +167,7 @@ class CardMirror {
     if (!html) return { ok: true, inserted: false };
     if (!target) return { ok: false, error: "no-target" };
     try {
-      const r = await invoke<CmInsertResp>("cm_insert_html", { target, html, text });
+      const r = await invoke<CmInsertResp>("cm_insert_html", { target, html, text, editor: this.id });
       this.needsConsent = r.pending === "consent";
       if (r.ok === false) this.lastError = r.error ?? null;
       return r;
@@ -176,6 +190,7 @@ class CardMirror {
       const r = await invoke<CmInsertResp>("cm_insert", {
         items,
         target: target ?? null,
+        editor: this.id,
       });
       this.needsConsent = r.pending === "consent";
       if (r.ok === false) this.lastError = r.error ?? null;
@@ -190,7 +205,7 @@ class CardMirror {
   async jump(source: string): Promise<boolean> {
     if (!inTauri() || !source) return false;
     try {
-      const r = await invoke<{ ok: boolean }>("cm_jump", { source });
+      const r = await invoke<{ ok: boolean }>("cm_jump", { source, editor: this.id });
       return !!r.ok;
     } catch {
       return false;
@@ -206,4 +221,7 @@ class CardMirror {
   }
 }
 
-export const cardmirror = new CardMirror();
+export const cardmirror = new CardMirror("cardmirror", "CardMirror");
+export const falcon = new CardMirror("falcon", "Falcon");
+/** The bridge for a Send to setting, or null for the built-in doc. */
+export const editorFor = (target: string): CardMirror | null => (target === "falcon" ? falcon : target === "cardmirror" ? cardmirror : null);

@@ -153,6 +153,8 @@ export interface CmSendResult {
 export async function sendOpsToCardMirror(
   ops: CmDocOp[],
   target?: string | null,
+  // Falcon takes the same HTML over the same bridge
+  editor = cardmirror,
 ): Promise<CmSendResult> {
   const { html, text } = opsToCmClipboard(ops);
   if (!html) return { html: "", resp: null };
@@ -160,6 +162,6 @@ export async function sendOpsToCardMirror(
   // below, so it must be primed before any of them can happen.
   void copyHtml(html, text);
   if (!inTauri() || !target) return { html, resp: null };
-  const resp = await cardmirror.insertHtml(html, text, target);
+  const resp = await editor.insertHtml(html, text, target);
   return { html, resp };
 }
