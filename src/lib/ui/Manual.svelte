@@ -626,7 +626,7 @@
           <h2>The toolbar &amp; top bar</h2>
           <ul>
             <li>The <b>top bar</b> carries the panels - speech doc, quick cards, timer, arguments, partner flow, manual, settings. <b>⤡</b> condenses it to icons when you want the vertical room. It keeps its words while they fit, switches to icons when they don't, and only as a last resort starts a second row - nothing is ever cut off.</li>
-            <li>Pick the <b>toolbar style</b> in <b>Settings → Appearance</b>: <b>Traditional</b> (icons), <b>Simple</b> (word buttons) or <b>Retro</b> (icons, classic Windows look).</li>
+            <li>Pick the <b>toolbar style</b> in <b>Settings → Appearance</b>: <b>Simple</b> (word buttons, the default), <b>Traditional</b> (icons) or <b>Retro</b> (icons, classic Windows look).</li>
             <li>The <b>ribbon</b> has two densities - full and condensed - switched by the button on its right.</li>
             <li>It resizes itself to fit whatever room it has, including when the speech doc is open beside it, and wraps onto a second row rather than cutting buttons off. The prep clocks stay pinned to the right so they're always reachable.</li>
             <li>In the condensed ribbon the text-size and zoom readouts are hidden - zoom keeps its shortcuts and pinch, and text size is in Settings.</li>

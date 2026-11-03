@@ -562,16 +562,16 @@
         </select>
       </label>
       <label class="row">
-        <span>Toolbar style<br /><small class="sub">Traditional: icons. Simple: words. Retro: icons, classic Windows look.</small></span>
+        <span>Toolbar style<br /><small class="sub">Simple: words. Traditional: icons. Retro: icons, classic Windows look.</small></span>
         <div class="seg">
-          <button
-            class:on={settings.toolbarStyle === "traditional"}
-            onclick={() => { settings.toolbarStyle = "traditional"; settings.save(); }}
-          >Traditional</button>
           <button
             class:on={settings.toolbarStyle === "simple"}
             onclick={() => { settings.toolbarStyle = "simple"; settings.save(); }}
           >Simple</button>
+          <button
+            class:on={settings.toolbarStyle === "traditional"}
+            onclick={() => { settings.toolbarStyle = "traditional"; settings.save(); }}
+          >Traditional</button>
           <button
             class:on={settings.toolbarStyle === "retro"}
             onclick={() => { settings.toolbarStyle = "retro"; settings.save(); }}
