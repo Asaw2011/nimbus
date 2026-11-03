@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fileIndex, readLibBytes, relativeTime, type LibFile } from "./file-index.svelte";
+  import MarkIcon from "./MarkIcon.svelte";
   import { contentIndex } from "./content-index.svelte";
   import { nodeChip, type DocNode } from "$lib/docx/parse";
   import { parseSpeechDoc, readCmirDoc, cmirTopLevel } from "$lib/docx/cmir";
@@ -175,7 +176,9 @@
   }
 
   // ── file list ──────────────────────────────────────────────────
-  const fileResults = $derived(uniqueByPath(fileIndex.search(query, 200), (f) => f.path));
+  // pinned files first (always), starred ones first when they match, their copies in other folders hidden
+  const fileMarked = $derived(uniqueByPath(fileIndex.searchMarked(query, 200), (m) => m.file.path));
+  const fileResults = $derived(fileMarked.map((m) => m.file));
 
   // ── content results (by-content search) ────────────────────────
   // Reference contentIndex.version so this recomputes as the index builds.
@@ -639,12 +642,18 @@
       {:else if fileResults.length === 0}
         <div class="ds-msg">No files match "{query}"</div>
       {:else}
-        {#each fileResults as file, i (file.path)}
+        {#each fileMarked as m, i (m.file.path)}
+          {@const file = m.file}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <div class="ds-file" class:sel={i === selectedIdx}
             onclick={() => { selectedIdx = i; void diveInto(file); }}
             onmouseenter={() => (selectedIdx = i)}>
+            {#if m.pinned || m.starred}
+              <!-- marked in Settings → Search Library; here they only show -->
+              <span class="ds-mark" title={m.pinned ? "Pinned in Settings → Search Library" : "Starred in Settings → Search Library"}><MarkIcon kind={m.pinned ? "pin" : "star"} /></span>
+            {/if}
             <span class="ds-filename">{file.name}</span>
+            {#if m.hidden}<span class="ds-filemeta">{m.hidden} more hidden</span>{/if}
             <span class="ds-filemeta">{relativeTime(file.mtime)}</span>
             <span class="ds-tab">Tab ›</span>
           </div>
@@ -786,6 +795,7 @@
   .ds-file { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; }
   .ds-file.sel { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
   .ds-file:hover:not(.sel) { background: color-mix(in srgb, var(--text) 5%, var(--panel)); }
+  .ds-mark { display: grid; place-items: center; color: #e2b33c; margin-right: -2px; }
   .ds-filename { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-filemeta { font-size: 11px; color: var(--text-dim); }
   .ds-tab { font-size: 11px; color: var(--text-dim); }

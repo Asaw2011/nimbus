@@ -188,6 +188,10 @@ export interface Persisted {
   sendAtCursor: boolean;
   /** Folders to index for Doc Search (⌘K). */
   libraryRoots: LibraryRoot[];
+  /** Library files starred (top of ⌘K when they match) and pinned (always
+   *  first in ⌘K), as paths. Picked in Settings → Search Library. */
+  starredFiles?: string[];
+  pinnedFiles?: string[];
   /** Speech-doc display typography (matches CardMirror's per-user settings). */
   docTypography: DocTypography;
   /** Named readers + their words-per-minute, for the speech-doc read-time estimate. */
@@ -480,6 +484,8 @@ class Settings {
   keymap = $state<Record<ActionId, Combo[]>>(structuredClone(DEFAULT_KEYMAP));
   macros = $state<Macro[]>(defaultMacros());
   libraryRoots = $state<LibraryRoot[]>([]);
+  starredFiles = $state<string[]>([]);
+  pinnedFiles = $state<string[]>([]);
   docTypography = $state<DocTypography>({ ...DEFAULT_DOC_TYPOGRAPHY });
   readers = $state<Reader[]>(DEFAULT_READERS.map((r) => ({ ...r })));
   /** Five adjustable countdown presets for the floating timer (label + seconds). */
@@ -641,6 +647,9 @@ class Settings {
         .filter((m): m is Macro => m !== null);
     }
     if (p.libraryRoots) this.libraryRoots = p.libraryRoots;
+    const paths = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+    this.starredFiles = paths(p.starredFiles);
+    this.pinnedFiles = paths(p.pinnedFiles);
     if (p.docTypography) this.docTypography = { ...DEFAULT_DOC_TYPOGRAPHY, ...p.docTypography };
     if (p.readers && Array.isArray(p.readers) && p.readers.length)
       this.readers = p.readers
@@ -755,6 +764,8 @@ class Settings {
       keymap: $state.snapshot(this.keymap) as Record<ActionId, Combo[]>,
       macros: $state.snapshot(this.macros) as Macro[],
       libraryRoots: $state.snapshot(this.libraryRoots) as LibraryRoot[],
+      starredFiles: [...this.starredFiles],
+      pinnedFiles: [...this.pinnedFiles],
       docTypography: $state.snapshot(this.docTypography) as DocTypography,
     };
   }
@@ -987,6 +998,13 @@ class Settings {
 
   removeLibraryRoot(id: string): void {
     this.libraryRoots = this.libraryRoots.filter((r) => r.id !== id);
+    this.save();
+  }
+
+  /** Star or pin a library file (or take it off). Paths, in the order marked. */
+  toggleFileMark(kind: "star" | "pin", path: string): void {
+    const key = kind === "star" ? "starredFiles" : "pinnedFiles";
+    this[key] = this[key].includes(path) ? this[key].filter((p) => p !== path) : [...this[key], path];
     this.save();
   }
 

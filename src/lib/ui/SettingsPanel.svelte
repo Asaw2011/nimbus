@@ -12,6 +12,7 @@
   import { auth } from "../model/auth.svelte";
   import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
+  import LibraryMarks from "$lib/search/LibraryMarks.svelte";
   import {
     BUILTIN_SOUNDS,
     DEFAULT_SOUND,
@@ -1052,6 +1053,8 @@
       {/each}
       {#if settings.libraryRoots.length === 0}
         <p class="hint" style="margin-top: 6px">No folders added yet.</p>
+      {:else}
+        <LibraryMarks />
       {/if}
     </section>
     {/if}

@@ -5,6 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { loadBlob, loadBlobCached, saveBlob } from "$lib/model/blobs";
 import { settings } from "$lib/model/settings.svelte";
+import { applyMarks, type MarkedFile } from "./file-marks";
 
 export interface LibFile {
   path: string;
@@ -183,6 +184,15 @@ class FileIndexStore {
     }
     scored.sort((a, b) => b.s - a.s || b.f.mtime - a.f.mtime);
     return scored.slice(0, limit).map(({ f }) => f);
+  }
+
+  /** Doc Search's list: `search`, with pinned files first (always) and starred
+   *  ones first when they match, their copies in other library folders hidden. */
+  searchMarked(query: string, limit = 200): MarkedFile<LibFile>[] {
+    const roots = settings.libraryRoots.filter((r) => r.enabled).map((r) => r.path);
+    // ask for extra: hidden copies drop out, and the list should still be full
+    const hits = this.search(query, limit + settings.starredFiles.length + settings.pinnedFiles.length + 50);
+    return applyMarks(hits, this.files, roots, settings.starredFiles, settings.pinnedFiles, query).slice(0, limit);
   }
 }
 
