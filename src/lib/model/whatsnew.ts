@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.6",
+    headline: "Star and pin the files you use most, send straight into Falcon, and the Simple toolbar by default.",
+    items: [
+      "**Star and pin library files.** Settings → Library → Search Library → Starred and pinned files: find a file, or open a library folder, and star or pin it. In Doc Search (⌘K) pinned files are always first, even before you type, and starred ones jump to the top when they match. Both hide their copies in your other library folders.",
+      "Also in this update: everything from 1.6.5 below - Send to Falcon and the Simple toolbar.",
+    ],
+  },
+  {
     version: "1.6.5",
     headline: "Send cards straight into Falcon, and the Simple toolbar is the default.",
     items: [
