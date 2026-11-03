@@ -5,6 +5,7 @@
 
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
+  import { editorFor } from "../doc/cardmirror.svelte";
   import { combosLabel } from "../model/keymap";
   import { prep, type PrepSide } from "../model/prep.svelte";
 
@@ -42,6 +43,7 @@
     const r = store.selRect;
     return r && store.hasMultiSelection ? (r.r1 - r.r0 + 1) * (r.c1 - r.c0 + 1) : 0;
   });
+  const SEND_DESTS = [["builtin", "Speech doc"], ["cardmirror", "CardMirror"], ["falcon", "Falcon"]] as const;
   const sendCellLabel = $derived(selCount > 1 ? `Send ${selCount} Cells` : "Send Cell");
 
   function bumpFont(delta: number) {
@@ -220,6 +222,12 @@
               {#if onremove}
                 <button class="danger" onclick={() => { sendMenuOpen = false; onremove?.(); }} title="Clear this cell and remove its card from the doc">Remove from doc <kbd>{combosLabel(km.removeFromDoc, mac)}</kbd></button>
               {/if}
+              <!-- where sends go: same setting as Send to in the top bar -->
+              <div class="send-dest-head">Send to</div>
+              {#each SEND_DESTS as [id, label] (id)}
+                <button class="send-dest" class:on={settings.docTarget === id} role="menuitemradio" aria-checked={settings.docTarget === id}
+                  onclick={() => { settings.docTarget = id; void editorFor(id)?.prepare(); settings.save(); }}>{label}{#if settings.docTarget === id}<span class="tick">✓</span>{/if}</button>
+              {/each}
             </div>
           {/if}
         </div>
@@ -474,6 +482,9 @@
     background: color-mix(in srgb, var(--mark-dropped) 16%, transparent);
     color: var(--mark-dropped);
   }
+  .send-dest-head { padding: 6px 10px 2px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
+  .send-dest.on { color: var(--accent); }
+  .send-dest .tick { font-size: 12px; }
   .row-menu-pop kbd {
     font-size: 11px;
     color: var(--text-dim);

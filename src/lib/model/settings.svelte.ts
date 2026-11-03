@@ -195,7 +195,7 @@ export interface Persisted {
    *  CardMirror Desktop over the bridge. Defaults to "builtin" - the bridge is
    *  an ADDITIONAL option, never a replacement, so an install that has never
    *  touched this setting keeps sending exactly where it always did. */
-  docTarget?: "cardmirror" | "builtin";
+  docTarget?: "cardmirror" | "falcon" | "builtin";
   /** Experimental: show the Smart blocks (beta) tray in the corner of the flow.
    *  Off by default so the app stays clean until you opt in. */
   smartBlocksEnabled?: boolean;
@@ -495,7 +495,7 @@ class Settings {
     return format === "ld" ? this.prepMinutesLd : format === "pf" ? this.prepMinutesPf : this.prepMinutes;
   }
   /** Send target for flow cells; see Persisted.docTarget. Built-in by default. */
-  docTarget = $state<"cardmirror" | "builtin">("builtin");
+  docTarget = $state<"cardmirror" | "falcon" | "builtin">("builtin");
   /** Experimental: the Smart blocks (beta) tray. Off by default - it is opt-in
    *  from Settings → Experimental, so the flow stays uncluttered until asked. */
   smartBlocksEnabled = $state(false);

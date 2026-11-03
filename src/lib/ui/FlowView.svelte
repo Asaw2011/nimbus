@@ -31,7 +31,7 @@
   import SmartTray from "$lib/smart/SmartTray.svelte";
   import { session } from "$lib/model/session.svelte";
   import { sendOpsToCardMirror } from "$lib/doc/cmClipboard";
-  import { cardmirror } from "$lib/doc/cardmirror.svelte";
+  import { cardmirror, editorFor } from "$lib/doc/cardmirror.svelte";
   import { answerNumbers, cellFilled, parseNo, spanHeading, type Span } from "$lib/model/lineup.svelte";
   import { formatOf, pageNames } from "$lib/model/turns";
 
@@ -172,6 +172,8 @@
    *  app's window, so without this there's no on-screen sign anything happened. */
   let sendFlash = $state("");
   let sendFlashTimer: ReturnType<typeof setTimeout> | null = null;
+  // the editor Send to points at (CardMirror or Falcon), null for the built-in doc
+  const sendEditor = $derived(editorFor(settings.docTarget));
   function flashSend(msg: string) {
     sendFlash = msg;
     if (sendFlashTimer) clearTimeout(sendFlashTimer);
@@ -928,7 +930,7 @@
       return;
     }
     void sendOpsToDoc(ops, col, "append").then(() => {
-      if (settings.docTarget !== "cardmirror") flashSend(`Sent ${pages} ${pages === 1 ? "page" : "pages"} to the doc`);
+      if (settings.docTarget === "builtin") flashSend(`Sent ${pages} ${pages === 1 ? "page" : "pages"} to the doc`);
     });
   }
 
@@ -990,19 +992,27 @@
     // into the addressed doc via the targeted /insert (CardMirror >= 1.5.0),
     // which keeps highlight/cite/layout and does not steal focus. The card also
     // lands on the clipboard every time, as the ⌘V fallback for every failure.
-    if (settings.docTarget === "cardmirror" && ops.length) {
-      // Ask CardMirror which doc is the speech doc RIGHT NOW rather than
+    // Falcon serves the same bridge with the same answers, so it takes this
+    // exact path; only the name in the messages and its consent step differ.
+    const ed = editorFor(settings.docTarget);
+    if (ed && ops.length) {
+      // Ask the editor which doc is the speech doc RIGHT NOW rather than
       // trusting a cached answer - you re-designate it between speeches, and
       // targets are session-scoped, so a cached one dies with a restart.
-      await cardmirror.prepare();
-      const doc = cardmirror.speechDoc;
-      // Address by CardMirror's doc UID, never the title - an unsaved doc has no
+      await ed.prepare();
+      const doc = ed.speechDoc;
+      // Address by the editor's doc UID, never the title - an unsaved doc has no
       // usable title on either side. The title is only for the message below.
-      const { html, resp } = await sendOpsToCardMirror(ops, doc?.target ?? null);
-      const where = doc?.title ?? "CardMirror";
+      const { html, resp } = await sendOpsToCardMirror(ops, doc?.target ?? null, ed);
+      const where = doc?.title ?? ed.label;
       if (!html) flashSend("Nothing to send");
-      else if (!cardmirror.running) flashSend("CardMirror isn't running - card copied, ⌘V to paste");
-      else if (!doc) flashSend("No CardMirror doc open - card copied, ⌘V to paste");
+      else if (!ed.running) flashSend(`${ed.label} isn't running - card copied, ⌘V to paste`);
+      // the doc list itself is waiting on the user's OK (first time this app asks), so there's no doc to name yet
+      else if (ed.needsConsent && !doc)
+        flashSend(ed.id === "falcon" ? "Click Allow in Falcon, then send again - card copied, ⌘V to paste" : "Approve Nimbus in CardMirror → Settings → Plugins - card copied, ⌘V to paste");
+      else if (!doc) flashSend(`No ${ed.label} doc open - card copied, ⌘V to paste`);
+      // Falcon holds the card while it asks, and drops it in once you click Allow
+      else if (resp?.pending === "consent" && ed.id === "falcon") flashSend("Click Allow in Falcon and the card lands");
       else if (resp?.pending === "consent")
         flashSend("Approve Nimbus in CardMirror → Settings → Plugins - card copied, ⌘V to paste");
       // The doc was open when we listed it and gone by the time we pushed. The
@@ -1010,8 +1020,12 @@
       // so nothing landed anywhere and the clipboard is the whole recovery.
       else if (resp?.error === "target-not-found")
         flashSend(`${where} closed mid-send - card copied, ⌘V to paste`);
+      else if (resp?.error === "doc-readonly")
+        flashSend(`${where} is in read mode - card copied, ⌘V to paste`);
+      else if (resp?.error === "not-allowed")
+        flashSend(`${ed.label} has Nimbus blocked - card copied, ⌘V to paste`);
       else if (resp && resp.ok === false)
-        flashSend(`CardMirror refused the card (${resp.error ?? "unknown"}) - copied, ⌘V to paste`);
+        flashSend(`${ed.label} refused the card (${resp.error ?? "unknown"}) - copied, ⌘V to paste`);
       else flashSend(`Sent to ${where}`);
       return;
     }
@@ -1624,33 +1638,38 @@
       ><Icon name={settings.compactTopBar ? "maximize" : "minimize"} /></button>
       <button class="icon-btn" data-tour="doc" class:active={docOpen} onclick={toggleDocPane} title="Speech doc ({combosLabel(km.toggleDoc, mac)})"><Icon name="doc" /><span class="btn-lbl">Speech doc</span></button>
       <button class="icon-btn" class:active={showQuickCards} onclick={() => (showQuickCards = !showQuickCards)} title="Quick cards - drag onto the flow"><Icon name="layers" /><span class="btn-lbl">Quick cards</span></button>
-      <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop 1.5.0 or newer running (no plugin); the built-in doc always works offline.">
+      <div class="send-to" title="Where ` / Send to Doc puts cards. CardMirror needs CardMirror Desktop 1.5.0 or newer running (no plugin); Falcon just needs to be open. The built-in doc always works offline.">
         <span class="send-to-label">Send to</span>
         <button
           class="seg"
           class:on={settings.docTarget === "builtin"}
           onclick={() => { settings.docTarget = "builtin"; settings.save(); }}
-        >Doc</button>
+        >Speech doc</button>
         <button
           class="seg"
           class:on={settings.docTarget === "cardmirror"}
           onclick={() => { settings.docTarget = "cardmirror"; void cardmirror.prepare(); settings.save(); }}
         >CardMirror</button>
-        {#if settings.docTarget === "cardmirror"}
-          <!-- Which CardMirror doc receives sends. Defaults to CardMirror's own
-               designated speech doc; pick one here to override (or when none is
+        <button
+          class="seg"
+          class:on={settings.docTarget === "falcon"}
+          onclick={() => { settings.docTarget = "falcon"; void editorFor("falcon")?.prepare(); settings.save(); }}
+        >Falcon</button>
+        {#if sendEditor}
+          <!-- Which doc receives sends. Defaults to the editor's own designated
+               speech doc; pick one here to override (or when none is
                designated). Refreshed on open so it reflects docs you just made. -->
           <select
             class="cm-doc"
-            title="Which CardMirror doc sends land in"
-            onpointerdown={() => void cardmirror.prepare()}
-            onchange={(e) => { const v = e.currentTarget.value; cardmirror.pinnedTarget = v === "auto" ? null : v; }}
+            title="Which {sendEditor.label} doc sends land in"
+            onpointerdown={() => void sendEditor?.prepare()}
+            onchange={(e) => { const v = e.currentTarget.value; if (sendEditor) sendEditor.pinnedTarget = v === "auto" ? null : v; }}
           >
-            <option value="auto" selected={cardmirror.pinnedTarget === null}>
-              {cardmirror.docs.some((d) => d.isSpeech) ? "★ Speech doc (auto)" : "Auto"}
+            <option value="auto" selected={sendEditor.pinnedTarget === null}>
+              {sendEditor.docs.some((d) => d.isSpeech) ? "★ Speech doc (auto)" : "Auto"}
             </option>
-            {#each cardmirror.docs as d (d.target)}
-              <option value={d.target} selected={cardmirror.pinnedTarget === d.target}>
+            {#each sendEditor.docs as d (d.target)}
+              <option value={d.target} selected={sendEditor.pinnedTarget === d.target}>
                 {d.isSpeech ? "★ " : ""}{d.title ?? "Untitled"}
               </option>
             {/each}

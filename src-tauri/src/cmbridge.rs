@@ -1,5 +1,7 @@
 // CardMirror bridge client — lets Nimbus send structured content into the real
-// CardMirror Desktop over its local loopback HTTP bridge.
+// CardMirror Desktop over its local loopback HTTP bridge. Falcon serves the same
+// bridge (it registers as `falcon` in the same folder), so every command here
+// takes an optional `editor` and works against either.
 //
 // Discovery: CardMirror writes `<data_dir>/cardmirror-bridge/cardmirror.session.json`
 // with `{ port, token }` each session. We read that, then POST to
@@ -35,10 +37,21 @@ struct CmSession {
     token: String,
 }
 
-/// Read CardMirror's current session (port + token). A missing file means
-/// CardMirror isn't running — surfaced to the UI as "not-running".
-fn read_cm_session(app: &tauri::AppHandle) -> Result<CmSession, String> {
-    let path = bridge_dir(app)?.join("cardmirror.session.json");
+/// Which editor to talk to. Falcon serves the same bridge as CardMirror (same
+/// folder, routes and answers) and registers as `falcon`, so the only thing that
+/// changes per editor is which session file names the port and token. Anything
+/// else (including `None`, what older frontends send) is CardMirror.
+fn editor_id(editor: &Option<String>) -> &'static str {
+    match editor.as_deref() {
+        Some("falcon") => "falcon",
+        _ => "cardmirror",
+    }
+}
+
+/// Read the editor's current session (port + token). A missing file means
+/// it isn't running — surfaced to the UI as "not-running".
+fn read_cm_session(app: &tauri::AppHandle, editor: &Option<String>) -> Result<CmSession, String> {
+    let path = bridge_dir(app)?.join(format!("{}.session.json", editor_id(editor)));
     let txt = fs::read_to_string(&path).map_err(|_| "not-running".to_string())?;
     serde_json::from_str(&txt).map_err(|e| e.to_string())
 }
@@ -92,9 +105,9 @@ fn default_true() -> bool {
 
 /// Liveness + capability probe. `{ ok:true, appVersion, schema, hasActiveDoc }`.
 #[tauri::command]
-pub async fn cm_ping(app: tauri::AppHandle) -> Result<Value, String> {
+pub async fn cm_ping(app: tauri::AppHandle, editor: Option<String>) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let s = read_cm_session(&app)?;
+        let s = read_cm_session(&app, &editor)?;
         cm_request(&s, "GET", "/ping", None)
     })
     .await
@@ -103,9 +116,9 @@ pub async fn cm_ping(app: tauri::AppHandle) -> Result<Value, String> {
 
 /// Open documents, so the UI can pick a target (prefer the designated speech doc).
 #[tauri::command]
-pub async fn cm_list_docs(app: tauri::AppHandle) -> Result<Value, String> {
+pub async fn cm_list_docs(app: tauri::AppHandle, editor: Option<String>) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let s = read_cm_session(&app)?;
+        let s = read_cm_session(&app, &editor)?;
         cm_request(&s, "GET", "/docs", None)
     })
     .await
@@ -148,9 +161,10 @@ pub async fn cm_insert_html(
     target: String,
     html: String,
     text: String,
+    editor: Option<String>,
 ) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let s = read_cm_session(&app)?;
+        let s = read_cm_session(&app, &editor)?;
         cm_request(
             &s,
             "POST",
@@ -173,9 +187,10 @@ pub async fn cm_insert(
     app: tauri::AppHandle,
     items: Vec<InsertItem>,
     target: Option<String>,
+    editor: Option<String>,
 ) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let s = read_cm_session(&app)?;
+        let s = read_cm_session(&app, &editor)?;
         let mut last = json!({ "ok": true, "inserted": false });
         for it in &items {
             let mut body = json!({
@@ -204,9 +219,13 @@ pub async fn cm_insert(
 /// from. `source` is the opaque provenance token (starts `cmsrc1…`), stored
 /// verbatim on the flow cell.
 #[tauri::command]
-pub async fn cm_jump(app: tauri::AppHandle, source: String) -> Result<Value, String> {
+pub async fn cm_jump(
+    app: tauri::AppHandle,
+    source: String,
+    editor: Option<String>,
+) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let s = read_cm_session(&app)?;
+        let s = read_cm_session(&app, &editor)?;
         cm_request(&s, "POST", "/jump", Some(json!({ "source": source })))
     })
     .await
