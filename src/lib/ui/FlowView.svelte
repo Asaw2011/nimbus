@@ -1644,7 +1644,7 @@
           class="seg"
           class:on={settings.docTarget === "builtin"}
           onclick={() => { settings.docTarget = "builtin"; settings.save(); }}
-        >Doc</button>
+        >Speech doc</button>
         <button
           class="seg"
           class:on={settings.docTarget === "cardmirror"}
