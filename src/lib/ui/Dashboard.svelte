@@ -764,11 +764,7 @@
         <div class="newcard-accent" aria-hidden="true"></div>
         <div class="newcard-title">New flow</div>
         <label class="frow">
-          <span class="frow-label">
-            Format
-            <button class="frow-link" type="button" onclick={() => openSettings("formats")}
-              title="Create or edit your own formats">Manage…</button>
-          </span>
+          <span class="frow-label">Format</span>
           <select
             class="field"
             value={settings.selectedTemplateId}
@@ -794,14 +790,12 @@
             <option value="neg">With a partner · Neg</option>
           </select>
         </label>
-        {#if splitLabel}<div class="ac-note">{splitLabel}</div>{/if}
         <button class="start" onclick={createRound}>Start flowing</button>
         <!-- Secondary ways in, under the primary action. -->
         <div class="quick">
           <button class="quick-btn" onclick={openFlowFile} title="Open a .nimbus flow, or an Excel (.xlsx) flow - Verbatim's included">Open a flow</button>
           <button class="quick-btn" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
         </div>
-        <p class="quick-hint">Already flow in Excel? <b>Open a flow</b> opens your .xlsx (Verbatim flows too), and you can save back to Excel any time.</p>
       </div>
 
     {#if status}<p class="status">{status}</p>{/if}
@@ -1172,11 +1166,6 @@
   .newcard-title { font-size: 16px; font-weight: 700; color: var(--text); }
   .frow { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .frow-label { font-size: 13px; color: var(--text-dim); font-weight: 500; display: inline-flex; align-items: baseline; gap: 8px; }
-  .frow-link {
-    background: none; border: none; padding: 0; cursor: pointer;
-    color: var(--accent); font-size: 11.5px; font-weight: 600; font-family: inherit;
-  }
-  .frow-link:hover { text-decoration: underline; }
   .field {
     flex: 1; max-width: 260px;
     background: var(--bg); border: 1px solid var(--border); color: var(--text);
@@ -1184,7 +1173,6 @@
     transition: border-color 0.12s;
   }
   .field:hover { border-color: var(--accent); }
-  .ac-note { font-size: 11.5px; color: var(--text-dim); font-style: italic; }
   .start {
     margin-top: 4px; width: 100%; padding: 11px; border: none; border-radius: 10px;
     background: var(--accent); color: #fff; font-size: 14.5px; font-weight: 650;
@@ -1202,8 +1190,6 @@
   }
   .quick-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
   .quick-btn:disabled { opacity: 0.55; cursor: default; }
-  .quick-hint { margin: 0; font-size: 12px; line-height: 1.4; color: var(--text-dim); }
-  .quick-hint b { color: var(--text); font-weight: 600; }
 
   .ext-badge {
     align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
