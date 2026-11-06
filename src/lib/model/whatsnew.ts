@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.7",
+    headline: "A cleaner New flow box on the home screen.",
+    items: [
+      "**Less clutter when starting a flow.** The note under Side, the Manage button next to Format, and the Excel tip under Open a flow and Convert are gone. Formats are still in **Settings -> Flow & Formats**.",
+    ],
+  },
+  {
     version: "1.6.6",
     headline: "Star and pin the files you use most, send straight into Falcon, and the Simple toolbar by default.",
     items: [
