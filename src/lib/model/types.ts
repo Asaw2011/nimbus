@@ -149,6 +149,13 @@ export interface Cell {
    * with none sends exactly as before.
    */
   answerNo?: string;
+  /**
+   * Underlined parts of `text`, as [start, end) character ranges - Ctrl/⌘+U
+   * underlines what you select or what you type next, like Word. Kept in step
+   * with the text by the cell editor (read back from the DOM on every input).
+   * Absent = nothing underlined; an older build simply ignores it.
+   */
+  underlines?: [number, number][];
 }
 
 export interface Row {

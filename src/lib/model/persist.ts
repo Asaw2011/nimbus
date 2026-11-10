@@ -55,6 +55,27 @@ export async function deleteRound(id: string): Promise<void> {
 export async function listRounds(): Promise<RoundMeta[]> {
   let rounds: Round[] = [];
   if (inTauri()) {
+    // The backend reads just these fields (and caches them per file until it
+    // changes) instead of shipping every round in full - see list_round_metas.
+    // Same result; absent fields come back null, so map them back to absent.
+    try {
+      const metas = await invoke<RoundMeta[]>("list_round_metas");
+      return metas
+        .filter((m) => m && typeof m.id === "string")
+        .map((m) => ({
+          ...m,
+          name: m.name ?? "",
+          tournament: m.tournament ?? "",
+          opponent: m.opponent ?? "",
+          templateName: m.templateName ?? "",
+          sheets: (m.sheets ?? []).map((s) => ({ title: s.title ?? "", kind: s.kind, ...(s.color ? { color: s.color } : {}) })),
+          updatedAt: m.updatedAt ?? 0,
+          ...(m.filePath ? { filePath: m.filePath } : { filePath: undefined }),
+        }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    } catch {
+      /* older backend - fall through to the full read */
+    }
     const raws = await invoke<string[]>("list_rounds");
     rounds = raws.flatMap((r) => {
       try {

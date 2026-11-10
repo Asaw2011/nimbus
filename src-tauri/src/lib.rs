@@ -354,6 +354,72 @@ fn list_rounds(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// The dashboard's listing of every saved round - only the fields it shows
+/// (`RoundMeta` in types.ts), not the rounds themselves.
+///
+/// ⚠ Speed, not behaviour: `list_rounds` shipped every round in full (59 MB
+/// across 143 rounds on Adam's machine) over IPC to be JSON-parsed in the
+/// webview, on every trip to the home screen and after every delete - and it
+/// grew with every round flowed. This reads each file here, keeps the result
+/// per file until its modified time changes, and returns a few KB.
+#[tauri::command]
+fn list_round_metas(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    use serde_json::{json, Value};
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    use std::time::SystemTime;
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (SystemTime, u64, Value)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+
+    let dir = rounds_dir(&app)?;
+    let mut out = Vec::new();
+    let mut seen = Vec::new();
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let Ok(md) = entry.metadata() else { continue };
+        let stamp = md.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        let len = md.len();
+        seen.push(path.clone());
+        if let Some((t, l, meta)) = cache.lock().unwrap().get(&path) {
+            if *t == stamp && *l == len {
+                out.push(meta.clone());
+                continue;
+            }
+        }
+        // Same rule as before: a file that isn't valid JSON is skipped.
+        let Ok(contents) = fs::read_to_string(&path) else { continue };
+        let Ok(r) = serde_json::from_str::<Value>(&contents) else { continue };
+        let sheets: Vec<Value> = r
+            .get("sheets")
+            .and_then(|s| s.as_array())
+            .map(|a| {
+                a.iter()
+                    .map(|s| json!({ "title": s.get("title"), "kind": s.get("kind"), "color": s.get("color") }))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let meta = json!({
+            "id": r.get("id"),
+            "name": r.get("name"),
+            "tournament": r.get("tournament"),
+            "opponent": r.get("opponent"),
+            "templateName": r.get("template").and_then(|t| t.get("name")),
+            "sheets": sheets,
+            "updatedAt": r.get("updatedAt"),
+            "filePath": r.get("filePath"),
+        });
+        cache.lock().unwrap().insert(path, (stamp, len, meta.clone()));
+        out.push(meta);
+    }
+    // Forget deleted rounds so the cache can't grow without bound.
+    cache.lock().unwrap().retain(|p, _| seen.contains(p));
+    Ok(out)
+}
+
 // ---- config blobs (settings, macros, snippets, folders) -------------------
 // Stored as JSON files so user customization survives webview storage wipes.
 
@@ -471,6 +537,7 @@ pub fn run() {
             load_round,
             delete_round,
             list_rounds,
+            list_round_metas,
             save_blob,
             load_blob,
             export_to_downloads,

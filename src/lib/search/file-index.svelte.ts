@@ -73,6 +73,18 @@ export async function readLibBytes(path: string): Promise<number[]> {
   return invoke<number[]>("read_binary_file", { path });
 }
 
+/** The current list (with the sample at its head) holds exactly `scanned`. */
+function sameFiles(current: LibFile[], scanned: LibFile[]): boolean {
+  const cur = current.filter((f) => f.path !== SAMPLE_DOC_PATH);
+  if (cur.length !== scanned.length) return false;
+  for (let i = 0; i < cur.length; i++) {
+    const a = cur[i];
+    const b = scanned[i];
+    if (a.path !== b.path || a.mtime !== b.mtime || a.size !== b.size || a.offline !== b.offline || a.name !== b.name) return false;
+  }
+  return true;
+}
+
 class FileIndexStore {
   files = $state<LibFile[]>(withSample([]));
   scanning = $state(false);
@@ -132,6 +144,14 @@ class FileIndexStore {
     try {
       const files = byUniquePath(await invoke<LibFile[]>("scan_library_roots", { roots }));
       this.scanDone = true;
+      // ⚠ Speed: this runs on EVERY window focus (each alt-tab back from the
+      // doc). An unchanged library used to still replace the list - re-running
+      // everything that reads it (Doc Search, the Smart kit refresh) - and
+      // rewrite the cache file. Same files, same list: keep it.
+      if (sameFiles(this.files, files)) {
+        this.lastScanned = Date.now();
+        return;
+      }
       this.files = withSample(files);
       this.lastScanned = Date.now();
       // Persist the DEDUPED list - writing the raw one back would just reseed

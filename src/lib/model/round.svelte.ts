@@ -847,12 +847,21 @@ class RoundStore {
 
   // ---- grid ops -----------------------------------------------------------
 
-  setCell(row: number, col: number, text: string): void {
+  /** `underlines`: the editor's underlined ranges for this text. Omitted by a
+   *  caller that only knows the text - then a changed text drops them, since
+   *  old ranges would land on the wrong characters. */
+  setCell(row: number, col: number, text: string, underlines?: [number, number][]): void {
     const sheet = this.activeSheet;
     if (!sheet?.rows[row]?.cells[col]) return;
     this.mutate(
       () => {
         const cell = sheet.rows[row].cells[col];
+        if (underlines) {
+          if (underlines.length) cell.underlines = underlines;
+          else delete cell.underlines;
+        } else if (cell.underlines && cell.text !== text) {
+          delete cell.underlines;
+        }
         cell.text = text;
         // A banked author only stays bold while its exact substring survives in
         // the text - edit it away and the bold signal drops with it.

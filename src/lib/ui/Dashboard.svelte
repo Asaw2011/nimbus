@@ -30,6 +30,7 @@
   import { settings } from "../model/settings.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
   import Manual from "./Manual.svelte";
+  import JudgeSearch from "./JudgeSearch.svelte";
   import Icon from "./Icon.svelte";
   import { APP_VERSION } from "../model/minversion";
 
@@ -37,6 +38,7 @@
 
   const version = APP_VERSION;
   let showManual = $state(false);
+  let showJudges = $state(false);
 
   // The home flow library: a folder auto-created in Documents where every loose
   // flow lives, so flows are organized on disk with no "Save As" step. It is NOT
@@ -740,6 +742,7 @@
 <div class="dashboard">
   <!-- Settings + Manual, pinned top-right like the flow view's icon buttons. -->
   <div class="corner">
+    <button class="icon-btn" onclick={() => (showJudges = true)} title="Judges - search every judge you've had and your notes on them"><Icon name="users" /><span class="btn-lbl">Judges</span></button>
     <button class="icon-btn" onclick={() => openSettings()} title="Settings (S)"><Icon name="settings" /><span class="btn-lbl">Settings</span></button>
     <button class="icon-btn" onclick={() => (showManual = true)} title="Manual - how everything works (?)"><Icon name="book" /><span class="btn-lbl">Manual</span></button>
   </div>
@@ -1063,6 +1066,16 @@
   <SettingsPanel initialTab={settingsTab} onclose={() => { showSettings = false; settingsTab = undefined; }} />
 {/if}
 
+{#if showJudges}
+  <JudgeSearch
+    onclose={() => (showJudges = false)}
+    onopenround={(r) => {
+      showJudges = false;
+      if (r.path) void openFlow({ name: r.roundName, path: r.path, ext: "nimbus", modified: r.when });
+      else if (r.roundId) void openAppRound(r.roundId);
+    }}
+  />
+{/if}
 {#if showManual}
   <Manual onclose={() => (showManual = false)} />
 {/if}

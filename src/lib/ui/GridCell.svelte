@@ -9,6 +9,7 @@
   import { guard } from "../model/crash";
   import { session } from "../model/session.svelte";
   import { answerNumbers, NO_NUMBER, parseNo, spanHeading } from "../model/lineup.svelte";
+  import { cleanRanges, readUnderlines, richHtml, sameRanges, shiftRanges } from "../model/underline";
 
   let {
     cell,
@@ -418,8 +419,9 @@
     // Reference cell.author so the effect repaints when the banked author changes.
     void cell.author;
     void cell.text;
+    void cell.underlines;
     guard("GridCell.paint", () => {
-      if (!editor || (editor.textContent === cell.text && !authorNeedsPaint())) return;
+      if (!editor || (editor.textContent === cell.text && !needsPaint())) return;
       const focused = document.activeElement === editor;
       const typingNow = Date.now() - lastTypedAt < TYPING_HOLDOFF_MS;
       if (!focused || !typingNow || editor.textContent === "") {
@@ -453,7 +455,7 @@
         repaintAfterTyping();
         return;
       }
-      if (editor.textContent === cell.text && !authorNeedsPaint()) return;
+      if (editor.textContent === cell.text && !needsPaint()) return;
       paint();
       if (focused) placeCaretAtEnd();
     }, TYPING_HOLDOFF_MS);
@@ -467,24 +469,26 @@
     return wantBold !== hasBold;
   }
 
-  /** Render the cell text, bolding the banked author substring if present. The
-   *  editor's `.textContent` stays the plain text, so input/copy/export are
-   *  unaffected - only the visual gets a <b class="author"> wrapper. */
+  /** The DOM disagrees with the data on formatting (author bold, underline). */
+  function needsPaint(): boolean {
+    if (!editor) return false;
+    return authorNeedsPaint() || !sameRanges(readUnderlines(editor), cleanRanges(cell.underlines, cell.text.length));
+  }
+
+  /** Render the cell text, bolding the banked author substring and underlining
+   *  `cell.underlines`. The editor's `.textContent` stays the plain text, so
+   *  input/copy/export are unaffected - only the visual gets <b>/<u> wrappers. */
   function paint() {
     if (!editor) return;
     const text = cell.text;
     const author = cell.author;
     const at = author ? text.indexOf(author) : -1;
-    if (at < 0) {
+    const ul = cleanRanges(cell.underlines, text.length);
+    if (at < 0 && !ul.length) {
       editor.textContent = text;
       return;
     }
-    const esc = (s: string) =>
-      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    editor.innerHTML =
-      esc(text.slice(0, at)) +
-      `<b class="author">${esc(author!)}</b>` +
-      esc(text.slice(at + author!.length));
+    editor.innerHTML = richHtml(text, at < 0 ? null : [at, at + author!.length], ul);
   }
 
   function placeCaretAtEnd() {
@@ -510,14 +514,22 @@
     return probe.toString().length;
   }
 
-  /** Put the caret at a character offset. Only ever called right after
-   *  `editor.textContent = …`, which leaves exactly one text node (or none). */
+  /** Put the caret at a character offset. Called right after the editor is
+   *  rewritten - one text node, or several when parts are underlined. */
   function placeCaretAt(offset: number) {
     if (!editor) return;
-    const node = editor.firstChild;
-    if (!node || node.nodeType !== Node.TEXT_NODE) { placeCaretAtEnd(); return; }
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    if (!node) { placeCaretAtEnd(); return; }
+    let left = Math.max(0, offset);
+    while (left > (node.nodeValue?.length ?? 0)) {
+      const next = walker.nextNode();
+      if (!next) break;
+      left -= node.nodeValue?.length ?? 0;
+      node = next;
+    }
     const range = document.createRange();
-    range.setStart(node, Math.max(0, Math.min(offset, node.nodeValue?.length ?? 0)));
+    range.setStart(node, Math.min(left, node.nodeValue?.length ?? 0));
     range.collapse(true);
     const sel = window.getSelection();
     sel?.removeAllRanges();
@@ -556,6 +568,7 @@
     if (store.selectAll) store.selectAll = false;
     const raw = editor.textContent ?? "";
     const at = caretOffset();
+    let ul = readUnderlines(editor);
     const expanded = expand(raw, loadSnippets());
     // NOTE: "---" is deliberately left alone (it used to collapse to an em
     // dash). It's the Verbatim separator debate tags are written in - 1NC---K,
@@ -563,7 +576,10 @@
     // round-tripping. Snippet expansion is now the only rewrite here.
     let text = expanded ?? raw;
     if (text !== raw) {
-      editor.textContent = text;
+      // The rewrite ends at the caret: ranges after it move by the change.
+      ul = shiftRanges(ul, at, text.length - raw.length, text.length);
+      if (ul.length) editor.innerHTML = richHtml(text, null, ul);
+      else editor.textContent = text;
       // Keep the caret where the rewrite happened, shifted by the length the
       // rewrite added/removed. It used to jump to the end of the cell, which
       // teleported you out of the middle of a tag on every snippet expansion
@@ -571,7 +587,7 @@
       // the next line". Both rewrites land at the caret, so one delta is right.
       placeCaretAt(at - (raw.length - text.length));
     }
-    store.setCell(row, col, text);
+    store.setCell(row, col, text, ul);
     if (lookupOpen) {
       // Query = only the text typed since the bank opened (see openLookup).
       lookupQuery = (text.startsWith(lookupBase) ? text.slice(lookupBase.length) : text).trim();
@@ -692,6 +708,13 @@
     } else if (matchesAny(e, km.markStarred)) {
       e.preventDefault();
       store.toggleMark(row, col, "starred");
+    } else if (matchesAny(e, km.underline)) {
+      // Like Word: underline the selection, or - with nothing selected - turn
+      // underline on/off for what you type next. The browser does the editing
+      // (it fires `input` when the selection changes, and carries the typing
+      // style otherwise); oninput reads the <u> runs back into cell.underlines.
+      e.preventDefault();
+      document.execCommand("underline");
     } else if (matchesAny(e, km.markAnalytic)) {
       e.preventDefault();
       store.toggleEvidence(row, col, "analytic");

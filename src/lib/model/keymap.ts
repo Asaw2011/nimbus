@@ -24,6 +24,7 @@ export type ActionId =
   | "replyToArg"
   | "markDropped"
   | "markStarred"
+  | "underline"
   | "markAnalytic"
   | "markCard"
   | "newSheet"
@@ -84,6 +85,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   replyToArg: "Answer this argument (jump to your reply, linked)",
   markDropped: "Mark dropped",
   markStarred: "Star (must answer)",
+  underline: "Underline (whole cell)",
   markAnalytic: "Mark as analytic (colors ink)",
   markCard: "Mark as card (colors ink)",
   newSheet: "New sheet",
@@ -166,6 +168,7 @@ export const DEFAULT_KEYMAP: Record<ActionId, Combo[]> = {
   replyToArg: [{ key: "g", mod: true, shift: true }],
   markDropped: [{ key: "d", mod: true }],
   markStarred: [{ key: "s", mod: true, shift: true }],
+  underline: [{ key: "u", mod: true }],
   markAnalytic: [{ key: "a", mod: true, shift: true }],
   markCard: [{ key: "c", mod: true, shift: true }],
   newSheet: [{ key: "t", mod: true }],
@@ -238,7 +241,7 @@ export const ACTION_GROUPS: ActionGroup[] = [
   },
   {
     title: "Flowing & marks",
-    actions: ["extendArg", "replyToArg", "markDropped", "markStarred", "markAnalytic", "markCard", "authorLookup"],
+    actions: ["extendArg", "replyToArg", "markDropped", "markStarred", "underline", "markAnalytic", "markCard", "authorLookup"],
   },
   {
     title: "Send to speech doc",
