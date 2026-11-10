@@ -147,6 +147,7 @@
             <li><b>Card</b> (<kbd>{combosLabel(km.markCard, mac)}</kbd>) - evidence, purple ink.</li>
             <li><b>Extend</b> (<kbd>{combosLabel(km.extendArg, mac)}</kbd>) - draws an arrow carrying the argument to the next same-side speech.</li>
             <li>Set a custom color with the ribbon <b>A</b> swatch, or <b>Auto color</b> to return to side ink. All defaults are configurable in Settings.</li>
+            <li><b>Underline</b> with <kbd>{combosLabel(km.underline, mac)}</kbd>, like Word: select text to underline it, or press it with nothing selected to underline what you type next (press again to stop).</li>
           </ul>
           <p>
             <b>Argument lookup</b> (<kbd>{combosLabel(km.authorLookup, mac)}</kbd>): autocomplete
@@ -619,6 +620,7 @@
             <li>Tournaments start collapsed; one you make during a session stays open.</li>
             <li><b>Reorder them</b> by dragging the <b>⠿</b> handle at the left of a folder, or by focusing it and pressing <kbd>↑</kbd> / <kbd>↓</kbd>. The order is saved.</li>
             <li>Flows that aren't under any linked folder sit under <b>Not in a tournament</b>.</li>
+            <li><b>Judges</b> (top right of the home screen): every judge you've had - from a round's <b>Judges</b> box and its <b>Judge decision</b> ballots - with how they voted and the notes you wrote. Search by name, or by something in your notes; click a round to open it.</li>
           </ul>
         </section>
 

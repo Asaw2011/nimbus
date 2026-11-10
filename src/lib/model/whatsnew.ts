@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.8",
+    headline: "Look up any judge you've had, underline like Word, and a snappier home screen.",
+    items: [
+      "**Judges.** A new Judges button on the home screen lists every judge you've had - from each round's Judges box and its Judge decision ballots - with how they voted and the notes you wrote. Search by name (or by something in your notes) and click a round to open it.",
+      "**Underline with Ctrl+U (⌘U on Mac).** Works like Word: select text and press it to underline just that, or press it with nothing selected to underline what you type next. Press again to stop.",
+      "**Faster.** The home screen no longer reads every saved round in full to show its list, and clicking back into Nimbus no longer reloads your card library when nothing in it changed.",
+    ],
+  },
+  {
     version: "1.6.7",
     headline: "A cleaner New flow box on the home screen.",
     items: [
