@@ -10,6 +10,9 @@
   import { settings } from "../model/settings.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow, type Cell } from "../model/types";
 
+  /** Offer the built-in sample file (only on the user's first flow - RoundHome decides). */
+  let { sample = true }: { sample?: boolean } = $props();
+
   let parsed = $state<ParsedDoc | null>(null); // raw parse result; set once, never rewritten
   let rawNodes = $state<DocNode[]>([]); // original tree before level-splitting
   let sections = $state<DocNode[]>([]); // current split (the sheets-to-be)
@@ -368,7 +371,7 @@
       Import speech doc (.docx)
       <input type="file" accept=".docx" onchange={onFile} />
     </label>
-    <button class="chip sample-btn" onclick={loadSample} title="A free sample 1NC that ships with Nimbus - try an import without finding a file">Try the sample (Midterms DA)</button>
+    {#if sample}<button class="chip sample-btn" onclick={loadSample} title="A free sample 1NC that ships with Nimbus - try an import without finding a file">Try the sample (Midterms DA)</button>{/if}
   {:else}
     <div class="preview">
       <div class="preview-head">
@@ -428,7 +431,7 @@
   .doc-import {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     align-items: flex-start;
   }
   .chip {

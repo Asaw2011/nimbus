@@ -1,16 +1,33 @@
 <script lang="ts">
   import { store } from "../model/round.svelte";
-  import { ballotNotes, sheetAccent, uid, type Ballot } from "../model/types";
-  import { exportRoundFile, exportRoundHtml } from "../model/export";
-  import { saveToFile, saveAs, exportExcel, exportNimbus, renameFileToMatchTitle } from "../model/filedoc.svelte";
+  import { settings } from "../model/settings.svelte";
+  import { sheetAccent } from "../model/types";
+  import { saveToFile, saveAs, renameFileToMatchTitle } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature - to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
   import { formatOf, pageNames } from "../model/turns";
 
-  let { onopensheet }: { onopensheet: (sheetId: string) => void } = $props();
+  let { onopensheet, onopenrfd }: { onopensheet: (sheetId: string) => void; onopenrfd: () => void } = $props();
 
   const round = $derived(store.round);
+
+  // "Try the sample" belongs to the user's first flow only. The first flow is
+  // claimed once something is done in it (a brand-new flow you back out of
+  // isn't kept, so it can't be the one); until then a new user still sees it.
+  const showSample = $derived(
+    settings.sampleFlowId === "" || (!!round && settings.sampleFlowId === round.id),
+  );
+  $effect(() => {
+    // Read updatedAt FIRST: `store.untouched` isn't reactive, so this stamp
+    // (bumped by every edit) is what re-runs the check - behind a short-circuit
+    // it would never be tracked.
+    const stamp = round?.updatedAt;
+    if (stamp && round && settings.sampleFlowId === "" && !store.untouched) {
+      settings.sampleFlowId = round.id;
+      settings.save();
+    }
+  });
   /** What this event calls its pages: Advantage/Off-case, LD's Contention, PF's Pro/Con. */
   const names = $derived(pageNames(formatOf(round?.template)));
   let renamingId = $state<string | null>(null);
@@ -87,20 +104,6 @@
 
   let exportStatus = $state("");
 
-  async function doExport(kind: "html" | "file") {
-    if (!store.round) return;
-    const round = $state.snapshot(store.round);
-    try {
-      const path =
-        kind === "html"
-          ? await exportRoundHtml(round)
-          : await exportRoundFile(round);
-      exportStatus = `Exported to ${path}`;
-    } catch (e) {
-      exportStatus = `Export failed: ${e instanceof Error ? e.message : e}`;
-    }
-  }
-
   function setField(
     field: "name" | "tournament" | "opponent" | "judges" | "affTeam" | "negTeam",
     value: string,
@@ -108,85 +111,6 @@
     store.mutate((r) => {
       r[field] = value;
     }, { coalesceText: true });
-  }
-
-  // ---- RFD (reason for decision) -----------------------------------------
-  // Post-round record only: nothing here is read by the flowing path, and `rfd`
-  // stays absent entirely until the first ballot is added, so old saves and
-  // rounds you never scored keep exactly the shape they had.
-  function addBallot() {
-    store.mutate((r) => {
-      if (!r.rfd) r.rfd = { ballots: [], notes: "" };
-      // First ballot seeds the judge name from the round's judge list; on a
-      // panel the rest are blank because that field holds all of them at once.
-      const judge = r.rfd.ballots.length === 0 ? (r.judges ?? "").trim() : "";
-      const b: Ballot = { id: uid(), judge, winner: "", notes: "" };
-      r.rfd.ballots = [...r.rfd.ballots, b];
-    });
-  }
-  function setBallot(id: string, field: keyof Ballot, value: string, coalesce = true) {
-    store.mutate((r) => {
-      if (!r.rfd) return;
-      r.rfd.ballots = r.rfd.ballots.map((b) => {
-        if (b.id !== id) return b;
-        const next = { ...b, [field]: value };
-        // Editing the notes retires the pre-1.2.8 split fields - their content
-        // is already in the box being typed into (see ballotNotes), so leaving
-        // them would duplicate it the next time this ballot was read.
-        if (field === "notes") {
-          delete next.reason;
-          delete next.feedback;
-          delete next.points;
-        }
-        return next;
-      });
-    }, coalesce ? { coalesceText: true } : undefined);
-  }
-  function removeBallot(id: string) {
-    store.mutate((r) => {
-      if (!r.rfd) return;
-      r.rfd.ballots = r.rfd.ballots.filter((b) => b.id !== id);
-    });
-  }
-  function setRfdNotes(value: string) {
-    store.mutate((r) => {
-      if (!r.rfd) r.rfd = { ballots: [], notes: "" };
-      r.rfd.notes = value;
-    }, { coalesceText: true });
-  }
-  /** The panel's overall decision. Not a vote - see the note on RFD.winner. */
-  function setRfdWinner(value: "aff" | "neg" | "") {
-    store.mutate((r) => {
-      if (!r.rfd) r.rfd = { ballots: [], notes: "" };
-      r.rfd.winner = value;
-    });
-  }
-
-  /**
-   * Grow a textarea to fit what is in it.
-   *
-   * Feedback is taken down in a hurry and read back later; a four-line box you
-   * have to scroll inside hides most of it. Height follows the content up to a
-   * deliberately large cap (set in CSS via max-height), and only past that does
-   * it scroll.
-   */
-  function autoGrow(el: HTMLTextAreaElement) {
-    const fit = () => {
-      el.style.height = "auto";
-      el.style.height = el.scrollHeight + "px";
-    };
-    fit();
-    el.addEventListener("input", fit);
-    // Value can also change from outside (undo, a partner's edit, load).
-    const obs = new MutationObserver(fit);
-    obs.observe(el, { attributes: true, attributeFilter: ["value"] });
-    return {
-      update: fit,
-      destroy() {
-        el.removeEventListener("input", fit);
-        obs.disconnect();
-      },
-    };
   }
 
   // "AFF (school) wins 2–1" style summary from the ballots that have a vote.
@@ -206,6 +130,13 @@
 </script>
 
 {#if round}
+  <div class="home-wrap">
+  <!-- RFD, pinned to the window's right edge just under the toolbar. Opens the
+       RFD panel beside the flow (FlowView), so the decision is typed with the
+       flow in view. -->
+  <button class="btn rfd-btn" onclick={onopenrfd}>
+    {round.rfd && round.rfd.ballots.length ? (rfdResult ? `RFD · ${rfdResult}` : "Open RFD") : "＋ Add RFD"}
+  </button>
   <div class="home">
     <header class="home-head">
       <!-- The title is the source of truth for what this flow is called, so on
@@ -226,12 +157,6 @@
       </div>
     </header>
 
-    <div class="meta-grid">
-      <input value={round.tournament} oninput={(e) => setField("tournament", e.currentTarget.value)} placeholder="Tournament" />
-      <input value={round.judges} oninput={(e) => setField("judges", e.currentTarget.value)} placeholder="Judge(s)" />
-      <input class="aff-team" value={round.affTeam} oninput={(e) => setField("affTeam", e.currentTarget.value)} placeholder="Aff school & code" />
-      <input class="neg-team" value={round.negTeam} oninput={(e) => setField("negTeam", e.currentTarget.value)} placeholder="Neg school & code" />
-    </div>
     {#if exportStatus}<p class="export-status">{exportStatus}</p>{/if}
 
     <section>
@@ -308,114 +233,14 @@
       </div>
     </section>
 
-    <section class="rfd">
-      <div class="sheets-head">
-        <h2>Result &amp; feedback</h2>
-        {#if rfdResult}<span class="rfd-badge">{rfdResult}</span>{/if}
-      </div>
-      {#if !round.rfd || round.rfd.ballots.length === 0}
-        <p class="hint-line">Record how the round came out: who voted, why, and any feedback. It saves with the flow.</p>
-      {/if}
-
-      <!-- PANEL ONLY. A 3-judge panel can split 2–1 and the round still has one
-           result, so the overall decision is recorded on its own rather than
-           inferred. Deliberately has NO notes box: it is the outcome, not a
-           person - the feedback belongs to the judges below it. -->
-      {#if (round.rfd?.ballots.length ?? 0) > 1}
-        <div class="overall">
-          <span class="overall-t">Round won by</span>
-          <div class="vote">
-            <button
-              class="vote-btn aff"
-              class:on={round.rfd?.winner === "aff"}
-              title="The panel awarded the round to AFF"
-              onclick={() => setRfdWinner(round.rfd?.winner === "aff" ? "" : "aff")}
-            >AFF</button>
-            <button
-              class="vote-btn neg"
-              class:on={round.rfd?.winner === "neg"}
-              title="The panel awarded the round to NEG"
-              onclick={() => setRfdWinner(round.rfd?.winner === "neg" ? "" : "neg")}
-            >NEG</button>
-          </div>
-        </div>
-      {/if}
-
-      {#each round.rfd?.ballots ?? [] as b (b.id)}
-        <div class="ballot">
-          <div class="ballot-top">
-            <input
-              class="ballot-judge"
-              value={b.judge}
-              placeholder="Judge"
-              oninput={(e) => setBallot(b.id, "judge", e.currentTarget.value)}
-            />
-            <div class="vote">
-              <button
-                class="vote-btn aff"
-                class:on={b.winner === "aff"}
-                title="This judge voted AFF"
-                onclick={() => setBallot(b.id, "winner", b.winner === "aff" ? "" : "aff", false)}
-              >AFF</button>
-              <button
-                class="vote-btn neg"
-                class:on={b.winner === "neg"}
-                title="This judge voted NEG"
-                onclick={() => setBallot(b.id, "winner", b.winner === "neg" ? "" : "neg", false)}
-              >NEG</button>
-            </div>
-            <button class="icon danger" title="Remove ballot" onclick={() => removeBallot(b.id)}>×</button>
-          </div>
-          <!-- One block, not three. Grows with what you write and only starts
-               scrolling once it is already tall, so a long ballot is readable
-               without a scrollbar inside a scrollbar. -->
-          <textarea
-            class="ballot-notes"
-            value={ballotNotes(b)}
-            placeholder="Everything they said - RFD, feedback, speaker points…"
-            use:autoGrow
-            oninput={(e) => setBallot(b.id, "notes", e.currentTarget.value)}
-          ></textarea>
-        </div>
-      {/each}
-
-      <div class="setup-row">
-        <button class="chip" onclick={addBallot}>＋ Add ballot{round.rfd && round.rfd.ballots.length ? " (panel)" : ""}</button>
-      </div>
-      {#if round.rfd && round.rfd.ballots.length}
-        <textarea
-          class="rfd-notes"
-          value={round.rfd?.notes ?? ""}
-          placeholder="Other notes about the round…"
-          oninput={(e) => setRfdNotes(e.currentTarget.value)}
-        ></textarea>
-      {/if}
-    </section>
 
     <div class="tools">
       <!-- DOCX-IMPORT feature (removable - see import comment above) -->
-      <!-- Plain sections, always open: these are a few buttons, so a
-           collapse toggle only hid them. -->
-      <section class="tool">
-        <h3 class="tool-head">Import speech doc (.docx)</h3>
-        <div class="tool-body">
-          <p class="hint-line">Drop in their .docx - each position becomes a sheet, card tags become rows.</p>
-          <DocImport />
-        </div>
-      </section>
+      <!-- Just the button - no box, heading or blurb - at the foot of the page. -->
+      <DocImport sample={showSample} />
       <!-- /DOCX-IMPORT -->
-
-      <section class="tool">
-        <h3 class="tool-head">Export &amp; convert</h3>
-        <div class="tool-body">
-          <div class="setup-row">
-            <button class="chip" onclick={async () => { if (round && await exportExcel(round)) exportStatus = "Saved as Excel (.xlsx)"; }}>⊞ Excel (.xlsx)</button>
-            <button class="chip" onclick={async () => { if (round && await exportNimbus(round)) exportStatus = "Saved as Nimbus (.nimbus)"; }}>Nimbus (.nimbus)</button>
-            <button class="chip" onclick={() => doExport("html")}>Round report (HTML)</button>
-          </div>
-        </div>
-      </section>
     </div>
+  </div>
   </div>
 {/if}
 
@@ -426,7 +251,7 @@
     padding: 32px clamp(24px, 8vw, 96px);
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: 40px;
   }
   .home {
     max-width: 760px;
@@ -461,6 +286,15 @@
     font-size: 13px;
     cursor: pointer;
   }
+  .home-wrap {
+    flex: 1; min-height: 0; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .rfd-btn {
+    position: absolute; top: 14px; right: 18px; z-index: 2;
+    padding: 5px 13px; font-size: 13px; font-weight: 600;
+    color: var(--text);
+  }
   .btn:hover {
     border-color: var(--accent);
   }
@@ -469,25 +303,6 @@
     border-color: var(--accent);
     color: #fff;
     font-weight: 600;
-  }
-  .meta-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .meta-grid input {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 7px 10px;
-    font-size: 13px;
-  }
-  .aff-team {
-    box-shadow: inset 3px 0 0 var(--aff);
-  }
-  .neg-team {
-    box-shadow: inset 3px 0 0 var(--neg);
   }
   h2 {
     font-size: 13px;
@@ -522,131 +337,11 @@
     font-size: 13px;
     cursor: pointer;
   }
-  .setup-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .rfd {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .rfd-badge {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text);
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 3px 10px;
-  }
-  .ballot {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    padding: 10px;
-  }
-  .ballot-top {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .ballot-judge {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 6px 9px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .vote {
-    display: flex;
-    gap: 4px;
-  }
-  .vote-btn {
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text-dim);
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  /* Uses the same --aff/--neg the grid does, so a custom side color carries. */
-  .vote-btn.aff.on {
-    background: var(--aff);
-    border-color: var(--aff);
-    color: #fff;
-  }
-  .vote-btn.neg.on {
-    background: var(--neg);
-    border-color: var(--neg);
-    color: #fff;
-  }
-  .ballot textarea,
-  .rfd-notes {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 7px 10px;
-    font-size: 13px;
-    font-family: inherit;
-    resize: vertical;
-  }
-  /* Grows with the text (see the autoGrow action) and only scrolls once it is
-     already very tall - feedback is read back later, and a scrollbar inside a
-     panel hides most of it. 70vh is roughly a screenful. */
-  .ballot-notes {
-    min-height: 120px;
-    max-height: 70vh;
-    line-height: 1.5;
-    overflow-y: auto;
-  }
-  .rfd-notes { min-height: 44px; }
-  /* The panel's overall result. No notes box: it is the outcome, not a person. */
-  .overall {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    margin-bottom: 8px;
-  }
-  .overall-t {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-dim);
-  }
   .tools {
+    margin-top: auto;
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-  .tool {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-  }
-  .tool-head {
-    margin: 0;
-    padding: 10px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    border-bottom: 1px solid var(--border);
-  }
-  .tool-body {
-    padding: 14px;
   }
   .chip {
     background: var(--panel);

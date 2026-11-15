@@ -113,6 +113,9 @@ export interface Persisted {
   setupDone?: boolean;
   /** One-time migration of loose app-data flows into the home folder has run. */
   homeMigrated?: boolean;
+  /** The round id of the user's first flow - the only one that offers "Try the
+   *  sample". "" until a first flow exists; "none" for installs that predate it. */
+  sampleFlowId?: string;
   /** Hide the round name/meta text in the top bar to shrink it. */
   compactTopBar: boolean;
   /** Tighten the speech-doc toolbar + outline so the document gets more room
@@ -392,6 +395,8 @@ class Settings {
   setupDone = $state(false);
   /** Whether loose app-data flows have been migrated into the home folder. */
   homeMigrated = $state(false);
+  /** See Persisted.sampleFlowId. */
+  sampleFlowId = $state("");
   compactTopBar = $state(false);
   /** Denser speech-doc chrome (toolbar + outline) so the document reads bigger
    *  in the side panel. On by default. */
@@ -576,6 +581,10 @@ class Settings {
     if (p.tourOffered !== undefined) this.tourOffered = p.tourOffered;
     if (p.setupDone !== undefined) this.setupDone = p.setupDone;
     if (p.homeMigrated !== undefined) this.homeMigrated = p.homeMigrated;
+    // Settings saved before this existed belong to someone who has flowed
+    // already (they have a lastSeenVersion): they are past their first flow.
+    if (typeof p.sampleFlowId === "string") this.sampleFlowId = p.sampleFlowId;
+    else if (p.lastSeenVersion) this.sampleFlowId = "none";
     if (p.compactTopBar !== undefined) this.compactTopBar = p.compactTopBar;
     if (p.compactDoc !== undefined) this.compactDoc = p.compactDoc;
     if (p.pasteSplitsCells !== undefined) this.pasteSplitsCells = p.pasteSplitsCells;
@@ -736,6 +745,7 @@ class Settings {
       tourOffered: this.tourOffered,
       setupDone: this.setupDone,
       homeMigrated: this.homeMigrated,
+      sampleFlowId: this.sampleFlowId,
       compactTopBar: this.compactTopBar,
       compactDoc: this.compactDoc,
       pasteSplitsCells: this.pasteSplitsCells,

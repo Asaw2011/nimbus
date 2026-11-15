@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.1",
+    headline: "Take down the RFD beside the flow, and a cleaner round page.",
+    items: [
+      "**RFD in a panel beside the flow.** **+ Add RFD** (top right of a round's page) or the **RFD** button in the toolbar opens a panel on the right - judge, AFF/NEG vote, and a big box for everything they said - while the flow stays in view. Add more ballots for a panel.",
+      "**A cleaner round page.** The Tournament, Judge and school boxes are gone, and so is Export & convert - save as Excel with **Save As...** or **Convert** on the home screen. Import speech doc is now just a button at the bottom.",
+      "**The sample file only shows on your first flow,** so it's there when you're starting out and out of the way after.",
+    ],
+  },
+  {
     version: "1.7.0",
     headline: "The cloud is back on the home screen.",
     items: [

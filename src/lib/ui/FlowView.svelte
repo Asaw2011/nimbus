@@ -9,6 +9,7 @@
   import Ribbon from "./Ribbon.svelte";
   import RibbonClassic from "./RibbonClassic.svelte";
   import RoundHome from "./RoundHome.svelte";
+  import RfdPanel from "./RfdPanel.svelte";
   import SpreadView from "./SpreadView.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
   import DocSearch from "$lib/search/DocSearch.svelte";
@@ -123,6 +124,15 @@
    * true from "Start flowing" until the first edit - so reopening a flow you
    * already made goes straight to it. Close the panel and carry on as usual.
    */
+  /** The RFD panel on the right of the flow (RoundHome's "Add RFD", or the
+   *  toolbar's RFD button). */
+  let showRfd = $state(false);
+  /** Open the RFD panel. From the round home, also step onto the first page so
+   *  the flow is in view while the decision is typed. */
+  function openRfd() {
+    showRfd = true;
+    if (atHome && round?.sheets.length) openSheet(round.sheets[0].id);
+  }
   let showPartner = $state(
     (store.round?.mySide === "aff" || store.round?.mySide === "neg") &&
       store.untouched &&
@@ -1676,6 +1686,7 @@
           </select>
         {/if}
       </div>
+      <button class="icon-btn" class:active={showRfd} onclick={() => (showRfd ? (showRfd = false) : openRfd())} title="RFD - take down the decision and feedback beside the flow"><Icon name="pencil" /><span class="btn-lbl">RFD</span></button>
       <button class="icon-btn" class:active={showTimer || timerPop.open} onclick={() => { if (timerPop.open) void timerPop.focus(); else showTimer = !showTimer; }} title="Timer - stopwatch + countdown presets ({combosLabel(km.toggleTimer, mac)})"><Icon name="clock" /><span class="btn-lbl">Timer</span></button>
       <button class="icon-btn" class:active={showBank} onclick={() => (showBank = !showBank)} title="Argument bank - edit what {combosLabel(km.authorLookup, mac)} offers"><Icon name="archive" /><span class="btn-lbl">Arguments</span></button>
       <!-- ⚠ THREE states, not two. This used to be `connected ? live : idle`,
@@ -1777,7 +1788,7 @@
               onset={(h) => (hiddenInSpread = h)}
             />
           {:else if atHome || !sheet}
-            <RoundHome onopensheet={openSheet} />
+            <RoundHome onopensheet={openSheet} onopenrfd={openRfd} />
           {:else}
             <!-- Zoom applies to the single main flow only (WebView2/Chromium
                  `zoom`); the spread view zooms its own panels independently. -->
@@ -1799,6 +1810,10 @@
             />
           {/if}
         </div>
+      {/if}
+
+      {#if showRfd && round}
+        <RfdPanel onclose={() => (showRfd = false)} />
       {/if}
 
       {#if docOpen}
