@@ -852,6 +852,14 @@
          recent flows sit below, past the hairline. -->
     <div class="top">
     <header class="hero">
+      <div class="logo-stage">
+        <img class="logo" src="/logo.png" alt="Nimbus" />
+        <div class="rain" aria-hidden="true">
+          {#each Array(7) as _, i (i)}
+            <span></span>
+          {/each}
+        </div>
+      </div>
       <h1 class="wordmark">Nimbus</h1>
       <p class="version">Version {version}</p>
     </header>
@@ -1224,11 +1232,43 @@
     padding: 40px 0 24px;
   }
   .top > * { width: 100%; }
-  /* ---- hero: just the wordmark and version ---- */
+  /* ---- hero: compact cloud with a constant rain loop underneath ---- */
   .hero {
     display: flex; flex-direction: column; align-items: center;
     padding: 0 0 26px;
   }
+  .logo-stage { position: relative; width: 156px; height: 152px; display: grid; place-items: start center; }
+  .logo { width: 140px; height: 140px; object-fit: contain; }
+  /* Rain: seven drops falling on a loop clearly BELOW the cloud. The cloud art
+     has transparent padding, so its visible bottom sits ~106px down a 140px
+     box; the rain starts just under that so the drops don't sit over the cloud.
+     Each drop is staggered by its index so they don't fall in lockstep. */
+  .rain {
+    position: absolute; left: 50%; top: 108px; transform: translateX(-50%);
+    width: 80px; height: 40px; overflow: hidden; pointer-events: none;
+  }
+  .rain span {
+    position: absolute; top: -10px;
+    width: 2.5px; height: 12px; border-radius: 2px;
+    background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
+    opacity: 0;
+    animation: nimbus-rain 1.5s linear infinite;
+  }
+  /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
+     the drops don't march across in a diagonal wave - it reads as real rain. */
+  .rain span:nth-child(1) { left: 6px;  animation-delay: -0.15s; animation-duration: 1.5s; }
+  .rain span:nth-child(2) { left: 18px; animation-delay: -0.95s; animation-duration: 1.3s; }
+  .rain span:nth-child(3) { left: 30px; animation-delay: -0.45s; animation-duration: 1.7s; }
+  .rain span:nth-child(4) { left: 40px; animation-delay: -1.25s; animation-duration: 1.4s; }
+  .rain span:nth-child(5) { left: 51px; animation-delay: -0.65s; animation-duration: 1.6s; }
+  .rain span:nth-child(6) { left: 63px; animation-delay: -0.25s; animation-duration: 1.35s; }
+  .rain span:nth-child(7) { left: 73px; animation-delay: -1.05s; animation-duration: 1.55s; }
+  @keyframes nimbus-rain {
+    0%   { transform: translateY(-4px); opacity: 0; }
+    18%  { opacity: 1; }
+    100% { transform: translateY(40px); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .rain span { animation: none; opacity: 0; } }
   .wordmark {
     margin: 8px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
     color: var(--text); line-height: 1;

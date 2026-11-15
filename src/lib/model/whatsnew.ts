@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.0",
+    headline: "The cloud is back on the home screen.",
+    items: [
+      "**The cloud is back,** rain and all, above Nimbus on the home screen.",
+    ],
+  },
+  {
     version: "1.6.9",
     headline: "A cleaner home screen: one button to start, then pick solo or partner.",
     items: [
