@@ -22,7 +22,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Round, RoundMeta, Side, SpeechTemplate } from "../model/types";
-  import { splitForSide, splitTargetFor } from "../model/templates";
+  import { splitForSide } from "../model/templates";
   import { listRounds, loadRound, saveRound, deleteRound } from "../model/persist";
   import { openFromFile, convertFlowFile, openPath } from "../model/filedoc.svelte";
   import { tournaments, FLOWS_SUB, type Tournament, type FlowFile } from "../model/tournaments.svelte";
@@ -104,8 +104,6 @@
   let converting = $state(false);
   let status = $state("");
 
-  const LS_SIDE = "debate-flow:last-side";
-
   // Every format a new flow can start from - built-ins plus the user's own
   // custom templates - kept reactive so a template edited in Settings shows up
   // here without a reload.
@@ -116,25 +114,80 @@
     return settings.newFlowTemplate();
   }
 
-  // Which side you're flowing from, chosen HERE because it decides how many
+  // Which side you're flowing from is asked AFTER "Start flowing" (or a
+  // tournament's "+ New flow"), not picked up front: it decides how many
   // columns the round has - every sheet stores a start-column index, so the
-  // count can't change once sheets exist. "neutral" is solo flowing and is the
-  // default: picking a side is opting IN to partner lanes.
-  const savedSide = typeof localStorage !== "undefined" ? localStorage.getItem(LS_SIDE) : null;
-  let mySide = $state<Side>(
-    savedSide === "aff" || savedSide === "neg" ? savedSide : "neutral",
-  );
+  // count can't change once sheets exist. "neutral" is solo flowing; picking a
+  // side opts IN to partner lanes.
   /** The template as the round will actually be created - the chosen format's
-   *  speech renames applied by `defaultTpl()`, then lanes split in. Also tells
-   *  the UI whether this format HAS a splittable speech. */
-  const pickedTemplate = $derived.by(() => splitForSide(defaultTpl(), mySide));
-  const splitLabel = $derived.by(() => {
-    if (mySide === "neutral") return "";
-    const tpl = defaultTpl();
-    const at = splitTargetFor(tpl, mySide);
-    const sp = tpl.speeches[at];
-    return sp ? `${sp.abbr} splits into two columns - one for you, one for your partner` : "nothing to split in this format";
+   *  speech renames applied by `defaultTpl()`, then lanes split in. */
+  function templateFor(side: Side): SpeechTemplate {
+    return structuredClone(splitForSide(defaultTpl(), side)) as SpeechTemplate;
+  }
+
+  /**
+   * The "who's flowing?" step. `home` is the main Start flowing button, which
+   * swaps in place for the three choices; a tournament's "+ New flow" asks in a
+   * small dialog instead, since that button can be far down the list.
+   */
+  let choosing = $state<{ home: true } | { home: false; t: Tournament } | null>(null);
+  /** Second step of the question: Partner was picked, now Aff or Neg. */
+  let partnerStep = $state(false);
+  $effect(() => {
+    if (!choosing) partnerStep = false;
   });
+  function startFlowing() {
+    choosing = { home: true };
+  }
+  function pickSide(side: Side) {
+    const c = choosing;
+    choosing = null;
+    if (!c) return;
+    if (c.home) void createRound(side);
+    else void newFlowInTournament(c.t, side);
+  }
+
+  // ---- background contour lines -------------------------------------------
+  // Two clusters of topographic rings, drawn once. Each ring is a circle whose
+  // radius wobbles with a few low-frequency sines, and the phase drifts ring
+  // to ring so they read as terrain rather than scaled copies of one shape.
+  function contourPath(cx: number, cy: number, r: number, ph: number): string {
+    const n = 72;
+    const pts: [number, number][] = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const k =
+        1 +
+        0.11 * Math.sin(3 * a + ph) +
+        0.06 * Math.sin(5 * a + 1.7 * ph) +
+        0.035 * Math.sin(8 * a + 2.3 * ph);
+      pts.push([cx + Math.cos(a) * r * k * 1.25, cy + Math.sin(a) * r * k]);
+    }
+    // Closed Catmull-Rom spline through the points, as cubic Beziers.
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 0; i < n; i++) {
+      const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d + "Z";
+  }
+  // Each ring a slightly different blue: the accent at the centre of a
+  // cluster, drifting ring by ring toward sky blue (top-left) or indigo
+  // (bottom-right).
+  const contours = [
+    ...Array.from({ length: 11 }, (_, i) => ({
+      d: contourPath(170, 170, 34 + i * 30, 0.6 + i * 0.22),
+      mix: Math.round((i / 10) * 70),
+      toward: "#38bdf8",
+    })),
+    ...Array.from({ length: 13 }, (_, i) => ({
+      d: contourPath(1060, 690, 30 + i * 31, 2.1 + i * 0.18),
+      mix: Math.round((i / 12) * 70),
+      toward: "#6366f1",
+    })),
+  ];
 
   // New-tournament inline input
   let creatingTourney = $state(false);
@@ -336,7 +389,7 @@
       judges: "",
       affTeam: "",
       negTeam: "",
-      template: structuredClone(pickedTemplate) as SpeechTemplate,
+      template: templateFor("neutral"),
       sheets: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -519,21 +572,18 @@
     };
   }
 
-  async function createRound() {
+  async function createRound(mySide: Side) {
     // Goes straight into the default library folder so every flow is organized
     // on disk and auto-saved (no "Save As" step) - same path as "+ New flow" in
     // a tournament - once something is done in it. Falls back to an
     // app-data-only round if there's no library (e.g. the browser build).
     if (homeTourney && "__TAURI_INTERNALS__" in window) {
       const name = await tournaments.uniqueFlowName(homeTourney, "New Round");
-      store.newRound(
-        structuredClone(pickedTemplate) as SpeechTemplate,
-        name,
-        mySide,
-        saveOnFirstEdit(homeTourney),
-      );
+      store.newRound(templateFor(mySide), name, mySide, saveOnFirstEdit(homeTourney));
     } else {
-      store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, "New Round", mySide);
+      // No file to create, but still mark it brand-new: nothing is saved until
+      // the first edit, and a new partner flow opens on the partner panel.
+      store.newRound(templateFor(mySide), "New Round", mySide, () => {});
     }
     onopen();
   }
@@ -632,14 +682,14 @@
     if (t) await reloadFlows();
   }
 
-  async function newFlowInTournament(t: Tournament) {
+  async function newFlowInTournament(t: Tournament, mySide: Side) {
     // Resolve the title BEFORE the round exists. "New Flow" is a guaranteed
     // collision the second time round, and the title has to match the file it
     // gets written to - autosave renames the file to follow round.name, so a
     // round still called "New Flow" would rename itself back on top of the
     // first one's file.
     const name = await tournaments.uniqueFlowName(t, "New Flow");
-    store.newRound(structuredClone(pickedTemplate) as SpeechTemplate, name, mySide, saveOnFirstEdit(t));
+    store.newRound(templateFor(mySide), name, mySide, saveOnFirstEdit(t));
     onopen();
   }
 
@@ -727,8 +777,24 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const el = document.activeElement;
     if (el && (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable)) return;
+    // While "who's flowing?" is up: 1 / 2 pick, Escape steps back.
+    if (choosing) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (partnerStep) partnerStep = false;
+        else choosing = null;
+      } else if (e.key === "1") {
+        e.preventDefault();
+        pickSide(partnerStep ? "aff" : "neutral");
+      } else if (e.key === "2") {
+        e.preventDefault();
+        if (partnerStep) pickSide("neg");
+        else partnerStep = true;
+      }
+      return;
+    }
     switch (e.key.toLowerCase()) {
-      case "n": e.preventDefault(); createRound(); break;
+      case "n": e.preventDefault(); startFlowing(); break;
       case "o": e.preventDefault(); void openFlowFile(); break;
       case "c": if (!converting) { e.preventDefault(); void convert(); } break;
       case "s": e.preventDefault(); showSettings = true; break;
@@ -739,7 +805,41 @@
 
 <svelte:window onkeydown={onKey} />
 
+<!-- Who's flowing? Shared by Start flowing (in place) and a tournament's
+     "+ New flow" (in a small dialog). Two small steps: Solo or Partner, then
+     Aff or Neg. 1 / 2 pick at each step, Esc steps back. -->
+{#snippet sidePicker()}
+  <div class="side-pick">
+    {#if !partnerStep}
+      <div class="side-opts" role="group" aria-label="Who's flowing">
+        <!-- svelte-ignore a11y_autofocus -->
+        <button class="side-opt" autofocus onclick={() => pickSide("neutral")} title="Just you (1)">Solo</button>
+        <button class="side-opt" onclick={() => (partnerStep = true)} title="With a partner (2)">Partner</button>
+      </div>
+      <button class="side-cancel" onclick={() => (choosing = null)}>Cancel</button>
+    {:else}
+      <div class="side-opts" role="group" aria-label="Which side">
+        <!-- svelte-ignore a11y_autofocus -->
+        <button class="side-opt aff" autofocus onclick={() => pickSide("aff")} title="Aff (1)">Aff</button>
+        <button class="side-opt neg" onclick={() => pickSide("neg")} title="Neg (2)">Neg</button>
+      </div>
+      <button class="side-cancel" onclick={() => (partnerStep = false)}>Back</button>
+    {/if}
+  </div>
+{/snippet}
+
 <div class="dashboard">
+  <!-- Faint topographic contour lines behind everything. Decoration only. -->
+  <svg class="contours" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    {#each contours as c, i (i)}<path d={c.d} style="stroke: color-mix(in srgb, {c.toward} {c.mix}%, var(--accent))" />{/each}
+  </svg>
+  {#if choosing && !choosing.home}
+    <div class="pick-backdrop" role="presentation" onclick={() => (choosing = null)}></div>
+    <div class="pick-dialog" role="dialog" aria-label="New flow in {choosing.t.name}">
+      <div class="pick-where">New flow in <b>{choosing.t.name}</b></div>
+      {@render sidePicker()}
+    </div>
+  {/if}
   <!-- Settings + Manual, pinned top-right like the flow view's icon buttons. -->
   <div class="corner">
     <button class="icon-btn" onclick={() => (showJudges = true)} title="Judges - search every judge you've had and your notes on them"><Icon name="users" /><span class="btn-lbl">Judges</span></button>
@@ -748,28 +848,23 @@
   </div>
   <div class="content">
     <!-- hero -->
+    <!-- The name and the way in, centred in the window; tournaments and
+         recent flows sit below, past the hairline. -->
+    <div class="top">
     <header class="hero">
-      <div class="logo-stage">
-        <img class="logo" src="/logo.png" alt="Nimbus" />
-        <div class="rain" aria-hidden="true">
-          {#each Array(7) as _, i (i)}
-            <span></span>
-          {/each}
-        </div>
-      </div>
       <h1 class="wordmark">Nimbus</h1>
       <p class="version">Version {version}</p>
     </header>
-
-    <div class="panel">
-      <!-- New flow: the primary action, then quick secondary actions -->
-      <div class="newcard">
-        <div class="newcard-accent" aria-hidden="true"></div>
-        <div class="newcard-title">New flow</div>
-        <label class="frow">
-          <span class="frow-label">Format</span>
+      <!-- Start a flow: format, one big button, then who's flowing. No card -
+           the home screen's first action sits right on the page. -->
+      <section class="start-area" aria-label="Start a new flow">
+        <!-- The visible text is the format's name; the real <select> sits on top
+             of it, transparent, so it opens natively but sizes to the name. -->
+        <label class="format-line" title="Format for the new flow">
+          <span class="format-name">{templateChoices.find((c) => c.id === settings.selectedTemplateId)?.name ?? "Format"}</span>
+          <span class="format-chev" aria-hidden="true"><Icon name="chevron" size="14" /></span>
           <select
-            class="field"
+            class="format-select"
             value={settings.selectedTemplateId}
             aria-label="Format for the new flow"
             onchange={(e) => settings.selectTemplate(e.currentTarget.value)}
@@ -779,27 +874,23 @@
             {/each}
           </select>
         </label>
-        <label class="frow">
-          <span class="frow-label">Side</span>
-          <select
-            class="field"
-            bind:value={mySide}
-            aria-label="Which side you are flowing"
-            title={splitLabel || "Flow this round on your own"}
-            onchange={() => localStorage.setItem(LS_SIDE, mySide)}
-          >
-            <option value="neutral">Flowing solo</option>
-            <option value="aff">With a partner · Aff</option>
-            <option value="neg">With a partner · Neg</option>
-          </select>
-        </label>
-        <button class="start" onclick={createRound}>Start flowing</button>
-        <!-- Secondary ways in, under the primary action. -->
+
+        {#if choosing?.home}
+          {@render sidePicker()}
+        {:else}
+          <button class="start" onclick={startFlowing}>Start flowing</button>
+        {/if}
+
         <div class="quick">
-          <button class="quick-btn" onclick={openFlowFile} title="Open a .nimbus flow, or an Excel (.xlsx) flow - Verbatim's included">Open a flow</button>
-          <button class="quick-btn" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
+          <button class="quick-link" onclick={openFlowFile} title="Open a .nimbus flow, or an Excel (.xlsx) flow - Verbatim's included">Open a flow</button>
+          <span class="quick-dot" aria-hidden="true">·</span>
+          <button class="quick-link" onclick={convert} disabled={converting}>{converting ? "Converting…" : "Convert"}</button>
         </div>
-      </div>
+      </section>
+    </div>
+
+    <div class="panel">
+
 
     {#if status}<p class="status">{status}</p>{/if}
 
@@ -848,11 +939,11 @@
 
     <!-- tournaments = the folders inside Nimbus/tournaments, shown ABOVE the
          home "Recent flows" list. -->
-    <div class="tourney-head">
+    <div class="tourney-head centered">
       <h2 class="section">TOURNAMENTS</h2>
       {#if !creatingTourney}
-        <button class="mini-btn" title="Name a tournament, then pick the folder its flows go in" onclick={() => (creatingTourney = true)}>+ New tournament</button>
-        <button class="mini-btn" title="Use a folder you already have (in Dropbox, say) as a tournament. Nothing is moved or copied." onclick={linkFolder}>Link a folder…</button>
+        <button class="plain-plus" title="New tournament - name it, then pick the folder its flows go in" aria-label="New tournament" onclick={() => (creatingTourney = true)}><Icon name="plus" size="15" /></button>
+        <button class="plain-link" title="Use a folder you already have (in Dropbox, say) as a tournament. Nothing is moved or copied." onclick={linkFolder}>Link a folder…</button>
       {/if}
     </div>
     {#if creatingTourney}
@@ -967,7 +1058,7 @@
               <button class="act-btn" title="Show this tournament's folder in {fileApp}" onclick={() => revealTournament(t)}><Icon name="folder-open" size="13" /></button>
               <button class="act-btn" title="Hide this tournament from Nimbus. Nothing is deleted - the folder and its flows stay on your computer." onclick={() => tournaments.unlink(t.id)}>Unlink</button>
             </div>
-            <button class="folder-new" title="New flow in this tournament" onclick={() => newFlowInTournament(t)}><Icon name="plus" size="13" /> New flow</button>
+            <button class="folder-new" title="New flow in this tournament" onclick={() => (choosing = { home: false, t })}><Icon name="plus" size="13" /> New flow</button>
           </div>
         {/if}
         {#if tournaments.missing.includes(t.id)}
@@ -996,7 +1087,7 @@
       <div class="tourney-head">
         <h2 class="section">RECENT FLOWS</h2>
         <span class="t-sp"></span>
-        <button class="folder-new" title="New flow" onclick={() => newFlowInTournament(homeTourney!)}><Icon name="plus" size="13" /> New flow</button>
+        <button class="folder-new" title="New flow" onclick={() => (choosing = { home: false, t: homeTourney! })}><Icon name="plus" size="13" /> New flow</button>
       </div>
       <section
         class="folder home-folder open"
@@ -1081,7 +1172,16 @@
 {/if}
 
 <style>
-  .dashboard { height: 100vh; position: relative; overflow: hidden; background: var(--bg); }
+  /* A soft blue wash behind the contour lines: sky blue glowing in from the
+     top-left, indigo from the bottom-right, the plain background between. */
+  .dashboard {
+    height: 100vh; position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse 70% 60% at 8% 10%, color-mix(in srgb, #38bdf8 16%, transparent), transparent 70%),
+      radial-gradient(ellipse 70% 65% at 92% 92%, color-mix(in srgb, #6366f1 16%, transparent), transparent 70%),
+      linear-gradient(160deg, color-mix(in srgb, var(--accent) 5%, var(--bg)), var(--bg) 55%, color-mix(in srgb, #6366f1 6%, var(--bg)));
+    background-color: var(--bg);
+  }
 
   /* Top-right Settings / Manual. Same pill as the flow view's .icon-btn, and
      outside .content so it stays put while the list scrolls. */
@@ -1110,48 +1210,25 @@
        the top. Reported as "I can't scroll to the bottom of my flows".
        Measured: 674 -> 634 with this line, and 40px more scroll reachable. */
     box-sizing: border-box;
+    position: relative; z-index: 1;
     height: 100%; overflow-y: auto; padding: 0 24px 40px;
     display: flex; flex-direction: column; align-items: center;
   }
   .content > * { width: 100%; max-width: 600px; }
 
-  /* ---- hero: compact cloud with a constant rain loop underneath ---- */
+  /* The name + Start flowing block, centred in the window. Tournaments start
+     just below the fold line it leaves. */
+  .top {
+    min-height: 78vh; box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 40px 0 24px;
+  }
+  .top > * { width: 100%; }
+  /* ---- hero: just the wordmark and version ---- */
   .hero {
     display: flex; flex-direction: column; align-items: center;
-    padding: 34px 0 20px;
+    padding: 0 0 26px;
   }
-  .logo-stage { position: relative; width: 156px; height: 152px; display: grid; place-items: start center; }
-  .logo { width: 140px; height: 140px; object-fit: contain; }
-  /* Rain: seven drops falling on a loop clearly BELOW the cloud. The cloud art
-     has transparent padding, so its visible bottom sits ~106px down a 140px
-     box; the rain starts just under that so the drops don't sit over the cloud.
-     Each drop is staggered by its index so they don't fall in lockstep. */
-  .rain {
-    position: absolute; left: 50%; top: 108px; transform: translateX(-50%);
-    width: 80px; height: 40px; overflow: hidden; pointer-events: none;
-  }
-  .rain span {
-    position: absolute; top: -10px;
-    width: 2.5px; height: 12px; border-radius: 2px;
-    background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
-    opacity: 0;
-    animation: nimbus-rain 1.5s linear infinite;
-  }
-  /* Straight-down fall. Delays and durations are deliberately NON-monotonic so
-     the drops don't march across in a diagonal wave - it reads as real rain. */
-  .rain span:nth-child(1) { left: 6px;  animation-delay: -0.15s; animation-duration: 1.5s; }
-  .rain span:nth-child(2) { left: 18px; animation-delay: -0.95s; animation-duration: 1.3s; }
-  .rain span:nth-child(3) { left: 30px; animation-delay: -0.45s; animation-duration: 1.7s; }
-  .rain span:nth-child(4) { left: 40px; animation-delay: -1.25s; animation-duration: 1.4s; }
-  .rain span:nth-child(5) { left: 51px; animation-delay: -0.65s; animation-duration: 1.6s; }
-  .rain span:nth-child(6) { left: 63px; animation-delay: -0.25s; animation-duration: 1.35s; }
-  .rain span:nth-child(7) { left: 73px; animation-delay: -1.05s; animation-duration: 1.55s; }
-  @keyframes nimbus-rain {
-    0%   { transform: translateY(-4px); opacity: 0; }
-    18%  { opacity: 1; }
-    100% { transform: translateY(40px); opacity: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) { .rain span { animation: none; opacity: 0; } }
   .wordmark {
     margin: 8px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
     color: var(--text); line-height: 1;
@@ -1162,47 +1239,103 @@
      rhythm that makes the whole screen read as a single system. */
   .panel { border-top: 1px solid var(--border); padding-top: 26px; margin-top: 6px; }
 
-  /* ---- Unified surface language: every block (New flow card, quick pills,
-     flow lists) shares the same border, radius, and one restrained shadow, so
-     nothing floats above the rest. ---- */
-  .newcard {
-    position: relative; overflow: hidden;
-    display: flex; flex-direction: column; gap: 12px;
-    padding: 22px 22px 20px; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 14px;
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
+  /* ---- Start a flow: no card. A quiet format line, one big button, and two
+     text links, centred on the page. ---- */
+  .start-area {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 6px 0 4px;
   }
-  .newcard-accent {
-    position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: var(--accent);
+  .format-line { display: inline-flex; align-items: center; }
+  /* Just the format's name, clickable - no label, no field box. */
+  .format-line {
+    position: relative; cursor: pointer;
+    padding: 4px 8px 4px 10px; border-radius: 8px;
+    color: var(--text); font-size: 14px; font-weight: 650;
+    gap: 4px; transition: color 0.12s, background 0.12s;
   }
-  .newcard-title { font-size: 16px; font-weight: 700; color: var(--text); }
-  .frow { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .frow-label { font-size: 13px; color: var(--text-dim); font-weight: 500; display: inline-flex; align-items: baseline; gap: 8px; }
-  .field {
-    flex: 1; max-width: 260px;
-    background: var(--bg); border: 1px solid var(--border); color: var(--text);
-    border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: inherit; cursor: pointer;
-    transition: border-color 0.12s;
+  .format-chev { display: inline-flex; color: var(--text-dim); transform: rotate(90deg); transition: color 0.12s; }
+  .format-line:hover, .format-line:focus-within {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
-  .field:hover { border-color: var(--accent); }
+  .format-line:hover .format-chev, .format-line:focus-within .format-chev { color: var(--accent); }
+  .format-select {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; font-size: 14px; border: none;
+  }
   .start {
-    margin-top: 4px; width: 100%; padding: 11px; border: none; border-radius: 10px;
-    background: var(--accent); color: #fff; font-size: 14.5px; font-weight: 650;
-    font-family: inherit; cursor: pointer; transition: filter 0.12s;
+    width: 100%; max-width: 360px; padding: 13px; border: none; border-radius: 12px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 650;
+    font-family: inherit; cursor: pointer; transition: filter 0.12s, transform 0.12s;
+    box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent);
   }
-  .start:hover { filter: brightness(1.05); }
+  .start:hover { filter: brightness(1.06); }
+  .start:active { transform: translateY(1px); }
 
-  /* Secondary actions: quiet buttons under Start flowing, inside the card. */
-  .quick { display: flex; gap: 10px; }
-  .quick-btn {
-    flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text);
-    border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600;
-    font-family: inherit; cursor: pointer;
-    transition: border-color 0.12s, background 0.12s;
+  .quick { display: flex; align-items: center; gap: 10px; }
+  .quick-link {
+    background: none; border: none; padding: 2px 0; cursor: pointer;
+    color: var(--text-dim); font-size: 13px; font-weight: 600; font-family: inherit;
+    transition: color 0.12s;
   }
-  .quick-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
-  .quick-btn:disabled { opacity: 0.55; cursor: default; }
+  .quick-link:hover { color: var(--accent); }
+  .quick-link:disabled { opacity: 0.55; cursor: default; }
+  .quick-dot { color: var(--border); font-size: 14px; }
+
+  /* ---- Who's flowing? ---- */
+  .side-pick {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    animation: side-in 0.14s ease-out;
+  }
+  @keyframes side-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .side-pick { animation: none; } }
+  .side-opts { display: flex; gap: 8px; }
+  .side-opt {
+    --c: var(--accent);
+    min-width: 84px; padding: 6px 16px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 650; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border);
+    transition: border-color 0.12s, background 0.12s, color 0.12s;
+  }
+  .side-opt.aff { --c: var(--aff); color: var(--aff); }
+  .side-opt.neg { --c: var(--neg); color: var(--neg); }
+  .side-opt:hover, .side-opt:focus-visible {
+    outline: none; border-color: var(--c);
+    background: color-mix(in srgb, var(--c) 8%, var(--panel));
+  }
+  .side-cancel {
+    background: none; border: none; cursor: pointer; padding: 2px 6px;
+    color: var(--text-dim); font-size: 12px; font-family: inherit;
+  }
+  .side-cancel:hover { color: var(--text); }
+
+  /* A tournament's "+ New flow" asks the same question in a small dialog. */
+  .pick-backdrop {
+    position: absolute; inset: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    backdrop-filter: blur(2px);
+  }
+  .pick-dialog {
+    position: absolute; z-index: 21; left: 50%; top: 32%; transform: translate(-50%, -50%);
+    width: min(460px, calc(100% - 32px)); box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 20px 20px 14px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 18px 50px -20px color-mix(in srgb, var(--text) 45%, transparent);
+  }
+  .pick-where { font-size: 14px; color: var(--text-dim); }
+  .pick-where b { color: var(--text); }
+
+  /* ---- Background contour lines: terrain-map rings, barely there. Fixed to
+     the window, behind the scrolling content. ---- */
+  .contours {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+  .contours path {
+    fill: none; stroke-width: 1;
+    opacity: 0.24; vector-effect: non-scaling-stroke;
+  }
 
   .ext-badge {
     align-self: flex-start; font-size: 10px; font-weight: 600; border-radius: 4px;
@@ -1220,6 +1353,21 @@
      spacing on the row and zero the heading's margin inside it. */
   .tourney-head { display: flex; align-items: center; gap: 10px; margin: 36px 0 14px; }
   .tourney-head .section { margin: 0; }
+  .tourney-head.centered { justify-content: center; }
+  /* The TOURNAMENTS row's actions: a bare plus and a text link, no boxes. */
+  .plain-plus {
+    display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0;
+    background: none; border: none; border-radius: 50%; cursor: pointer;
+    color: var(--accent); transition: background 0.12s;
+  }
+  .plain-plus:hover, .plain-plus:focus-visible {
+    outline: none; background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .plain-link {
+    background: none; border: none; padding: 2px 0; cursor: pointer;
+    color: var(--accent); font-size: 12px; font-weight: 600; font-family: inherit;
+  }
+  .plain-link:hover, .plain-link:focus-visible { outline: none; text-decoration: underline; }
   .mini-btn {
     background: var(--panel); border: 1px solid var(--border); color: var(--accent);
     border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;

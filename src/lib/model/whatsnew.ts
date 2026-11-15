@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.6.9",
+    headline: "A cleaner home screen: one button to start, then pick solo or partner.",
+    items: [
+      "**Start flowing, then choose.** The home screen is just your format and a **Start flowing** button. Click it (or press **N**), pick **Solo** or **Partner**, and for Partner pick **Aff** or **Neg**. Press 1 or 2 to choose with the keyboard, Esc to step back.",
+      "**Click the format to change it.** The format's name (Policy, LD, PF...) sits above the button - click it to pick another.",
+      "**A fresh look.** No more box around starting a flow, the name and button sit in the middle of the window, and a soft blue background with contour lines sits behind everything.",
+      "**Tidier Tournaments.** The heading is centered, **+** makes a new tournament, and **Link a folder...** is a plain link. A tournament's **+ New flow** asks Solo or Partner the same way.",
+    ],
+  },
+  {
     version: "1.6.8",
     headline: "Look up any judge you've had, underline like Word, and a snappier home screen.",
     items: [
