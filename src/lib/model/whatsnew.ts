@@ -24,6 +24,15 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.2",
+    headline: "Anonymous usage stats, so we know what to build next.",
+    items: [
+      "**Nimbus now counts which features get used** - things like \"opened a flow\" or \"used Smart blocks\", and how many times a day. It's anonymous: a random ID for this install, never your name or account.",
+      "**We can never see your flows, cards, blocks, files, opponents or judges, or anything you type,** so there's nothing anyone could scout. Only fixed words from a short list are ever sent.",
+      "**See it or switch it off** in **Settings → Backup & privacy**. **See exactly what's sent** shows it word for word; turning it off also deletes anything not yet sent.",
+    ],
+  },
+  {
     version: "1.7.1",
     headline: "Take down the RFD beside the flow, and a cleaner round page.",
     items: [
