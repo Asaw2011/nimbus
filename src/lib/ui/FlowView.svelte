@@ -248,12 +248,16 @@
   }
 
   let showDocSearch = $state(false);
-  // ---- top bar fit: words → icons → second row, by measurement ----
+  // ---- top bar fit: words → tighter words → icons → second row, measured ----
+  // "tight" keeps every button's name but closes the gaps and drops the small
+  // "Send to" caption - on a ~1150px window that's what lets the names stay
+  // (Adam, 1.7.2: the names must show whenever they can).
   // Widths the bar NEEDED in each mode, remembered when it overflowed, so it
   // steps back up only once there's room again (no flip-flopping).
   let topbarEl = $state<HTMLDivElement | null>(null);
-  let topFit = $state<"full" | "icons" | "wrap">("full");
+  let topFit = $state<"full" | "tight" | "icons" | "wrap">("full");
   let needFull = 0;
+  let needTight = 0;
   let needIcons = 0;
   function fitTopbar() {
     const el = topbarEl;
@@ -261,12 +265,17 @@
     const room = el.clientWidth;
     const over = el.scrollWidth > room + 1;
     if (topFit === "full") {
-      if (over) { needFull = el.scrollWidth; topFit = "icons"; }
+      if (over) { needFull = el.scrollWidth; topFit = "tight"; }
+    } else if (topFit === "tight") {
+      if (over) { needTight = el.scrollWidth; topFit = "icons"; }
+      else if (room >= needFull) topFit = "full";
     } else if (topFit === "icons") {
       if (over) { needIcons = el.scrollWidth; topFit = "wrap"; }
       else if (room >= needFull) topFit = "full";
+      else if (room >= needTight) topFit = "tight";
     } else {
       if (room >= needFull) topFit = "full";
+      else if (room >= needTight) topFit = "tight";
       else if (room >= needIcons) topFit = "icons";
     }
   }
@@ -1641,7 +1650,7 @@
     ondragover={draggingTab ? trackDrag : undefined}
     ondrop={draggingTab ? dropTab : undefined}
   >
-    <div class="topbar" class:compact={settings.compactTopBar} class:icons={topFit !== "full"} class:wrap={topFit === "wrap"} bind:this={topbarEl}>
+    <div class="topbar" class:compact={settings.compactTopBar} class:tight={topFit === "tight"} class:icons={topFit === "icons" || topFit === "wrap"} class:wrap={topFit === "wrap"} bind:this={topbarEl}>
       <button class="back" onclick={onexit} title="Back to rounds">←</button>
       {#if !settings.compactTopBar}
         <span class="round-name">{round.name}</span>
@@ -2042,6 +2051,8 @@
      fit, drops to icons only when they don't, and wraps only if even the
      icons don't fit. Measured, not a fixed width - a fixed breakpoint hid the
      words on screens that had room for them. */
+  .topbar.tight { column-gap: 5px; }
+  .topbar.tight .send-to-label { display: none; }
   .topbar.icons .btn-lbl, .topbar.icons .send-to-label { display: none; }
   .topbar.wrap { flex-wrap: wrap; }
   /* Compact: no round-name/meta, tighter padding + smaller controls, so the
@@ -2621,25 +2632,14 @@
     font-weight: 600;
   }
 
-  /* ⚠ LAST IN THE FILE, deliberately. These re-state `.icon-btn` at the same
-     specificity as the base rule above, so source order is the only thing that
-     makes them win - move this block up and the labelled sizing takes over again
-     at every width. (Same trap the ribbon's size steps hit twice.)
-
-     A plain width query is correct HERE, unlike the ribbon: the top bar sits
-     above the panes and spans the whole window, so opening the speech doc does
-     not narrow it. Measured both ways - 1280px with the doc open and closed.
-
-     The breakpoint is measured, not guessed. Labelled, the bar needs ~1100px for
-     a short round name; at 1024 it overflowed by 49px and the last button sat
-     off the right edge where nothing could reach it. 1200px leaves headroom for
-     a long tournament name and the partner document switcher. */
-  @media (max-width: 1200px) {
-    .btn-lbl { display: none; }
-    .icon-btn {
-      width: 24px;
-      padding: 0;
-      border-radius: 50%;
-    }
+  /* Icons-only top bar: round 24px buttons. Decided by `topFit` (measured -
+     the words show whenever they fit), NOT a window width. A fixed
+     @media (max-width: 1200px) used to live here and hid the words on every
+     window under 1200px even with room to spare (Adam, 1.7.2). Do not bring a
+     width breakpoint back. */
+  .topbar.icons .icon-btn {
+    width: 24px;
+    padding: 0;
+    border-radius: 50%;
   }
 </style>
