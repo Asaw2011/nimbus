@@ -132,6 +132,9 @@ export interface Persisted {
   answerNumbers?: boolean;
   /** The one-time "how answer numbers work" tip has been dismissed. */
   answerNumbersTipSeen?: boolean;
+  /** Anonymous usage stats (src/lib/telemetry). On unless turned off. Only
+   *  fixed event names + counts are ever sent - never flow content. */
+  shareUsage?: boolean;
   /** Ribbon toolbar density: full labels, icons-only, or slim (labels kept but
    *  spread evenly at minimum height). */
   ribbonMode: RibbonMode;
@@ -410,6 +413,8 @@ class Settings {
   /** See Persisted.answerNumbers. Off by default. */
   answerNumbers = $state(false);
   answerNumbersTipSeen = $state(false);
+  /** See Persisted.shareUsage. On by default, with an off switch. */
+  shareUsage = $state(true);
   ribbonMode = $state<RibbonMode>("full");
   toolbarStyle = $state<ToolbarStyle>("simple");
   toolbarSimpleMoved = $state(true);
@@ -591,6 +596,7 @@ class Settings {
     if (p.smartStarters !== undefined) this.smartStarters = p.smartStarters;
     if (p.answerNumbers !== undefined) this.answerNumbers = p.answerNumbers;
     if (p.answerNumbersTipSeen !== undefined) this.answerNumbersTipSeen = p.answerNumbersTipSeen;
+    if (p.shareUsage !== undefined) this.shareUsage = p.shareUsage;
     // The ribbon used to have three densities (full / icons / slim) cycled with
     // one button. It is two now - full width, and a condensed half-width one for
     // splitscreen - so both retired names load as "compact" rather than falling
@@ -752,6 +758,7 @@ class Settings {
       smartStarters: this.smartStarters,
       answerNumbers: this.answerNumbers,
       answerNumbersTipSeen: this.answerNumbersTipSeen,
+      shareUsage: this.shareUsage,
       ribbonMode: this.ribbonMode,
       toolbarStyle: this.toolbarStyle,
       toolbarSimpleMoved: true,

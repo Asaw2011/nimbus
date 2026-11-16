@@ -13,6 +13,7 @@
   import { smartKit, ALL_SECTIONS, NO_SECTIONS, SECTION_SEP, type KitFile, type Starter, type StarterBlock, type Suggestion } from "./kit.svelte";
   import { cardsUnder } from "./match";
   import { fileIndex } from "$lib/search/file-index.svelte";
+  import { feature } from "$lib/telemetry/telemetry";
 
   let {
     onjump,
@@ -24,6 +25,10 @@
   } = $props();
 
   let open = $state(false);
+  // usage count: the tray was opened (nothing about what's in it)
+  $effect(() => {
+    if (open) feature("smart_blocks");
+  });
   /** Most suggestions rendered at once. */
   const SHOWN = 40;
   let tab = $state<"suggest" | "overviews" | "file" | "kit">("suggest");

@@ -3,6 +3,10 @@
   // their ballots. Read-only - opening a round goes through the normal path.
   import { onMount } from "svelte";
   import { collectJudges, judgeKey, type JudgeEntry, type JudgeRound } from "../model/judges";
+  import { feature } from "../telemetry/telemetry";
+
+  // usage count: the panel was opened (never a judge's name or a search)
+  feature("judges");
 
   let { onclose, onopenround }: {
     onclose: () => void;

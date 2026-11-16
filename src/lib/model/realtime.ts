@@ -862,6 +862,16 @@ try {
 } catch {
   // Diagnostics only.
 }
+/** Anonymous usage counts (src/lib/telemetry listens): one fixed word per
+ *  transport event, nothing else. An event, not an import, so this module stays
+ *  dependency-free and a stats problem can never reach the sync path. */
+function count(what: "relay" | "supabase" | "moved_to_supabase" | "relay_drop" | "refused"): void {
+  try {
+    globalThis.dispatchEvent?.(new CustomEvent("nimbus:sync", { detail: what }));
+  } catch {
+    // Counts only.
+  }
+}
 
 /**
  * Runs a session on the Cloudflare relay when both partners can reach it, and
@@ -1037,6 +1047,7 @@ class DualChannel implements Channel {
 
   private settleOnRelay(): void {
     note("settled on the relay");
+    count("relay");
     this.active = "relay";
     this.relayAbsentSince = 0;
     // The partner is on the relay; Supabase is no longer needed.
@@ -1053,6 +1064,7 @@ class DualChannel implements Channel {
   private switchToSupa(): void {
     const wasLive = this.active === "relay";
     note(wasLive ? "moved from the relay to Supabase mid-session" : "settled on Supabase");
+    count(wasLive ? "moved_to_supabase" : "supabase");
     this.active = "supabase";
     this.clearFailover();
     // Presented to the sync layer as a reconnect (see the class comment). Set
@@ -1262,6 +1274,7 @@ class DualChannel implements Channel {
   private giveUp(response: unknown): void {
     if (this.closed) return;
     this.closed = true;
+    count("refused");
     this.clearGrace();
     this.clearLurk();
     this.clearFailover();
@@ -1280,6 +1293,7 @@ class DualChannel implements Channel {
       if (this.active === "relay") {
         if (s === "joined") this.clearFailover();
         else if (!this.relayDownSince) {
+          count("relay_drop");
           this.relayDownSince = Date.now();
           this.checkFailover();
         }

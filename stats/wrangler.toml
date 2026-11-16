@@ -1,0 +1,43 @@
+# Nimbus anonymous usage stats.
+#
+# A SEPARATE Worker from the relay on purpose (like nimbus-ask): deploying it
+# never touches the relay, so it can't drop anyone's partner session.
+#
+# ⛔ Stores only the fixed event words in ../src/lib/telemetry/events.ts, as
+# daily counts per random install ID. Never flow content - see that file.
+#
+# ACCOUNT: the friend's Cloudflare account (where nimbus-relay / nimbus-ask
+# live), NOT Adam's own. Adam is a member; `wrangler login` must be granted all
+# accounts, and every command run with $env:CLOUDFLARE_ACCOUNT_ID set to that
+# account's id (see the session 17 handoff - deliberately not committed).
+#
+# First time:
+#   npx.cmd wrangler d1 create nimbus-stats      → paste the id below
+#   npx.cmd wrangler d1 execute nimbus-stats --remote --file schema.sql
+#   npx.cmd wrangler secret put DASH_KEY          → Adam types his own key
+#   npx.cmd wrangler deploy
+# Dashboard: https://stats.nimbusdebate.com/dash
+
+name = "nimbus-stats"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+routes = [{ pattern = "stats.nimbusdebate.com", custom_domain = true }]
+
+[vars]
+# THE SWITCH. Anything but "on" accepts nothing (the app keeps its counts and
+# retries later). Change it in the dashboard - no app update.
+STATS_MODE = "on"
+# Rows written per UTC day, all users together. D1 on Workers Paid includes
+# 50M row writes a month; this keeps stats far inside that, so they never add
+# to the bill. Past it, batches are refused for the rest of the day.
+DAILY_WRITE_CAP = "100000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nimbus-stats"
+database_id = "62920d7c-761a-4981-a693-55138ca0bbfc"
+
+# Daily: delete counts older than ~13 months.
+[triggers]
+crons = ["17 4 * * *"]

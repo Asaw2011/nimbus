@@ -35,6 +35,7 @@
   import { cardmirror, editorFor } from "$lib/doc/cardmirror.svelte";
   import { answerNumbers, cellFilled, parseNo, spanHeading, type Span } from "$lib/model/lineup.svelte";
   import { formatOf, pageNames } from "$lib/model/turns";
+  import { track, feature } from "$lib/telemetry/telemetry";
 
   let { onexit }: { onexit: () => void } = $props();
 
@@ -104,7 +105,10 @@
   async function popOutTimer(state: TimerState) {
     // The in-app timer only closes once the window really exists - if it
     // can't be made, the timer stays here and nothing is lost.
-    if (await timerPop.popOut(state)) showTimer = false;
+    if (await timerPop.popOut(state)) {
+      showTimer = false;
+      feature("popout_timer");
+    }
   }
 
   // The pop-out docked or closed: take the timer back.
@@ -131,6 +135,7 @@
    *  the flow is in view while the decision is typed. */
   function openRfd() {
     showRfd = true;
+    feature("rfd_panel");
     if (atHome && round?.sheets.length) openSheet(round.sheets[0].id);
   }
   let showPartner = $state(
@@ -198,6 +203,22 @@
     if (untrack(() => settings.timerFormat) === f) return;
     settings.timerFormat = f;
     settings.save();
+  });
+
+  // Anonymous usage counts: a flow was opened (format + solo/partner only) and,
+  // when it's left, roughly how long for. Nothing about the flow itself.
+  $effect(() => {
+    const id = store.round?.id;
+    if (!id) return;
+    const format = untrack(() => formatOf(store.round?.template));
+    const mode = untrack(() => (isPartnerFlow || session.active ? "partner" : "solo"));
+    const opened = Date.now();
+    track("flow_open", { format, mode });
+    return () => {
+      const m = (Date.now() - opened) / 60_000;
+      const length = m < 15 ? "<15m" : m < 45 ? "15-45m" : m < 90 ? "45-90m" : m < 180 ? "90-180m" : "180m+";
+      track("flow_close", { format, length });
+    };
   });
 
   /** Manual section to open at, when "How do I…?" sends you to it. */
@@ -647,6 +668,7 @@
       docKey++;
     }
     await docBridge.popOut(id, entry.name);
+    feature("popout_doc");
   }
   function popOutActiveDoc() {
     if (docsStore.activeId) void popOutDoc(docsStore.activeId);
@@ -1005,6 +1027,8 @@
     // Falcon serves the same bridge with the same answers, so it takes this
     // exact path; only the name in the messages and its consent step differ.
     const ed = editorFor(settings.docTarget);
+    // usage count: which editor only, never what was sent
+    if (ops.length) track("send", { to: !ed ? "builtin" : ed.id === "falcon" ? "falcon" : "cardmirror" });
     if (ed && ops.length) {
       // Ask the editor which doc is the speech doc RIGHT NOW rather than
       // trusting a cached answer - you re-designate it between speeches, and

@@ -2,6 +2,7 @@
   import { answerOf, isAnswered, isOtherLane, type Cell, type CellItem } from "../model/types";
   import { nodeAuthor, type DocNode } from "../docx/parse";
   import { store, type AnswerRef } from "../model/round.svelte";
+  import { feature } from "../telemetry/telemetry";
   import { expand, loadSnippets } from "../model/snippets";
   import { matches, matchesAny } from "../model/keymap";
   import { settings } from "../model/settings.svelte";
@@ -715,6 +716,7 @@
       // style otherwise); oninput reads the <u> runs back into cell.underlines.
       e.preventDefault();
       document.execCommand("underline");
+      feature("underline");
     } else if (matchesAny(e, km.markAnalytic)) {
       e.preventDefault();
       store.toggleEvidence(row, col, "analytic");

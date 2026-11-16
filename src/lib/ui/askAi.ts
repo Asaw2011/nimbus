@@ -10,6 +10,7 @@ import { auth } from "../model/auth.svelte";
 import { ACTION_LABELS, combosLabel, type Combo } from "../model/keymap";
 import type { ActionId } from "../model/keymap";
 import { HOWTOS } from "./howdoi";
+import { feature } from "../telemetry/telemetry";
 
 const ASK_URL = "https://ask.nimbusdebate.com";
 /** Tester override (localStorage), e.g. http://localhost:8788 for wrangler dev. */
@@ -67,7 +68,10 @@ export async function askAi(
   } catch {
     // fall through to the status checks
   }
-  if (r.ok && body.answer) return { ok: true, answer: body.answer, ids: body.ids ?? [] };
+  if (r.ok && body.answer) {
+    feature("ask_ai"); // a count only - never the question
+    return { ok: true, answer: body.answer, ids: body.ids ?? [] };
+  }
   if (r.status === 401) return { ok: false, why: "signin" };
   if (body.fallback === "daily" || body.fallback === "user" || body.fallback === "off") {
     return { ok: false, why: body.fallback };

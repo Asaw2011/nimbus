@@ -10,6 +10,7 @@
   import { uid } from "../model/types";
   import { checkForUpdate, type UpdateInfo } from "../updater";
   import { auth } from "../model/auth.svelte";
+  import { forgetPending, statsPreview } from "../telemetry/telemetry";
   import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
   import LibraryMarks from "$lib/search/LibraryMarks.svelte";
@@ -122,7 +123,7 @@
     { id: "library", label: "Library" },
     { id: "help", label: "Help" },
     { id: "experimental", label: "Experimental" },
-    { id: "backup", label: "Backup" },
+    { id: "backup", label: "Backup & privacy" },
   ] as const;
 
   // Search across every tab. While there's a query we render all sections (see
@@ -212,6 +213,8 @@
   let editingMacroId = $state<string | null>(null);
   let updateStatus = $state("");
   let checkingUpdate = $state(false);
+  /** "See exactly what's sent" - the stats queue as JSON, or null when hidden. */
+  let statsShown = $state<string | null>(null);
   async function doCheckUpdate() {
     checkingUpdate = true;
     updateStatus = "Checking…";
@@ -1371,6 +1374,32 @@
         to sign back in.
       </p>
     </section>
+
+    <section>
+      <h3>Privacy</h3>
+      <label class="row">
+        <span>Share anonymous usage stats<br /><small class="sub">Helps us see which features get used so we know what to build next. It's anonymous: a random ID for this install, never your name or account. <b>We can never see your flows, cards, blocks, files, opponents or judges, or anything you type, so there's nothing anyone could scout.</b> Only counts like "opened a flow" or "used Smart blocks" are sent.</small></span>
+        <input
+          type="checkbox"
+          checked={settings.shareUsage}
+          onchange={(e) => {
+            settings.shareUsage = e.currentTarget.checked;
+            if (!settings.shareUsage) forgetPending();
+            settings.save();
+            statsShown = null;
+          }}
+        />
+      </label>
+      <div class="backup-row">
+        <button class="chip" onclick={() => (statsShown = statsShown ? null : JSON.stringify(statsPreview(), null, 2))}>
+          {statsShown ? "Hide" : "See exactly what's sent"}
+        </button>
+      </div>
+      {#if statsShown}
+        <p class="backup-status">Waiting to send ("pending") and the last batch that went ("last"), word for word:</p>
+        <pre class="stats-preview">{statsShown}</pre>
+      {/if}
+    </section>
     {/if}
       </div>
     </div>
@@ -1932,6 +1961,17 @@
     margin-top: 8px;
     font-size: 12px;
     color: var(--text-dim);
+    word-break: break-all;
+  }
+  .stats-preview {
+    max-height: 240px;
+    overflow: auto;
+    margin: 6px 0 0;
+    padding: 8px;
+    font-size: 11px;
+    border-radius: 6px;
+    background: var(--bg-elev, rgba(127, 127, 127, 0.1));
+    white-space: pre-wrap;
     word-break: break-all;
   }
   .lib-status {

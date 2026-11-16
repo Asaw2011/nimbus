@@ -7,6 +7,7 @@
 
   import { parseDocx, flowLines, flowRows, guessTargetSheet, positionSections, sectionTitles, cleanSectionTitle, collectArguments, type ParsedDoc, type DocNode } from "./parse";
   import { store } from "../model/round.svelte";
+  import { feature } from "../telemetry/telemetry";
   import { settings } from "../model/settings.svelte";
   import { INITIAL_ROWS, makeSheet, makeRow, type Cell } from "../model/types";
 
@@ -178,6 +179,7 @@
     status = "";
     try {
       const base = parseDocx(buf);
+      feature("docx_import"); // a count only - never the doc or its name
       rawNodes = base.nodes;
       splitLevel = "auto";
       parsed = base; // raw result only; the split lives in `sections`

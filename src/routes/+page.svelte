@@ -28,6 +28,7 @@
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Setup from "$lib/ui/Setup.svelte";
   import { APP_VERSION, checkMinimumVersion, type VersionBlock } from "$lib/model/minversion";
+  import { startTelemetry } from "$lib/telemetry/telemetry";
 
   // Pop-out window mode: render ONLY the speech-doc editor.
   const isDocWindow =
@@ -158,6 +159,9 @@
     setupCloseGuard();
     setupFileOpen();
     const teardownAutosave = setupAutosave();
+    // Anonymous usage counts (Settings → Privacy). Main window only; never
+    // flow content - see src/lib/telemetry/events.ts.
+    startTelemetry();
     // Check for updates in the background after a short delay so it
     // doesn't slow down the initial render.
     setTimeout(() => {
