@@ -645,13 +645,13 @@
             <li><b>Editing</b> - macros and abbreviations.</li>
             <li><b>Keyboard</b> - every rebindable shortcut, grouped.</li>
             <li><b>Library</b> - folders Doc Search indexes.</li>
-            <li><b>Backup</b> - export/import your setup, and check for updates.</li>
+            <li><b>Backup &amp; privacy</b> - export/import your setup, check for updates, and <b>Share anonymous usage stats</b>: counts like "opened a flow", never your flows, cards or anything you type. <b>See exactly what's sent</b> shows it word for word; switch it off any time.</li>
           </ul>
           <h3>Updating</h3>
           <p>
             From 1.2.1 onward Nimbus checks for a new version on its own shortly
             after it starts, and offers to install it. You can also check any time
-            from <b>Settings → Backup</b>. Updates are signed, so Nimbus will
+            from <b>Settings → Backup &amp; privacy</b>. Updates are signed, so Nimbus will
             refuse anything that didn't come from us.
           </p>
           <p class="foot">Reopen this manual anytime from the Manual button in the top bar.</p>

@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated October 2026*
+*Last updated November 2026*
 
 Nimbus Flow is a small, independent beta project. This page explains, in plain
 terms, what happens with your information. A matching version lives on the
@@ -12,6 +12,8 @@ website at [nimbusdebate.com/privacy.html](https://nimbusdebate.com/privacy.html
   authentication provider — we never see or store your password ourselves).
 - A simple log entry each time you download the app, so we can see rough usage
   counts (which app, and when — nothing else).
+- Anonymous usage counts from the app (from 1.7.2), described below. You can
+  switch them off.
 
 ## What we use it for
 
@@ -38,7 +40,8 @@ is no feature that uploads them, because the ability to do so was never built.
   no way to see them.
 - Your flows, argument bank, snippets, timers and settings are stored locally on
   your device too, the same way. Nimbus is built to work fully offline after a
-  single sign-in — there is no round of data phoning home in the background.
+  single sign-in. The only thing it sends in the background is the anonymous
+  usage counts below, which never contain any of this.
 - We cannot "steal" another team's files or prep, and neither can anyone using
   Nimbus. Opening a file in your own copy of the app does nothing but display it
   to you, on your computer.
@@ -52,7 +55,34 @@ the data through rather than storing it, and only your partner receives it, and
 (3) when you press **Ask AI** in *How do I…?*, the question you typed is sent,
 together with Nimbus's own built-in help text, to an AI model run by Cloudflare
 so it can answer. Nothing else goes with it — no flow, file or prep — and we
-don't store the questions. If you never press Ask AI, nothing is sent.
+don't store the questions. If you never press Ask AI, nothing is sent, and
+(4) anonymous usage counts, explained next.
+
+## Anonymous usage stats
+
+From 1.7.2, Nimbus counts how often its features get used, so we know what to
+fix and what to build next. It's anonymous: each install gets a random ID made
+on your computer, unrelated to your name, email or account.
+
+**We can never see your flows, cards, blocks, speech docs, RFDs, files,
+opponents, judges, or anything you type.** There is nothing in the stats anyone
+could scout. The app can only send fixed words from one short list
+([`src/lib/telemetry/events.ts`](src/lib/telemetry/events.ts)) and how many
+times each happened that day, e.g. "opened a policy flow", "used Smart blocks",
+"sent to CardMirror". Our server ([`stats/`](stats/)) re-checks every word
+against the same list and throws away anything else. It never stores your IP
+address. Counts are deleted after about 13 months.
+
+The full list: Nimbus opened (version, and Windows / Mac / Linux); a flow
+opened (Policy / LD / PF, solo or partner) and roughly how long it stayed open;
+features used (Smart blocks, RFD panel, Judges, Ask AI, pop-out timer, pop-out
+doc, Word import, Ctrl+U underline); where cards were sent (built-in doc,
+CardMirror or Falcon); partner-sync health (which connection was used, drops,
+refusals); toolbar style and whether answer numbers is on.
+
+See exactly what's sent, word for word, or switch it off in
+**Settings → Backup & privacy → Share anonymous usage stats**. Switching it off
+also deletes anything not yet sent.
 
 ## Open source — don't take our word for it
 

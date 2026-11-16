@@ -261,8 +261,10 @@ always there as a fallback.
 ## Privacy
 
 Your files and prep never leave your computer — Nimbus has no code that uploads
-them. See [PRIVACY.md](PRIVACY.md) for the full, plain-language explanation, and
-audit the repo yourself to confirm it.
+them. From 1.7.2 it sends anonymous usage counts (fixed words like "opened a
+flow", never content; switch off in Settings → Backup & privacy). See
+[PRIVACY.md](PRIVACY.md) for the full, plain-language explanation, and audit the
+repo yourself to confirm it.
 
 ## Credits & license
 
