@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.3",
+    headline: "Typing --- keeps it as ---.",
+    items: [
+      "**--- stays ---** in the flow and the speech doc. On a Mac, the system's \"smart dashes\" used to turn it into a long dash (—) as you typed, which broke tags like 1NC---K. Nimbus now switches that off for itself only; your Mac's setting for other apps is unchanged.",
+    ],
+  },
+  {
     version: "1.7.2",
     headline: "Anonymous usage stats, so we know what to build next.",
     items: [
