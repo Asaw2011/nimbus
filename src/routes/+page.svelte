@@ -37,6 +37,25 @@
   // skips, this skips too - above all the close guard, which would quit the
   // whole app the moment the timer window closed.
   const isSubWindow = isDocWindow || isTimerWindow;
+
+  // ⛔ "---" must stay "---" (the Verbatim separator: 1NC---K, Adv---Costs).
+  // macOS "smart dashes" rewrites it to an em/en dash INSIDE the webview. The
+  // real fix is native (lib.rs turns WebKit's dash substitution off for this
+  // app); this is the backstop for every editable in every window - flow
+  // cells, answer tiles, the doc. The OS delivers the swap as a cancelable
+  // insertReplacementText; a dash typed on purpose arrives as insertText and
+  // is untouched.
+  if (typeof window !== "undefined") {
+    window.addEventListener(
+      "beforeinput",
+      (e) => {
+        if (e.inputType === "insertReplacementText" && /[–—]/.test(e.data ?? e.dataTransfer?.getData("text/plain") ?? "")) {
+          e.preventDefault();
+        }
+      },
+      true,
+    );
+  }
   const timerStart = isTimerWindow ? initialTimerState() : null;
 
   let view: "dashboard" | "flow" = $state("dashboard");

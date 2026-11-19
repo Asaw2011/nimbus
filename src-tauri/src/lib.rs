@@ -501,7 +501,45 @@ fn disable_webview_zoom_control(win: &tauri::Webview) {
     });
 }
 
+/// ⛔ "---" must stay "---" (Verbatim separator: 1NC---K, Adv---Costs).
+/// macOS "smart dashes" makes WebKit rewrite "--"/"---" into an em/en dash
+/// inside our webview. WebKit's TextChecker asks the app's own preferences
+/// for `WebAutomaticDashSubstitutionEnabled` first (falling back to the
+/// system-wide NSSpellChecker setting only when it's absent), so writing
+/// false into Nimbus's OWN domain switches it off for Nimbus alone - the
+/// user's system setting and every other app are untouched. Must run before
+/// the webview is created. Plain CoreFoundation C calls: no new dependency.
+#[cfg(target_os = "macos")]
+fn disable_smart_dashes() {
+    use std::ffi::{c_char, c_void};
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        static kCFBooleanFalse: *const c_void;
+        static kCFPreferencesCurrentApplication: *const c_void;
+        fn CFStringCreateWithCString(alloc: *const c_void, s: *const c_char, enc: u32) -> *const c_void;
+        fn CFPreferencesSetAppValue(key: *const c_void, value: *const c_void, app: *const c_void);
+        fn CFPreferencesAppSynchronize(app: *const c_void) -> u8;
+        fn CFRelease(cf: *const c_void);
+    }
+    const UTF8: u32 = 0x0800_0100; // kCFStringEncodingUTF8
+    unsafe {
+        for key in [
+            c"WebAutomaticDashSubstitutionEnabled",
+            c"NSAutomaticDashSubstitutionEnabled",
+        ] {
+            let k = CFStringCreateWithCString(std::ptr::null(), key.as_ptr(), UTF8);
+            if !k.is_null() {
+                CFPreferencesSetAppValue(k, kCFBooleanFalse, kCFPreferencesCurrentApplication);
+                CFRelease(k);
+            }
+        }
+        CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
+    }
+}
+
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    disable_smart_dashes();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
