@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.4",
+    headline: "Manage a flow from a panel beside it, and rename it right in the top bar.",
+    items: [
+      "**☰ Manage instead of a Home tab.** The button at the start of the page tabs opens a panel on the left - pages, Save, + Add RFD, Import speech doc - while the page you're on stays in view. Close it with ✕, the button, or Ctrl/⌘+0. A new flow opens with it already open.",
+      "**Rename a flow in the top bar.** Click its name at the top left, type, and press Enter - the file is renamed to match.",
+    ],
+  },
+  {
     version: "1.7.3",
     headline: "Typing --- keeps it as ---.",
     items: [

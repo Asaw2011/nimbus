@@ -2,7 +2,7 @@
   import { store } from "../model/round.svelte";
   import { settings } from "../model/settings.svelte";
   import { sheetAccent } from "../model/types";
-  import { saveToFile, saveAs, renameFileToMatchTitle } from "../model/filedoc.svelte";
+  import { saveToFile, saveAs } from "../model/filedoc.svelte";
   // DOCX-IMPORT feature - to remove: delete this import + the marked section
   // below + the src/lib/docx folder, then `npm uninstall fflate`.
   import DocImport from "../docx/DocImport.svelte";
@@ -104,14 +104,6 @@
 
   let exportStatus = $state("");
 
-  function setField(
-    field: "name" | "tournament" | "opponent" | "judges" | "affTeam" | "negTeam",
-    value: string,
-  ) {
-    store.mutate((r) => {
-      r[field] = value;
-    }, { coalesceText: true });
-  }
 
   // "AFF (school) wins 2–1" style summary from the ballots that have a vote.
   // Undecided ballots are ignored, so a half-filled panel still reads sensibly.
@@ -139,18 +131,7 @@
   </button>
   <div class="home">
     <header class="home-head">
-      <!-- The title is the source of truth for what this flow is called, so on
-           commit the file on disk is renamed to match and the dashboard picks
-           the new name up. Done on blur/Enter, never per keystroke - renaming a
-           file once per character would be madness. -->
-      <input
-        class="round-name"
-        value={round.name}
-        oninput={(e) => setField("name", e.currentTarget.value)}
-        onblur={() => void renameFileToMatchTitle(store.round)}
-        onkeydown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        placeholder="Round name"
-      />
+      <!-- The flow's name is edited in the top bar (FlowView), on the left. -->
       <div class="head-actions">
         <button class="btn primary" onclick={async () => { if (round && await saveToFile(round)) exportStatus = "Saved ✓"; }}>Save</button>
         <button class="btn" onclick={async () => { if (round && await saveAs(round)) exportStatus = "Saved ✓"; }}>Save As…</button>
@@ -245,32 +226,20 @@
 {/if}
 
 <style>
+  /* Lives in FlowView's manage panel (a third of the flow), so it is laid out
+     for a narrow column. Top padding clears the panel's close button and RFD. */
   .home {
     flex: 1;
     overflow-y: auto;
-    padding: 32px clamp(24px, 8vw, 96px);
+    padding: 56px 20px 20px;
     display: flex;
     flex-direction: column;
-    gap: 40px;
-  }
-  .home {
-    max-width: 760px;
-    margin: 0 auto;
+    gap: 32px;
   }
   .home-head {
     display: flex;
     align-items: center;
     gap: 12px;
-  }
-  .round-name {
-    flex: 1;
-    font-size: 24px;
-    font-weight: 700;
-    background: none;
-    border: none;
-    color: var(--text);
-    outline: none;
-    padding: 0;
   }
   .head-actions {
     display: flex;
@@ -291,7 +260,7 @@
     display: flex; flex-direction: column;
   }
   .rfd-btn {
-    position: absolute; top: 14px; right: 18px; z-index: 2;
+    position: absolute; top: 10px; right: 12px; z-index: 2;
     padding: 5px 13px; font-size: 13px; font-weight: 600;
     color: var(--text);
   }

@@ -142,7 +142,7 @@
         <tr><td><kbd>{combosLabel(km.toggleDoc, mac)}</kbd></td><td>Speech doc</td></tr>
         <tr><td><kbd>{combosLabel(km.toggleSpread, mac)}</kbd></td><td>Spread view (tabs toggle sheets)</td></tr>
         <tr><td><kbd>{combosLabel(km.toggleTimer, mac)}</kbd></td><td>Timer (stopwatch + countdown)</td></tr>
-        <tr><td><kbd>{combosLabel(km.goHome, mac)}</kbd></td><td>Round home</td></tr>
+        <tr><td><kbd>{combosLabel(km.goHome, mac)}</kbd></td><td>Manage panel</td></tr>
         <tr><td><kbd>{combosLabel(km.newSheet, mac)}</kbd></td><td>New sheet</td></tr>
         <tr><td><kbd>{combosLabel(km.openSettings, mac)}</kbd></td><td>Settings</td></tr>
         <tr><td><kbd>{combosLabel(km.toggleHelp, mac)}</kbd></td><td>This panel</td></tr>

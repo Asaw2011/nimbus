@@ -199,11 +199,11 @@ export const HOWTOS: HowTo[] = [
   },
   {
     id: "home",
-    title: "Round details and judge feedback",
-    words: "home round details judge feedback rfd ballot decision teams opponent",
-    body: "The round's home page holds the teams, the judges, every ballot and your notes on the decision - plus importing speech docs and exporting the flow.",
+    title: "Manage the flow, and judge feedback",
+    words: "home manage round details judge feedback rfd ballot decision pages import",
+    body: "☰ Manage (left of the page tabs) opens a panel beside the flow with its pages, saving, importing speech docs and + Add RFD - which opens the RFD panel on the right for every ballot and your notes on the decision. Rename the flow in the top bar.",
     keys: ["goHome"],
-    run: "home", runLabel: "Go to round home",
+    run: "home", runLabel: "Open Manage",
   },
 
   // ---- docs ----------------------------------------------------------------
@@ -212,8 +212,8 @@ export const HOWTOS: HowTo[] = [
     title: "Import their 1NC (or any speech doc)",
     words: "import docx speech doc 1nc their doc word file load off case sheets",
     body: "Drop in their .docx and each position becomes its own page, with every card tag as a row in the right column. Answer docs (AT: …) fill in the pages you already have. Cards are also saved for argument lookup.",
-    steps: ["Go to the round's home page.", "Under Import speech doc, choose the file."],
-    run: "home", runLabel: "Go to round home",
+    steps: ["Open ☰ Manage (left of the page tabs).", "Click Import speech doc (.docx) and choose the file."],
+    run: "home", runLabel: "Open Manage",
     manual: "import",
   },
   {
@@ -374,9 +374,9 @@ export const HOWTOS: HowTo[] = [
     id: "save",
     title: "Save or export a flow",
     words: "save export excel xlsx nimbus file report html backup",
-    body: "Flows save automatically. Ctrl/⌘+S writes the flow to its file; the round's home page can export it to Excel (.xlsx), a .nimbus file, or an HTML report.",
+    body: "Flows save automatically. Ctrl/⌘+S writes the flow to its file. Save As… in ☰ Manage saves a copy as .nimbus or Excel (.xlsx), and Convert on the home screen turns a file into the other format.",
     fixedKey: "Ctrl/⌘ S",
-    run: "home", runLabel: "Go to round home",
+    run: "home", runLabel: "Open Manage",
     manual: "files",
   },
   {

@@ -96,7 +96,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   toggleSpread: "Spread view (multiple sheets at once)",
   toggleDoc: "Open / close the speech doc",
   toggleTimer: "Open / close the timer",
-  goHome: "Round home",
+  goHome: "Manage panel",
   toggleHelp: "Show keybinds",
   openSettings: "Open settings",
   openDocSearch: "Doc Search (search prep files)",

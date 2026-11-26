@@ -36,11 +36,17 @@
   import { answerNumbers, cellFilled, parseNo, spanHeading, type Span } from "$lib/model/lineup.svelte";
   import { formatOf, pageNames } from "$lib/model/turns";
   import { track, feature } from "$lib/telemetry/telemetry";
+  import { renameFileToMatchTitle } from "$lib/model/filedoc.svelte";
 
   let { onexit }: { onexit: () => void } = $props();
 
-  // the tour's practice round skips the round home and opens on its page
-  let atHome = $state(!(store.scratchId && store.scratchId === store.round?.id && store.activeSheetId));
+  /**
+   * The manage panel: what used to be the round's "Home" tab (pages, RFD,
+   * import, save) as a pane on the LEFT of the flow, a third of its width, so
+   * the page you're on stays in view. Opens by itself on a flow with no pages
+   * yet (the tour's practice round has its page, so it starts closed).
+   */
+  let manageOpen = $state(!(store.round?.sheets.length));
   let showHelp = $state(false);
   let showManual = $state(false);
   let showQuickCards = $state(false);
@@ -136,7 +142,7 @@
   function openRfd() {
     showRfd = true;
     feature("rfd_panel");
-    if (atHome && round?.sheets.length) openSheet(round.sheets[0].id);
+    if (!store.activeSheet && round?.sheets.length) openSheet(round.sheets[0].id);
   }
   let showPartner = $state(
     (store.round?.mySide === "aff" || store.round?.mySide === "neg") &&
@@ -236,7 +242,7 @@
       case "spread": if (spreadMode === "off") setSpread(lastSpread); break;
       case "timer": if (timerPop.open) void timerPop.focus(); else showTimer = true; break;
       case "search": showDocSearch = true; break;
-      case "home": atHome = true; break;
+      case "home": manageOpen = true; break;
       case "newSheet": openNewSheet(); break;
       case "settings": showSettings = true; break;
       case "partner": showPartner = true; break;
@@ -1335,9 +1341,16 @@
   const sheet = $derived(store.activeSheet);
   const km = $derived(settings.keymap);
   const mac = settings.isMac;
+  // With the manage panel no longer a tab, the flow area always shows a page
+  // when one exists: the first page you add opens straight away, and deleting
+  // the open page moves to the first remaining one.
+  $effect(() => {
+    if (!spread && !store.activeSheet && round?.sheets.length) openSheet(round.sheets[0].id);
+  });
+
   function openSheet(sheetId: string) {
     // Save the current cursor row before leaving the active sheet.
-    if (store.activeSheetId && !atHome && store.cursor) {
+    if (store.activeSheetId && store.cursor) {
       sheetLastRow.set(store.activeSheetId, store.cursor.row);
     }
     store.activeSheetId = sheetId;
@@ -1351,7 +1364,6 @@
     const maxRow = Math.max(0, (target?.rows.length ?? 1) - 1);
     const row = Math.min(sheetLastRow.get(sheetId) ?? 1, maxRow);
     store.cursor = { row, col };
-    atHome = false;
     spreadMode = "off";
   }
 
@@ -1364,7 +1376,6 @@
     spreadMode = spreadMode === mode ? "off" : mode;
     if (spreadMode !== "off") {
       lastSpread = mode;
-      atHome = false;
     }
   }
 
@@ -1409,7 +1420,7 @@
     // Step through the TABS, so the CX group is one stop, not one per speech.
     const tabs = tabEntries.map((t) => t.s);
     let idx = tabs.findIndex((s) => s.id === store.activeSheetId);
-    if (atHome || idx < 0) idx = delta > 0 ? -1 : 0;
+    if (idx < 0) idx = delta > 0 ? -1 : 0;
     const n = tabs.length;
     openSheet(tabs[(((idx + delta) % n) + n) % n].id);
   }
@@ -1471,7 +1482,7 @@
     const inField =
       e.target instanceof HTMLElement &&
       (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
-    if (!atHome && !inField) {
+    if (store.activeSheet && !inField) {
       if (matchesAny(e, km.sendCellsToDoc)) {
         e.preventDefault();
         sendCellToDoc();
@@ -1527,7 +1538,7 @@
       if (store.activeSheetId && store.cursor) {
         sheetLastRow.set(store.activeSheetId, store.cursor.row);
       }
-      atHome = true;
+      manageOpen = !manageOpen;
     } else if (matchesAny(e, km.toggleHelp)) {
       e.preventDefault();
       showHelp = !showHelp;
@@ -1578,11 +1589,13 @@
 
 {#snippet tabs()}
   {#if settings.tabsPosition === "bottom"}
-    <StarredStrip hereId={atHome ? null : store.activeSheetId} bottom onjump={jumpToStar} />
+    <StarredStrip hereId={store.activeSheetId} bottom onjump={jumpToStar} />
   {/if}
   <div class="tabs" data-tour="tabs" class:bottom={settings.tabsPosition === "bottom"} role="tablist">
-    <button class="tab home-tab" class:active={atHome} onclick={() => (atHome = true)}>
-      ⌂ Home
+    <!-- Not a tab: toggles the manage panel on the left of the flow. -->
+    <button class="tab home-tab" class:active={manageOpen} onclick={() => (manageOpen = !manageOpen)}
+      title="Manage this flow - pages, RFD, import, save">
+      ☰ Manage
     </button>
     {#each tabEntries as { s, idx: i, group }, n (s.id)}
       <!-- div, not button: WebKit won't start HTML5 drags from buttons -->
@@ -1590,7 +1603,7 @@
         class="tab"
         class:active={spread
           ? !hiddenInSpread.includes(s.id)
-          : !atHome && s.id === store.activeSheetId}
+          : s.id === store.activeSheetId}
         class:spread-hidden={spread && hiddenInSpread.includes(s.id)}
         class:dragging={draggingTab === s.id}
         class:drag-before={dragOverIdx === i && dragBefore && draggingTab !== s.id}
@@ -1637,7 +1650,7 @@
     <button class="tab new" onclick={openNewSheet} title="New sheet ({combosLabel(km.newSheet, mac)})">+</button>
   </div>
   {#if settings.tabsPosition !== "bottom"}
-    <StarredStrip hereId={atHome ? null : store.activeSheetId} onjump={jumpToStar} />
+    <StarredStrip hereId={store.activeSheetId} onjump={jumpToStar} />
   {/if}
 {/snippet}
 
@@ -1653,7 +1666,24 @@
     <div class="topbar" class:compact={settings.compactTopBar} class:tight={topFit === "tight"} class:icons={topFit === "icons" || topFit === "wrap"} class:wrap={topFit === "wrap"} bind:this={topbarEl}>
       <button class="back" onclick={onexit} title="Back to rounds">←</button>
       {#if !settings.compactTopBar}
-        <span class="round-name">{round.name}</span>
+        <!-- The flow's name, edited right here. On commit (blur / Enter) the
+             file on disk is renamed to match - never per keystroke. -->
+        <!-- Sized to its text: a hidden copy of the name sets the width and the
+             input sits over it (WebKit has no field-sizing). -->
+        <span class="name-fit">
+        <span class="name-sizer" aria-hidden="true">{round.name || "Round name"}</span>
+        <input
+          class="round-name"
+          value={round.name}
+          size="1"
+          aria-label="Flow name"
+          title="Rename this flow"
+          placeholder="Round name"
+          oninput={(e) => { const v = e.currentTarget.value; store.mutate((r) => { r.name = v; }, { coalesceText: true }); }}
+          onblur={() => void renameFileToMatchTitle(store.round)}
+          onkeydown={(e) => { if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur(); }}
+        />
+        </span>
         <span class="meta">
           {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
         </span>
@@ -1788,6 +1818,13 @@
       onpointermove={onDocResizeMove}
       onpointerup={stopDocResize}
     >
+      {#if manageOpen && round}
+        <!-- The manage panel: a third of the flow, on the left. -->
+        <div class="manage-pane">
+          <button class="manage-x" onclick={() => (manageOpen = false)} title="Close" aria-label="Close manage panel">✕</button>
+          <RoundHome onopensheet={openSheet} onopenrfd={openRfd} />
+        </div>
+      {/if}
       {#if !(docExpanded && docOpen && !spread)}
         <div
           class="flow-pane"
@@ -1796,7 +1833,7 @@
           <!-- The formatting ribbon lives at the top of the FLOW column, not
                spanning the whole window - so with the doc open it locks over the
                flow only and the doc gets its own full-height column beside it. -->
-          {#if !atHome}
+          {#if sheet || spread}
             <!-- Settings → Appearance → Toolbar: Traditional / Retro (the icon
                  bar, retro is a skin on it) or Simple (word buttons). -->
             {@const Bar = settings.toolbarStyle === "simple" ? Ribbon : RibbonClassic}
@@ -1820,8 +1857,16 @@
               ontoggle={toggleSheetOnDesk}
               onset={(h) => (hiddenInSpread = h)}
             />
-          {:else if atHome || !sheet}
-            <RoundHome onopensheet={openSheet} onopenrfd={openRfd} />
+          {:else if !sheet}
+            <!-- No page yet: the manage panel (left) is where pages are made. -->
+            <div class="no-page">
+              <p>No pages yet.</p>
+              {#if !manageOpen}
+                <button class="no-page-btn" onclick={() => (manageOpen = true)}>☰ Manage this flow</button>
+              {:else}
+                <p class="no-page-hint">Add a page in the panel on the left, or import a speech doc.</p>
+              {/if}
+            </div>
           {:else}
             <!-- Zoom applies to the single main flow only (WebView2/Chromium
                  `zoom`); the spread view zooms its own panels independently. -->
@@ -2101,7 +2146,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-family: inherit;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 6px;
   }
+  .round-name:hover { border-color: var(--border); }
+  .name-fit { display: inline-grid; min-width: 0; max-width: 34ch; flex-shrink: 1; }
+  .name-fit > * { grid-area: 1 / 1; }
+  .name-sizer {
+    visibility: hidden; white-space: pre; overflow: hidden;
+    font-weight: 600; font-size: 14px; padding: 2px 7px; border: 1px solid transparent;
+  }
+  .name-fit .round-name { width: 100%; box-sizing: border-box; }
+  .round-name:focus { outline: none; border-color: var(--accent); background: var(--panel); }
   .meta {
     color: var(--text-dim);
     font-size: 12px;
@@ -2269,6 +2329,31 @@
     overflow: hidden;
     min-height: 0;
   }
+  /* The manage panel (pages, RFD, import, save): a third of the flow width. */
+  .manage-pane {
+    flex: 0 0 33.333%; min-width: 300px; max-width: 520px;
+    position: relative; display: flex; flex-direction: column; min-height: 0;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .manage-x {
+    position: absolute; top: 10px; left: 10px; z-index: 3;
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 14px; padding: 2px 6px; border-radius: 6px;
+  }
+  .manage-x:hover { color: var(--text); background: var(--panel); }
+  .no-page {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; color: var(--text-dim); font-size: 14px;
+  }
+  .no-page p { margin: 0; }
+  .no-page-hint { font-size: 13px; }
+  .no-page-btn {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+  }
+  .no-page-btn:hover { border-color: var(--accent); }
   .flow-pane {
     flex: 1;
     min-width: 0;
