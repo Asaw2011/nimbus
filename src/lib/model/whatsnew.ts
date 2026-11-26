@@ -24,6 +24,14 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.6",
+    headline: "Rename a flow from the top-left box, even with the compact top bar.",
+    items: [
+      "**Name your flow at the top left.** The ✎ box next to the back arrow is the flow's name - click it, type, and press Enter. It now shows in the compact top bar too.",
+      "**Update checks no longer fail while a new version is being built.** New versions only appear once they're completely ready.",
+    ],
+  },
+  {
     version: "1.7.5",
     headline: "A leaner icon toolbar with bigger buttons.",
     items: [

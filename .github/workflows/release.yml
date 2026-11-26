@@ -3,6 +3,15 @@ name: Release
 # Builds Nimbus for macOS (Apple Silicon + Intel), Windows, and Linux and
 # publishes the installers to a GitHub Release. Triggered by pushing a tag
 # like `v1.0.0`, or manually from the Actions tab.
+#
+# The release is built as a DRAFT and only published by the last job, once
+# every platform has uploaded. The app's updater reads
+# releases/latest/download/latest.json, and each platform job rewrites that
+# file as it finishes; publishing up front made "latest" a half-uploaded
+# release for the ~10 minutes of the build, so update checks in that window
+# failed (missing, partial or empty latest.json). A draft is invisible to
+# "latest", so users keep seeing the previous complete release until this one
+# is whole - and if any platform fails, nothing is published at all.
 on:
   push:
     tags:
@@ -73,7 +82,7 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: "Nimbus v__VERSION__"
           releaseBody: "Pick the one file for your system below. macOS: right-click the app and choose Open the first time. Windows: More info → Run anyway. See the release notes for details."
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           # tauri.updater.conf.json only sets bundle.createUpdaterArtifacts, and
           # it is applied HERE rather than in tauri.conf.json on purpose: Tauri
@@ -81,3 +90,22 @@ jobs:
           # which exists only as a repo secret. In the main config it would break
           # every local `npm run tauri build`.
           args: ${{ matrix.args }} --config src-tauri/tauri.updater.conf.json
+
+  # Publish the draft only after every platform job above succeeded.
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          tag="$TAG"
+          if [ -z "$tag" ]; then tag="v$(node -p "require('./src-tauri/tauri.conf.json').version")"; fi
+          echo "Publishing $tag"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest

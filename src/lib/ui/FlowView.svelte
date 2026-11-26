@@ -1665,11 +1665,13 @@
   >
     <div class="topbar" class:compact={settings.compactTopBar} class:tight={topFit === "tight"} class:icons={topFit === "icons" || topFit === "wrap"} class:wrap={topFit === "wrap"} bind:this={topbarEl}>
       <button class="back" onclick={onexit} title="Back to rounds">←</button>
-      {#if !settings.compactTopBar}
-        <!-- The flow's name, edited right here. On commit (blur / Enter) the
-             file on disk is renamed to match - never per keystroke. -->
-        <!-- Sized to its text: a hidden copy of the name sets the width and the
-             input sits over it (WebKit has no field-sizing). -->
+      <!-- The flow's name, edited right here - shown in the compact top bar too,
+           since this is the only place a flow is named. On commit (blur /
+           Enter) the file on disk is renamed to match - never per keystroke.
+           Sized to its text: a hidden copy of the name sets the width and the
+           input sits over it (WebKit has no field-sizing). -->
+      <label class="name-box" title="Rename this flow">
+        <Icon name="pencil" size="12" />
         <span class="name-fit">
         <span class="name-sizer" aria-hidden="true">{round.name || "Round name"}</span>
         <input
@@ -1684,6 +1686,8 @@
           onkeydown={(e) => { if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur(); }}
         />
         </span>
+      </label>
+      {#if !settings.compactTopBar}
         <span class="meta">
           {round.template.name}{round.tournament ? ` · ${round.tournament}` : ""}
         </span>
@@ -2149,19 +2153,29 @@
     font-family: inherit;
     color: var(--text);
     background: transparent;
-    border: 1px solid transparent;
+    border: none;
     border-radius: 6px;
-    padding: 2px 6px;
+    padding: 3px 4px;
   }
-  .round-name:hover { border-color: var(--border); }
+  /* Looks like a field so it reads as renamable: outline, pencil, and the
+     accent ring while editing. */
+  .name-box {
+    display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+    padding: 0 2px 0 7px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--panel); color: var(--text-dim); cursor: text;
+  }
+  .name-box:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  .name-box:focus-within { border-color: var(--accent); color: var(--accent); }
+  .topbar.compact .name-box { padding-left: 5px; }
+  .topbar.compact .round-name, .topbar.compact .name-sizer { font-size: 12px; padding-block: 0; }
   .name-fit { display: inline-grid; min-width: 0; max-width: 34ch; flex-shrink: 1; }
   .name-fit > * { grid-area: 1 / 1; }
   .name-sizer {
     visibility: hidden; white-space: pre; overflow: hidden;
-    font-weight: 600; font-size: 14px; padding: 2px 7px; border: 1px solid transparent;
+    font-weight: 600; font-size: 14px; padding: 3px 4px;
   }
   .name-fit .round-name { width: 100%; box-sizing: border-box; }
-  .round-name:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+  .round-name:focus { outline: none; }
   .meta {
     color: var(--text-dim);
     font-size: 12px;
