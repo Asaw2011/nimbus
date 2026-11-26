@@ -50,27 +50,6 @@
     settings.save();
   }
 
-  function toggle(mark: "bold" | "italic") {
-    if (onDoc) {
-      if (mark === "bold") ondocbold?.();
-      else ondocitalic?.();
-      return;
-    }
-    store.applyToTargets((c) => {
-      const m = (c.marks ??= {});
-      m[mark] = !m[mark];
-    });
-  }
-
-  function ink(color: string | null) {
-    if (onDoc) { ondoccolor?.(color); return; }
-    store.applyToTargets((c) => {
-      const m = (c.marks ??= {});
-      if (color) m.color = color;
-      else delete m.color;
-    });
-  }
-
   function mark(kind: "dropped" | "starred") {
     store.applyToTargets((c) => {
       const m = (c.marks ??= {});
@@ -147,27 +126,17 @@
      inside a splitscreened window. -->
 <div class="ribbon-wrap" data-tour="ribbon">
 <div class="ribbon" class:compact={settings.ribbonMode === "compact"} class:retro={settings.toolbarStyle === "retro"}>
-  <div class="group">
-    <div class="controls">
-      <button class="rb" title="Undo (⌘Z)" onclick={() => store.undo()}><span class="lbl">↶ Undo</span><span class="ico">↶</span></button>
-      <button class="rb" title="Redo (⌘⇧Z)" onclick={() => store.redo()}><span class="lbl">↷ Redo</span><span class="ico">↷</span></button>
-    </div>
-    <div class="caption">Edit</div>
-  </div>
-
-  <div class="group">
+  <!-- Undo/redo and bold/italic/text-color were removed from this bar (undo
+       and redo stay on ⌘Z / ⌘⇧Z; the Simple toolbar still has all five). The
+       text-size stepper is all that is left of the Text group, so the group
+       hides wherever the stepper does. -->
+  <div class="group text-group">
     <div class="controls">
       <span class="stepper" title={onDoc ? "Selected text size (speech doc)" : "Text size"}>
         <button class="rb slim" onclick={() => bumpFont(-1)}>−</button>
         <span class="font-size">{onDoc ? store.docSelSize : settings.fontSize}</span>
         <button class="rb slim" onclick={() => bumpFont(1)}>+</button>
       </span>
-      <button class="rb b" title="Bold (whole cell)" onclick={() => toggle("bold")}>B</button>
-      <button class="rb i" title="Italic (whole cell)" onclick={() => toggle("italic")}>I</button>
-      <label class="rb swatch" title="Custom text color - right-click clears it back to automatic ink" oncontextmenu={(e) => { e.preventDefault(); ink(null); }}>
-        <span class="ink-a">A</span>
-        <input type="color" oninput={(e) => ink(e.currentTarget.value)} />
-      </label>
     </div>
     <div class="caption">Text</div>
   </div>
@@ -301,8 +270,8 @@
     flex-shrink: 0;
   }
   .ribbon {
-    --rb-size: 32px;   /* icon button box - scaled down in compact */
-    --rb-font: 16px;
+    --rb-size: 36px;   /* icon button box - scaled down in compact */
+    --rb-font: 18px;
     --rb-gap: 3px;
     display: flex;
     flex-wrap: wrap;
@@ -321,8 +290,8 @@
   /* Compact is sized against a real target, not by eye: half of a 1366 laptop
      is 683px, and that is the splitscreen case this mode exists for. */
   .ribbon.compact {
-    --rb-size: 22px;
-    --rb-font: 12px;
+    --rb-size: 28px;
+    --rb-font: 15px;
     --rb-gap: 0px;
     padding: 0 4px;
     /* 4px above and below the icon box; tracks the size steps below. */
@@ -334,7 +303,8 @@
      half". Compact is the space-saving mode, so they go here too, not only at
      narrow widths. Zoom keeps its keybinds and pinch; text size is in Settings. */
   .ribbon.compact .zoom-ctl,
-  .ribbon.compact .stepper { display: none; }
+  .ribbon.compact .stepper,
+  .ribbon.compact .text-group { display: none; }
   /* Every labeled button carries a full-text .lbl and a single-glyph .ico.
      The bar is icon-only in both densities now, so .lbl is always hidden and
      .ico always shown - the wording survives in each button's `title`, which
@@ -501,15 +471,6 @@
     padding: 0 4px;
     font-size: 14px;
   }
-  .rb.b {
-    font-weight: 800;
-    min-width: 26px;
-  }
-  .rb.i {
-    font-style: italic;
-    font-family: Georgia, serif;
-    min-width: 26px;
-  }
   .rb.dropped {
     color: var(--mark-dropped);
   }
@@ -551,22 +512,6 @@
     min-width: 18px;
     text-align: center;
   }
-  .swatch {
-    position: relative;
-    overflow: hidden;
-    min-width: 26px;
-  }
-  .ink-a {
-    font-weight: 700;
-    border-bottom: 3px solid var(--accent);
-    line-height: 1.1;
-  }
-  .swatch input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
 
   /* ──────────────────────────────────────────────────────────────────────────
      SIZE STEPS - deliberately LAST in this file.
@@ -599,21 +544,21 @@
      bar to a 980px column while it is still drawing 32px icons, and it clips.
      That was the reported bug. Each step is measured, not guessed. */
   @container ribbon (max-width: 1160px) {
-    .ribbon, .ribbon.compact { --rb-size: 27px; --rb-font: 14px; }
+    .ribbon, .ribbon.compact { --rb-size: 31px; --rb-font: 16px; }
   }
   @container ribbon (max-width: 1020px) {
-    .ribbon, .ribbon.compact { --rb-size: 23px; --rb-font: 12.5px; }
+    .ribbon, .ribbon.compact { --rb-size: 27px; --rb-font: 14px; }
     .ribbon .group, .ribbon.compact .group { padding: 0 2px; }
   }
   /* The two multi-part readouts go here rather than later: together they are
      ~150px, which buys several steps' worth of room in one move, and both have
      another way in (zoom keybinds and pinch; text size in Settings). */
   @container ribbon (max-width: 900px) {
-    .ribbon, .ribbon.compact { --rb-size: 22px; --rb-font: 12px; }
-    .ribbon .zoom-ctl, .ribbon .stepper { display: none; }
+    .ribbon, .ribbon.compact { --rb-size: 25px; --rb-font: 13px; }
+    .ribbon .zoom-ctl, .ribbon .stepper, .ribbon .text-group { display: none; }
   }
   @container ribbon (max-width: 720px) {
-    .ribbon, .ribbon.compact { --rb-size: 20px; --rb-font: 11px; padding: 0 2px; }
+    .ribbon, .ribbon.compact { --rb-size: 22px; --rb-font: 12px; padding: 0 2px; }
     .ribbon .group, .ribbon.compact .group { padding: 0 1px; }
     .ribbon .prep-tag { display: none; }
     .ribbon .prep-time, .ribbon.compact .prep-time { min-width: 26px; }
@@ -689,5 +634,4 @@
     border-radius: 0;
     font-family: "Courier New", monospace;
   }
-  .ribbon.retro .ink-a { border-bottom-color: #000080; }
 </style>

@@ -24,6 +24,13 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.5",
+    headline: "A leaner icon toolbar with bigger buttons.",
+    items: [
+      "**Bigger toolbar buttons.** The icon toolbar above the flow drops undo, redo, bold, italic and text color, and the buttons that are left are larger. Undo and redo are still Ctrl/⌘+Z and Ctrl/⌘+Shift+Z; the Simple toolbar (Settings -> Appearance -> Toolbar) still has all five.",
+    ],
+  },
+  {
     version: "1.7.4",
     headline: "Manage a flow from a panel beside it, and rename it right in the top bar.",
     items: [
