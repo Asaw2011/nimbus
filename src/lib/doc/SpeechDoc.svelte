@@ -1584,7 +1584,7 @@
           filters: [{ name: "Word Document", extensions: ["docx"] }],
         });
         if (!path) return;
-        const { invoke } = await import("@tauri-apps/api/core");
+        const { invoke } = await import("$lib/model/ipc");
         await invoke("write_binary_file", { path, bytes: Array.from(bytes) });
       } else {
         const blob = new Blob([bytes as BlobPart], {

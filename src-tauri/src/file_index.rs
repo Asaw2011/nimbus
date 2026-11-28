@@ -65,7 +65,7 @@ fn is_offline(_meta: &std::fs::Metadata) -> bool {
 ///   - Hidden directories (name starts with '.') are skipped
 ///   - Word lock files (~$*.docx) are skipped
 ///   - Permission errors per entry are silently skipped
-#[tauri::command]
+#[tauri::command(async)]
 pub fn scan_library_roots(roots: Vec<String>) -> Vec<LibFile> {
     const MAX_DEPTH: usize = 10;
     const MAX_FILES: usize = 50_000;

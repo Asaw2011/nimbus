@@ -72,6 +72,13 @@
 
   async function dockBack() {
     flush();
+    // The doc's last save must leave before this window does (ipc.ts).
+    try {
+      const { ioIdle } = await import("$lib/model/ipc");
+      await ioIdle(3_000);
+    } catch {
+      /* closing anyway */
+    }
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().close();
   }

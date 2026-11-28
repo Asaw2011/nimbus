@@ -3,6 +3,8 @@
 // (app data dir, next to saved rounds) is the durable copy - customization
 // must survive webview storage wipes, app updates, and reinstalls.
 
+import { invoke as ipcInvoke } from "./ipc";
+
 const LS_PREFIX = "debate-flow:blob:";
 
 function inTauri(): boolean {
@@ -10,8 +12,8 @@ function inTauri(): boolean {
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  // Through ipc.ts: file commands run off the main thread, in call order.
+  return ipcInvoke<T>(cmd, args);
 }
 
 /**

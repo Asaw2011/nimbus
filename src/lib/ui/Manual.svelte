@@ -645,7 +645,7 @@
             <li><b>Editing</b> - macros and abbreviations.</li>
             <li><b>Keyboard</b> - every rebindable shortcut, grouped.</li>
             <li><b>Library</b> - folders Doc Search indexes.</li>
-            <li><b>Backup &amp; privacy</b> - export/import your setup, check for updates, and <b>Share anonymous usage stats</b>: counts like "opened a flow", never your flows, cards or anything you type. <b>See exactly what's sent</b> shows it word for word; switch it off any time.</li>
+            <li><b>Backup &amp; privacy</b> - export/import your setup, check for updates, and <b>Share anonymous usage stats</b>: counts like "opened a flow", never your flows, cards or anything you type. <b>See exactly what's sent</b> shows it word for word; switch it off any time. If Nimbus ever froze or crashed, <b>Copy diagnostics</b> copies its local crash &amp; freeze log for you to paste to us - it's never sent on its own.</li>
           </ul>
           <h3>Updating</h3>
           <p>

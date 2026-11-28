@@ -78,7 +78,19 @@ opened (Policy / LD / PF, solo or partner) and roughly how long it stayed open;
 features used (Smart blocks, RFD panel, Judges, Ask AI, pop-out timer, pop-out
 doc, Word import, Ctrl+U underline); where cards were sent (built-in doc,
 CardMirror or Falcon); partner-sync health (which connection was used, drops,
-refusals); toolbar style and whether answer numbers is on.
+refusals); app health (from 1.7.7: that the app froze for a few seconds, that a
+file save or open took 10+ seconds, or that an error was caught - the word
+only, never the error message or where it happened); toolbar style and
+whether answer numbers is on.
+
+## The crash & freeze log (stays on your computer)
+
+From 1.7.7, Nimbus keeps a small log of its own errors and freezes in its
+app-data folder (`config/crash-log.json`), so a problem can be diagnosed after
+you restart. It is **never sent anywhere**. If you want our help, Settings →
+Backup & privacy → **Copy diagnostics** copies it so you can paste it to us
+yourself. Error messages can contain bits of text, which is exactly why it is
+never sent automatically.
 
 See exactly what's sent, word for word, or switch it off in
 **Settings → Backup & privacy → Share anonymous usage stats**. Switching it off

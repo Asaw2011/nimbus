@@ -11,6 +11,7 @@
 import type { Round, Side } from "./types";
 import { ballotNotes } from "./types";
 import { tournaments, type FlowFile } from "./tournaments.svelte";
+import { invoke as ipcInvoke } from "./ipc";
 
 export interface JudgeRound {
   /** The judge's name as written on this round. */
@@ -39,8 +40,8 @@ function inTauri(): boolean {
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  // Through ipc.ts: file commands run off the main thread, in call order.
+  return ipcInvoke<T>(cmd, args);
 }
 
 /** One key per person: case, spacing and punctuation don't split a judge. */

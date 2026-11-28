@@ -172,11 +172,15 @@
    * that is not connected - no session yet, still waiting/joining, or the
    * partner is gone. Neutral only for a solo flow with no session.
    */
-  const partnerState = $derived<"ok" | "lag" | "away" | "down" | "none">(
+  // "asleep" (1.7.7): their Nimbus went into the background and dropped off.
+  // Grey like "away", but it never claims they're connected - see peerAsleep.
+  const partnerState = $derived<"ok" | "lag" | "away" | "asleep" | "down" | "none">(
     session.lagging
       ? "lag"
       : session.peerAway
         ? "away"
+        : session.peerAsleep
+          ? "asleep"
         : partnerOk
         ? "ok"
         : session.active || isPartnerFlow
@@ -490,7 +494,7 @@
   async function openDocxFromPath(path: string) {
     try {
       docStatus = "Opening…";
-      const { invoke } = await import("@tauri-apps/api/core");
+      const { invoke } = await import("$lib/model/ipc");
       const bytes = await invoke<number[]>("read_binary_file", { path });
       const { fromDocx } = await import("$lib/cardmirror");
       const doc = await fromDocx(new Uint8Array(bytes));
@@ -1773,7 +1777,7 @@
         class:active={showPartner}
         class:live={partnerState === "ok"}
         class:lagging={partnerState === "lag"}
-        class:away={partnerState === "away"}
+        class:away={partnerState === "away" || partnerState === "asleep"}
         class:trouble={partnerState === "down"}
         onclick={() => (showPartner = !showPartner)}
         title={session.active
@@ -1783,11 +1787,13 @@
               ? `Partner session ${session.code} - connected but lagging. Edits are getting through slowly; open this panel for detail.`
               : partnerState === "away"
                 ? `Partner session ${session.code} - your partner's Nimbus is ${session.peerHidden ? "minimized" : "quiet (it may be minimized)"}. You're still connected: everything you flow reaches them, and their edits arrive when they're back.`
+                : partnerState === "asleep"
+                  ? `Partner session ${session.code} - your partner's Nimbus is in the background and isn't connected right now. Nothing is lost: everything you flow reaches them the moment they open Nimbus again.`
                 : `Partner session ${session.code} - NOT connected right now. Anything you flow will be sent when the connection comes back; open this panel for detail.`
           : isPartnerFlow
             ? "Not connected to your partner - click to start or join a session"
             : "Flow with a partner - share this flow live"}
-      ><Icon name={partnerState === "ok" || partnerState === "away" ? "users" : partnerState === "lag" ? "alert" : "user"} /><span class="btn-lbl"
+      ><Icon name={partnerState === "ok" || partnerState === "away" || partnerState === "asleep" ? "users" : partnerState === "lag" ? "alert" : "user"} /><span class="btn-lbl"
         >{partnerState === "ok"
           ? "Partner · live"
           : partnerState === "lag"
@@ -1796,6 +1802,8 @@
               ? session.peerHidden
                 ? "Partner · minimized"
                 : "Partner · away"
+              : partnerState === "asleep"
+                ? "Partner · asleep"
               : !session.active
               ? isPartnerFlow
                 ? "Partner · not connected"

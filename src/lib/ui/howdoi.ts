@@ -336,8 +336,8 @@ export const HOWTOS: HowTo[] = [
   {
     id: "partnercolor",
     title: "What does the partner button's color mean?",
-    words: "partner button color green grey gray amber yellow red minimized away lagging offline disconnected",
-    body: "Green: connected, everything is reaching your partner. Grey (minimized / away): your partner's Nimbus is minimized or quiet - you're still connected and nothing is lost. Blinking amber: YOUR connection is struggling; keep flowing, it catches up. Red: not connected to your partner.",
+    words: "partner button color green grey gray amber yellow red minimized away asleep lagging offline disconnected",
+    body: "Green: connected - your partner's Nimbus is answering and everything is reaching them. Grey, Partner · minimized: their Nimbus is minimized but still connected. Grey, Partner · asleep: their Nimbus dropped off in the background and isn't connected right now - nothing is lost, everything you flow reaches them the moment they open it. Blinking amber: the connection is struggling or your partner went quiet; keep flowing, it catches up. Red: not connected to your partner.",
     run: "partner", runLabel: "Open Partner",
     manual: "partner",
   },

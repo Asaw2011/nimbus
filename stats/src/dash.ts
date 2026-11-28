@@ -69,7 +69,7 @@ function render(d){
   h+='<div class="two"><div class="card"><h2>Flows opened per day</h2>'+chart(days(d.daily,"flows"))+'</div>';
   h+='<div class="card"><h2>New installs per day</h2>'+chart(days(d.fresh,"installs"))+'</div></div>';
   h+='<div class="two"><div class="card"><h2>Versions, last 7 days</h2>'+bars(d.versions,"Version")+'</div><div class="card"><h2>OS, last 30 days</h2>'+bars(d.oses,"OS")+'</div></div>';
-  var names={flow_open:"Flows opened",flow_close:"Flow length",feature:"Features used",send:"Sent to doc",sync:"Partner sync",setup:"Setup at launch"};
+  var names={flow_open:"Flows opened",flow_close:"Flow length",feature:"Features used",send:"Sent to doc",sync:"Partner sync",health:"App health (freezes, slow disk, errors)",setup:"Setup at launch"};
   var groups={};(d.events||[]).forEach(function(e){(groups[e.ev]=groups[e.ev]||[]).push(e)});
   h+='<div class="two">';
   Object.keys(names).forEach(function(ev){var g=groups[ev];if(!g)return;

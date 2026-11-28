@@ -27,6 +27,9 @@ export const EVENTS = {
   send: { to: ["builtin", "cardmirror", "falcon"] },
   /** Partner-sync transport health (counts, to see how often the relay fails). */
   sync: { what: ["relay", "supabase", "moved_to_supabase", "relay_drop", "refused"] },
+  /** App health (1.7.7): the app was blocked for seconds, a file operation took
+   *  10s+, or an error was caught. The word only - never the message or where. */
+  health: { what: ["stall", "slow_disk", "error"] },
   /** Settings that shape the app, sampled once per launch. */
   setup: {
     toolbar: ["traditional", "simple", "retro", "other"],

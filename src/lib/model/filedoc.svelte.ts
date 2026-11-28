@@ -7,14 +7,15 @@ import { store } from "./round.svelte";
 import { loadRound, saveRound } from "./persist";
 import { settings } from "./settings.svelte";
 import { safeFileName } from "./tournaments.svelte";
+import { invoke as ipcInvoke } from "./ipc";
 
 function inTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  // Through ipc.ts: file commands run off the main thread, in call order.
+  return ipcInvoke<T>(cmd, args);
 }
 
 // Signature of the round as last written to its file; used for dirty checks.

@@ -415,7 +415,7 @@ class SmartKit {
         this.ingest(f.key, fromBase64(b64));
         return;
       }
-      const { invoke } = await import("@tauri-apps/api/core");
+      const { invoke } = await import("$lib/model/ipc");
       const at = Date.now();
       const bytes = await invoke<number[]>("read_binary_file", { path: f.key });
       this.ingest(f.key, new Uint8Array(bytes).buffer);
@@ -519,7 +519,7 @@ class SmartKit {
         if (!b64) return null;
         buf = fromBase64(b64);
       } else {
-        const { invoke } = await import("@tauri-apps/api/core");
+        const { invoke } = await import("$lib/model/ipc");
         buf = new Uint8Array(await invoke<number[]>("read_binary_file", { path: key })).buffer;
       }
       return await cmDocFromBytes(buf, /\.cmir$/i.test(f.name));
@@ -559,7 +559,7 @@ class SmartKit {
     if (!p) {
       p = (async () => {
         try {
-          const { invoke } = await import("@tauri-apps/api/core");
+          const { invoke } = await import("$lib/model/ipc");
           const buf = new Uint8Array(await invoke<number[]>("read_binary_file", { path })).buffer;
           return await cmDocFromBytes(buf, /\.cmir$/i.test(path));
         } catch {

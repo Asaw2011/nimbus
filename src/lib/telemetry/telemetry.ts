@@ -12,6 +12,7 @@
 
 import { settings } from "../model/settings.svelte";
 import { APP_VERSION } from "../model/minversion";
+import { onDiag } from "../model/diagnostics";
 import { cleanProps, propsKey, type Batch, type EventName, type EventProps, type Os, type Tally } from "./events";
 
 const STATS_URL = "https://stats.nimbusdebate.com";
@@ -161,6 +162,11 @@ export function startTelemetry(): void {
     setTimeout(() => void flush(), FIRST_FLUSH_MS);
     setInterval(() => void flush(), FLUSH_MS);
     globalThis.addEventListener?.("pagehide", () => void flush(true));
+    // Health counts: just the kind ("stall" / "slow_disk" / "error"), never the
+    // message - the local log keeps the detail and is never sent.
+    onDiag((kind) => {
+      if (kind === "stall" || kind === "slow_disk" || kind === "error") track("health", { what: kind });
+    });
     // Partner-sync transport counts (realtime.ts fires these; cleanProps drops
     // any word that isn't on the list).
     globalThis.addEventListener?.("nimbus:sync", (e) => {

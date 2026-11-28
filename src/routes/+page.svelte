@@ -29,6 +29,7 @@
   import Setup from "$lib/ui/Setup.svelte";
   import { APP_VERSION, checkMinimumVersion, type VersionBlock } from "$lib/model/minversion";
   import { startTelemetry } from "$lib/telemetry/telemetry";
+  import { startDiagnostics } from "$lib/model/diagnostics";
 
   // Pop-out window mode: render ONLY the speech-doc editor.
   const isDocWindow =
@@ -178,6 +179,9 @@
     setupCloseGuard();
     setupFileOpen();
     const teardownAutosave = setupAutosave();
+    // Local crash/freeze log, kept across launches (diagnostics.ts). Never sent;
+    // Settings → Backup & privacy → Copy diagnostics is the only way out.
+    startDiagnostics();
     // Anonymous usage counts (Settings → Privacy). Main window only; never
     // flow content - see src/lib/telemetry/events.ts.
     startTelemetry();
@@ -338,6 +342,14 @@
       await store.saveNow();
     } catch {
       /* app-data save failed; quitting anyway */
+    }
+    // Saves now run off the main thread (ipc.ts): let any still queued - a
+    // settings or doc write that nobody awaited - land before the process goes.
+    try {
+      const { ioIdle } = await import("$lib/model/ipc");
+      await ioIdle();
+    } catch {
+      /* quitting anyway */
     }
     // Try several ways to actually exit - whichever the platform honors.
     try {

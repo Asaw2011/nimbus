@@ -24,6 +24,16 @@ export interface ReleaseNote {
  */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.7.7",
+    headline: "No more freezes from a slow disk, and the partner light tells the truth.",
+    items: [
+      "**Nimbus no longer freezes while it saves or opens files.** Saving and opening used to hold up the whole window, so a Dropbox or iCloud file that was still downloading, or a file locked mid-sync, could make Nimbus stop responding. That work now happens in the background, still one save at a time and in order.",
+      "**Partner flow stops saying \"disconnected\" when you aren't.** With Nimbus behind CardMirror or Word, its connection used to drop and only come back when someone clicked into it. Nimbus now stays connected in the background, and it checks a quiet connection before giving up on it.",
+      "**The partner button is honest both ways.** Green only when your partner's Nimbus is actually answering. **Partner · asleep** (grey) means their Nimbus dropped off in the background - nothing is lost, it catches up the moment they open it. Red means they really are gone.",
+      "**If something does go wrong,** Settings → Backup & privacy → **Copy diagnostics** copies Nimbus's crash & freeze log so you can paste it to us. It never leaves your computer otherwise.",
+    ],
+  },
+  {
     version: "1.7.6",
     headline: "Rename a flow from the top-left box, even with the compact top bar.",
     items: [

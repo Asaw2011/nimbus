@@ -5,6 +5,7 @@
 import type { Round } from "./types";
 import { loadBlob, loadBlobCached, saveBlob } from "./blobs";
 import { settings } from "./settings.svelte";
+import { invoke as ipcInvoke } from "./ipc";
 
 export interface Tournament {
   id: string;
@@ -39,8 +40,8 @@ function inTauri(): boolean {
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  // Through ipc.ts: file commands run off the main thread, in call order.
+  return ipcInvoke<T>(cmd, args);
 }
 
 function uid(): string {

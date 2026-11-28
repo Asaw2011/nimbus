@@ -37,6 +37,21 @@ const BACKOFF_MS = [500, 1000, 2000, 4000, 8000];
  * tab, so anything past 45s of total silence is genuinely wrong.
  */
 const STALE_MS = 45_000;
+/**
+ * How long a "still there?" probe waits for an answer before the connection is
+ * written off.
+ *
+ * ⚠ 1.7.7: silence alone used to be the verdict - past STALE_MS the socket was
+ * torn down on the spot. But silence is also what a BACKGROUNDED window sees:
+ * its own heartbeat timer was asleep, so nothing was asked and nothing came
+ * back. That tore down healthy connections, flashed the partner "disconnected"
+ * on the other laptop, and the reconnect then waited on the same sleeping
+ * timer until someone clicked back into Nimbus. Now silence triggers a probe
+ * (the server answers it instantly), and only a probe that goes UNANSWERED ends
+ * the connection. A live socket answers in well under a second, even on bad
+ * tournament wifi; a dead one never does.
+ */
+const PROBE_MS = 4_000;
 
 export type RealtimeStatus =
   | "idle"
@@ -234,6 +249,7 @@ class SupabaseChannel implements Channel {
     ws.onclose = () => {
       this.joined = false;
       this.stopHeartbeat();
+      this.clearProbe();
       if (this.closed) {
         this.setStatus("closed");
         return;
@@ -462,11 +478,36 @@ class SupabaseChannel implements Channel {
   ensureFresh(): void {
     if (this.closed || !this.joined) return;
     if (Date.now() - this.lastFrameAt < STALE_MS) return;
-    this.forceReconnect();
+    this.probe();
+  }
+
+  /** Ask the server "still there?" and only reconnect if it doesn't answer.
+   *  See PROBE_MS. Phoenix answers a heartbeat with a phx_reply, and ANY frame
+   *  moves `lastFrameAt`. */
+  private probeTimer: ReturnType<typeof setTimeout> | null = null;
+  private probe(): void {
+    if (this.probeTimer) return; // one at a time
+    const askedAt = Date.now();
+    if (!this.send({ topic: "phoenix", event: "heartbeat", payload: {} })) {
+      this.forceReconnect(); // couldn't even send: the socket is gone
+      return;
+    }
+    this.probeTimer = setTimeout(() => {
+      this.probeTimer = null;
+      if (this.closed || !this.joined) return;
+      if (this.lastFrameAt >= askedAt) return; // answered - it was alive
+      this.forceReconnect();
+    }, PROBE_MS);
+  }
+
+  private clearProbe(): void {
+    if (this.probeTimer) clearTimeout(this.probeTimer);
+    this.probeTimer = null;
   }
 
   private forceReconnect(): void {
     if (this.closed) return;
+    this.clearProbe();
     this.joined = false;
     try {
       this.ws?.close();   // onclose schedules the retry
@@ -484,6 +525,7 @@ class SupabaseChannel implements Channel {
   close(): void {
     this.closed = true;
     this.stopHeartbeat();
+    this.clearProbe();
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.outbox = [];
@@ -661,6 +703,7 @@ class RelayChannel implements Channel {
       if (this.ws !== ws) return;
       this.joined = false;
       this.stopHeartbeat();
+      this.clearProbe();
       // We can no longer see who is in the room.
       this.handlers.onPresence?.([]);
       if (this.closed) {
@@ -739,6 +782,7 @@ class RelayChannel implements Channel {
   private die(why: RelayDeath): void {
     this.closed = true;
     this.stopHeartbeat();
+    this.clearProbe();
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.outbox = [];
@@ -784,7 +828,31 @@ class RelayChannel implements Channel {
       return;
     }
     if (Date.now() - this.lastFrameAt < STALE_MS) return;
-    this.forceReconnect();
+    this.probe();
+  }
+
+  /** Same as SupabaseChannel.probe: the relay answers a heartbeat at once
+   *  (without even waking the room), and ANY frame moves `lastFrameAt`. */
+  private probeTimer: ReturnType<typeof setTimeout> | null = null;
+  private probe(): void {
+    if (this.probeTimer) return;
+    const askedAt = Date.now();
+    if (!this.raw(RELAY_HB)) {
+      this.forceReconnect();
+      return;
+    }
+    this.probeTimer = setTimeout(() => {
+      this.probeTimer = null;
+      if (this.closed || !this.joined) return;
+      if (this.lastFrameAt >= askedAt) return;
+      note("relay: no answer to a probe - reconnecting");
+      this.forceReconnect();
+    }, PROBE_MS);
+  }
+
+  private clearProbe(): void {
+    if (this.probeTimer) clearTimeout(this.probeTimer);
+    this.probeTimer = null;
   }
 
   /**
@@ -797,6 +865,7 @@ class RelayChannel implements Channel {
    */
   private forceReconnect(): void {
     if (this.closed) return;
+    this.clearProbe();
     const ws = this.ws;
     this.ws = null;
     this.joined = false;
@@ -819,6 +888,7 @@ class RelayChannel implements Channel {
   close(): void {
     this.closed = true;
     this.stopHeartbeat();
+    this.clearProbe();
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.outbox = [];

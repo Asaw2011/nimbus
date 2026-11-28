@@ -148,15 +148,19 @@
 
     {:else}
       <div class="pp-live">
-        <span class="pp-dot" class:on={session.peerOnline}></span>
+        <span class="pp-dot" class:on={session.peerOnline && !session.peerAsleep}></span>
         <div>
-          <div><strong>{session.peerEmail}</strong> - {session.peerOnline
+          <div><strong>{session.peerEmail}</strong> - {session.peerAsleep
+              ? "not connected right now · their Nimbus is asleep in the background. Nothing is lost - it all reaches them when they open it."
+              : session.peerOnline
               ? session.peerAway
                 ? session.peerHidden
                   ? "connected · their Nimbus is minimized"
                   : "connected · quiet (may be minimized)"
                 : "connected"
-              : "reconnecting…"}</div>
+              : session.status === "connected"
+                ? "not connected right now"
+                : "reconnecting…"}</div>
           <div class="pp-sub">
             Room {session.code} · {session.mode === "separate" ? "a flow each" : "one shared flow"}
             {#if laneName}· your column is <strong>{laneName}</strong>{/if}

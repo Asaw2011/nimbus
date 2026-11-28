@@ -11,6 +11,7 @@
   import { checkForUpdate, type UpdateInfo } from "../updater";
   import { auth } from "../model/auth.svelte";
   import { forgetPending, statsPreview } from "../telemetry/telemetry";
+  import { diagnosticsText } from "../model/diagnostics";
   import { builtinTemplates } from "../model/templates";
   import { fileIndex } from "../search/file-index.svelte";
   import LibraryMarks from "$lib/search/LibraryMarks.svelte";
@@ -215,6 +216,16 @@
   let checkingUpdate = $state(false);
   /** "See exactly what's sent" - the stats queue as JSON, or null when hidden. */
   let statsShown = $state<string | null>(null);
+  /** Copy the local crash/freeze log (diagnostics.ts) for the user to send us. */
+  let diagStatus = $state("");
+  async function copyDiagnostics() {
+    try {
+      await navigator.clipboard.writeText(await diagnosticsText());
+      diagStatus = "Copied - paste it into a message to us.";
+    } catch {
+      diagStatus = "Couldn't copy. The log is in Nimbus's app-data folder: config/crash-log.json";
+    }
+  }
   async function doCheckUpdate() {
     checkingUpdate = true;
     updateStatus = "Checking…";
@@ -1399,6 +1410,18 @@
         <p class="backup-status">Waiting to send ("pending") and the last batch that went ("last"), word for word:</p>
         <pre class="stats-preview">{statsShown}</pre>
       {/if}
+    </section>
+
+    <section>
+      <h3>Something went wrong?</h3>
+      <p class="backup-status">
+        If Nimbus froze or crashed, this copies its local crash &amp; freeze log so
+        you can paste it to us. It's never sent on its own - only if you paste it.
+      </p>
+      <div class="backup-row">
+        <button class="chip" onclick={copyDiagnostics}>Copy diagnostics</button>
+        {#if diagStatus}<span class="backup-status">{diagStatus}</span>{/if}
+      </div>
     </section>
     {/if}
       </div>

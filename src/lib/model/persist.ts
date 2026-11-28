@@ -3,6 +3,7 @@
 
 import type { Round, RoundMeta } from "./types";
 import { migrateLegacyRound } from "./round.svelte";
+import { invoke as ipcInvoke } from "./ipc";
 
 const LS_PREFIX = "debate-flow:round:";
 
@@ -11,8 +12,8 @@ function inTauri(): boolean {
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  // Through ipc.ts: file commands run off the main thread, in call order.
+  return ipcInvoke<T>(cmd, args);
 }
 
 export async function saveRound(round: Round): Promise<void> {

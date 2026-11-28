@@ -2,7 +2,7 @@
 // The Rust scan_library_roots command does the actual filesystem walk;
 // this module owns the in-memory cache and the fuzzy scoring logic.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "$lib/model/ipc";
 import { loadBlob, loadBlobCached, saveBlob } from "$lib/model/blobs";
 import { settings } from "$lib/model/settings.svelte";
 import { applyMarks, type MarkedFile } from "./file-marks";

@@ -11,6 +11,20 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
+/// ⚠ 1.7.7: the file commands below are `#[tauri::command(async)]` - they run on
+/// a background thread, not the main one. On the main thread a slow disk (a
+/// cloud-only Dropbox/iCloud file, a file locked mid-sync) froze the whole window
+/// ("Not Responding"). The main thread did give one guarantee worth keeping:
+/// one file operation at a time. This lock keeps it - two writes of the same
+/// round can never collide on its `.tmp` file. ORDER is kept by the queue in
+/// src/lib/model/ipc.ts, which sends them here one at a time in call order.
+static IO_LOCK: Mutex<()> = Mutex::new(());
+
+fn io_lock() -> std::sync::MutexGuard<'static, ()> {
+    // A panic mid-write poisons the lock; the data it guards is `()`, so carry on.
+    IO_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Holds a `.nimbus` file the app was launched with (or asked to open) until
 /// the frontend is ready to load it.
 struct PendingFile(Mutex<Option<String>>);
@@ -95,8 +109,9 @@ fn round_path(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
     Ok(rounds_dir(app)?.join(format!("{id}.json")))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_round(app: tauri::AppHandle, id: String, json: String) -> Result<(), String> {
+    let _io = io_lock();
     let path = round_path(&app, &id)?;
 
     // Keep ONE previous generation alongside the round.
@@ -130,33 +145,38 @@ fn save_round(app: tauri::AppHandle, id: String, json: String) -> Result<(), Str
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn load_round(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    let _io = io_lock();
     let path = round_path(&app, &id)?;
     fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_round(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let _io = io_lock();
     let path = round_path(&app, &id)?;
     fs::remove_file(path).map_err(|e| e.to_string())
 }
 
 /// Write text to any path the user chose in a save dialog (save-to-location).
-#[tauri::command]
+#[tauri::command(async)]
 fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    let _io = io_lock();
     fs::write(path, contents).map_err(|e| e.to_string())
 }
 
 /// Read text from a user-chosen path (open a flow file).
-#[tauri::command]
+#[tauri::command(async)]
 fn read_text_file(path: String) -> Result<String, String> {
+    let _io = io_lock();
     fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
 /// Binary read/write for .xlsx flow files.
-#[tauri::command]
+#[tauri::command(async)]
 fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    let _io = io_lock();
     fs::write(path, bytes).map_err(|e| e.to_string())
 }
 
@@ -176,8 +196,9 @@ struct FlowFile {
     rel: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn create_dir(path: String) -> Result<(), String> {
+    let _io = io_lock();
     fs::create_dir_all(path).map_err(|e| e.to_string())
 }
 
@@ -191,7 +212,7 @@ fn documents_dir(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 /// List the .nimbus/.xlsx flows inside a folder (newest first).
-#[tauri::command]
+#[tauri::command(async)]
 fn list_flows(path: String) -> Result<Vec<FlowFile>, String> {
     let root = std::path::Path::new(&path).to_path_buf();
     let mut out = Vec::new();
@@ -280,7 +301,7 @@ struct SubDir {
 /// system folders. Used to discover tournament folders that live inside the
 /// home library's `tournaments/` folder — including empty ones, which a flow
 /// listing can't see. Returns an empty list if the folder doesn't exist yet.
-#[tauri::command]
+#[tauri::command(async)]
 fn list_subdirs(path: String) -> Result<Vec<SubDir>, String> {
     let root = Path::new(&path);
     let mut out = Vec::new();
@@ -307,18 +328,20 @@ fn list_subdirs(path: String) -> Result<Vec<SubDir>, String> {
 
 /// Move (or rename) a file or folder — used to move a flow between tournament
 /// folders, and to rename the home library folder in the one-time migration.
-#[tauri::command]
+#[tauri::command(async)]
 fn move_path(from: String, to: String) -> Result<(), String> {
+    let _io = io_lock();
     fs::rename(from, to).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_path(path: String) -> Result<(), String> {
+    let _io = io_lock();
     fs::remove_file(path).map_err(|e| e.to_string())
 }
 
 /// Whether a folder still exists (a linked tournament may have been deleted).
-#[tauri::command]
+#[tauri::command(async)]
 fn dir_exists(path: String) -> bool {
     Path::new(&path).is_dir()
 }
@@ -327,18 +350,19 @@ fn dir_exists(path: String) -> bool {
 /// silently writing over a DIFFERENT flow that happens to share the new name —
 /// both rename paths write-then-delete, so a collision destroyed the other file
 /// outright with no error.
-#[tauri::command]
+#[tauri::command(async)]
 fn file_exists(path: String) -> bool {
     Path::new(&path).is_file()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    let _io = io_lock();
     fs::read(path).map_err(|e| e.to_string())
 }
 
 /// Returns the raw JSON of every saved round; the frontend derives metadata.
-#[tauri::command]
+#[tauri::command(async)]
 fn list_rounds(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     let dir = rounds_dir(&app)?;
     let mut out = Vec::new();
@@ -362,7 +386,7 @@ fn list_rounds(app: tauri::AppHandle) -> Result<Vec<String>, String> {
 /// webview, on every trip to the home screen and after every delete - and it
 /// grew with every round flowed. This reads each file here, keeps the result
 /// per file until its modified time changes, and returns a few KB.
-#[tauri::command]
+#[tauri::command(async)]
 fn list_round_metas(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
     use serde_json::{json, Value};
     use std::collections::HashMap;
@@ -439,27 +463,30 @@ fn config_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
     Ok(dir.join(format!("{name}.json")))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_blob(app: tauri::AppHandle, name: String, json: String) -> Result<(), String> {
+    let _io = io_lock();
     let path = config_path(&app, &name)?;
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, json).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn load_blob(app: tauri::AppHandle, name: String) -> Result<String, String> {
+    let _io = io_lock();
     let path = config_path(&app, &name)?;
     fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
 /// Write an export bundle into the user's Downloads folder; returns the path.
-#[tauri::command]
+#[tauri::command(async)]
 fn export_to_downloads(
     app: tauri::AppHandle,
     filename: String,
     json: String,
 ) -> Result<String, String> {
+    let _io = io_lock();
     if !filename
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
@@ -537,9 +564,40 @@ fn disable_smart_dashes() {
     }
 }
 
+/// Keep Nimbus's webviews running at full speed in the background (Windows).
+///
+/// In a round Nimbus usually sits BEHIND CardMirror/Word. WebView2 then slows the
+/// page's timers - to about once a minute after a while - so partner pings stop,
+/// the connection's own "is it still alive?" check misfires, and a reconnect
+/// waits until someone clicks back into Nimbus. That was the "Partner ·
+/// disconnected" that wasn't (Adam, 1.7.7).
+///
+/// ⚠ Set through WebView2's own environment variable, NOT `additionalBrowserArgs`
+/// in tauri.conf: every webview in the process must be created with identical
+/// arguments, and the pop-out doc/timer windows are made from JS, which can't
+/// pass them - a mismatch makes the pop-out fail to open. The variable applies to
+/// every environment this process creates, so they always match. wry's own
+/// defaults (`--disable-features=msWebOOUI,…`) are repeated here so they hold
+/// whether WebView2 merges the variable with them or lets it take precedence.
+/// A user who has set the variable themselves is left alone.
+#[cfg(windows)]
+fn keep_webviews_awake() {
+    const KEY: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
+    if std::env::var_os(KEY).is_none() {
+        std::env::set_var(
+            KEY,
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,IntensiveWakeUpThrottling \
+             --disable-background-timer-throttling --disable-renderer-backgrounding",
+        );
+    }
+}
+
 pub fn run() {
     #[cfg(target_os = "macos")]
     disable_smart_dashes();
+    // Before the Builder: the variable must be set before any webview exists.
+    #[cfg(windows)]
+    keep_webviews_awake();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

@@ -91,6 +91,16 @@ const PEER_TIMEOUT_MS = 20_000;
  * Two missed pings plus slack: one late ping is normal jitter, two is not.
  */
 const LAG_MS = 11_000;
+/**
+ * "Minimized" (grey) promises the partner is still connected. It needs proof:
+ * a message from them within this long. Since 1.7.7 a backgrounded Nimbus keeps
+ * pinging every 5s, so this only matters for a partner whose computer still
+ * slows its timers (older macOS, older Nimbus): about one ping a minute, plus
+ * slack. Past it, we no longer claim they are connected - see `peerAsleep`.
+ * (It used to be up to 150s - the relay's ghost sweep - of "minimized" for a
+ * laptop that had already died.)
+ */
+const AWAY_PROOF_MS = 75_000;
 /** How often `lagging` is re-evaluated while live. */
 const HEALTH_MS = 1_000;
 const PING_MS = 5_000;
@@ -576,6 +586,17 @@ class SessionStore {
    * ⚠ Display only. Nothing that sends, applies or decides "delivered" reads it.
    */
   peerAway = $state(false);
+  /**
+   * The partner's Nimbus said it was going into the background and then dropped
+   * off (or went silent past AWAY_PROOF_MS). The honest reading is neither
+   * "connected" nor "lost": they are NOT connected right now, and everything
+   * flowed here reaches them the moment they open Nimbus again (the rejoin
+   * resends it). Before 1.7.7 this showed red "offline", which people read as
+   * their partner's work being gone.
+   *
+   * ⚠ Display only, like `peerAway`.
+   */
+  peerAsleep = $state(false);
 
   /** Presence has listed the partner at least once, so its absence means
    *  something. Supabase presence can be absent entirely; then it's ignored. */
@@ -865,6 +886,7 @@ class SessionStore {
     this.peerHidden = false;
     this.peerPresent = false;
     this.peerAway = false;
+    this.peerAsleep = false;
     this.presenceSeen = false;
     this.desynced = false;
     this.peerCursor = null;
@@ -1011,9 +1033,16 @@ class SessionStore {
     // stays open while their timers crawl. Without presence (it never listed
     // them) fall back to their own word that they are hidden.
     const there = this.presenceSeen ? this.peerPresent : this.peerHidden;
+    // Grey "minimized" = still connected, so it needs recent proof (1.7.7).
+    const heard = silent <= AWAY_PROOF_MS;
     this.peerAway =
-      connected && !ours && there && (this.peerHidden || silent > LAG_MS);
-    this.lagging = ours || (connected && this.peerOnline && silent > LAG_MS && !this.peerAway);
+      connected && !ours && there && heard && (this.peerHidden || silent > LAG_MS);
+    // Their last word was "going into the background", and now they're gone or
+    // unheard: asleep, not lost. A partner who was VISIBLE and vanished is not
+    // this - that stays amber, then red.
+    this.peerAsleep = connected && !ours && this.peerHidden && !this.peerAway;
+    this.lagging =
+      ours || (connected && this.peerOnline && silent > LAG_MS && !this.peerAway && !this.peerAsleep);
   }
 
   // ---- publishing ---------------------------------------------------------
@@ -1405,6 +1434,7 @@ class SessionStore {
         this.peerOnline = false;
         this.peerHidden = false;
         this.peerAway = false;
+        this.peerAsleep = false;
         this.peerCursor = null;
         return;
       case "ping":
